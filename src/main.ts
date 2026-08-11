@@ -52,6 +52,7 @@ class App {
   private readonly town: TownScreen;
   private readonly namingDialog: NamingDialog;
   private readonly canvas: HTMLCanvasElement;
+  private readonly uiRoot: HTMLElement;
 
   private game!: Game;
   private save: SaveData;
@@ -63,9 +64,12 @@ class App {
   /** 記録の間(plan/records-hall.md)。このダイブ中に倒した・捕まえた数 */
   private diveDefeats = 0;
   private diveCaptures = 0;
+  /** フォトモード(plan/gallery-mode.md)。HUDを隠し、移動・行動を止めて画角だけ動かせる */
+  private photoMode = false;
 
   constructor() {
     this.canvas = document.querySelector<HTMLCanvasElement>("#scene")!;
+    this.uiRoot = document.querySelector<HTMLElement>("#ui")!;
     this.renderer = new Renderer(this.canvas);
     this.stage = new Stage(this.renderer.scene, this.assets);
     this.hud = new Hud(document.querySelector<HTMLElement>("#ui")!);
@@ -245,6 +249,7 @@ class App {
         !this.stanceMenu.isOpen &&
         !this.artsMenu.isOpen &&
         !this.town.isOpen &&
+        !this.photoMode &&
         this.lock <= 0
       ) {
         this.handleAction(action);
@@ -258,6 +263,7 @@ class App {
       this.stanceMenu.isOpen ||
       this.artsMenu.isOpen ||
       this.town.isOpen ||
+      this.photoMode ||
       this.lock > 0
     ) {
       return;
@@ -287,6 +293,15 @@ class App {
       case "zoomOut":
         this.renderer.zoom(1.5);
         return true;
+      case "photoMode":
+        this.togglePhotoMode();
+        return true;
+      case "confirm":
+        if (this.photoMode) {
+          this.takePhoto();
+          return true;
+        }
+        return false;
       case "restart":
         if (this.ended) {
           this.showTown();
@@ -298,6 +313,7 @@ class App {
           !this.stanceMenu.isOpen &&
           !this.artsMenu.isOpen &&
           !this.town.isOpen &&
+          !this.photoMode &&
           eq(this.game.player.pos, this.game.floor.stairs)
         ) {
           this.submit({ type: "bank" });
@@ -307,6 +323,34 @@ class App {
       default:
         return false;
     }
+  }
+
+  /**
+   * フォトモード(plan/gallery-mode.md)の切り替え。HUDを隠し、既存の
+   * カメラ操作(回転・ズーム)だけで画角を調整できるようにする。
+   * ターン制なので、そもそも入力しない限り時間は進まない。
+   */
+  private togglePhotoMode(): void {
+    if (this.photoMode) {
+      this.photoMode = false;
+      this.uiRoot.style.display = "";
+      return;
+    }
+    if (this.menu.isOpen || this.stanceMenu.isOpen || this.artsMenu.isOpen || this.town.isOpen || this.ended) {
+      return;
+    }
+    this.photoMode = true;
+    this.uiRoot.style.display = "none";
+  }
+
+  /** 描画結果をそのまま画像として端末に保存する(セーブデータには含めない) */
+  private takePhoto(): void {
+    this.renderer.render();
+    const dataUrl = this.canvas.toDataURL("image/png");
+    const link = document.createElement("a");
+    link.href = dataUrl;
+    link.download = `garudo-dungeon-${Date.now()}.png`;
+    link.click();
   }
 
   private handleAction(action: string): void {
