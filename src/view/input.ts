@@ -10,8 +10,8 @@ export type ActionKey =
   | "rotateRight"
   | "zoomIn"
   | "zoomOut"
-  | "up"
-  | "down";
+  | "liftBarrel"
+  | "throwBarrel";
 
 /** テンキーはそのまま8方向に対応する。5は足踏み */
 const NUMPAD_DIRS: Record<string, Dir> = {
@@ -45,6 +45,8 @@ const ACTION_KEYS: Record<string, ActionKey> = {
   KeyE: "rotateRight",
   Equal: "zoomIn",
   Minus: "zoomOut",
+  KeyF: "liftBarrel",
+  KeyG: "throwBarrel",
 };
 
 /**

@@ -374,7 +374,7 @@ export class Game {
 
     switch (barrel.kind) {
       case "bomb":
-        this.explode(landing, events);
+        this.explode(landing, events, player.id);
         events.push({ type: "barrelBreak", barrelId: barrel.id, pos: landing });
         return true;
 
@@ -474,8 +474,14 @@ export class Game {
     events.push({ type: "message", text: `${ally.name}が仲間になった!` });
   }
 
-  /** 爆発。中心とその周囲にいるものをまとめて巻き込む */
-  private explode(center: Vec2, events: GameEvent[]): void {
+  /**
+   * 爆発。中心とその周囲にいるものをまとめて巻き込む。
+   *
+   * 投げた本人だけはダメージを半分にしている。飛距離は壁までなので、
+   * 狭い通路では真横に落ちることがあり、満タンから一撃で倒れてしまうと
+   * 理不尽に感じる。半分でも十分痛いので、危険であることは伝わる。
+   */
+  private explode(center: Vec2, events: GameEvent[], throwerId?: number): void {
     events.push({ type: "explosion", pos: center, radius: BOMB_RADIUS });
     events.push({ type: "message", text: "タルが爆発した!" });
 
@@ -483,9 +489,16 @@ export class Game {
       (a) => a.alive && chebyshev(a.pos, center) <= BOMB_RADIUS,
     );
     for (const actor of caught) {
-      const { damage, critical } = computeDamage(this.rng, BOMB_DAMAGE, actor.def);
-      events.push({ type: "message", text: `${actor.name}に${damage}のダメージ!` });
-      this.damageActor(actor, damage, critical, events);
+      const result = computeDamage(this.rng, BOMB_DAMAGE, actor.def);
+      const isThrower = actor.id === throwerId;
+      const damage = isThrower ? Math.max(1, Math.floor(result.damage / 2)) : result.damage;
+      events.push({
+        type: "message",
+        text: isThrower
+          ? `巻き込まれた! ${actor.name}に${damage}のダメージ!`
+          : `${actor.name}に${damage}のダメージ!`,
+      });
+      this.damageActor(actor, damage, result.critical, events);
       if (this.status !== "playing") return;
     }
 

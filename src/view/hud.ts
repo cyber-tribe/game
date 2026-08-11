@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import type { DamageFx } from "./stage";
 import { MAX_SATIETY, type PlayerState, expToNext } from "../entities/player";
-import { STATUS_CONFUSE, STATUS_SLEEP, hasStatus } from "../core/types";
+import { BARREL_NAMES, STATUS_CONFUSE, STATUS_SLEEP, type Actor, hasStatus } from "../core/types";
 
 const MAX_LOG_LINES = 6;
 
@@ -18,6 +18,8 @@ export class Hud {
   private readonly satietyTextEl: HTMLElement;
   private readonly expEl: HTMLElement;
   private readonly statusEl: HTMLElement;
+  private readonly carryEl: HTMLElement;
+  private readonly alliesEl: HTMLElement;
   private readonly logEl: HTMLElement;
   private readonly fxLayer: HTMLElement;
   private readonly overlayEl: HTMLElement;
@@ -32,12 +34,14 @@ export class Hud {
     this.satietyTextEl = must(root, "#hud-satiety-text");
     this.expEl = must(root, "#hud-exp");
     this.statusEl = must(root, "#hud-status");
+    this.carryEl = must(root, "#hud-carry");
+    this.alliesEl = must(root, "#allies");
     this.logEl = must(root, "#log");
     this.fxLayer = must(root, "#fx");
     this.overlayEl = must(root, "#overlay");
   }
 
-  update(player: PlayerState, depth: number): void {
+  update(player: PlayerState, depth: number, allies: readonly Actor[] = []): void {
     this.depthEl.textContent = `地下 ${depth} 階`;
     this.levelEl.textContent = `Lv ${player.level}`;
 
@@ -60,6 +64,55 @@ export class Hud {
     if (hasStatus(player, STATUS_CONFUSE)) statuses.push("こんらん");
     this.statusEl.textContent = statuses.join(" / ");
     this.statusEl.style.display = statuses.length > 0 ? "block" : "none";
+
+    // 抱えているタル。何を持っているかで投げた結果がまるで変わるので常に出す
+    if (player.carrying) {
+      this.carryEl.textContent = `かかえ中: ${BARREL_NAMES[player.carrying.kind]}`;
+      this.carryEl.dataset.kind = player.carrying.kind;
+      this.carryEl.style.display = "block";
+    } else {
+      this.carryEl.style.display = "none";
+    }
+
+    this.renderAllies(allies);
+  }
+
+  private renderAllies(allies: readonly Actor[]): void {
+    if (allies.length === 0) {
+      this.alliesEl.style.display = "none";
+      return;
+    }
+    this.alliesEl.style.display = "block";
+    this.alliesEl.replaceChildren();
+
+    const title = document.createElement("div");
+    title.className = "allies-title";
+    title.textContent = "なかま";
+    this.alliesEl.appendChild(title);
+
+    for (const ally of allies) {
+      const row = document.createElement("div");
+      row.className = "ally-row";
+
+      const name = document.createElement("span");
+      name.className = "ally-name";
+      name.textContent = ally.name;
+
+      const hp = document.createElement("span");
+      hp.className = "ally-hp";
+      hp.textContent = `${Math.max(0, ally.hp)} / ${ally.maxHp}`;
+
+      const bar = document.createElement("div");
+      bar.className = "ally-bar";
+      const fill = document.createElement("i");
+      const ratio = Math.max(0, ally.hp) / ally.maxHp;
+      fill.style.width = `${ratio * 100}%`;
+      fill.dataset.level = ratio < 0.3 ? "danger" : ratio < 0.6 ? "warn" : "ok";
+      bar.appendChild(fill);
+
+      row.append(name, hp);
+      this.alliesEl.append(row, bar);
+    }
   }
 
   log(text: string): void {

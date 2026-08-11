@@ -191,6 +191,61 @@ const stats = await page.evaluate(() => {
 });
 console.log("内部状態:", JSON.stringify(stats));
 
+// ---- タルと仲間 ----
+// 目の前のモンスターに空のタルをぶつけて吸い込み、投げて仲間にするまで
+const front = await page.evaluate(() => globalThis.__app.debugMonsterInFront());
+console.log("タルの的:", front);
+if (front) {
+  await page.evaluate(() => globalThis.__app.debugGiveBarrel("empty"));
+  await page.waitForTimeout(350);
+  await page.screenshot({ path: `${OUT}/14-carry-barrel.png` });
+
+  // HP満タンだと吸い込みにくいので、まず殴って弱らせる
+  await page.keyboard.down(front.key);
+  await page.waitForTimeout(1200);
+  await page.keyboard.up(front.key);
+  await page.waitForTimeout(300);
+
+  await page.keyboard.press("KeyG");
+  await page.waitForTimeout(250);
+  await page.screenshot({ path: `${OUT}/15-barrel-thrown.png` });
+  await page.waitForTimeout(500);
+}
+
+// 中身入りのタルを抱えて投げ、仲間にする。
+// 前に投げたタルが正面に転がっていると邪魔なので、向きを変えてから投げる
+await page.evaluate(() => globalThis.__app.debugFaceOpenSide());
+await page.evaluate(() => globalThis.__app.debugGiveBarrel("caught", "gajiri"));
+await page.waitForTimeout(300);
+await page.keyboard.press("KeyG");
+await page.waitForTimeout(700);
+await page.screenshot({ path: `${OUT}/16-recruited.png` });
+const allyInfo = await page.evaluate(() => {
+  const s = globalThis.__app.debugStats();
+  return { allies: s.allies, barrels: s.barrels, log: s.log };
+});
+console.log("仲間にした結果:", JSON.stringify(allyInfo));
+if (allyInfo.allies.length === 0) {
+  console.error("仲間にできなかった。直前のログ:", allyInfo.log);
+  process.exitCode = 1;
+}
+
+// 爆発タルも一度出しておく
+await page.evaluate(() => globalThis.__app.debugGiveBarrel("bomb"));
+await page.waitForTimeout(250);
+await page.keyboard.press("KeyG");
+await page.waitForTimeout(300);
+await page.screenshot({ path: `${OUT}/17-explosion.png` });
+await page.waitForTimeout(600);
+
+// 仲間を連れたまま数ターン歩く
+await page.keyboard.down("ArrowDown");
+await page.waitForTimeout(900);
+await page.keyboard.up("ArrowDown");
+await page.waitForTimeout(400);
+await page.screenshot({ path: `${OUT}/18-with-ally.png` });
+console.log("同行中:", JSON.stringify(await page.evaluate(() => globalThis.__app.debugStats())));
+
 // 倒れたときの流れ。全滅表示 → R キーで拠点に戻る
 await page.evaluate(() => globalThis.__app.debugKill());
 await page.waitForTimeout(900);

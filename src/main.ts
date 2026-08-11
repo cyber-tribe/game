@@ -1,9 +1,9 @@
 import * as THREE from "three";
 import { Game, type Command } from "./game";
 import type { GameEvent } from "./core/events";
-import { walkableAt } from "./core/types";
+import { isFree, walkableAt } from "./core/types";
 import { chebyshev, eq } from "./core/grid";
-import { modelNames } from "./modelList";
+import { BARREL_MODELS, modelNames } from "./modelList";
 import { Assets } from "./view/assets";
 import { Hud } from "./view/hud";
 import { Input } from "./view/input";
@@ -85,7 +85,7 @@ class App {
     this.hud.hideOverlay();
     this.stage.enterFloor(this.game.floor);
     this.renderer.setFocus(this.game.player.pos, true);
-    this.hud.update(this.game.player, this.game.depth);
+    this.hud.update(this.game.player, this.game.depth, this.game.allyList);
     this.minimap.draw(this.game.floor, this.game.player);
     this.hud.log(`地下1階。最深記録は ${this.save.deepest} 階。`);
     this.hud.log("洞窟に降りた。階段をさがそう。");
@@ -173,6 +173,12 @@ class App {
       case "wait":
         this.submit({ type: "wait" });
         break;
+      case "liftBarrel":
+        this.submit({ type: "liftBarrel" });
+        break;
+      case "throwBarrel":
+        this.submit({ type: "throwBarrel" });
+        break;
       case "confirm":
         // 足元の状況に応じて、階段を降りるか拾うかを選ぶ
         if (eq(this.game.player.pos, this.game.floor.stairs)) {
@@ -210,7 +216,7 @@ class App {
     }
 
     this.stage.dungeon.refresh(this.game.floor);
-    this.hud.update(this.game.player, this.game.depth);
+    this.hud.update(this.game.player, this.game.depth, this.game.allyList);
     this.minimap.draw(this.game.floor, this.game.player);
 
     const over = events.find((e): e is Extract<GameEvent, { type: "gameOver" }> =>
@@ -286,7 +292,77 @@ class App {
 
   debugGive(defId: string): void {
     this.game.giveItem(defId);
-    this.hud.update(this.game.player, this.game.depth);
+    this.hud.update(this.game.player, this.game.depth, this.game.allyList);
+  }
+
+  /** 正面が開けている方向を向く。タルの落下先を確保するために使う */
+  debugFaceOpenSide(): number | null {
+    const deltas = [
+      { x: 0, y: -1 },
+      { x: 1, y: -1 },
+      { x: 1, y: 0 },
+      { x: 1, y: 1 },
+      { x: 0, y: 1 },
+      { x: -1, y: 1 },
+      { x: -1, y: 0 },
+      { x: -1, y: -1 },
+    ];
+    for (let dir = 0; dir < 8; dir++) {
+      const d = deltas[dir]!;
+      const spot = { x: this.game.player.pos.x + d.x, y: this.game.player.pos.y + d.y };
+      if (isFree(this.game.floor, spot)) {
+        this.submit({ type: "face", dir: dir as 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 });
+        return dir;
+      }
+    }
+    return null;
+  }
+
+  /** タルを抱えさせる。ヘッドレスでの確認用 */
+  debugGiveBarrel(kind: "empty" | "bomb" | "caught", speciesId?: string): void {
+    const barrel = this.game.giveBarrel(kind, speciesId);
+    this.stage
+      .viewOf(this.game.player.id)
+      ?.setCarried(this.assets.instantiate(BARREL_MODELS[barrel.kind]).root);
+    this.hud.update(this.game.player, this.game.depth, this.game.allyList);
+  }
+
+  /** 目の前にモンスターを置いて、タルをぶつけられる状態にする */
+  debugMonsterInFront(): { name: string; key: string } | null {
+    const player = this.game.player;
+    const monster = this.game.floor.actors.find((a) => a.kind === "monster" && a.alive);
+    if (!monster) return null;
+    for (const [dir, key] of [
+      [2, "ArrowRight"],
+      [6, "ArrowLeft"],
+      [4, "ArrowDown"],
+      [0, "ArrowUp"],
+    ] as const) {
+      const d = [
+        { x: 0, y: -1 },
+        { x: 1, y: -1 },
+        { x: 1, y: 0 },
+        { x: 1, y: 1 },
+        { x: 0, y: 1 },
+        { x: -1, y: 1 },
+        { x: -1, y: 0 },
+        { x: -1, y: -1 },
+      ][dir]!;
+      const spot = { x: player.pos.x + d.x, y: player.pos.y + d.y };
+      if (!walkableAt(this.game.floor, spot)) continue;
+      monster.pos = spot;
+      // 吸い込みを試すあいだ倒れないよう頑丈にする。そのぶん殴り返してくるので、
+      // プレイヤー側も検証が最後まで届くように底上げしておく
+      monster.maxHp = 400;
+      monster.hp = 400;
+      this.game.player.maxHp = 400;
+      this.game.player.hp = 400;
+      this.submit({ type: "face", dir });
+      this.stage.syncActors(this.game.floor);
+      this.stage.viewOf(monster.id)?.setPosition(spot);
+      return { name: monster.name, key };
+    }
+    return null;
   }
 
   /** 倒れたときの流れを確かめるために、わざと力尽きさせる */
@@ -305,9 +381,13 @@ class App {
       hp: `${this.game.player.hp}/${this.game.player.maxHp}`,
       satiety: Math.round(this.game.player.satiety),
       monsters: floor.actors.filter((a) => a.kind === "monster" && a.alive).length,
+      allies: this.game.allyList.map((a) => `${a.name}(${a.hp}/${a.maxHp})`),
+      barrels: floor.barrels.map((b) => b.kind),
+      carrying: this.game.player.carrying?.kind ?? null,
       items: floor.items.length,
       traps: floor.traps.length,
       rooms: floor.rooms.length,
+      log: [...document.querySelectorAll("#log div")].map((d) => d.textContent),
       exploredTiles: floor.tiles.filter((t) => t.explored).length,
       visibleTiles: floor.tiles.filter((t) => t.visible).length,
       drawCalls: this.renderer.renderer.info.render.calls,

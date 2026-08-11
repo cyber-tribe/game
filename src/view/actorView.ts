@@ -34,6 +34,9 @@ export class ActorView {
   private lungeTotal = 0;
   private readonly lungeDir = new THREE.Vector3();
 
+  /** 頭上に抱えているもの。タルを持ち上げているあいだ付いてまわる */
+  private carried: THREE.Object3D | null = null;
+
   constructor(instance: Instance, pos: Vec2, facing: Dir = 4) {
     this.root = instance.root;
     this.mixer = instance.mixer;
@@ -118,6 +121,31 @@ export class ActorView {
         window.setTimeout(() => standard.emissive.copy(original), 130);
       }
     }
+  }
+
+  /**
+   * 頭上に抱えさせる。root の子にするので、歩いても向きを変えても付いてくる。
+   * 外すときは null を渡すと、切り離したオブジェクトが返る。
+   */
+  setCarried(object: THREE.Object3D | null): THREE.Object3D | null {
+    const previous = this.carried;
+    if (previous) {
+      // ワールド上の位置を保ったまま親から外す
+      previous.getWorldPosition(previous.position);
+      previous.removeFromParent();
+    }
+    this.carried = object;
+    if (object) {
+      object.position.set(0, 1.02, 0);
+      object.rotation.set(0, 0, 0);
+      object.scale.setScalar(0.78);
+      this.root.add(object);
+    }
+    return previous;
+  }
+
+  get carriedObject(): THREE.Object3D | null {
+    return this.carried;
   }
 
   get isMoving(): boolean {

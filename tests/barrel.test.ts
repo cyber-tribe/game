@@ -351,3 +351,35 @@ describe("仲間の振る舞い", () => {
     expect(game.allies.some((a) => a.id === ally.id)).toBe(false);
   });
 });
+
+describe("爆発の自爆ダメージ", () => {
+  it("投げた本人へのダメージは半分になる", () => {
+    // 真横に落ちる状況を作り、プレイヤーと隣のモンスターの受けた量を比べる
+    for (let seed = 1; seed <= 80; seed++) {
+      const game = new Game({ seed });
+      const dir = faceOpenDirection(game);
+      if (dir === null) continue;
+      const d = dirDelta(dir);
+      const front = { x: game.player.pos.x + d.x, y: game.player.pos.y + d.y };
+
+      const monster = game.floor.actors.find((a) => a.kind === "monster" && a.alive);
+      if (!monster) continue;
+      monster.pos = front;
+      monster.def = game.player.def;
+      monster.maxHp = monster.hp = 500;
+      game.player.maxHp = game.player.hp = 500;
+
+      game.giveBarrel("bomb");
+      game.command({ type: "throwBarrel" });
+
+      const playerLoss = 500 - game.player.hp;
+      const monsterLoss = 500 - monster.hp;
+      if (playerLoss === 0 || monsterLoss === 0) continue;
+
+      // 揺らぎがあるので厳密な半分ではないが、はっきり少ないこと
+      expect(playerLoss).toBeLessThan(monsterLoss);
+      return;
+    }
+    throw new Error("自爆する状況を作れなかった");
+  });
+});

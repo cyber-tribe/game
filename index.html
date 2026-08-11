@@ -82,6 +82,58 @@
         margin-top: 7px; font-size: 12px; color: #ffb0bb; font-weight: 600;
       }
 
+      #hud-carry {
+        margin-top: 8px;
+        padding: 4px 8px;
+        border-radius: 5px;
+        font-size: 12px;
+        font-weight: 600;
+        background: rgba(200, 140, 70, 0.18);
+        border: 1px solid rgba(200, 140, 70, 0.45);
+        color: #e8bc86;
+      }
+      #hud-carry[data-kind="bomb"] {
+        background: rgba(224, 95, 107, 0.18);
+        border-color: rgba(224, 95, 107, 0.5);
+        color: #ff9ea6;
+      }
+      #hud-carry[data-kind="caught"] {
+        background: rgba(90, 200, 255, 0.16);
+        border-color: rgba(90, 200, 255, 0.45);
+        color: #8fdcff;
+      }
+
+      /* ------------------------------------------------ なかま */
+      #allies {
+        position: absolute;
+        top: 232px; left: 14px;
+        width: 232px;
+        padding: 9px 13px;
+        display: none;
+      }
+      .allies-title {
+        font-size: 11px; letter-spacing: 0.1em; color: var(--dim);
+        padding-bottom: 6px; margin-bottom: 6px;
+        border-bottom: 1px solid var(--edge);
+      }
+      .ally-row {
+        display: flex; justify-content: space-between; align-items: baseline;
+        font-size: 12.5px; margin-top: 6px;
+      }
+      .ally-name { color: #c9b4ff; font-weight: 600; }
+      .ally-hp { font-size: 11px; color: var(--dim); }
+      .ally-bar {
+        height: 6px; margin-top: 3px; border-radius: 4px;
+        background: rgba(255, 255, 255, 0.09); overflow: hidden;
+      }
+      .ally-bar > i {
+        display: block; height: 100%; border-radius: 4px;
+        background: linear-gradient(90deg, #8a6ce8, #b39cff);
+        transition: width 0.18s ease-out;
+      }
+      .ally-bar > i[data-level="warn"] { background: linear-gradient(90deg, #e0b755, #f2d27a); }
+      .ally-bar > i[data-level="danger"] { background: linear-gradient(90deg, #e05f6b, #f38b93); }
+
       /* ------------------------------------------------ ミニマップ */
       #minimap-wrap { position: absolute; top: 14px; right: 14px; padding: 8px; }
       #minimap { display: block; image-rendering: pixelated; }
@@ -259,7 +311,10 @@
           <div class="bar"><i id="hud-satiety-fill"></i></div>
           <div id="hud-exp">次のLvまで 10</div>
           <div id="hud-status"></div>
+          <div id="hud-carry"></div>
         </div>
+
+        <div id="allies" class="panel"></div>
 
         <div id="minimap-wrap" class="panel">
           <canvas id="minimap" width="180" height="140"></canvas>
@@ -271,6 +326,7 @@
           <b>矢印 / WASD / テンキー</b> 移動・攻撃<br />
           <b>Shift + 方向</b> 向きだけ変える<br />
           <b>Space</b> 拾う・階段をおりる &nbsp; <b>.</b> 足踏み<br />
+          <b>F</b> タルを持つ / 置く &nbsp; <b>G</b> タルを投げる<br />
           <b>I</b> もちもの &nbsp; <b>Q / E</b> 視点回転 &nbsp; <b>± </b>ズーム
         </div>
 

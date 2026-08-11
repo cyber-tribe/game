@@ -1,8 +1,16 @@
 import * as THREE from "three";
 import { TILE, toWorld } from "./renderer";
 import type { Assets } from "./assets";
-import { type FloorState, type Tile, TILE_WALL, isWalkable, tileAt } from "../core/types";
+import {
+  type BarrelKind,
+  type FloorState,
+  type Tile,
+  TILE_WALL,
+  isWalkable,
+  tileAt,
+} from "../core/types";
 import { itemDef } from "../items/catalog";
+import { BARREL_MODELS } from "../modelList";
 
 /** 見えているマス / 記憶しているだけのマス の明るさ */
 const LIT = new THREE.Color(1.0, 1.0, 1.0);
@@ -27,15 +35,18 @@ export class DungeonView {
   private readonly stairsGroup = new THREE.Group();
   private readonly itemGroup = new THREE.Group();
   private readonly trapGroup = new THREE.Group();
+  private readonly barrelGroup = new THREE.Group();
   /** アイテム uid → 表示物。毎ターン作り直さずに済ませるための対応表 */
   private readonly itemViews = new Map<number, THREE.Object3D>();
   private readonly trapViews = new Map<string, THREE.Object3D>();
+  /** タル id → 表示物。中身が変わると別のモデルに差し替える */
+  private readonly barrelViews = new Map<number, { object: THREE.Object3D; kind: BarrelKind }>();
 
   constructor(
     private readonly scene: THREE.Scene,
     private readonly assets: Assets,
   ) {
-    this.group.add(this.stairsGroup, this.itemGroup, this.trapGroup);
+    this.group.add(this.stairsGroup, this.itemGroup, this.trapGroup, this.barrelGroup);
     this.scene.add(this.group);
   }
 
@@ -76,6 +87,48 @@ export class DungeonView {
 
     this.syncItems(floor);
     this.syncTraps(floor);
+    this.syncBarrels(floor);
+  }
+
+  /**
+   * 床に置かれているタル。中身が変わる(空 → モンスター入り)ことがあるので、
+   * 種類が変わっていたらモデルごと差し替える。
+   */
+  private syncBarrels(floor: FloorState): void {
+    const alive = new Set<number>();
+    for (const barrel of floor.barrels) {
+      const tile = tileAt(floor, barrel.pos);
+      if (!tile?.explored) continue;
+      alive.add(barrel.id);
+
+      let view = this.barrelViews.get(barrel.id);
+      if (view && view.kind !== barrel.kind) {
+        this.barrelGroup.remove(view.object);
+        view = undefined;
+      }
+      if (!view) {
+        const object = this.assets.instantiate(BARREL_MODELS[barrel.kind]).root;
+        view = { object, kind: barrel.kind };
+        this.barrelViews.set(barrel.id, view);
+        this.barrelGroup.add(object);
+      }
+      view.object.position.copy(toWorld(barrel.pos));
+      view.object.visible = tile.visible;
+    }
+    for (const [id, view] of this.barrelViews) {
+      if (alive.has(id)) continue;
+      this.barrelGroup.remove(view.object);
+      this.barrelViews.delete(id);
+    }
+  }
+
+  /** タルを1つ取り出して、別のところ(プレイヤーの頭上など)に付け替える */
+  detachBarrel(id: number): THREE.Object3D | null {
+    const view = this.barrelViews.get(id);
+    if (!view) return null;
+    this.barrelGroup.remove(view.object);
+    this.barrelViews.delete(id);
+    return view.object;
   }
 
   private makeInstanced(
@@ -211,7 +264,9 @@ export class DungeonView {
     this.stairsGroup.clear();
     this.itemGroup.clear();
     this.trapGroup.clear();
+    this.barrelGroup.clear();
     this.itemViews.clear();
     this.trapViews.clear();
+    this.barrelViews.clear();
   }
 }

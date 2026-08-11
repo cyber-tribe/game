@@ -10,6 +10,8 @@ const COLORS = {
   item: "#7fd6a0",
   trap: "#e06c78",
   monster: "#ff6b81",
+  ally: "#9d7bff",
+  barrel: "#c08a4a",
   player: "#7fd6ff",
 } as const;
 
@@ -73,10 +75,20 @@ export class Minimap {
       dot(ground.pos.x, ground.pos.y, COLORS.item, Math.max(2, scale - 1));
     }
 
+    for (const barrel of floor.barrels) {
+      if (!floor.tiles[barrel.pos.y * width + barrel.pos.x]?.explored) continue;
+      dot(barrel.pos.x, barrel.pos.y, COLORS.barrel, Math.max(2, scale - 1));
+    }
+
     for (const actor of floor.actors) {
-      if (!actor.alive || actor.kind !== "monster") continue;
-      if (!floor.tiles[actor.pos.y * width + actor.pos.x]?.visible) continue;
-      dot(actor.pos.x, actor.pos.y, COLORS.monster);
+      if (!actor.alive) continue;
+      if (actor.kind === "monster") {
+        if (!floor.tiles[actor.pos.y * width + actor.pos.x]?.visible) continue;
+        dot(actor.pos.x, actor.pos.y, COLORS.monster);
+      } else if (actor.kind === "ally") {
+        // 仲間は見えていなくても位置が分かる。連れ歩いているのだから当然
+        dot(actor.pos.x, actor.pos.y, COLORS.ally);
+      }
     }
 
     dot(player.pos.x, player.pos.y, COLORS.player);
