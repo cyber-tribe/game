@@ -83,6 +83,9 @@ const POISON_TRAP_TURNS = 8;
 /** 毒が1ターンごとに削るHP */
 const POISON_DAMAGE_PER_TURN = 2;
 
+/** 身構え(足踏み直後)による被ダメージ軽減率 */
+const GUARD_DAMAGE_REDUCTION = 0.2;
+
 /** 状態異常が明けたときにプレイヤーへ表示するメッセージ */
 const STATUS_END_MESSAGES: Record<StatusKind, string> = {
   [STATUS_SLEEP]: "目が覚めた。",
@@ -298,6 +301,7 @@ export class Game {
         return false;
 
       case "wait":
+        player.guarding = true;
         return true;
 
       case "move": {
@@ -744,11 +748,27 @@ export class Game {
     events.push({ type: "attack", attackerId: attacker.id, targetId: target.id });
     events.push({ type: "message", text: `${attacker.name}のこうげき!` });
 
+    // 不意打ち: まだ気づいていないモンスターへの攻撃は必ず会心になる
+    const sneakAttack = target.kind === "monster" && !target.aware;
+    if (sneakAttack) events.push({ type: "message", text: "不意打ち!" });
+
     const defense = target.kind === "player" ? totalDefense(this.player) : target.def;
-    const { damage, critical } = computeDamage(this.rng, attackPower, defense, combatOpts);
+    const { damage, critical } = computeDamage(this.rng, attackPower, defense, {
+      ...combatOpts,
+      forceCrit: combatOpts?.forceCrit || sneakAttack,
+    });
     if (critical) events.push({ type: "message", text: "会心の一撃!" });
-    events.push({ type: "message", text: `${target.name}に${damage}のダメージ!` });
-    this.damageActor(target, damage, critical, events);
+
+    // 身構え(足踏み直後): 次に被弾するときだけ2割軽減し、そこで解ける
+    let finalDamage = damage;
+    if (target.kind === "player" && this.player.guarding) {
+      finalDamage = Math.max(1, Math.floor(damage * (1 - GUARD_DAMAGE_REDUCTION)));
+      this.player.guarding = false;
+      events.push({ type: "message", text: "身構えていたので、ダメージをおさえた!" });
+    }
+
+    events.push({ type: "message", text: `${target.name}に${finalDamage}のダメージ!` });
+    this.damageActor(target, finalDamage, critical, events);
 
     // 攻撃してきた相手には気づく
     if (target.kind === "monster") target.aware = true;
