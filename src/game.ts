@@ -1148,7 +1148,7 @@ export class Game {
   private killActor(target: Actor, events: GameEvent[]): void {
     target.alive = false;
     target.hp = 0;
-    events.push({ type: "die", actorId: target.id });
+    events.push({ type: "die", actorId: target.id, kind: target.kind });
 
     if (target.kind === "player") {
       this.status = "dead";
