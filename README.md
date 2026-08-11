@@ -255,6 +255,22 @@ push (main へのマージ後) と手動実行は、この判定を通さず常�
 頻度の低い経路まで凝った判定をする価値は無いと判断した。同様に、判定ジョブ自体が
 失敗した場合も「フル実行する」側に倒してある(判定が壊れて静かに検査を素通りする方が怖い)。
 
+### 依存関係の自動更新
+
+`.github/dependabot.yml` が npm 依存(`package.json`)と GitHub Actions
+(`ci.yml` / `models.yml` の `uses:`)を週1回チェックし、それぞれまとめて1本のPRにする。
+
+patch/minor の更新は `.github/workflows/dependabot-auto-merge.yml` が
+`dependabot/fetch-metadata` で更新種別を見て auto-merge キューに載せる。実際に
+マージされるのは通常のPRと同じく `ci.yml` の必須チェックが通った後(`package.json` /
+`package-lock.json` の変更は `changes` ジョブで「コード」判定されるので、型チェック・
+テスト・ビルド・通しプレイがそのまま走る)。major 更新は auto-merge をかけず、PRを
+開いたままにして人がレビューする。
+
+Blender モデル生成にだけ使う `bpy` (Python) はバージョンを固定していない
+(`tools/setup_blender.sh` / `.github/workflows/models.yml` とも `pip install bpy` で
+毎回最新を取得)ため、Dependabot の対象には含めていない。
+
 ---
 
 ## モバイル配信
