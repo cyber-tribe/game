@@ -38,6 +38,8 @@ export type GameEvent =
   /** タルから出して仲間になった */
   | { type: "recruit"; actorId: number; name: string }
   | { type: "descend"; depth: number }
+  /** めざめの階段(チェックポイント)に足を踏み入れた */
+  | { type: "checkpoint"; depth: number }
   | { type: "hungerWarning"; level: "low" | "empty" }
   | { type: "gameOver"; reason: string }
   | { type: "message"; text: string };

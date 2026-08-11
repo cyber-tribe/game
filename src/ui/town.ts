@@ -12,13 +12,17 @@ export const CARRY_LIMIT = 8;
  */
 export class TownScreen {
   private open = false;
-  /** 0 = 倉庫、1 = 持ち込み */
-  private column: 0 | 1 = 0;
+  /** 0 = 倉庫、1 = 持ち込み、2 = 出発地点 */
+  private column: 0 | 1 | 2 = 0;
   private cursor: [number, number] = [0, 0];
   private storage: StoredItem[] = [];
   private carry: StoredItem[] = [];
   private save: SaveData | null = null;
-  private depart: ((carry: StoredItem[], storage: StoredItem[]) => void) | null = null;
+  /** 出発地点として選んでいる、既知のめざめの階段(1階=常に選べる入口を含む) */
+  private startDepthIndex = 0;
+  private depart:
+    | ((carry: StoredItem[], storage: StoredItem[], startDepth: number) => void)
+    | null = null;
 
   constructor(private readonly root: HTMLElement) {
     this.root.style.display = "none";
@@ -28,16 +32,25 @@ export class TownScreen {
     return this.open;
   }
 
-  show(save: SaveData, onDepart: (carry: StoredItem[], storage: StoredItem[]) => void): void {
+  show(
+    save: SaveData,
+    onDepart: (carry: StoredItem[], storage: StoredItem[], startDepth: number) => void,
+  ): void {
     this.save = save;
     this.storage = save.storage.map((s) => ({ ...s }));
     this.carry = [];
     this.column = 0;
     this.cursor = [0, 0];
+    // 既知のめざめの階段のうち、最も深いところから出発する状態で開く
+    this.startDepthIndex = Math.max(0, this.checkpoints().length - 1);
     this.depart = onDepart;
     this.open = true;
     this.root.style.display = "flex";
     this.render();
+  }
+
+  private checkpoints(): number[] {
+    return this.save?.knownCheckpoints ?? [1];
   }
 
   hide(): void {
@@ -48,16 +61,42 @@ export class TownScreen {
   handleKey(code: string): boolean {
     if (!this.open) return false;
 
-    const list = this.column === 0 ? this.storage : this.carry;
+    if (this.column === 2) {
+      const checkpoints = this.checkpoints();
+      switch (code) {
+        case "ArrowUp":
+        case "KeyW":
+          this.startDepthIndex = wrap(this.startDepthIndex - 1, checkpoints.length);
+          break;
+        case "ArrowDown":
+        case "KeyS":
+          this.startDepthIndex = wrap(this.startDepthIndex + 1, checkpoints.length);
+          break;
+        case "ArrowLeft":
+        case "KeyA":
+          this.column = 1;
+          break;
+        case "Space":
+          this.departNow();
+          return true;
+        default:
+          return true;
+      }
+      this.render();
+      return true;
+    }
+
+    const column: 0 | 1 = this.column;
+    const list = column === 0 ? this.storage : this.carry;
 
     switch (code) {
       case "ArrowUp":
       case "KeyW":
-        this.cursor[this.column] = wrap(this.cursor[this.column] - 1, list.length);
+        this.cursor[column] = wrap(this.cursor[column] - 1, list.length);
         break;
       case "ArrowDown":
       case "KeyS":
-        this.cursor[this.column] = wrap(this.cursor[this.column] + 1, list.length);
+        this.cursor[column] = wrap(this.cursor[column] + 1, list.length);
         break;
       case "ArrowLeft":
       case "KeyA":
@@ -65,7 +104,7 @@ export class TownScreen {
         break;
       case "ArrowRight":
       case "KeyD":
-        this.column = 1;
+        this.column = column === 0 ? 1 : 2;
         break;
       case "Enter":
       case "NumpadEnter":
@@ -103,8 +142,9 @@ export class TownScreen {
     const depart = this.depart;
     const carry = this.carry.map((s) => ({ ...s }));
     const storage = this.storage.map((s) => ({ ...s }));
+    const startDepth = this.checkpoints()[this.startDepthIndex] ?? 1;
     this.hide();
-    depart?.(carry, storage);
+    depart?.(carry, storage, startDepth);
   }
 
   private render(): void {
@@ -130,7 +170,7 @@ export class TownScreen {
     lead.className = "town-lead";
     lead.textContent =
       `持ち込めるのは ${CARRY_LIMIT} 個まで。倒れると持ち込んだ道具は失う。` +
-      "10階まで潜って戻れば、持ち帰ったものが倉庫に入る。";
+      "めざめの階段で区切って戻れば、持ち帰ったものが倉庫に入る。";
     box.appendChild(lead);
 
     const columns = document.createElement("div");
@@ -138,13 +178,18 @@ export class TownScreen {
     columns.append(
       this.renderList("倉庫", this.storage, 0),
       this.renderList(`持ち込む (${this.carry.length} / ${CARRY_LIMIT})`, this.carry, 1),
+      this.renderCheckpoints(),
     );
     box.appendChild(columns);
 
-    const selected = (this.column === 0 ? this.storage : this.carry)[this.cursor[this.column]];
     const desc = document.createElement("p");
     desc.className = "town-desc";
-    desc.textContent = selected ? itemDef(selected.defId).description : "";
+    if (this.column === 2) {
+      desc.textContent = "既知のめざめの階段から選んで出発できる。";
+    } else {
+      const selected = (this.column === 0 ? this.storage : this.carry)[this.cursor[this.column]];
+      desc.textContent = selected ? itemDef(selected.defId).description : "";
+    }
     box.appendChild(desc);
 
     const hint = document.createElement("p");
@@ -180,6 +225,28 @@ export class TownScreen {
           ? `${def.name}[${item.charges}]`
           : def.name;
       if (this.column === column && index === this.cursor[column]) li.classList.add("selected");
+      list.appendChild(li);
+    });
+    wrapper.appendChild(list);
+    return wrapper;
+  }
+
+  /** 既知のめざめの階段(チェックポイント)から出発地点を選ぶ一覧 */
+  private renderCheckpoints(): HTMLElement {
+    const wrapper = document.createElement("div");
+    wrapper.className = "town-col";
+    if (this.column === 2) wrapper.classList.add("active");
+
+    const heading = document.createElement("div");
+    heading.className = "town-col-title";
+    heading.textContent = "出発地点";
+    wrapper.appendChild(heading);
+
+    const list = document.createElement("ul");
+    this.checkpoints().forEach((depth, index) => {
+      const li = document.createElement("li");
+      li.textContent = depth === 1 ? "表の寝穴の入口(1階)" : `めざめの階段(地下${depth}階)`;
+      if (this.column === 2 && index === this.startDepthIndex) li.classList.add("selected");
       list.appendChild(li);
     });
     wrapper.appendChild(list);

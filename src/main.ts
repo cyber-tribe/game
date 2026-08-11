@@ -13,7 +13,7 @@ import { Stage } from "./view/stage";
 import { InventoryMenu } from "./ui/menu";
 import { StanceMenu } from "./ui/stance";
 import { TownScreen } from "./ui/town";
-import { loadSave, recordRun, saveData, type SaveData, type StoredItem } from "./save";
+import { addKnownCheckpoint, loadSave, recordRun, saveData, type SaveData, type StoredItem } from "./save";
 import type { Item } from "./core/types";
 
 const MAX_DEPTH = 10;
@@ -62,17 +62,17 @@ class App {
     this.loop();
   }
 
-  /** 潜る前の拠点。倉庫から持ち込む道具を選ぶ */
+  /** 潜る前の拠点。倉庫から持ち込む道具・出発地点を選ぶ */
   private showTown(): void {
     this.hud.hideOverlay();
-    this.town.show(this.save, (carry, storage) => {
+    this.town.show(this.save, (carry, storage, startDepth) => {
       this.save = { ...this.save, storage };
       saveData(this.save);
-      this.newRun(carry);
+      this.newRun(carry, startDepth);
     });
   }
 
-  private newRun(carry: readonly StoredItem[]): void {
+  private newRun(carry: readonly StoredItem[], startDepth = 1): void {
     const startingItems: Item[] = carry.map((stored, index) =>
       stored.charges === undefined
         ? { uid: index + 1, defId: stored.defId }
@@ -82,6 +82,7 @@ class App {
       seed: (Math.random() * 0xffffffff) >>> 0,
       maxDepth: MAX_DEPTH,
       startingItems,
+      startDepth,
     });
     this.ended = false;
     this.lock = 0;
@@ -92,7 +93,7 @@ class App {
     this.renderer.setFocus(this.game.player.pos, true);
     this.hud.update(this.game.player, this.game.depth, this.game.allyList);
     this.minimap.draw(this.game.floor, this.game.player);
-    this.hud.log(`地下1階。最深記録は ${this.save.deepest} 階。`);
+    this.hud.log(`地下${this.game.depth}階。最深記録は ${this.save.deepest} 階。`);
     this.hud.log("洞窟に降りた。階段をさがそう。");
   }
 
@@ -172,6 +173,16 @@ class App {
           this.showTown();
           return true;
         }
+        // 生きていてめざめの階段の上にいれば、そこで区切って持ち帰る
+        if (
+          !this.menu.isOpen &&
+          !this.stanceMenu.isOpen &&
+          !this.town.isOpen &&
+          eq(this.game.player.pos, this.game.floor.stairs)
+        ) {
+          this.submit({ type: "bank" });
+          return true;
+        }
         return false;
       default:
         return false;
@@ -221,6 +232,8 @@ class App {
 
     for (const event of events) {
       if (event.type === "message") this.hud.log(event.text);
+      // めざめの階段は、ダイブの結果によらず足を踏み入れた瞬間に記録する
+      if (event.type === "checkpoint") this.save = addKnownCheckpoint(this.save, event.depth);
     }
 
     const changedFloor = this.game.depth !== beforeDepth;
