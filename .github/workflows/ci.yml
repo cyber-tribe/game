@@ -14,8 +14,67 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # 変更されたファイルを見て、重いジョブ(型・テスト・ビルド / 通しプレイ)を
+  # 実行する必要があるかを判定する。
+  #
+  # ここで「トリガー自体」を paths で絞ってしまうと楽だが、それをやると
+  # ブランチ保護の必須ステータスチェックと相性が悪い。ワークフローが
+  # 一度も起動しないコミットに対しては、必須チェックがいつまでも
+  # 「pending」のままになり、マージできなくなる。
+  #
+  # そこで、ワークフロー自体は常に起動させたうえで、ジョブ側の if で
+  # 中身を丸ごとスキップする方式にする。スキップされたジョブは
+  # ステータスチェック上「成功」として扱われるので、ドキュメントや
+  # モデルだけの変更でも必須チェックが緑になり、待たされない。
+  changes:
+    name: 変更内容を判定
+    # PR のときだけ動かす。このジョブはチェックアウトせず GitHub API で
+    # 変更ファイル一覧を取る作りにしてあり、それは pull_request イベントでしか
+    # 効かない。push (main へのマージ後) や手動実行では動かさない
+    # — check/playtest 側は event_name を見て別途フル実行に倒れるので、
+    # ここで判定結果が要らない。
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    # チェックアウトせず GitHub API で変更ファイル一覧を取るので、この権限が要る。
+    permissions:
+      pull-requests: read
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          filters: |
+            code:
+              - "**"
+              - "!**/*.md"
+              - "!design/**"
+              - "!plan/**"
+              - "!tools/preview/**"
+              - "!tools/models/**"
+              - "!tools/build_models.py"
+              - "!tools/compare_models.mjs"
+              - "!public/models/**"
+              - "!.github/workflows/models.yml"
+          # 既定の quantifier (some) は否定パターンを無視してしまい、
+          # "**" だけで全マッチしてしまう。"**" からの除外を効かせるには
+          # some-with-excludes が要る。
+          predicate-quantifier: some-with-excludes
+
   check:
     name: 型・テスト・ビルド
+    needs: changes
+    # PR に対してだけ判定を効かせる。push (main へのマージ後) や手動実行は
+    # 「その push が何を含むか」の基準を取り違えるとうっかり全部スキップしかねないので、
+    # 単純に毎回フルで走らせる。マージ後の確認的な位置づけなので頻度も低い。
+    #
+    # changes ジョブ自体が失敗した(API 障害など)場合は、判定不能を「スキップしてよい」
+    # ではなく「フル実行する」側に倒す。判定が壊れて静かに検査を素通りする方が怖い。
+    if: |
+      needs.changes.result != 'success' ||
+      needs.changes.outputs.code == 'true' ||
+      github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -47,9 +106,16 @@ jobs:
 
   playtest:
     name: 実機での通しプレイ
+    needs: [changes, check]
+    # if を自分で書くと、既定で暗黙に効いている success() が効かなくなる。
+    # そのため needs.check.result の確認を自分で足す。これが無いと、
+    # check が失敗した場合でも(code 変更あり/push 時なら)playtest が
+    # 走ってしまう。
+    if: |
+      needs.check.result == 'success' &&
+      (needs.changes.result != 'success' || needs.changes.outputs.code == 'true' || github.event_name != 'pull_request')
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    needs: check
     steps:
       - uses: actions/checkout@v7
 

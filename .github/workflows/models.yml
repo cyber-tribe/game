@@ -11,11 +11,15 @@ on:
     paths:
       - "tools/models/**"
       - "tools/build_models.py"
+      - "tools/compare_models.mjs"
+      - "public/models/**"
       - ".github/workflows/models.yml"
   pull_request:
     paths:
       - "tools/models/**"
       - "tools/build_models.py"
+      - "tools/compare_models.mjs"
+      - "public/models/**"
       - ".github/workflows/models.yml"
   workflow_dispatch:
 
