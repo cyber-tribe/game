@@ -1,8 +1,13 @@
 import { TUTORIAL_TIP_IDS, type TutorialTipId } from "./core/tutorial";
-import type { Item } from "./core/types";
+import type { Actor, Item, SkillId } from "./core/types";
 import type { TrainingFocus } from "./entities/player";
+import { MAX_SKILLS, NATIVE_SKILL_BY_SPECIES, SKILLS, fullSkillSet } from "./entities/skills";
+import { SPECIES } from "./entities/species";
+import type { StoredMonster } from "./entities/storedMonster";
 import type { RunSnapshot, RunStatus } from "./game";
 import { ITEMS } from "./items/catalog";
+
+export type { StoredMonster };
 
 const KEY = "garudo-dungeon/v1";
 /**
@@ -17,6 +22,7 @@ export interface StoredItem {
   defId: string;
   charges?: number;
 }
+
 
 export interface SaveData {
   /** これまでに到達した最も深い階 */
@@ -42,6 +48,13 @@ export interface SaveData {
    * 方針を次回も引き継ぐ。一度決めておけば以後は何も聞かれない。
    */
   trainingFocus: TrainingFocus;
+  /**
+   * ねむり小屋(plan/monster-fusion.md、アーカイブ済み)に預けてある仲間。
+   * 収容数の上限は設けない(倉庫と同じ扱い)。
+   */
+  hut: StoredMonster[];
+  /** ねむり小屋の次の連番。uidの衝突を避けるためだけに使う */
+  nextHutUid: number;
 }
 
 /** 一番最初の持ち物。手ぶらで放り出さない程度に */
@@ -64,6 +77,8 @@ export function initialSave(): SaveData {
     knownCheckpoints: [1],
     seenTutorialTips: [],
     trainingFocus: "balance",
+    hut: [],
+    nextHutUid: 1,
   };
 }
 
@@ -81,6 +96,8 @@ export function loadSave(): SaveData {
       knownCheckpoints: sanitizeCheckpoints(parsed.knownCheckpoints),
       seenTutorialTips: sanitizeTutorialTips(parsed.seenTutorialTips),
       trainingFocus: sanitizeTrainingFocus(parsed.trainingFocus),
+      hut: sanitizeHut(parsed.hut),
+      nextHutUid: numberOr(parsed.nextHutUid, nextHutUidFrom(sanitizeHut(parsed.hut))),
     };
   } catch {
     // 壊れた保存データで起動できなくなるほうが困るので、黙って初期値に戻す
@@ -131,8 +148,25 @@ export function setTrainingFocus(current: SaveData, focus: TrainingFocus): SaveD
 
 export function recordRun(
   current: SaveData,
-  result: { depth: number; level: number; cleared: boolean; broughtBack: Item[] },
+  result: {
+    depth: number;
+    level: number;
+    cleared: boolean;
+    broughtBack: Item[];
+    /**
+     * 踏破・区切りで生きて連れ帰った仲間(plan/monster-fusion.mdの
+     * 「帰還時の処理」)。全滅時は呼び出し側が空配列を渡す(道具と同じ扱い)
+     */
+    broughtBackAllies?: Actor[];
+  },
 ): SaveData {
+  let nextHutUid = current.nextHutUid;
+  const newlyStored: StoredMonster[] = (result.broughtBackAllies ?? []).map((actor) => {
+    const stored = actorToStoredMonster(nextHutUid, actor);
+    nextHutUid++;
+    return stored;
+  });
+
   const next: SaveData = {
     deepest: Math.max(current.deepest, result.depth),
     runs: current.runs + 1,
@@ -143,9 +177,82 @@ export function recordRun(
     knownCheckpoints: current.knownCheckpoints,
     seenTutorialTips: current.seenTutorialTips,
     trainingFocus: current.trainingFocus,
+    // 生きて連れ帰った仲間だけがねむり小屋に加わる。全滅時は何も加わらない
+    hut: [...current.hut, ...newlyStored],
+    nextHutUid,
   };
   saveData(next);
   return next;
+}
+
+/** ダイブ中のAllyアクターを、ねむり小屋に保存する形へ変換する */
+export function actorToStoredMonster(uid: number, actor: Actor): StoredMonster {
+  const speciesId = actor.speciesId ?? "";
+  const native = NATIVE_SKILL_BY_SPECIES[speciesId];
+  return {
+    uid,
+    speciesId,
+    level: actor.level,
+    // 仲間自身の経験値蓄積・レベルアップはまだ実装されていないため、常に0
+    exp: 0,
+    // native(種族由来)はfullSkillSetで暗黙に復元されるため、夢あわせで得た分だけ保存する
+    skills: actor.skills ? actor.skills.filter((s) => s !== native) : [],
+  };
+}
+
+/**
+ * ねむり小屋から、出発に連れて行く仲間を取り出す(小屋からは消える)。
+ * 見つからないuidは無視する。
+ */
+export function takeFromHut(
+  current: SaveData,
+  uids: readonly number[],
+): { save: SaveData; taken: StoredMonster[] } {
+  const taken: StoredMonster[] = [];
+  const remaining: StoredMonster[] = [];
+  for (const m of current.hut) {
+    if (uids.includes(m.uid) && taken.length < uids.length) taken.push(m);
+    else remaining.push(m);
+  }
+  const next: SaveData = { ...current, hut: remaining };
+  saveData(next);
+  return { save: next, taken };
+}
+
+/**
+ * 夢あわせ。軸(残す側)に糧(消える側)を溶け込ませる。
+ * どちらかのuidが見つからなければ null を返す(何もしない)。
+ */
+export function fuseMonsters(
+  current: SaveData,
+  axisUid: number,
+  foodUid: number,
+): { save: SaveData; result: StoredMonster } | null {
+  if (axisUid === foodUid) return null;
+  const axis = current.hut.find((m) => m.uid === axisUid);
+  const food = current.hut.find((m) => m.uid === foodUid);
+  if (!axis || !food) return null;
+
+  // 種族由来(native)の特技は暗黙で持つため、比較・上限判定は完全な特技一式で行う。
+  // 実際に保存するのは夢あわせで追加した分だけ
+  const axisFull = fullSkillSet(axis.speciesId, axis.skills);
+  const foodFull = fullSkillSet(food.speciesId, food.skills);
+  const inheritable = foodFull.find((s) => !axisFull.includes(s));
+  const skills =
+    inheritable && axisFull.length < MAX_SKILLS ? [...axis.skills, inheritable] : [...axis.skills];
+
+  const result: StoredMonster = {
+    ...axis,
+    level: axis.level + Math.floor(food.level / 2) + 1,
+    skills,
+  };
+
+  const hut = current.hut
+    .filter((m) => m.uid !== foodUid)
+    .map((m) => (m.uid === axisUid ? result : m));
+  const next: SaveData = { ...current, hut };
+  saveData(next);
+  return { save: next, result };
 }
 
 export function toStored(item: Item): StoredItem {
@@ -180,6 +287,39 @@ function sanitizeCheckpoints(value: unknown): number[] {
     }
   }
   return [...known].sort((a, b) => a - b);
+}
+
+const VALID_SPECIES_IDS = new Set(SPECIES.map((s) => s.id));
+const VALID_SKILL_IDS = new Set(SKILLS.map((s) => s.id));
+
+function sanitizeHut(value: unknown): StoredMonster[] {
+  if (!Array.isArray(value)) return [];
+  const out: StoredMonster[] = [];
+  const seenUids = new Set<number>();
+  for (const entry of value) {
+    if (typeof entry !== "object" || entry === null) continue;
+    const m = entry as Partial<StoredMonster>;
+    if (typeof m.uid !== "number" || !Number.isInteger(m.uid) || seenUids.has(m.uid)) continue;
+    if (typeof m.speciesId !== "string" || !VALID_SPECIES_IDS.has(m.speciesId)) continue;
+    if (typeof m.level !== "number" || !Number.isFinite(m.level) || m.level < 1) continue;
+    const skills = Array.isArray(m.skills)
+      ? m.skills.filter((s): s is SkillId => typeof s === "string" && VALID_SKILL_IDS.has(s))
+      : [];
+    seenUids.add(m.uid);
+    out.push({
+      uid: m.uid,
+      speciesId: m.speciesId,
+      level: m.level,
+      exp: typeof m.exp === "number" && Number.isFinite(m.exp) ? m.exp : 0,
+      skills,
+      nickname: typeof m.nickname === "string" ? m.nickname : undefined,
+    });
+  }
+  return out;
+}
+
+function nextHutUidFrom(hut: readonly StoredMonster[]): number {
+  return hut.reduce((max, m) => Math.max(max, m.uid), 0) + 1;
 }
 
 const VALID_TIP_IDS = new Set<string>(TUTORIAL_TIP_IDS);

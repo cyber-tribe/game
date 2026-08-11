@@ -7,6 +7,7 @@ import {
   type FloorState,
   type Item,
   type Room,
+  type SkillId,
   type Species,
   type TrapKind,
   actorAt,
@@ -14,7 +15,9 @@ import {
   isWalkable,
   roomContains,
 } from "../core/types";
-import { speciesForDepth } from "../entities/species";
+import { fullSkillSet } from "../entities/skills";
+import { speciesById, speciesForDepth } from "../entities/species";
+import type { StoredMonster } from "../entities/storedMonster";
 import { itemsForDepth } from "../items/catalog";
 import { randomTileInRoom } from "./generate";
 
@@ -67,6 +70,36 @@ export function createAlly(id: number, species: Species, pos: Vec2): Actor {
   actor.atk = Math.round(species.atk * 1.15);
   actor.exp = 0;
   actor.aware = true;
+  applySkills(actor, species, fullSkillSet(species.id));
+  return actor;
+}
+
+/** 特技一式をactorに反映する。とおなげ(longThrow)は遠隔射程+1に変換する */
+function applySkills(actor: Actor, species: Species, skills: SkillId[]): void {
+  actor.skills = skills;
+  actor.rangedRange = species.range;
+  if (skills.includes("longThrow") && actor.rangedRange !== undefined) {
+    actor.rangedRange += 1;
+  }
+}
+
+/**
+ * ねむり小屋(plan/monster-fusion.md)から連れ出した仲間を、盤面のアクターに
+ * 起こす。レベルに応じてステータスを底上げする(仲間自身の経験値蓄積・
+ * レベルアップはまだ実装されていないため、ここでの level は捕獲時や
+ * 夢あわせの結果のまま変わらない)。
+ */
+export function createAllyFromStored(id: number, stored: StoredMonster, pos: Vec2): Actor {
+  const species = speciesById(stored.speciesId);
+  const actor = createAlly(id, species, pos);
+  actor.level = stored.level;
+  const growth = Math.max(0, stored.level - 1) * 0.08;
+  actor.maxHp = Math.round(actor.maxHp * (1 + growth));
+  actor.hp = actor.maxHp;
+  actor.atk = Math.round(actor.atk * (1 + growth));
+  actor.def = Math.round(actor.def * (1 + growth));
+  applySkills(actor, species, fullSkillSet(species.id, stored.skills));
+  if (stored.nickname) actor.name = stored.nickname;
   return actor;
 }
 

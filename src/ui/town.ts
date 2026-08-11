@@ -1,5 +1,6 @@
-import type { TrainingFocus } from "../entities/player";
-import type { SaveData, StoredItem } from "../save";
+import { MAX_ALLIES, type TrainingFocus } from "../entities/player";
+import { speciesById } from "../entities/species";
+import type { SaveData, StoredItem, StoredMonster } from "../save";
 import { itemDef } from "../items/catalog";
 
 /** ダンジョンに持ち込める数。全部持って行けたら倉庫に預ける意味がない */
@@ -26,8 +27,8 @@ const TRAINING_FOCUS_DESCRIPTIONS: Record<TrainingFocus, string> = {
  */
 export class TownScreen {
   private open = false;
-  /** 0 = 倉庫、1 = 持ち込み、2 = 出発地点、3 = 鍛え方 */
-  private column: 0 | 1 | 2 | 3 = 0;
+  /** 0 = 倉庫、1 = 持ち込み、2 = 出発地点、3 = 鍛え方、4 = つれていく仲間 */
+  private column: 0 | 1 | 2 | 3 | 4 = 0;
   private cursor: [number, number] = [0, 0];
   private storage: StoredItem[] = [];
   private carry: StoredItem[] = [];
@@ -36,14 +37,22 @@ export class TownScreen {
   private startDepthIndex = 0;
   /** このダイブの鍛え方。前回選んだ方針を引き継いで開く */
   private trainingFocusIndex = TRAINING_FOCI.indexOf("balance");
+  /** ねむり小屋の一覧上のカーソル位置 */
+  private hutCursor = 0;
+  /** 連れて行く仲間として選んだ、ねむり小屋のuid(最大 MAX_ALLIES 体) */
+  private bringUids: number[] = [];
+  /** 夢あわせ(plan/monster-fusion.md)で、軸として選んで確定した個体。まだ無ければ null */
+  private fusionAxisUid: number | null = null;
   private depart:
     | ((
         carry: StoredItem[],
         storage: StoredItem[],
         startDepth: number,
         trainingFocus: TrainingFocus,
+        bringAllyUids: number[],
       ) => void)
     | null = null;
+  private onFuse: ((axisUid: number, foodUid: number) => void) | null = null;
 
   constructor(private readonly root: HTMLElement) {
     this.root.style.display = "none";
@@ -60,7 +69,9 @@ export class TownScreen {
       storage: StoredItem[],
       startDepth: number,
       trainingFocus: TrainingFocus,
+      bringAllyUids: number[],
     ) => void,
+    onFuse: (axisUid: number, foodUid: number) => void,
   ): void {
     this.save = save;
     this.storage = save.storage.map((s) => ({ ...s }));
@@ -72,10 +83,28 @@ export class TownScreen {
     // 前回選んだ鍛え方を引き継ぐ。一度決めておけば以後は何も聞かれない
     const idx = TRAINING_FOCI.indexOf(save.trainingFocus);
     this.trainingFocusIndex = idx >= 0 ? idx : TRAINING_FOCI.indexOf("balance");
+    this.hutCursor = 0;
+    this.bringUids = [];
+    this.fusionAxisUid = null;
     this.depart = onDepart;
+    this.onFuse = onFuse;
     this.open = true;
     this.root.style.display = "flex";
     this.render();
+  }
+
+  /**
+   * ねむり小屋の中身が外部で変わった(夢あわせが成立した)ときに、
+   * 画面を開いたまま最新の状態を反映する。
+   */
+  refreshSave(save: SaveData): void {
+    this.save = save;
+    this.hutCursor = Math.min(this.hutCursor, Math.max(0, this.hut().length - 1));
+    this.render();
+  }
+
+  private hut(): StoredMonster[] {
+    return this.save?.hut ?? [];
   }
 
   private checkpoints(): number[] {
@@ -133,6 +162,46 @@ export class TownScreen {
         case "KeyA":
           this.column = 2;
           break;
+        case "ArrowRight":
+        case "KeyD":
+          this.column = 4;
+          break;
+        case "Space":
+          this.departNow();
+          return true;
+        default:
+          return true;
+      }
+      this.render();
+      return true;
+    }
+
+    if (this.column === 4) {
+      const hut = this.hut();
+      switch (code) {
+        case "ArrowUp":
+        case "KeyW":
+          this.hutCursor = wrap(this.hutCursor - 1, hut.length);
+          break;
+        case "ArrowDown":
+        case "KeyS":
+          this.hutCursor = wrap(this.hutCursor + 1, hut.length);
+          break;
+        case "ArrowLeft":
+        case "KeyA":
+          this.fusionAxisUid = null;
+          this.column = 3;
+          break;
+        case "Enter":
+        case "NumpadEnter":
+          this.toggleBring(hut[this.hutCursor]?.uid);
+          break;
+        case "KeyM":
+          this.pickForFusion(hut[this.hutCursor]?.uid);
+          break;
+        case "Escape":
+          this.fusionAxisUid = null;
+          break;
         case "Space":
           this.departNow();
           return true;
@@ -177,6 +246,31 @@ export class TownScreen {
     return true;
   }
 
+  /** ねむり小屋の仲間を、連れて行く選択に加える/外す(最大 MAX_ALLIES 体) */
+  private toggleBring(uid: number | undefined): void {
+    if (uid === undefined) return;
+    if (this.bringUids.includes(uid)) {
+      this.bringUids = this.bringUids.filter((u) => u !== uid);
+      return;
+    }
+    if (this.bringUids.length >= MAX_ALLIES) return;
+    this.bringUids.push(uid);
+  }
+
+  /**
+   * 夢あわせ(plan/monster-fusion.md)の軸/糧を選ぶ。1回目のMで軸を確定し、
+   * 2回目のMで糧を確定して発動する(同じ個体を選んだ場合は何もしない)。
+   */
+  private pickForFusion(uid: number | undefined): void {
+    if (uid === undefined) return;
+    if (this.fusionAxisUid === null) {
+      this.fusionAxisUid = uid;
+      return;
+    }
+    if (uid !== this.fusionAxisUid) this.onFuse?.(this.fusionAxisUid, uid);
+    this.fusionAxisUid = null;
+  }
+
   /** 選んでいるアイテムを、倉庫 ⇔ 持ち込み のあいだで移す */
   private transfer(): void {
     if (this.column === 0) {
@@ -201,8 +295,9 @@ export class TownScreen {
     const storage = this.storage.map((s) => ({ ...s }));
     const startDepth = this.checkpoints()[this.startDepthIndex] ?? 1;
     const trainingFocus = TRAINING_FOCI[this.trainingFocusIndex] ?? "balance";
+    const bringAllyUids = [...this.bringUids];
     this.hide();
-    depart?.(carry, storage, startDepth, trainingFocus);
+    depart?.(carry, storage, startDepth, trainingFocus, bringAllyUids);
   }
 
   private render(): void {
@@ -238,6 +333,7 @@ export class TownScreen {
       this.renderList(`持ち込む (${this.carry.length} / ${CARRY_LIMIT})`, this.carry, 1),
       this.renderCheckpoints(),
       this.renderTrainingFocus(),
+      this.renderHut(),
     );
     box.appendChild(columns);
 
@@ -248,6 +344,11 @@ export class TownScreen {
     } else if (this.column === 3) {
       const focus = TRAINING_FOCI[this.trainingFocusIndex] ?? "balance";
       desc.textContent = TRAINING_FOCUS_DESCRIPTIONS[focus];
+    } else if (this.column === 4) {
+      desc.textContent =
+        this.fusionAxisUid === null
+          ? `Enterで選択/解除(最大${MAX_ALLIES}体、0体なら手ぶらで出発)。Mで夢あわせの軸を選ぶ。`
+          : "夢あわせ: 糧にする個体を選んでMで確定(軸は消えず、糧は消えて軸に溶け込む)。";
     } else {
       const selected = (this.column === 0 ? this.storage : this.carry)[this.cursor[this.column]];
       desc.textContent = selected ? itemDef(selected.defId).description : "";
@@ -256,7 +357,10 @@ export class TownScreen {
 
     const hint = document.createElement("p");
     hint.className = "town-hint";
-    hint.textContent = "←→ 列を移る / ↑↓ 選ぶ / Enter 移す / Space もぐる";
+    hint.textContent =
+      this.column === 4
+        ? "←→ 列を移る / ↑↓ 選ぶ / Enter 選択・解除 / M 夢あわせ / Space もぐる"
+        : "←→ 列を移る / ↑↓ 選ぶ / Enter 移す / Space もぐる";
     box.appendChild(hint);
 
     this.root.appendChild(box);
@@ -331,6 +435,39 @@ export class TownScreen {
       const li = document.createElement("li");
       li.textContent = TRAINING_FOCUS_LABELS[focus];
       if (this.column === 3 && index === this.trainingFocusIndex) li.classList.add("selected");
+      list.appendChild(li);
+    });
+    wrapper.appendChild(list);
+    return wrapper;
+  }
+
+  /** ねむり小屋(plan/monster-fusion.md、アーカイブ済み)から連れて行く仲間を選ぶ一覧 */
+  private renderHut(): HTMLElement {
+    const wrapper = document.createElement("div");
+    wrapper.className = "town-col";
+    if (this.column === 4) wrapper.classList.add("active");
+
+    const heading = document.createElement("div");
+    heading.className = "town-col-title";
+    heading.textContent = `つれていく仲間 (${this.bringUids.length} / ${MAX_ALLIES})`;
+    wrapper.appendChild(heading);
+
+    const hut = this.hut();
+    const list = document.createElement("ul");
+    if (hut.length === 0) {
+      const li = document.createElement("li");
+      li.className = "empty";
+      li.textContent = "ねむり小屋はからっぽ";
+      list.appendChild(li);
+    }
+    hut.forEach((m, index) => {
+      const li = document.createElement("li");
+      const name = m.nickname ?? speciesById(m.speciesId).name;
+      li.textContent =
+        m.uid === this.fusionAxisUid ? `${name} Lv${m.level}(夢あわせの軸)` : `${name} Lv${m.level}`;
+      if (this.bringUids.includes(m.uid)) li.classList.add("chosen");
+      if (m.uid === this.fusionAxisUid) li.classList.add("axis");
+      if (this.column === 4 && index === this.hutCursor) li.classList.add("selected");
       list.appendChild(li);
     });
     wrapper.appendChild(list);

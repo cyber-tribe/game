@@ -154,6 +154,11 @@ export interface Actor {
   stance?: AllyStance;
   /** stance === "hold" のときの固定地点 */
   holdPos?: Vec2;
+  /**
+   * 夢あわせ(plan/monster-fusion.md)で引き継いだ特技。最大 MAX_SKILLS 個。
+   * ねむり小屋から連れ出した仲間にのみ載る(タルで新しく捕まえた直後は空)
+   */
+  skills?: SkillId[];
 }
 
 export function hasStatus(actor: Actor, kind: StatusKind): boolean {
@@ -178,6 +183,9 @@ export const ALLY_STANCE_NAMES: Record<AllyStance, string> = {
   hold: "そこで待て",
   vanguard: "先陣を切れ",
 };
+
+/** 夢あわせ(plan/monster-fusion.md)で引き継げる特技。定義は entities/skills.ts */
+export type SkillId = "quickStart" | "drowsyBreath" | "longThrow" | "stubborn" | "softBody";
 
 // ---------------------------------------------------------------- アイテム
 

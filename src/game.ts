@@ -28,6 +28,7 @@ import {
   type FloorState,
   type Item,
   type ItemDef,
+  type SkillId,
   type StatusKind,
   type Trap,
   type WeaponPattern,
@@ -46,12 +47,14 @@ import {
   type IdSource,
   choosePlayerStart,
   createAlly,
+  createAllyFromStored,
   createBarrel,
   createItem,
   findFreeTile,
   populateFloor,
   spawnWanderingMonster,
 } from "./dungeon/populate";
+import type { StoredMonster } from "./entities/storedMonster";
 import { updateVisibility } from "./dungeon/visibility";
 import {
   buildDistanceField,
@@ -139,6 +142,11 @@ export interface RunOptions {
    * このダイブ中、レベルアップのたびに自動で適用される。省略時は "balance"
    */
   trainingFocus?: TrainingFocus;
+  /**
+   * ねむり小屋(plan/monster-fusion.md、アーカイブ済み)から連れ出す仲間。
+   * MAX_ALLIES を超える分は無視する。省略時は0体(手ぶらで出発)。
+   */
+  bringAllies?: StoredMonster[];
 }
 
 export type RunStatus = "playing" | "dead" | "cleared";
@@ -181,6 +189,11 @@ const BARREL_DAMAGE = 8;
 const BOMB_DAMAGE = 22;
 const BOMB_RADIUS = 1;
 
+/** 夢あわせ(plan/monster-fusion.md)で得た特技を持っているか */
+function hasSkill(actor: Actor, id: SkillId): boolean {
+  return actor.skills?.includes(id) ?? false;
+}
+
 /**
  * 空のタルでモンスターを吸い込める確率。
  * 満タンの相手にはめったに効かず、瀕死ならほぼ確実に入る。
@@ -213,6 +226,11 @@ export class Game {
 
   /** 双樽鉤の「そのラン最初の1手は必ず会心」がまだ使われていないか */
   private firstStrikeAvailable = true;
+
+  /** 特技「ふいうち」を、そのダイブで既に使った仲間のid(plan/monster-fusion.md) */
+  private readonly usedQuickStart = new Set<number>();
+  /** 特技「ふんばり」を、そのダイブで既に使った仲間のid */
+  private readonly usedStubborn = new Set<number>();
 
   /** このダイブの鍛え方(plan/protagonist-training.md)。レベルアップのたびに適用する */
   private trainingFocus: TrainingFocus = "balance";
@@ -267,6 +285,12 @@ export class Game {
       // 持ち込み品の uid は採番済みなので、衝突しないようカウンタを進めておく
       this.itemUidCounter = Math.max(this.itemUidCounter, item.uid);
       addItem(this.player.inventory, item);
+    }
+
+    // ねむり小屋(plan/monster-fusion.md)から連れ出した仲間を、盤面のアクターとして起こす。
+    // 実際の配置は enterFloor が行う(仲間は毎回プレイヤーの周りに並べ直される)
+    for (const stored of (opts.bringAllies ?? []).slice(0, MAX_ALLIES)) {
+      this.allies.push(createAllyFromStored(this.ids.nextActorId(), stored, this.player.pos));
     }
 
     const startDepth = Math.min(Math.max(1, Math.floor(opts.startDepth ?? 1)), this.maxDepth);
@@ -976,10 +1000,19 @@ export class Game {
     const sneakAttack = target.kind === "monster" && !target.aware;
     if (sneakAttack) events.push({ type: "message", text: "不意打ち!" });
 
+    // 特技「ふいうち」(plan/monster-fusion.md): そのダイブで最初の1手は必ず会心
+    const quickStart =
+      attacker.kind === "ally" &&
+      hasSkill(attacker, "quickStart") &&
+      !this.usedQuickStart.has(attacker.id);
+    if (attacker.kind === "ally" && hasSkill(attacker, "quickStart")) {
+      this.usedQuickStart.add(attacker.id);
+    }
+
     const defense = target.kind === "player" ? totalDefense(this.player) : target.def;
     const { damage, critical } = computeDamage(this.rng, attackPower, defense, {
       ...combatOpts,
-      forceCrit: combatOpts?.forceCrit || sneakAttack,
+      forceCrit: combatOpts?.forceCrit || sneakAttack || quickStart,
     });
     if (critical) events.push({ type: "message", text: "会心の一撃!" });
 
@@ -990,39 +1023,46 @@ export class Game {
     // 攻撃してきた相手には気づく
     if (target.kind === "monster") target.aware = true;
 
+    // 特技「ねむりごな」: 隣接する敵への攻撃に、眠り付与の確率+10%を上乗せする
+    const drowsyBonus = attacker.kind === "ally" && hasSkill(attacker, "drowsyBreath") ? 0.1 : 0;
+    const inflictChance = (attacker.inflicts?.chance ?? 0) + drowsyBonus;
     // かなしばりの杖で封じられている間は、特技(状態異常の追加付与)が出せない
-    if (
-      target.alive &&
-      attacker.inflicts &&
-      !hasStatus(attacker, STATUS_SEAL) &&
-      this.rng.chance(attacker.inflicts.chance)
-    ) {
+    if (target.alive && inflictChance > 0 && !hasStatus(attacker, STATUS_SEAL) && this.rng.chance(inflictChance)) {
+      const kind = attacker.inflicts?.kind ?? STATUS_SLEEP;
+      const turns = attacker.inflicts?.turns ?? 4;
       addStatus(
         this.effectContext(events),
         target,
-        attacker.inflicts.kind,
-        attacker.inflicts.turns,
-        attacker.inflicts.kind === STATUS_SLEEP ? "眠ってしまった" : "混乱した",
+        kind,
+        turns,
+        kind === STATUS_SLEEP ? "眠ってしまった" : "混乱した",
       );
     }
   }
 
   /**
-   * プレイヤーへの被ダメージに、樽受け身(全無効・最優先)と身構え
-   * (2割軽減)を適用する。プレイヤー以外への攻撃はそのまま素通しする。
+   * 被ダメージへの軽減を適用する。プレイヤーには樽受け身(全無効・最優先)と
+   * 身構え(2割軽減)、仲間には特技「みをまもる」(5割の確率で1割軽減)を適用する。
    */
   private mitigateIncomingDamage(target: Actor, damage: number, events: GameEvent[]): number {
-    if (target.kind !== "player") return damage;
-
-    if (this.player.ukemiReady) {
-      this.player.ukemiReady = false;
-      events.push({ type: "message", text: "樽受け身で衝撃を受け流した!" });
-      return 0;
+    if (target.kind === "player") {
+      if (this.player.ukemiReady) {
+        this.player.ukemiReady = false;
+        events.push({ type: "message", text: "樽受け身で衝撃を受け流した!" });
+        return 0;
+      }
+      if (this.player.guarding) {
+        this.player.guarding = false;
+        events.push({ type: "message", text: "身構えていたので、ダメージをおさえた!" });
+        return Math.max(1, Math.floor(damage * (1 - GUARD_DAMAGE_REDUCTION)));
+      }
+      return damage;
     }
-    if (this.player.guarding) {
-      this.player.guarding = false;
-      events.push({ type: "message", text: "身構えていたので、ダメージをおさえた!" });
-      return Math.max(1, Math.floor(damage * (1 - GUARD_DAMAGE_REDUCTION)));
+
+    if (target.kind === "ally" && hasSkill(target, "softBody") && this.rng.chance(0.5)) {
+      // 特技「みをまもる」: 確率5割で被弾ダメージを1割軽減する
+      events.push({ type: "message", text: `${target.name}は衝撃をやわらげた!` });
+      return Math.max(1, Math.floor(damage * 0.9));
     }
     return damage;
   }
@@ -1042,7 +1082,22 @@ export class Game {
       sleep.turns = 0;
       events.push({ type: "statusEnd", actorId: target.id, kind: STATUS_SLEEP });
     }
-    if (target.hp <= 0) this.killActor(target, events);
+    if (target.hp <= 0) {
+      // 特技「ふんばり」: HPが1残っていた状態からの致死ダメージを1ラン1回だけ耐える
+      const hpBeforeThisHit = target.hp + damage;
+      if (
+        target.kind === "ally" &&
+        hpBeforeThisHit === 1 &&
+        hasSkill(target, "stubborn") &&
+        !this.usedStubborn.has(target.id)
+      ) {
+        target.hp = 1;
+        this.usedStubborn.add(target.id);
+        events.push({ type: "message", text: `${target.name}はふんばりこらえた!` });
+      } else {
+        this.killActor(target, events);
+      }
+    }
   }
 
   private killActor(target: Actor, events: GameEvent[]): void {
