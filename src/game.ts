@@ -14,6 +14,8 @@ import {
   ALLY_STANCE_NAMES,
   BARREL_NAMES,
   STATUS_CONFUSE,
+  STATUS_RECOVER,
+  STATUS_SEAL,
   STATUS_SLEEP,
   type Actor,
   type AllyStance,
@@ -22,7 +24,10 @@ import {
   type FloorGimmickKind,
   type FloorState,
   type Item,
+  type ItemDef,
+  type StatusKind,
   type Trap,
+  type WeaponPattern,
   actorAt,
   barrelAt,
   hasStatus,
@@ -63,7 +68,20 @@ import { speciesById } from "./entities/species";
 import { itemDef } from "./items/catalog";
 import { type EffectContext, addStatus, applyEffect } from "./items/effects";
 import { addItem, displayName, equip, findItem, isFull, removeItem } from "./items/inventory";
-import { computeDamage } from "./systems/combat";
+import { attackOffsets, computeDamage } from "./systems/combat";
+
+/** 双樽鉤(quickSingle)の会心率の上乗せ分 */
+const QUICK_SINGLE_CRIT_BONUS = 0.15;
+/** 主の大槌(heavySingle)の反動。1ターン分の行動を失わせる(既存の状態異常と同じ off-by-one 消化) */
+const HEAVY_RECOVER_TURNS = 2;
+
+/** 状態異常が明けたときにプレイヤーへ表示するメッセージ */
+const STATUS_END_MESSAGES: Record<StatusKind, string> = {
+  [STATUS_SLEEP]: "目が覚めた。",
+  [STATUS_CONFUSE]: "混乱がおさまった。",
+  [STATUS_SEAL]: "封じが解けた。",
+  [STATUS_RECOVER]: "体勢を立て直した。",
+};
 
 export type Command =
   | { type: "move"; dir: Dir }
@@ -137,6 +155,9 @@ export class Game {
 
   /** そのフロアのモンスターハウスについて、もう警告を出したか */
   private monsterHouseWarned = false;
+
+  /** 双樽鉤の「そのラン最初の1手は必ず会心」がまだ使われていないか */
+  private firstStrikeAvailable = true;
 
   private actorIdCounter = 1;
   private itemUidCounter = 1;
@@ -243,6 +264,11 @@ export class Game {
     // 眠っている間は何をしようとしてもターンだけが過ぎる
     if (hasStatus(player, STATUS_SLEEP)) {
       events.push({ type: "message", text: "ガルドは眠っている……" });
+      return true;
+    }
+    // 主の大槌を振るった反動で、次の1手ぶん体勢が崩れている
+    if (hasStatus(player, STATUS_RECOVER)) {
+      events.push({ type: "message", text: "大槌を振り抜いた反動で、体勢を立て直している……" });
       return true;
     }
 
@@ -567,7 +593,7 @@ export class Game {
     const target = actorAt(this.floor, to);
     if (target && target.id !== player.id) {
       if (isHostile(player, target)) {
-        this.attack(player, target, totalAttack(player), events);
+        this.resolvePlayerAttack(dir, events);
         return true;
       }
       // 仲間とは位置を入れ替える。通せんぼで足止めされては連れ歩けない
@@ -646,13 +672,60 @@ export class Game {
 
   // ------------------------------------------------------------ 戦闘
 
-  private attack(attacker: Actor, target: Actor, attackPower: number, events: GameEvent[]): void {
+  /** 装備中の武器の定義。未装備なら null(素手扱い、パターンは "single") */
+  private equippedWeaponDef(): ItemDef | null {
+    const uid = this.player.inventory.weaponUid;
+    if (uid === null) return null;
+    const item = findItem(this.player.inventory, uid);
+    return item ? itemDef(item.defId) : null;
+  }
+
+  /**
+   * プレイヤーの近接攻撃。装備中の武器の attackPattern に応じて、
+   * 1体だけでなく複数マスを攻撃することがある(plan/protagonist-weapons.md)。
+   * 「dir 方向へ体当たりして初めて発動する」という既存の操作感は変えず、
+   * 当たり判定の形だけを武器ごとに変える。
+   */
+  private resolvePlayerAttack(dir: Dir, events: GameEvent[]): void {
+    const player = this.player;
+    const weapon = this.equippedWeaponDef();
+    const pattern: WeaponPattern = weapon?.attackPattern ?? "single";
+    const critBonus = pattern === "quickSingle" ? QUICK_SINGLE_CRIT_BONUS : 0;
+    let forceCrit = pattern === "quickSingle" && this.firstStrikeAvailable;
+
+    const seen = new Set<number>();
+    let hitAny = false;
+    for (const offset of attackOffsets(pattern, dir)) {
+      const pos = { x: player.pos.x + offset.x, y: player.pos.y + offset.y };
+      const target = actorAt(this.floor, pos);
+      if (!target || target.id === player.id || seen.has(target.id)) continue;
+      if (!isHostile(player, target)) continue;
+      seen.add(target.id);
+      hitAny = true;
+      this.attack(player, target, totalAttack(player), events, { critBonus, forceCrit });
+      forceCrit = false; // 強制会心はその手の最初の1体だけ
+    }
+    player.facing = dir;
+
+    if (hitAny && pattern === "quickSingle") this.firstStrikeAvailable = false;
+    if (hitAny && pattern === "heavySingle") {
+      addStatus(this.effectContext(events), player, STATUS_RECOVER, HEAVY_RECOVER_TURNS, "隙ができた");
+    }
+  }
+
+  private attack(
+    attacker: Actor,
+    target: Actor,
+    attackPower: number,
+    events: GameEvent[],
+    combatOpts?: { critBonus?: number; forceCrit?: boolean },
+  ): void {
     attacker.facing = dirFromDelta(target.pos.x - attacker.pos.x, target.pos.y - attacker.pos.y);
     events.push({ type: "attack", attackerId: attacker.id, targetId: target.id });
     events.push({ type: "message", text: `${attacker.name}のこうげき!` });
 
     const defense = target.kind === "player" ? totalDefense(this.player) : target.def;
-    const { damage, critical } = computeDamage(this.rng, attackPower, defense);
+    const { damage, critical } = computeDamage(this.rng, attackPower, defense, combatOpts);
     if (critical) events.push({ type: "message", text: "会心の一撃!" });
     events.push({ type: "message", text: `${target.name}に${damage}のダメージ!` });
     this.damageActor(target, damage, critical, events);
@@ -994,10 +1067,7 @@ export class Game {
         if (status.turns === 0) {
           events.push({ type: "statusEnd", actorId: actor.id, kind: status.kind });
           if (actor.kind === "player") {
-            events.push({
-              type: "message",
-              text: status.kind === STATUS_SLEEP ? "目が覚めた。" : "混乱がおさまった。",
-            });
+            events.push({ type: "message", text: STATUS_END_MESSAGES[status.kind] });
           }
         }
       }
