@@ -10,3 +10,6 @@ tools/.wheels/
 # モデル制作時の中間ファイル(.glb とプレビュー画像はコミットする)
 *.blend
 *.blend1
+
+__pycache__/
+*.pyc
