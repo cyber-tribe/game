@@ -159,6 +159,8 @@ export interface Actor {
    * ねむり小屋から連れ出した仲間にのみ載る(タルで新しく捕まえた直後は空)
    */
   skills?: SkillId[];
+  /** プレイヤーがつけた名前。plan/companion-naming.md 参照。未設定なら種族名で表示する */
+  nickname?: string;
 }
 
 export function hasStatus(actor: Actor, kind: StatusKind): boolean {

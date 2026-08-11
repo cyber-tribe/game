@@ -12,6 +12,7 @@ import { Renderer } from "./view/renderer";
 import { Stage } from "./view/stage";
 import { ArtsMenu } from "./ui/arts";
 import { InventoryMenu } from "./ui/menu";
+import { NamingDialog } from "./ui/naming-dialog";
 import { StanceMenu } from "./ui/stance";
 import { TownScreen } from "./ui/town";
 import {
@@ -47,6 +48,7 @@ class App {
   private readonly stanceMenu: StanceMenu;
   private readonly artsMenu: ArtsMenu;
   private readonly town: TownScreen;
+  private readonly namingDialog: NamingDialog;
   private readonly canvas: HTMLCanvasElement;
 
   private game!: Game;
@@ -67,6 +69,7 @@ class App {
     this.stanceMenu = new StanceMenu(document.querySelector<HTMLElement>("#stance")!);
     this.artsMenu = new ArtsMenu(document.querySelector<HTMLElement>("#arts")!);
     this.town = new TownScreen(document.querySelector<HTMLElement>("#town")!);
+    this.namingDialog = new NamingDialog(document.querySelector<HTMLElement>("#naming")!);
     this.save = loadSave();
 
     this.input.onKey = (code) =>
@@ -175,6 +178,19 @@ class App {
     if (this.save.seenTutorialTips.includes(id)) return;
     this.save = markTutorialTipSeen(this.save, id);
     this.hud.log(TUTORIAL_TIPS[id]);
+  }
+
+  /**
+   * 仲間になった直後に名前をつけるか尋ねる(plan/companion-naming.md)。
+   * Escで「あとで」を選べ、ねむり小屋でいつでも改名できる
+   */
+  private promptNaming(actorId: number, speciesName: string): void {
+    const ally = this.game.allyList.find((a) => a.id === actorId);
+    if (!ally) return;
+    this.namingDialog.show(`${speciesName}に名前をつける?`, ally.nickname, (value) => {
+      ally.nickname = value;
+      this.hud.update(this.game.player, this.game.depth, this.game.allyList);
+    });
   }
 
   // ------------------------------------------------------------ ループ
@@ -327,6 +343,7 @@ class App {
       // めざめの階段は、ダイブの結果によらず足を踏み入れた瞬間に記録する
       if (event.type === "checkpoint") this.save = addKnownCheckpoint(this.save, event.depth);
       if (event.type === "tutorialTip") this.showTutorialTip(event.id);
+      if (event.type === "recruit") this.promptNaming(event.actorId, event.name);
     }
 
     const changedFloor = this.game.depth !== beforeDepth;
