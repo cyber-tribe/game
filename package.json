@@ -12,12 +12,17 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "models": "tools/venv/bin/python tools/build_models.py",
-    "playtest": "node tools/playtest.mjs"
+    "playtest": "node tools/playtest.mjs",
+    "cap:sync": "npm run build && cap sync",
+    "cap:add:android": "cap add android",
+    "cap:add:ios": "cap add ios"
   },
   "dependencies": {
+    "@capacitor/core": "^8.5.0",
     "three": "^0.185.1"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.0",
     "@types/node": "^22.20.1",
     "@types/three": "^0.185.4",
     "typescript": "^5.9.3",
