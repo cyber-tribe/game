@@ -1,3 +1,4 @@
+import { TUTORIAL_TIP_IDS, type TutorialTipId } from "./core/tutorial";
 import type { Item } from "./core/types";
 import { ITEMS } from "./items/catalog";
 
@@ -26,6 +27,8 @@ export interface SaveData {
    * (plan/checkpoint-select.md の「知識は失われない」原則)。
    */
   knownCheckpoints: number[];
+  /** 表示済みのチュートリアルヒントid(plan/tutorial.md、アーカイブ済み) */
+  seenTutorialTips: TutorialTipId[];
 }
 
 /** 一番最初の持ち物。手ぶらで放り出さない程度に */
@@ -46,6 +49,7 @@ export function initialSave(): SaveData {
     bestLevel: 1,
     storage: STARTER.map((s) => ({ ...s })),
     knownCheckpoints: [1],
+    seenTutorialTips: [],
   };
 }
 
@@ -61,6 +65,7 @@ export function loadSave(): SaveData {
       bestLevel: numberOr(parsed.bestLevel, 1),
       storage: sanitizeStorage(parsed.storage),
       knownCheckpoints: sanitizeCheckpoints(parsed.knownCheckpoints),
+      seenTutorialTips: sanitizeTutorialTips(parsed.seenTutorialTips),
     };
   } catch {
     // 壊れた保存データで起動できなくなるほうが困るので、黙って初期値に戻す
@@ -87,6 +92,20 @@ export function addKnownCheckpoint(current: SaveData, depth: number): SaveData {
   return next;
 }
 
+/**
+ * チュートリアルヒントを既読にする。すでに既読なら何もしない
+ * (呼び出し側は既読かどうかを問わず毎回呼んでよい)。
+ */
+export function markTutorialTipSeen(current: SaveData, id: TutorialTipId): SaveData {
+  if (current.seenTutorialTips.includes(id)) return current;
+  const next: SaveData = {
+    ...current,
+    seenTutorialTips: [...current.seenTutorialTips, id],
+  };
+  saveData(next);
+  return next;
+}
+
 export function recordRun(
   current: SaveData,
   result: { depth: number; level: number; cleared: boolean; broughtBack: Item[] },
@@ -99,6 +118,7 @@ export function recordRun(
     // 踏破して帰ってきたぶんだけが倉庫に加わる。倒れた場合は持ち込み品が丸ごと消える
     storage: [...current.storage, ...result.broughtBack.map(toStored)],
     knownCheckpoints: current.knownCheckpoints,
+    seenTutorialTips: current.seenTutorialTips,
   };
   saveData(next);
   return next;
@@ -136,4 +156,15 @@ function sanitizeCheckpoints(value: unknown): number[] {
     }
   }
   return [...known].sort((a, b) => a - b);
+}
+
+const VALID_TIP_IDS = new Set<string>(TUTORIAL_TIP_IDS);
+
+function sanitizeTutorialTips(value: unknown): TutorialTipId[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<TutorialTipId>();
+  for (const entry of value) {
+    if (typeof entry === "string" && VALID_TIP_IDS.has(entry)) seen.add(entry as TutorialTipId);
+  }
+  return [...seen];
 }

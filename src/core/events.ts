@@ -1,4 +1,5 @@
 import type { Vec2 } from "./grid";
+import type { TutorialTipId } from "./tutorial";
 import type { BarrelKind, StatusKind, TrapKind } from "./types";
 
 /**
@@ -42,7 +43,9 @@ export type GameEvent =
   | { type: "checkpoint"; depth: number }
   | { type: "hungerWarning"; level: "low" | "empty" }
   | { type: "gameOver"; reason: string }
-  | { type: "message"; text: string };
+  | { type: "message"; text: string }
+  /** その場方式のチュートリアルヒント。既読管理は呼び出し側(main.ts)が行う */
+  | { type: "tutorialTip"; id: TutorialTipId };
 
 /** メッセージイベントを作るだけの短縮。呼び出し側の見通しのため */
 export function msg(text: string): GameEvent {
