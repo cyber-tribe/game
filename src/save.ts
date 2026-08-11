@@ -1,8 +1,15 @@
 import { TUTORIAL_TIP_IDS, type TutorialTipId } from "./core/tutorial";
 import type { Item } from "./core/types";
+import type { RunSnapshot, RunStatus } from "./game";
 import { ITEMS } from "./items/catalog";
 
 const KEY = "garudo-dungeon/v1";
+/**
+ * ダイブ中オートセーブ(plan/mid-dive-autosave.md)。拠点の SaveData とは
+ * 別キーに、セーブ枠に紐づく形で1つだけ持つ想定だが、セーブ枠そのもの
+ * (design/ui-flow.md)が未実装のため、現状は単一キーで近似している。
+ */
+const SNAPSHOT_KEY = "garudo-dungeon/v1/run-snapshot";
 
 /** 倉庫に預けてあるアイテム。uid は挑戦ごとに振り直すので保存しない */
 export interface StoredItem {
@@ -167,4 +174,65 @@ function sanitizeTutorialTips(value: unknown): TutorialTipId[] {
     if (typeof entry === "string" && VALID_TIP_IDS.has(entry)) seen.add(entry as TutorialTipId);
   }
   return [...seen];
+}
+
+// ---------------------------------------------------------------- ダイブ中オートセーブ
+
+/**
+ * ダイブ中の状態をまるごと書き出す。プレイヤーの入力で1ターンが解決する
+ * たびに呼ぶ想定(README「core が1ターン分を即座に解決する」の直後)。
+ */
+export function saveRunSnapshot(snapshot: RunSnapshot): void {
+  try {
+    localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(snapshot));
+  } catch {
+    // オートセーブが書き込めなくても遊べはするので、失敗は握りつぶす
+  }
+}
+
+/**
+ * 残っているスナップショットを読む。壊れている・形が合わない場合は
+ * 復帰できるものが無かったものとして null を返す(1回限りの保証なので、
+ * 中途半端な状態を無理に復元するより諦めた方が安全)。
+ */
+export function loadRunSnapshot(): RunSnapshot | null {
+  try {
+    const raw = localStorage.getItem(SNAPSHOT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<RunSnapshot>;
+    return isValidSnapshot(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+/** 復帰した瞬間、または通常の終了(全滅・踏破・区切り)で消費する */
+export function clearRunSnapshot(): void {
+  try {
+    localStorage.removeItem(SNAPSHOT_KEY);
+  } catch {
+    // 消せなくても致命的ではない
+  }
+}
+
+const VALID_RUN_STATUSES: readonly RunStatus[] = ["playing", "dead", "cleared"];
+
+function isValidSnapshot(value: Partial<RunSnapshot>): value is RunSnapshot {
+  return (
+    typeof value.rngState === "number" &&
+    typeof value.maxDepth === "number" &&
+    typeof value.depth === "number" &&
+    typeof value.turnCount === "number" &&
+    typeof value.actorIdCounter === "number" &&
+    typeof value.itemUidCounter === "number" &&
+    typeof value.barrelIdCounter === "number" &&
+    typeof value.endReason === "string" &&
+    typeof value.status === "string" &&
+    VALID_RUN_STATUSES.includes(value.status as RunStatus) &&
+    typeof value.floor === "object" &&
+    value.floor !== null &&
+    typeof value.player === "object" &&
+    value.player !== null &&
+    Array.isArray(value.allies)
+  );
 }

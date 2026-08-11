@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { Game, type Command } from "./game";
+import { Game, type Command, type RunSnapshot } from "./game";
 import type { GameEvent } from "./core/events";
 import { isFree, walkableAt } from "./core/types";
 import { chebyshev, eq } from "./core/grid";
@@ -15,10 +15,13 @@ import { StanceMenu } from "./ui/stance";
 import { TownScreen } from "./ui/town";
 import {
   addKnownCheckpoint,
+  clearRunSnapshot,
+  loadRunSnapshot,
   loadSave,
   markTutorialTipSeen,
   recordRun,
   saveData,
+  saveRunSnapshot,
   type SaveData,
   type StoredItem,
 } from "./save";
@@ -65,9 +68,18 @@ class App {
   async start(): Promise<void> {
     await this.assets.loadAll(modelNames());
     document.querySelector<HTMLElement>("#loading")!.style.display = "none";
-    // 先に1階を組んでおく。拠点の裏で洞窟が見えているほうが雰囲気が出る
-    this.newRun([]);
-    this.showTown();
+
+    // ダイブ中オートセーブ(plan/mid-dive-autosave.md)が残っていれば、
+    // 拠点画面を経由せずそのままダイブの続きから再開する
+    const snapshot = loadRunSnapshot();
+    if (snapshot && snapshot.status === "playing") {
+      this.resumeRun(snapshot);
+    } else {
+      if (snapshot) clearRunSnapshot(); // 正規に終わったあとの残骸(あるはずはないが念のため)
+      // 先に1階を組んでおく。拠点の裏で洞窟が見えているほうが雰囲気が出る
+      this.newRun([]);
+      this.showTown();
+    }
     this.loop();
   }
 
@@ -93,6 +105,28 @@ class App {
       startingItems,
       startDepth,
     });
+    this.presentFloor();
+    this.hud.log(`地下${this.game.depth}階。最深記録は ${this.save.deepest} 階。`);
+    this.hud.log("洞窟に降りた。階段をさがそう。");
+    // 「移動と攻撃」だけは特定のGameEventに紐づかないので、ここで直接出す
+    this.showTutorialTip("moveAndAttack");
+  }
+
+  /**
+   * ダイブ中オートセーブ(plan/mid-dive-autosave.md)からの復帰。
+   * スナップショットは読み込んだ瞬間に消費し、以後の何度目かの再読み込みでは
+   * 復帰できないようにする(「1回限りのクラッシュ対策」であり、
+   * セーブ&ロードによるやり直しは想定していない)。
+   */
+  private resumeRun(snapshot: RunSnapshot): void {
+    this.game = new Game({ seed: 0, resume: snapshot });
+    clearRunSnapshot();
+    this.presentFloor();
+    this.hud.log("前回の続きから再開します。");
+  }
+
+  /** 新しいダイブ・復帰したダイブ、どちらでも共通の画面まわりの初期化 */
+  private presentFloor(): void {
     this.ended = false;
     this.lock = 0;
     this.menu.hide();
@@ -102,10 +136,6 @@ class App {
     this.renderer.setFocus(this.game.player.pos, true);
     this.hud.update(this.game.player, this.game.depth, this.game.allyList);
     this.minimap.draw(this.game.floor, this.game.player);
-    this.hud.log(`地下${this.game.depth}階。最深記録は ${this.save.deepest} 階。`);
-    this.hud.log("洞窟に降りた。階段をさがそう。");
-    // 「移動と攻撃」だけは特定のGameEventに紐づかないので、ここで直接出す
-    this.showTutorialTip("moveAndAttack");
   }
 
   /** その場方式のチュートリアルヒント。まだ見ていなければ表示して既読にする */
@@ -270,6 +300,16 @@ class App {
     this.stage.dungeon.refresh(this.game.floor);
     this.hud.update(this.game.player, this.game.depth, this.game.allyList);
     this.minimap.draw(this.game.floor, this.game.player);
+
+    // ダイブ中オートセーブ(plan/mid-dive-autosave.md)。1ターンが解決するたびに
+    // 現在の状態をまるごと書き出す。全滅・踏破・区切りで正規に終わったときは、
+    // 続きから再開する必要がなくなるので消す(finish側でも消すが、ここでも
+    // status の変化を漏れなく拾っておく)
+    if (this.game.status === "playing") {
+      saveRunSnapshot(this.game.toSnapshot());
+    } else {
+      clearRunSnapshot();
+    }
 
     const over = events.find((e): e is Extract<GameEvent, { type: "gameOver" }> =>
       e.type === "gameOver",
