@@ -12,7 +12,9 @@ import { Minimap } from "./view/minimap";
 import { Renderer } from "./view/renderer";
 import { Stage } from "./view/stage";
 import { InventoryMenu } from "./ui/menu";
-import { loadSave, recordRun, type SaveData } from "./save";
+import { TownScreen } from "./ui/town";
+import { loadSave, recordRun, saveData, type SaveData, type StoredItem } from "./save";
+import type { Item } from "./core/types";
 
 const MAX_DEPTH = 10;
 
@@ -33,6 +35,7 @@ class App {
   private readonly minimap: Minimap;
   private readonly input = new Input();
   private readonly menu: InventoryMenu;
+  private readonly town: TownScreen;
   private readonly canvas: HTMLCanvasElement;
 
   private game!: Game;
@@ -50,20 +53,42 @@ class App {
     this.hud = new Hud(document.querySelector<HTMLElement>("#ui")!);
     this.minimap = new Minimap(document.querySelector<HTMLCanvasElement>("#minimap")!);
     this.menu = new InventoryMenu(document.querySelector<HTMLElement>("#menu")!);
+    this.town = new TownScreen(document.querySelector<HTMLElement>("#town")!);
     this.save = loadSave();
 
-    this.input.onKey = (code) => this.menu.handleKey(code);
+    this.input.onKey = (code) => this.town.handleKey(code) || this.menu.handleKey(code);
   }
 
   async start(): Promise<void> {
     await this.assets.loadAll(modelNames());
     document.querySelector<HTMLElement>("#loading")!.style.display = "none";
-    this.newRun();
+    // 先に1階を組んでおく。拠点の裏で洞窟が見えているほうが雰囲気が出る
+    this.newRun([]);
+    this.showTown();
     this.loop();
   }
 
-  private newRun(): void {
-    this.game = new Game({ seed: (Math.random() * 0xffffffff) >>> 0, maxDepth: MAX_DEPTH });
+  /** 潜る前の拠点。倉庫から持ち込む道具を選ぶ */
+  private showTown(): void {
+    this.hud.hideOverlay();
+    this.town.show(this.save, (carry, storage) => {
+      this.save = { ...this.save, storage };
+      saveData(this.save);
+      this.newRun(carry);
+    });
+  }
+
+  private newRun(carry: readonly StoredItem[]): void {
+    const startingItems: Item[] = carry.map((stored, index) =>
+      stored.charges === undefined
+        ? { uid: index + 1, defId: stored.defId }
+        : { uid: index + 1, defId: stored.defId, charges: stored.charges },
+    );
+    this.game = new Game({
+      seed: (Math.random() * 0xffffffff) >>> 0,
+      maxDepth: MAX_DEPTH,
+      startingItems,
+    });
     this.ended = false;
     this.lock = 0;
     this.menu.hide();
@@ -107,13 +132,13 @@ class App {
         action = this.input.takeAction();
         continue;
       }
-      if (!this.ended && !this.menu.isOpen && this.lock <= 0) {
+      if (!this.ended && !this.menu.isOpen && !this.town.isOpen && this.lock <= 0) {
         this.handleAction(action);
       }
       action = this.input.takeAction();
     }
 
-    if (this.ended || this.menu.isOpen || this.lock > 0) return;
+    if (this.ended || this.menu.isOpen || this.town.isOpen || this.lock > 0) return;
 
     const dir = this.input.direction();
     if (dir === null) return;
@@ -141,7 +166,7 @@ class App {
         return true;
       case "restart":
         if (this.ended) {
-          this.newRun();
+          this.showTown();
           return true;
         }
         return false;
@@ -207,15 +232,21 @@ class App {
   private finish(reason: string): void {
     this.ended = true;
     const cleared = this.game.status === "cleared";
+    // 踏破したときだけ、持っていたものを倉庫に持ち帰れる。倒れたら全部失う
+    const broughtBack = cleared ? this.game.player.inventory.items : [];
     this.save = recordRun(this.save, {
       depth: this.game.depth,
       level: this.game.player.level,
       cleared,
+      broughtBack,
     });
     this.hud.showOverlay(
       cleared ? "だっしゅつ成功!" : "ちからつきた……",
-      `${reason}  (Lv ${this.game.player.level} / ${this.game.turnCount} ターン)`,
-      `最深記録 ${this.save.deepest} 階 ・ 挑戦 ${this.save.runs} 回 — R キーでもう一度`,
+      cleared
+        ? `${reason}  持ち帰った ${broughtBack.length} 個を倉庫にしまった。`
+        : `${reason}  持ち込んだ道具はすべて失った。`,
+      `Lv ${this.game.player.level} / ${this.game.turnCount} ターン ・ ` +
+        `最深記録 ${this.save.deepest} 階 — R キーで拠点にもどる`,
     );
   }
 
@@ -266,6 +297,13 @@ class App {
   debugGive(defId: string): void {
     this.game.giveItem(defId);
     this.hud.update(this.game.player, this.game.depth);
+  }
+
+  /** 倒れたときの流れを確かめるために、わざと力尽きさせる */
+  debugKill(): void {
+    this.game.player.hp = 1;
+    this.game.player.satiety = 0;
+    this.submit({ type: "wait" });
   }
 
   debugStats(): Record<string, unknown> {

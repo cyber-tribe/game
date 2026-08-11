@@ -61,6 +61,16 @@ await page.waitForFunction(
   { timeout: 60_000 },
 );
 await page.waitForTimeout(1200);
+await page.screenshot({ path: `${OUT}/00-town.png` });
+
+// 拠点。倉庫から2つ持ち込んでから潜る
+await page.keyboard.press("Enter");
+await page.waitForTimeout(150);
+await page.keyboard.press("Enter");
+await page.waitForTimeout(150);
+await page.screenshot({ path: `${OUT}/00b-town-picked.png` });
+await page.keyboard.press("Space");
+await page.waitForTimeout(900);
 await page.screenshot({ path: `${OUT}/01-start.png` });
 
 const readHud = () =>
@@ -164,6 +174,23 @@ const stats = await page.evaluate(() => {
   return app ? app.debugStats() : null;
 });
 console.log("内部状態:", JSON.stringify(stats));
+
+// 倒れたときの流れ。全滅表示 → R キーで拠点に戻る
+await page.evaluate(() => globalThis.__app.debugKill());
+await page.waitForTimeout(900);
+await page.screenshot({ path: `${OUT}/12-gameover.png` });
+const overlayText = await page.evaluate(
+  () => document.querySelector("#overlay")?.textContent?.trim(),
+);
+console.log("全滅表示:", overlayText);
+
+await page.keyboard.press("KeyR");
+await page.waitForTimeout(700);
+await page.screenshot({ path: `${OUT}/13-back-to-town.png` });
+const townShown = await page.evaluate(
+  () => document.querySelector("#town")?.style.display === "flex",
+);
+console.log("拠点に戻った:", townShown, "/ メニュー表示:", menuShown);
 
 await browser.close();
 
