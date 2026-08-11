@@ -1,5 +1,34 @@
 # 仲間の命名
 
+> **実装済み。** `src/core/types.ts`(`Actor.nickname`)・`src/entities/naming.ts`
+> (`displayActorName`/`sanitizeNickname`)・`src/ui/naming-dialog.ts`(命名
+> ダイアログ)・`src/view/input.ts`(text input入力中はキー処理を素通しする
+> ガード)・`src/main.ts`(recruitイベントでの命名プロンプト、ねむり小屋の
+> 改名配線)・`src/ui/town.ts`(ねむり小屋カラムでのNキー改名)・`src/save.ts`
+> (`renameStoredMonster`、`actorToStoredMonster`のnickname引き継ぎ)・
+> `src/dungeon/populate.ts`(`createAllyFromStored`でActor.nicknameに反映)・
+> `src/game.ts`(戦闘ログのメッセージを`displayActorName`経由に変更)。
+> テストは `tests/companion-naming.test.ts`。
+>
+> 入力方式は独自のキー読み取りにせず、素の`<input type="text">`を使う形に
+> した。ブラウザのIMEをそのまま使えるため、ひらがな入力の実装コストを
+> 大きく削れる。副作用として、盤面側のキー入力(`src/view/input.ts`)は
+> `document.activeElement`がinputのあいだ全面的に素通しするガードを追加した
+> (命名ダイアログはEnter/Escを自前でinput要素に直接listenする)。
+>
+> 未決事項だった点は次のとおり決めた。
+> - 文字数上限は8文字。使用可能文字種の制限は設けていない(inputの
+>   `maxLength`のみ)。
+> - 命名時のUIは、拠点の他の画面(`TownScreen`)と統一感のある簡素な
+>   モーダル(見出し・text input・ヒントのみ)にした。
+> - 「タルを開けた直後に尋ねる」演出は、既存の`recruit`イベント直後に
+>   ダイアログを出すだけに留め、専用の演出は追加していない。Escで
+>   即座に閉じられるため、テンポへの影響は小さいと判断した。
+> - `design/flavor-details.md`の`context: "withNamedAlly"`(NPCが名前を
+>   呼ぶせりふ)は実装していない(NPCせりふプール自体が別スコープのため)。
+> - `plan/gallery-mode.md`(図鑑ギャラリー個体表示)は、当該機能自体が
+>   未実装のため対応していない。実装時に`displayActorName`を使えば良い。
+
 `plan/monster-fusion.md` で `StoredMonster` に `nickname?: string` を
 用意していたが、実際にどこで・どうやって名前をつけるかは決めていなかった。
 ここで命名の流れと、名前をどこに反映するかを仕様化する。

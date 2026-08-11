@@ -23,6 +23,7 @@ import {
   loadSave,
   markTutorialTipSeen,
   recordRun,
+  renameStoredMonster,
   saveData,
   saveRunSnapshot,
   setTrainingFocus,
@@ -116,6 +117,14 @@ class App {
         if (!fused) return;
         this.save = fused.save;
         this.town.refreshSave(this.save);
+      },
+      (uid, current) => {
+        this.namingDialog.show("名前を付け直す", current, (value) => {
+          const renamed = renameStoredMonster(this.save, uid, value);
+          if (!renamed) return;
+          this.save = renamed;
+          this.town.refreshSave(this.save);
+        });
       },
     );
   }

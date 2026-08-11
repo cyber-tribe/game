@@ -54,6 +54,7 @@ import {
   populateFloor,
   spawnWanderingMonster,
 } from "./dungeon/populate";
+import { displayActorName } from "./entities/naming";
 import type { StoredMonster } from "./entities/storedMonster";
 import { updateVisibility } from "./dungeon/visibility";
 import {
@@ -832,8 +833,8 @@ export class Game {
       events.push({
         type: "message",
         text: isThrower
-          ? `巻き込まれた! ${actor.name}に${damage}のダメージ!`
-          : `${actor.name}に${damage}のダメージ!`,
+          ? `巻き込まれた! ${displayActorName(actor)}に${damage}のダメージ!`
+          : `${displayActorName(actor)}に${damage}のダメージ!`,
       });
       this.damageActor(actor, damage, result.critical, events);
       if (this.status !== "playing") return;
@@ -991,7 +992,7 @@ export class Game {
   ): void {
     attacker.facing = dirFromDelta(target.pos.x - attacker.pos.x, target.pos.y - attacker.pos.y);
     events.push({ type: "attack", attackerId: attacker.id, targetId: target.id });
-    events.push({ type: "message", text: `${attacker.name}のこうげき!` });
+    events.push({ type: "message", text: `${displayActorName(attacker)}のこうげき!` });
     if (attacker.kind === "player" && target.kind === "monster") {
       events.push({ type: "tutorialTip", id: "weakenThenThrow" });
     }
@@ -1017,7 +1018,7 @@ export class Game {
     if (critical) events.push({ type: "message", text: "会心の一撃!" });
 
     const finalDamage = this.mitigateIncomingDamage(target, damage, events);
-    events.push({ type: "message", text: `${target.name}に${finalDamage}のダメージ!` });
+    events.push({ type: "message", text: `${displayActorName(target)}に${finalDamage}のダメージ!` });
     this.damageActor(target, finalDamage, critical, events);
 
     // 攻撃してきた相手には気づく
@@ -1061,7 +1062,7 @@ export class Game {
 
     if (target.kind === "ally" && hasSkill(target, "softBody") && this.rng.chance(0.5)) {
       // 特技「みをまもる」: 確率5割で被弾ダメージを1割軽減する
-      events.push({ type: "message", text: `${target.name}は衝撃をやわらげた!` });
+      events.push({ type: "message", text: `${displayActorName(target)}は衝撃をやわらげた!` });
       return Math.max(1, Math.floor(damage * 0.9));
     }
     return damage;
@@ -1093,7 +1094,7 @@ export class Game {
       ) {
         target.hp = 1;
         this.usedStubborn.add(target.id);
-        events.push({ type: "message", text: `${target.name}はふんばりこらえた!` });
+        events.push({ type: "message", text: `${displayActorName(target)}はふんばりこらえた!` });
       } else {
         this.killActor(target, events);
       }
@@ -1116,11 +1117,11 @@ export class Game {
 
     if (target.kind === "ally") {
       this.allies = this.allies.filter((a) => a.id !== target.id);
-      events.push({ type: "message", text: `${target.name}は力尽きた……` });
+      events.push({ type: "message", text: `${displayActorName(target)}は力尽きた……` });
       return;
     }
 
-    events.push({ type: "message", text: `${target.name}をたおした!` });
+    events.push({ type: "message", text: `${displayActorName(target)}をたおした!` });
     const exp = target.exp ?? 0;
     if (exp > 0) {
       const levels = gainExp(this.player, exp, this.trainingFocus);
@@ -1229,10 +1230,10 @@ export class Game {
         const healed = Math.min(hit.maxHp - hit.hp, def.power ?? 0);
         hit.hp += healed;
         events.push({ type: "heal", actorId: hit.id, amount: healed, hpAfter: hit.hp });
-        events.push({ type: "message", text: `${hit.name}のHPが${healed}回復した。` });
+        events.push({ type: "message", text: `${displayActorName(hit)}のHPが${healed}回復した。` });
       } else {
         const { damage, critical } = computeDamage(this.rng, 6, hit.def);
-        events.push({ type: "message", text: `${def.name}が${hit.name}に当たった!` });
+        events.push({ type: "message", text: `${def.name}が${displayActorName(hit)}に当たった!` });
         this.damageActor(hit, damage, critical, events);
       }
       return true;
@@ -1365,12 +1366,12 @@ export class Game {
           if (!target) break;
           actor.facing = dirFromDelta(target.pos.x - actor.pos.x, target.pos.y - actor.pos.y);
           events.push({ type: "attack", attackerId: actor.id, targetId: target.id });
-          events.push({ type: "message", text: `${actor.name}が つぶてを投げた!` });
+          events.push({ type: "message", text: `${displayActorName(actor)}が つぶてを投げた!` });
           const defense =
             target.kind === "player" ? totalDefense(this.player) : target.def;
           const { damage, critical } = computeDamage(this.rng, actor.atk, defense);
           const finalDamage = this.mitigateIncomingDamage(target, damage, events);
-          events.push({ type: "message", text: `${target.name}に${finalDamage}のダメージ!` });
+          events.push({ type: "message", text: `${displayActorName(target)}に${finalDamage}のダメージ!` });
           this.damageActor(target, finalDamage, critical, events);
           break;
         }

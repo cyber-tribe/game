@@ -99,7 +99,7 @@ export function createAllyFromStored(id: number, stored: StoredMonster, pos: Vec
   actor.atk = Math.round(actor.atk * (1 + growth));
   actor.def = Math.round(actor.def * (1 + growth));
   applySkills(actor, species, fullSkillSet(species.id, stored.skills));
-  if (stored.nickname) actor.name = stored.nickname;
+  actor.nickname = stored.nickname;
   return actor;
 }
 
