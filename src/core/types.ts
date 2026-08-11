@@ -191,7 +191,21 @@ export type SkillId = "quickStart" | "drowsyBreath" | "longThrow" | "stubborn" |
 
 // ---------------------------------------------------------------- アイテム
 
-export type ItemCategory = "herb" | "scroll" | "staff" | "food" | "weapon" | "shield" | "material";
+export type ItemCategory =
+  | "herb"
+  | "scroll"
+  | "staff"
+  | "food"
+  | "weapon"
+  | "shield"
+  /** 素材。plan/equipment-forging.md 参照 */
+  | "material"
+  /** 頭防具。plan/protagonist-equipment.md 参照 */
+  | "head"
+  /** 装身具。plan/protagonist-equipment.md 参照 */
+  | "charm"
+  /** 1個=1回の消費アイテム(杖のような回数制ではない)。plan/protagonist-equipment.md 参照 */
+  | "tool";
 
 /**
  * 印(plan/equipment-forging.md)。武器・盾に刻める、モンスター5種に対応した加護。

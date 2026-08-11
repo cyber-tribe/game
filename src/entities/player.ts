@@ -1,6 +1,6 @@
 import type { Actor, Barrel } from "../core/types";
 import { type ArtId, createArtCooldowns } from "./arts";
-import { type Inventory, createInventory, shieldBonus, weaponBonus } from "../items/inventory";
+import { type Inventory, createInventory, headBonus, shieldBonus, weaponBonus } from "../items/inventory";
 
 export const MAX_SATIETY = 100;
 
@@ -90,7 +90,7 @@ export function totalAttack(player: PlayerState): number {
 
 /** 装備込みの守備力 */
 export function totalDefense(player: PlayerState): number {
-  return player.def + shieldBonus(player.inventory);
+  return player.def + shieldBonus(player.inventory) + headBonus(player.inventory);
 }
 
 /**

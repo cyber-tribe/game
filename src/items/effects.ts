@@ -18,6 +18,10 @@ import {
 } from "../core/types";
 import { buildDistanceField } from "../entities/ai";
 import { MAX_SATIETY, type PlayerState } from "../entities/player";
+import { headDefId } from "./inventory";
+
+/** 樽守りの笠(plan/protagonist-equipment.md)の眠り耐性 */
+const SLEEP_RESIST_CHANCE = 0.2;
 
 /**
  * アイテム効果を適用するのに必要な最小限の文脈。
@@ -249,6 +253,16 @@ export function addStatus(
   turns: number,
   verb: string,
 ): void {
+  // 樽守りの笠(plan/protagonist-equipment.md): 眠りにかかりにくくなる
+  if (
+    kind === STATUS_SLEEP &&
+    target.id === ctx.player.id &&
+    headDefId(ctx.player.inventory) === "barrelGuardHat" &&
+    ctx.rng.chance(SLEEP_RESIST_CHANCE)
+  ) {
+    ctx.events.push({ type: "message", text: `${target.name}は笠のおかげで眠気をこらえた!` });
+    return;
+  }
   const existing = target.statuses.find((s) => s.kind === kind);
   if (existing) existing.turns = Math.max(existing.turns, turns);
   else target.statuses.push({ kind, turns });

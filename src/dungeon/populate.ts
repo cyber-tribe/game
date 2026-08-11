@@ -175,11 +175,16 @@ const PITFALL_GIMMICK_CHANCE = 0.5;
  * 深い階ほどモンスターと罠が増える。`floor.gimmick`(plan/floor-gimmicks.md)
  * に応じて出現数・出現内容を調整する。
  */
+/** ほこら粉寄せの匂い袋(plan/protagonist-equipment.md)を装備しているときの重み倍率 */
+const DUST_LURE_WEIGHT_MULTIPLIER = 3;
+
 export function populateFloor(
   rng: Rng,
   floor: FloorState,
   ids: IdSource,
   playerStart: Vec2,
+  /** ほこら粉寄せの匂い袋を装備中なら "hokoraDust" を渡す。出現重みを底上げする */
+  boostedItemDefId?: string,
 ): void {
   const gimmick = floor.gimmick;
   const pool = speciesForDepth(floor.depth);
@@ -209,7 +214,9 @@ export function populateFloor(
   for (let i = 0; i < itemCount; i++) {
     const pos = findFreeTile(rng, floor, { roomsOnly: true, avoid: [playerStart] });
     if (!pos) break;
-    const def = rng.pickWeighted(itemPool, (d) => d.weight);
+    const def = rng.pickWeighted(itemPool, (d) =>
+      d.id === boostedItemDefId ? d.weight * DUST_LURE_WEIGHT_MULTIPLIER : d.weight,
+    );
     floor.items.push({ item: createItem(ids.nextItemUid(), def.id, def.charges), pos });
   }
 

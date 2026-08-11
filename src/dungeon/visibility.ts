@@ -16,26 +16,30 @@ const DARKNESS_RADIUS = 2;
  * 「くらやみの階」ギミック(plan/floor-gimmicks.md)が乗っている間は、
  * 部屋にいても全体は見えず、viewer 周辺だけに絞る。
  */
-export function updateVisibility(floor: FloorState, viewer: Vec2): void {
+export function updateVisibility(floor: FloorState, viewer: Vec2, extraRange = 0): void {
   for (const tile of floor.tiles) tile.visible = false;
 
   const room = roomOf(floor, viewer);
   if (room && floor.gimmick === "darkness") {
-    for (let dy = -DARKNESS_RADIUS; dy <= DARKNESS_RADIUS; dy++) {
-      for (let dx = -DARKNESS_RADIUS; dx <= DARKNESS_RADIUS; dx++) {
+    const radius = DARKNESS_RADIUS + extraRange;
+    for (let dy = -radius; dy <= radius; dy++) {
+      for (let dx = -radius; dx <= radius; dx++) {
         reveal(floor, viewer.x + dx, viewer.y + dy);
       }
     }
   } else if (room) {
-    // 外周1マスまで含めるので、部屋から出ている通路の1マス目もここで見える
-    for (let y = room.y - 1; y <= room.y + room.h; y++) {
-      for (let x = room.x - 1; x <= room.x + room.w; x++) {
+    // 外周1マス(+見晴らしのはちまきぶん)まで含めるので、部屋から出ている通路の
+    // 1マス目もここで見える
+    const margin = 1 + extraRange;
+    for (let y = room.y - margin; y <= room.y + room.h - 1 + margin; y++) {
+      for (let x = room.x - margin; x <= room.x + room.w - 1 + margin; x++) {
         reveal(floor, x, y);
       }
     }
   } else {
-    for (let dy = -1; dy <= 1; dy++) {
-      for (let dx = -1; dx <= 1; dx++) {
+    const radius = 1 + extraRange;
+    for (let dy = -radius; dy <= radius; dy++) {
+      for (let dx = -radius; dx <= radius; dx++) {
         reveal(floor, viewer.x + dx, viewer.y + dy);
       }
     }
