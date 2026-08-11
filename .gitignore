@@ -1,0 +1,12 @@
+node_modules/
+dist/
+*.log
+
+# Blender (bpy) 用の仮想環境。約1GBあるためコミットしない。
+# tools/setup_blender.sh で再構築できる。
+tools/venv/
+tools/.wheels/
+
+# モデル制作時の中間ファイル(.glb とプレビュー画像はコミットする)
+*.blend
+*.blend1

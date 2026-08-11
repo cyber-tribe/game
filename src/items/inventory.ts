@@ -1,0 +1,80 @@
+import type { Item } from "../core/types";
+import { itemDef } from "./catalog";
+
+export const INVENTORY_SIZE = 20;
+
+export interface Inventory {
+  items: Item[];
+  maxSize: number;
+  /** 装備中の武器の uid。未装備なら null */
+  weaponUid: number | null;
+  shieldUid: number | null;
+}
+
+export function createInventory(maxSize = INVENTORY_SIZE): Inventory {
+  return { items: [], maxSize, weaponUid: null, shieldUid: null };
+}
+
+export function isFull(inv: Inventory): boolean {
+  return inv.items.length >= inv.maxSize;
+}
+
+export function addItem(inv: Inventory, item: Item): boolean {
+  if (isFull(inv)) return false;
+  inv.items.push(item);
+  return true;
+}
+
+export function removeItem(inv: Inventory, uid: number): Item | undefined {
+  const idx = inv.items.findIndex((i) => i.uid === uid);
+  if (idx < 0) return undefined;
+  const [item] = inv.items.splice(idx, 1);
+  if (inv.weaponUid === uid) inv.weaponUid = null;
+  if (inv.shieldUid === uid) inv.shieldUid = null;
+  return item;
+}
+
+export function findItem(inv: Inventory, uid: number): Item | undefined {
+  return inv.items.find((i) => i.uid === uid);
+}
+
+/** 装備すると同じ部位の先の装備は自動的に外れる */
+export function equip(inv: Inventory, uid: number): boolean {
+  const item = findItem(inv, uid);
+  if (!item) return false;
+  const def = itemDef(item.defId);
+  if (def.category === "weapon") {
+    inv.weaponUid = inv.weaponUid === uid ? null : uid;
+    return true;
+  }
+  if (def.category === "shield") {
+    inv.shieldUid = inv.shieldUid === uid ? null : uid;
+    return true;
+  }
+  return false;
+}
+
+export function isEquipped(inv: Inventory, uid: number): boolean {
+  return inv.weaponUid === uid || inv.shieldUid === uid;
+}
+
+export function weaponBonus(inv: Inventory): number {
+  if (inv.weaponUid === null) return 0;
+  const item = findItem(inv, inv.weaponUid);
+  return item ? (itemDef(item.defId).bonus ?? 0) : 0;
+}
+
+export function shieldBonus(inv: Inventory): number {
+  if (inv.shieldUid === null) return 0;
+  const item = findItem(inv, inv.shieldUid);
+  return item ? (itemDef(item.defId).bonus ?? 0) : 0;
+}
+
+/** 表示用の名前。杖は残り回数を、装備品は装備中である旨を添える */
+export function displayName(inv: Inventory, item: Item): string {
+  const def = itemDef(item.defId);
+  let name = def.name;
+  if (def.category === "staff" && item.charges !== undefined) name += `[${item.charges}]`;
+  if (isEquipped(inv, item.uid)) name += " (装備中)";
+  return name;
+}

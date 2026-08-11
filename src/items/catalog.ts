@@ -1,0 +1,181 @@
+import type { ItemDef } from "../core/types";
+
+/**
+ * アイテム図鑑。名前はすべてオリジナル(一般的なファンタジー語彙)。
+ * model は public/models/<model>.glb に対応し、同じカテゴリは同じモデルを色違いで使う。
+ */
+export const ITEMS: readonly ItemDef[] = [
+  // ---- 草 ----
+  {
+    id: "healLeaf",
+    name: "いやしの葉",
+    category: "herb",
+    model: "herb",
+    effect: "heal",
+    power: 25,
+    minFloor: 1,
+    weight: 12,
+    description: "HPを25回復する。",
+  },
+  {
+    id: "greatLeaf",
+    name: "大いやしの葉",
+    category: "herb",
+    model: "herb",
+    effect: "heal",
+    power: 60,
+    minFloor: 4,
+    weight: 5,
+    description: "HPを60回復する。",
+  },
+  {
+    id: "powerLeaf",
+    name: "ちからの葉",
+    category: "herb",
+    model: "herb",
+    effect: "power",
+    power: 1,
+    minFloor: 3,
+    weight: 3,
+    description: "attackが永続的に1上がる。",
+  },
+
+  // ---- 巻物 ----
+  {
+    id: "sleepScroll",
+    name: "ねむりの巻物",
+    category: "scroll",
+    model: "scroll",
+    effect: "sleepRoom",
+    power: 8,
+    minFloor: 2,
+    weight: 6,
+    description: "同じ部屋のモンスターを眠らせる。",
+  },
+  {
+    id: "mapScroll",
+    name: "地図の巻物",
+    category: "scroll",
+    model: "scroll",
+    effect: "revealMap",
+    minFloor: 1,
+    weight: 7,
+    description: "このフロアの地形がすべて分かる。",
+  },
+  {
+    id: "confuseScroll",
+    name: "混乱の巻物",
+    category: "scroll",
+    model: "scroll",
+    effect: "confuseRoom",
+    power: 8,
+    minFloor: 3,
+    weight: 5,
+    description: "同じ部屋のモンスターを混乱させる。",
+  },
+
+  // ---- 杖 ----
+  {
+    id: "swapStaff",
+    name: "場所替えの杖",
+    category: "staff",
+    model: "staff",
+    effect: "swap",
+    charges: 4,
+    minFloor: 2,
+    weight: 5,
+    description: "向いている方向のモンスターと位置を入れ替える。",
+  },
+  {
+    id: "sleepStaff",
+    name: "ねむりの杖",
+    category: "staff",
+    model: "staff",
+    effect: "sleepTarget",
+    power: 6,
+    charges: 4,
+    minFloor: 3,
+    weight: 5,
+    description: "向いている方向のモンスターを眠らせる。",
+  },
+
+  // ---- 食料 ----
+  {
+    id: "hardBread",
+    name: "かたパン",
+    category: "food",
+    model: "bread",
+    effect: "eat",
+    power: 45,
+    minFloor: 1,
+    weight: 10,
+    description: "満腹度を45回復する。",
+  },
+  {
+    id: "bigBread",
+    name: "大きなパン",
+    category: "food",
+    model: "bread",
+    effect: "eat",
+    power: 100,
+    minFloor: 3,
+    weight: 4,
+    description: "満腹度を100回復する。",
+  },
+
+  // ---- 武器 ----
+  {
+    id: "hatchet",
+    name: "なた",
+    category: "weapon",
+    model: "hatchet",
+    bonus: 4,
+    minFloor: 1,
+    weight: 5,
+    description: "attack+4",
+  },
+  {
+    id: "ironHatchet",
+    name: "鉄のなた",
+    category: "weapon",
+    model: "hatchet",
+    bonus: 9,
+    minFloor: 5,
+    weight: 3,
+    description: "attack+9",
+  },
+
+  // ---- 盾 ----
+  {
+    id: "woodShield",
+    name: "木の盾",
+    category: "shield",
+    model: "shield",
+    bonus: 3,
+    minFloor: 1,
+    weight: 5,
+    description: "defense+3",
+  },
+  {
+    id: "ironShield",
+    name: "鉄の盾",
+    category: "shield",
+    model: "shield",
+    bonus: 7,
+    minFloor: 5,
+    weight: 3,
+    description: "defense+7",
+  },
+];
+
+const BY_ID = new Map(ITEMS.map((i) => [i.id, i]));
+
+export function itemDef(id: string): ItemDef {
+  const def = BY_ID.get(id);
+  if (!def) throw new Error(`未知のアイテム: ${id}`);
+  return def;
+}
+
+export function itemsForDepth(depth: number): ItemDef[] {
+  return ITEMS.filter((i) => depth >= i.minFloor);
+}
