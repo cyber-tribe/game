@@ -24,7 +24,7 @@ export interface IdSource {
   nextBarrelId(): number;
 }
 
-const TRAP_KINDS: readonly TrapKind[] = ["damage", "sleep", "alarm", "pitfall"];
+const TRAP_KINDS: readonly TrapKind[] = ["damage", "sleep", "alarm", "pitfall", "poison"];
 
 export function createMonster(id: number, species: Species, pos: Vec2): Actor {
   return {
