@@ -49,6 +49,11 @@ npm run dev      # http://127.0.0.1:5173/
 満腹度はターン経過で減っていく。0 になると HP が減り続けるので、
 食料を確保しながら階段を目指すことになる。
 
+3階以降、まれに**モンスターハウス**(近道屋の乱掘で夢のかけらが渋滞して
+溜まった部屋)に出くわす。部屋の外まで来ると気配の一言で予告されるので、
+踏み込むかどうかは自分で判断できる。踏み込めば一部屋にひしめく数体が
+一斉に襲いかかってくる代わりに、部屋の中には豪華な収穫物が置かれている。
+
 ### タルと仲間
 
 洞窟にはタルが転がっている。**投げる武器であり、同時にモンスターを捕まえる容器**でもある。
@@ -305,10 +310,7 @@ npm run cap:sync      # dist/ をビルドし直してネイティブ側に反�
 
 - **モンスター配合** — 2体を掛け合わせてスキルを継承させる。仲間を拠点に預ける
   「モンスター小屋」もここで要る(→ [`plan/monster-fusion.md`](plan/monster-fusion.md))
-- **仲間への指示** — 「ついてこい」「その場で待て」といった作戦
-  (→ [`plan/companion-orders.md`](plan/companion-orders.md))
 - 店と泥棒(→ [`plan/shops-and-thieves.md`](plan/shops-and-thieves.md))、
-  モンスターハウス(→ [`plan/monster-house.md`](plan/monster-house.md))、
   装備の強化値と印(→ [`plan/equipment-forging.md`](plan/equipment-forging.md))、
   複数のダンジョン(→ [`plan/multiple-dungeons.md`](plan/multiple-dungeons.md))
 

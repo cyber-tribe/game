@@ -25,6 +25,8 @@ export interface Room {
   y: number;
   w: number;
   h: number;
+  /** 特殊な部屋の種別。無指定なら普通の部屋 */
+  kind?: "monsterHouse";
 }
 
 export function roomContains(room: Room, p: Vec2): boolean {

@@ -28,6 +28,7 @@ import {
   hasStatus,
   isFree,
   isHostile,
+  roomContains,
   walkableAt,
 } from "./core/types";
 import { generateFloor } from "./dungeon/generate";
@@ -134,6 +135,9 @@ export class Game {
   /** 直前のフロアに乗っていたギミック。連続で同じものを選ばないための記憶 */
   private previousGimmick?: FloorGimmickKind;
 
+  /** そのフロアのモンスターハウスについて、もう警告を出したか */
+  private monsterHouseWarned = false;
+
   private actorIdCounter = 1;
   private itemUidCounter = 1;
   private barrelIdCounter = 1;
@@ -162,6 +166,7 @@ export class Game {
 
   private enterFloor(depth: number): void {
     this.depth = depth;
+    this.monsterHouseWarned = false;
     const gimmick = pickFloorGimmick(this.rng, depth, this.previousGimmick);
     this.previousGimmick = gimmick;
     this.floor = generateFloor(this.rng, { depth, gimmick });
@@ -602,6 +607,7 @@ export class Game {
 
     this.checkTrap(to, events);
     this.announceGround(to, events);
+    this.checkMonsterHouseWarning(to, events);
     return true;
   }
 
@@ -616,6 +622,26 @@ export class Game {
     if (eq(pos, this.floor.stairs)) {
       events.push({ type: "message", text: "階段がある。" });
     }
+  }
+
+  /**
+   * モンスターハウス(plan/monster-house.md)の予告。部屋の外(通路側)から
+   * 隣接した時点で、1フロアにつき一度だけ気配のメッセージを出す。
+   * 部屋の中に入ってからでは手遅れなので、中にいる間は出さない。
+   */
+  private checkMonsterHouseWarning(pos: Vec2, events: GameEvent[]): void {
+    if (this.monsterHouseWarned) return;
+    const room = this.floor.rooms.find((r) => r.kind === "monsterHouse");
+    if (!room || roomContains(room, pos)) return;
+
+    const adjacent = ALL_DIRS.some((dir) => {
+      const delta = dirDelta(dir);
+      return roomContains(room, { x: pos.x + delta.x, y: pos.y + delta.y });
+    });
+    if (!adjacent) return;
+
+    this.monsterHouseWarned = true;
+    events.push({ type: "message", text: "――部屋の奥で何かがひしめいている気配がする。" });
   }
 
   // ------------------------------------------------------------ 戦闘
