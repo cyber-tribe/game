@@ -39,6 +39,7 @@ import {
   roomContains,
   walkableAt,
 } from "./core/types";
+import { type ArtId, artDef } from "./entities/arts";
 import { generateFloor } from "./dungeon/generate";
 import { GIMMICK_MESSAGES, pickFloorGimmick } from "./dungeon/gimmicks";
 import {
@@ -116,7 +117,9 @@ export type Command =
   /** 仲間への指示(構え)。"all" なら連れている全員に一括で出す */
   | { type: "setStance"; allyId: number | "all"; stance: AllyStance }
   /** めざめの階段を使って、ここで区切ってダイブを成功させる */
-  | { type: "bank" };
+  | { type: "bank" }
+  /** 樽守りの技(plan/protagonist-arts.md)を繰り出す */
+  | { type: "useArt"; id: ArtId };
 
 export interface RunOptions {
   seed: number;
@@ -467,6 +470,9 @@ export class Game {
 
       case "setStance":
         return this.setAllyStance(cmd.allyId, cmd.stance, events);
+
+      case "useArt":
+        return this.useArt(cmd.id, events);
     }
   }
 
@@ -492,6 +498,60 @@ export class Game {
       text: `${label}に「${ALLY_STANCE_NAMES[stance]}」を指示した。`,
     });
     return false;
+  }
+
+  // ------------------------------------------------------------ 樽守りの技
+
+  /**
+   * 技を繰り出す。習得済み・クールダウン明けなら1ターン消費して発動する。
+   * 「会心の樽投げ」「樽受け身」「抱え投げの奥義」は次の行動で効果を発揮する
+   * 予約フラグ、「なだめの手つき」はその場で相手に作用する即時効果。
+   * 「目覚ましの一喝」は地方ボス(plan/region-bosses.md、未実装)専用の
+   * 切り返しのため、現状は不発のメッセージだけを返す。
+   */
+  private useArt(id: ArtId, events: GameEvent[]): boolean {
+    const player = this.player;
+    const def = artDef(id);
+
+    if (player.level < def.unlockLevel) {
+      events.push({ type: "message", text: "まだ覚えていない技だ。" });
+      return false;
+    }
+    if ((player.artCooldowns[id] ?? 0) > 0) {
+      events.push({ type: "message", text: `「${def.name}」はまだ使えない。` });
+      return false;
+    }
+
+    events.push({ type: "message", text: `「${def.name}」を繰り出した!` });
+
+    switch (id) {
+      case "critBarrel":
+        player.critBarrelReady = true;
+        break;
+      case "pierce":
+        player.pierceReady = true;
+        break;
+      case "ukemi":
+        player.ukemiReady = true;
+        break;
+      case "soothe": {
+        const delta = dirDelta(player.facing);
+        const target = actorAt(this.floor, { x: player.pos.x + delta.x, y: player.pos.y + delta.y });
+        if (target && isHostile(player, target)) {
+          target.captureBonus = Math.min(1, (target.captureBonus ?? 0) + 0.4);
+          events.push({ type: "message", text: `${target.name}の勢いをそいだ!` });
+        } else {
+          events.push({ type: "message", text: "しかし何も起こらなかった。" });
+        }
+        break;
+      }
+      case "shout":
+        events.push({ type: "message", text: "しかし、それらしい気配はなかった。" });
+        break;
+    }
+
+    player.artCooldowns[id] = def.cooldownTurns;
+    return true;
   }
 
   // ------------------------------------------------------------ タル
@@ -553,11 +613,17 @@ export class Game {
       return false;
     }
 
+    // 技の予約は、投げるタルの種類によらず「次に投げた時点」で消費する
+    const critForced = player.critBarrelReady;
+    const pierce = player.pierceReady;
+    player.critBarrelReady = false;
+    player.pierceReady = false;
+
     player.carrying = null;
     const delta = dirDelta(player.facing);
     const from = player.pos;
     let landing = from;
-    let hit: Actor | null = null;
+    const hits: Actor[] = [];
 
     for (let step = 1; step <= BARREL_RANGE; step++) {
       const p = { x: from.x + delta.x * step, y: from.y + delta.y * step };
@@ -567,8 +633,9 @@ export class Game {
       landing = p;
       const actor = actorAt(this.floor, p);
       if (actor && actor.id !== player.id) {
-        hit = actor;
-        break;
+        hits.push(actor);
+        // 「抱え投げの奥義」でなければ、最初に当たった相手で止まる
+        if (!pierce) break;
       }
     }
 
@@ -591,8 +658,33 @@ export class Game {
         this.releaseFromBarrel(barrel, landing, events);
         return true;
 
-      case "empty":
-        return this.resolveEmptyBarrel(barrel, landing, hit, events);
+      case "empty": {
+        // 貫通で複数体に当たった場合、手前の相手には通過ダメージだけを与え、
+        // 最後に当たった相手にだけダメージ+捕獲判定を行う(タルは1体しか収まらない)
+        for (const passThrough of hits.slice(0, -1)) {
+          if (!passThrough.alive) continue;
+          const result = computeDamage(
+            this.rng,
+            BARREL_DAMAGE,
+            passThrough.def,
+            critForced ? { forceCrit: true } : undefined,
+          );
+          events.push({
+            type: "message",
+            text: `${passThrough.name}を貫いた! ${result.damage}のダメージ!`,
+          });
+          this.damageActor(passThrough, result.damage, result.critical, events);
+          if (this.status !== "playing") return true;
+        }
+        const last = hits[hits.length - 1];
+        return this.resolveEmptyBarrel(
+          barrel,
+          landing,
+          last && last.alive ? last : null,
+          events,
+          critForced,
+        );
+      }
     }
   }
 
@@ -601,13 +693,19 @@ export class Game {
     landing: Vec2,
     hit: Actor | null,
     events: GameEvent[],
+    critForced = false,
   ): boolean {
     if (!hit) {
       this.dropBarrelNear(barrel, landing, events);
       return true;
     }
 
-    const { damage, critical } = computeDamage(this.rng, BARREL_DAMAGE, hit.def);
+    const { damage, critical } = computeDamage(
+      this.rng,
+      BARREL_DAMAGE,
+      hit.def,
+      critForced ? { forceCrit: true } : undefined,
+    );
     events.push({ type: "message", text: `${hit.name}に${damage}のダメージ!` });
     this.damageActor(hit, damage, critical, events);
 
@@ -628,7 +726,11 @@ export class Game {
       return true;
     }
 
-    if (!this.rng.chance(captureChance(hit))) {
+    // 「なだめの手つき」で受けた弱らせ(captureBonus)は、この判定で消費する
+    const bonus = hit.captureBonus ?? 0;
+    hit.captureBonus = 0;
+    const captured = critForced || this.rng.chance(Math.min(0.9, captureChance(hit) + bonus));
+    if (!captured) {
       events.push({ type: "captureFailed", actorId: hit.id, name: hit.name });
       events.push({ type: "message", text: `${hit.name}は吸い込まれなかった。` });
       this.dropBarrelNear(barrel, landing, events);
@@ -881,14 +983,7 @@ export class Game {
     });
     if (critical) events.push({ type: "message", text: "会心の一撃!" });
 
-    // 身構え(足踏み直後): 次に被弾するときだけ2割軽減し、そこで解ける
-    let finalDamage = damage;
-    if (target.kind === "player" && this.player.guarding) {
-      finalDamage = Math.max(1, Math.floor(damage * (1 - GUARD_DAMAGE_REDUCTION)));
-      this.player.guarding = false;
-      events.push({ type: "message", text: "身構えていたので、ダメージをおさえた!" });
-    }
-
+    const finalDamage = this.mitigateIncomingDamage(target, damage, events);
     events.push({ type: "message", text: `${target.name}に${finalDamage}のダメージ!` });
     this.damageActor(target, finalDamage, critical, events);
 
@@ -910,6 +1005,26 @@ export class Game {
         attacker.inflicts.kind === STATUS_SLEEP ? "眠ってしまった" : "混乱した",
       );
     }
+  }
+
+  /**
+   * プレイヤーへの被ダメージに、樽受け身(全無効・最優先)と身構え
+   * (2割軽減)を適用する。プレイヤー以外への攻撃はそのまま素通しする。
+   */
+  private mitigateIncomingDamage(target: Actor, damage: number, events: GameEvent[]): number {
+    if (target.kind !== "player") return damage;
+
+    if (this.player.ukemiReady) {
+      this.player.ukemiReady = false;
+      events.push({ type: "message", text: "樽受け身で衝撃を受け流した!" });
+      return 0;
+    }
+    if (this.player.guarding) {
+      this.player.guarding = false;
+      events.push({ type: "message", text: "身構えていたので、ダメージをおさえた!" });
+      return Math.max(1, Math.floor(damage * (1 - GUARD_DAMAGE_REDUCTION)));
+    }
+    return damage;
   }
 
   private damageActor(target: Actor, damage: number, critical: boolean, events: GameEvent[]): void {
@@ -1199,8 +1314,9 @@ export class Game {
           const defense =
             target.kind === "player" ? totalDefense(this.player) : target.def;
           const { damage, critical } = computeDamage(this.rng, actor.atk, defense);
-          events.push({ type: "message", text: `${target.name}に${damage}のダメージ!` });
-          this.damageActor(target, damage, critical, events);
+          const finalDamage = this.mitigateIncomingDamage(target, damage, events);
+          events.push({ type: "message", text: `${target.name}に${finalDamage}のダメージ!` });
+          this.damageActor(target, finalDamage, critical, events);
           break;
         }
       }
@@ -1222,6 +1338,7 @@ export class Game {
   private upkeep(events: GameEvent[]): void {
     this.tickStatuses(events);
     this.tickHunger(events);
+    this.tickArtCooldowns();
 
     if (this.status !== "playing") return;
 
@@ -1232,6 +1349,17 @@ export class Game {
     // 倒された者を取り除く。プレイヤーは死んでも参照が要るので残す
     this.floor.actors = this.floor.actors.filter((a) => a.alive || a.kind === "player");
     this.allies = this.allies.filter((a) => a.alive);
+  }
+
+  /**
+   * 技のクールダウンを1ターンぶん減らす。「樽受け身」は発動から1ターンだけ
+   * 有効な予約なので、被弾で消費されなければここで期限切れにする。
+   */
+  private tickArtCooldowns(): void {
+    for (const id of Object.keys(this.player.artCooldowns) as ArtId[]) {
+      if (this.player.artCooldowns[id] > 0) this.player.artCooldowns[id]--;
+    }
+    this.player.ukemiReady = false;
   }
 
   private tickStatuses(events: GameEvent[]): void {

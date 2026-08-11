@@ -13,7 +13,9 @@ export type ActionKey =
   | "liftBarrel"
   | "throwBarrel"
   /** 仲間への指示(構え)メニューを開く */
-  | "orders";
+  | "orders"
+  /** 樽守りの技メニューを開く */
+  | "arts";
 
 /** テンキーはそのまま8方向に対応する。5は足踏み */
 const NUMPAD_DIRS: Record<string, Dir> = {
@@ -50,6 +52,7 @@ const ACTION_KEYS: Record<string, ActionKey> = {
   KeyF: "liftBarrel",
   KeyG: "throwBarrel",
   KeyT: "orders",
+  KeyC: "arts",
 };
 
 /**
