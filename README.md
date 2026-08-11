@@ -238,6 +238,13 @@ SwiftShader で動かしている。
 次に足したいのは、
 
 - **モンスター配合** — 2体を掛け合わせてスキルを継承させる。仲間を拠点に預ける
-  「モンスター小屋」もここで要る
+  「モンスター小屋」もここで要る(→ [`plan/monster-fusion.md`](plan/monster-fusion.md))
 - **仲間への指示** — 「ついてこい」「その場で待て」といった作戦
-- 店と泥棒、モンスターハウス、装備の強化値と印、複数のダンジョン
+  (→ [`plan/companion-orders.md`](plan/companion-orders.md))
+- 店と泥棒(→ [`plan/shops-and-thieves.md`](plan/shops-and-thieves.md))、
+  モンスターハウス(→ [`plan/monster-house.md`](plan/monster-house.md))、
+  装備の強化値と印(→ [`plan/equipment-forging.md`](plan/equipment-forging.md))、
+  複数のダンジョン(→ [`plan/multiple-dungeons.md`](plan/multiple-dungeons.md))
+
+世界観・ストーリー・キャラクター設定は [`design/`](design/) 以下にまとめている。
+まず [`design/world.md`](design/world.md) から読むと全体の前提が分かる。
