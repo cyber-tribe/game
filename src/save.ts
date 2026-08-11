@@ -197,6 +197,7 @@ export function actorToStoredMonster(uid: number, actor: Actor): StoredMonster {
     exp: 0,
     // native(種族由来)はfullSkillSetで暗黙に復元されるため、夢あわせで得た分だけ保存する
     skills: actor.skills ? actor.skills.filter((s) => s !== native) : [],
+    nickname: actor.nickname,
   };
 }
 
@@ -217,6 +218,23 @@ export function takeFromHut(
   const next: SaveData = { ...current, hut: remaining };
   saveData(next);
   return { save: next, taken };
+}
+
+/**
+ * ねむり小屋の個体を改名する(plan/companion-naming.md)。
+ * uidが見つからなければ null を返す(何もしない)。nicknameにundefinedを
+ * 渡すと、名前を消して種族名表示に戻す。
+ */
+export function renameStoredMonster(
+  current: SaveData,
+  uid: number,
+  nickname: string | undefined,
+): SaveData | null {
+  if (!current.hut.some((m) => m.uid === uid)) return null;
+  const hut = current.hut.map((m) => (m.uid === uid ? { ...m, nickname } : m));
+  const next: SaveData = { ...current, hut };
+  saveData(next);
+  return next;
 }
 
 /**

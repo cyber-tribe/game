@@ -217,9 +217,10 @@ describe("populate.ts: createAllyFromStored", () => {
     expect(high.level).toBe(10);
   });
 
-  it("ニックネームがあれば名前に反映する", () => {
+  it("ニックネームがあればActor.nicknameに反映する(種族名はnameのまま維持)", () => {
     const ally = createAllyFromStored(1, stored({ nickname: "ぽち" }), { x: 0, y: 0 });
-    expect(ally.name).toBe("ぽち");
+    expect(ally.nickname).toBe("ぽち");
+    expect(ally.name).not.toBe("ぽち");
   });
 });
 

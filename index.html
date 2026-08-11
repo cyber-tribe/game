@@ -273,6 +273,37 @@
       }
       .town-hint { margin: 10px 0 0; font-size: 11px; color: #6b789e; text-align: right; }
 
+      /* ------------------------------------------------ 命名(plan/companion-naming.md) */
+      #naming {
+        position: absolute; inset: 0;
+        display: none;
+        align-items: center; justify-content: center;
+        background: rgba(3, 4, 10, 0.82);
+        pointer-events: auto;
+      }
+      .naming-box {
+        width: min(320px, 90vw);
+        padding: 20px 24px;
+        background: var(--panel);
+        border: 1px solid var(--edge);
+        border-radius: 10px;
+        text-align: center;
+      }
+      .naming-box h3 {
+        margin: 0 0 14px; font-size: 15px; color: #7fd6ff; font-weight: 700;
+      }
+      .naming-input {
+        width: 100%; box-sizing: border-box;
+        padding: 8px 10px; font-size: 15px;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid var(--edge); border-radius: 6px;
+        color: inherit; font-family: inherit;
+      }
+      .naming-input:focus { outline: none; border-color: #7fd6ff; }
+      .naming-hint {
+        margin: 10px 0 0; font-size: 11px; color: #6b789e; text-align: right;
+      }
+
       /* ------------------------------------------------ 全画面表示 */
       #overlay {
         position: absolute; inset: 0;
@@ -343,6 +374,7 @@
         <div id="stance"></div>
         <div id="arts"></div>
         <div id="town"></div>
+        <div id="naming"></div>
         <div id="overlay"></div>
       </div>
 

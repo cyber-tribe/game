@@ -71,6 +71,9 @@ export class Input {
   constructor(target: EventTarget = window) {
     target.addEventListener("keydown", (raw) => {
       const event = raw as KeyboardEvent;
+      // 命名ダイアログ(plan/companion-naming.md)のtext inputに入力中は、
+      // IMEでの日本語入力をそのまま使わせたいので、盤面側の入力処理を素通しする
+      if (document.activeElement instanceof HTMLInputElement) return;
       if (event.repeat) return;
       if (this.onKey?.(event.code, event.shiftKey)) {
         event.preventDefault();

@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { DamageFx } from "./stage";
+import { displayActorName } from "../entities/naming";
 import { MAX_SATIETY, type PlayerState, expToNext } from "../entities/player";
 import {
   ALLY_STANCE_NAMES,
@@ -103,7 +104,7 @@ export class Hud {
 
       const name = document.createElement("span");
       name.className = "ally-name";
-      name.textContent = ally.name;
+      name.textContent = displayActorName(ally);
 
       const hp = document.createElement("span");
       hp.className = "ally-hp";

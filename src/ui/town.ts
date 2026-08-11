@@ -53,6 +53,7 @@ export class TownScreen {
       ) => void)
     | null = null;
   private onFuse: ((axisUid: number, foodUid: number) => void) | null = null;
+  private onRename: ((uid: number, current: string | undefined) => void) | null = null;
 
   constructor(private readonly root: HTMLElement) {
     this.root.style.display = "none";
@@ -72,6 +73,7 @@ export class TownScreen {
       bringAllyUids: number[],
     ) => void,
     onFuse: (axisUid: number, foodUid: number) => void,
+    onRename: (uid: number, current: string | undefined) => void,
   ): void {
     this.save = save;
     this.storage = save.storage.map((s) => ({ ...s }));
@@ -88,6 +90,7 @@ export class TownScreen {
     this.fusionAxisUid = null;
     this.depart = onDepart;
     this.onFuse = onFuse;
+    this.onRename = onRename;
     this.open = true;
     this.root.style.display = "flex";
     this.render();
@@ -199,6 +202,11 @@ export class TownScreen {
         case "KeyM":
           this.pickForFusion(hut[this.hutCursor]?.uid);
           break;
+        case "KeyN": {
+          const target = hut[this.hutCursor];
+          if (target) this.onRename?.(target.uid, target.nickname);
+          return true;
+        }
         case "Escape":
           this.fusionAxisUid = null;
           break;
@@ -347,7 +355,7 @@ export class TownScreen {
     } else if (this.column === 4) {
       desc.textContent =
         this.fusionAxisUid === null
-          ? `Enterで選択/解除(最大${MAX_ALLIES}体、0体なら手ぶらで出発)。Mで夢あわせの軸を選ぶ。`
+          ? `Enterで選択/解除(最大${MAX_ALLIES}体、0体なら手ぶらで出発)。Mで夢あわせの軸を選ぶ。Nで改名。`
           : "夢あわせ: 糧にする個体を選んでMで確定(軸は消えず、糧は消えて軸に溶け込む)。";
     } else {
       const selected = (this.column === 0 ? this.storage : this.carry)[this.cursor[this.column]];
@@ -359,7 +367,7 @@ export class TownScreen {
     hint.className = "town-hint";
     hint.textContent =
       this.column === 4
-        ? "←→ 列を移る / ↑↓ 選ぶ / Enter 選択・解除 / M 夢あわせ / Space もぐる"
+        ? "←→ 列を移る / ↑↓ 選ぶ / Enter 選択・解除 / M 夢あわせ / N 改名 / Space もぐる"
         : "←→ 列を移る / ↑↓ 選ぶ / Enter 移す / Space もぐる";
     box.appendChild(hint);
 
@@ -462,7 +470,7 @@ export class TownScreen {
     }
     hut.forEach((m, index) => {
       const li = document.createElement("li");
-      const name = m.nickname ?? speciesById(m.speciesId).name;
+      const name = displayStoredMonsterName(m);
       li.textContent =
         m.uid === this.fusionAxisUid ? `${name} Lv${m.level}(夢あわせの軸)` : `${name} Lv${m.level}`;
       if (this.bringUids.includes(m.uid)) li.classList.add("chosen");
@@ -478,4 +486,10 @@ export class TownScreen {
 function wrap(value: number, length: number): number {
   if (length <= 0) return 0;
   return ((value % length) + length) % length;
+}
+
+/** ねむり小屋の一覧表示用の名前。src/entities/naming.ts の displayActorName と同じ考え方 */
+function displayStoredMonsterName(m: StoredMonster): string {
+  const species = speciesById(m.speciesId).name;
+  return m.nickname ? `${m.nickname}(${species})` : species;
 }
