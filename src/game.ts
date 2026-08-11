@@ -266,12 +266,13 @@ export class Game {
   private attack(attacker: Actor, target: Actor, attackPower: number, events: GameEvent[]): void {
     attacker.facing = dirFromDelta(target.pos.x - attacker.pos.x, target.pos.y - attacker.pos.y);
     events.push({ type: "attack", attackerId: attacker.id, targetId: target.id });
+    events.push({ type: "message", text: `${attacker.name}のこうげき!` });
 
     const defense = target.kind === "player" ? totalDefense(this.player) : target.def;
     const { damage, critical } = computeDamage(this.rng, attackPower, defense);
-    this.damageActor(target, damage, critical, events);
-
     if (critical) events.push({ type: "message", text: "会心の一撃!" });
+    events.push({ type: "message", text: `${target.name}に${damage}のダメージ!` });
+    this.damageActor(target, damage, critical, events);
 
     // 攻撃してきた相手には気づく
     if (target.kind === "monster") target.aware = true;
@@ -528,6 +529,7 @@ export class Game {
           events.push({ type: "attack", attackerId: monster.id, targetId: this.player.id });
           events.push({ type: "message", text: `${monster.name}が つぶてを投げた!` });
           const { damage, critical } = computeDamage(this.rng, monster.atk, totalDefense(this.player));
+          events.push({ type: "message", text: `${this.player.name}に${damage}のダメージ!` });
           this.damageActor(this.player, damage, critical, events);
           break;
         }
