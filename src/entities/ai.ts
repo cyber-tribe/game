@@ -1,11 +1,15 @@
 import type { Rng } from "../core/rng";
 import { ALL_DIRS, type Dir, type Vec2, chebyshev, dirDelta, eq, isDiagonal } from "../core/grid";
 import {
+  STATUS_FEAR,
+  STATUS_INVISIBLE,
+  STATUS_SEAL,
   type Actor,
   type AllyStance,
   type FloorState,
   actorAt,
   barrelAt,
+  hasStatus,
   isHostile,
   walkableAt,
 } from "../core/types";
@@ -118,7 +122,16 @@ export function decideMonsterAction(
   target: Actor,
   distField: Int32Array,
 ): MonsterAction {
-  const sees = canSee(floor, monster.pos, target.pos) || nearestVisibleFoe(floor, monster) !== null;
+  // おびえの巻物: 戦わずに逃げ続ける。追跡・攻撃のどの判断よりも優先する
+  if (hasStatus(monster, STATUS_FEAR)) {
+    const away = fleeDirection(floor, monster, target.pos);
+    return away !== null ? { type: "move", dir: away } : wander(rng, floor, monster);
+  }
+
+  // とうめいの巻物: 透明な相手を見ても新たに気づかない(すでに気づいている分には効かない)
+  const sees =
+    !hasStatus(target, STATUS_INVISIBLE) &&
+    (canSee(floor, monster.pos, target.pos) || nearestVisibleFoe(floor, monster) !== null);
   if (sees) monster.aware = true;
 
   if (!monster.aware) return wander(rng, floor, monster);
@@ -133,8 +146,9 @@ export function decideMonsterAction(
     if (away !== null) return { type: "move", dir: away };
   }
 
+  // かなしばりの杖: 封じられている間は遠隔攻撃(特技)が使えず、近づくしかない
   const visible = nearestVisibleFoe(floor, monster);
-  if (monster.rangedRange !== undefined && visible) {
+  if (monster.rangedRange !== undefined && visible && !hasStatus(monster, STATUS_SEAL)) {
     const distance = chebyshev(monster.pos, visible.pos);
     if (distance <= monster.rangedRange && isStraightLine(monster.pos, visible.pos)) {
       return { type: "ranged", targetId: visible.id };
