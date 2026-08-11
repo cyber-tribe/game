@@ -113,7 +113,9 @@ export type Command =
   /** 抱えているタルを向いている方向へ投げる */
   | { type: "throwBarrel" }
   /** 仲間への指示(構え)。"all" なら連れている全員に一括で出す */
-  | { type: "setStance"; allyId: number | "all"; stance: AllyStance };
+  | { type: "setStance"; allyId: number | "all"; stance: AllyStance }
+  /** めざめの階段を使って、ここで区切ってダイブを成功させる */
+  | { type: "bank" };
 
 export interface RunOptions {
   seed: number;
@@ -121,6 +123,8 @@ export interface RunOptions {
   startingItems?: Item[];
   /** この階の階段を降りるとクリア */
   maxDepth?: number;
+  /** 出発する階。既知のめざめの階段から選べる。省略時は1階 */
+  startDepth?: number;
 }
 
 export type RunStatus = "playing" | "dead" | "cleared";
@@ -194,7 +198,8 @@ export class Game {
       addItem(this.player.inventory, item);
     }
 
-    this.enterFloor(1);
+    const startDepth = Math.min(Math.max(1, Math.floor(opts.startDepth ?? 1)), this.maxDepth);
+    this.enterFloor(startDepth);
   }
 
   // ------------------------------------------------------------ フロア遷移
@@ -252,6 +257,23 @@ export class Game {
     if (this.floor.gimmick) {
       events.push({ type: "message", text: GIMMICK_MESSAGES[this.floor.gimmick] });
     }
+  }
+
+  /**
+   * めざめの階段を使って、ここで区切ってダイブを成功させる
+   * (plan/checkpoint-select.md)。持ち物・仲間・所持金を持ち帰れる点は
+   * 通常の踏破と同じ。以後の深い階は次回以降のダイブに持ち越す。
+   */
+  private bankRun(events: GameEvent[]): boolean {
+    if (!eq(this.player.pos, this.floor.stairs)) {
+      events.push({ type: "message", text: "ここには階段がない。" });
+      return false;
+    }
+    this.status = "cleared";
+    this.endReason = `地下${this.depth}階のめざめの階段で区切って持ち帰った!`;
+    events.push({ type: "message", text: this.endReason });
+    events.push({ type: "gameOver", reason: this.endReason });
+    return true;
   }
 
   // ------------------------------------------------------------ コマンド処理
@@ -325,6 +347,9 @@ export class Game {
         this.descend(events);
         return true;
       }
+
+      case "bank":
+        return this.bankRun(events);
 
       case "use":
         return this.useItem(cmd.uid, events);
@@ -671,6 +696,9 @@ export class Game {
     }
     if (eq(pos, this.floor.stairs)) {
       events.push({ type: "message", text: "階段がある。" });
+      // 足を踏み入れた瞬間に「既知」となる。ダイブの結果によらず記録されるべき
+      // 事実なので、保存は呼び出し側(main.ts)が checkpoint イベントを見て行う
+      events.push({ type: "checkpoint", depth: this.depth });
     }
   }
 

@@ -20,6 +20,12 @@ export interface SaveData {
   bestLevel: number;
   /** 拠点の倉庫 */
   storage: StoredItem[];
+  /**
+   * 既知のめざめの階段(チェックポイント)がある階。1階(入口)は常に含む。
+   * ダイブの結果(踏破・全滅)によらず、足を踏み入れた瞬間に記録される
+   * (plan/checkpoint-select.md の「知識は失われない」原則)。
+   */
+  knownCheckpoints: number[];
 }
 
 /** 一番最初の持ち物。手ぶらで放り出さない程度に */
@@ -33,7 +39,14 @@ const STARTER: StoredItem[] = [
 const VALID_IDS = new Set(ITEMS.map((i) => i.id));
 
 export function initialSave(): SaveData {
-  return { deepest: 0, runs: 0, clears: 0, bestLevel: 1, storage: STARTER.map((s) => ({ ...s })) };
+  return {
+    deepest: 0,
+    runs: 0,
+    clears: 0,
+    bestLevel: 1,
+    storage: STARTER.map((s) => ({ ...s })),
+    knownCheckpoints: [1],
+  };
 }
 
 export function loadSave(): SaveData {
@@ -47,6 +60,7 @@ export function loadSave(): SaveData {
       clears: numberOr(parsed.clears, 0),
       bestLevel: numberOr(parsed.bestLevel, 1),
       storage: sanitizeStorage(parsed.storage),
+      knownCheckpoints: sanitizeCheckpoints(parsed.knownCheckpoints),
     };
   } catch {
     // 壊れた保存データで起動できなくなるほうが困るので、黙って初期値に戻す
@@ -62,6 +76,17 @@ export function saveData(data: SaveData): void {
   }
 }
 
+/** めざめの階段(チェックポイント)を既知にする。すでに知っていれば何もしない */
+export function addKnownCheckpoint(current: SaveData, depth: number): SaveData {
+  if (current.knownCheckpoints.includes(depth)) return current;
+  const next: SaveData = {
+    ...current,
+    knownCheckpoints: [...current.knownCheckpoints, depth].sort((a, b) => a - b),
+  };
+  saveData(next);
+  return next;
+}
+
 export function recordRun(
   current: SaveData,
   result: { depth: number; level: number; cleared: boolean; broughtBack: Item[] },
@@ -73,6 +98,7 @@ export function recordRun(
     bestLevel: Math.max(current.bestLevel, result.level),
     // 踏破して帰ってきたぶんだけが倉庫に加わる。倒れた場合は持ち込み品が丸ごと消える
     storage: [...current.storage, ...result.broughtBack.map(toStored)],
+    knownCheckpoints: current.knownCheckpoints,
   };
   saveData(next);
   return next;
@@ -99,4 +125,15 @@ function sanitizeStorage(value: unknown): StoredItem[] {
 
 function numberOr(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+/** 1階(入口)は常に知っている扱いにする */
+function sanitizeCheckpoints(value: unknown): number[] {
+  const known = new Set<number>([1]);
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      if (typeof entry === "number" && Number.isInteger(entry) && entry >= 1) known.add(entry);
+    }
+  }
+  return [...known].sort((a, b) => a - b);
 }
