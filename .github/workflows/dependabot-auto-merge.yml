@@ -1,0 +1,33 @@
+name: Dependabot auto-merge
+
+# Dependabot が開いた PR のうち、patch/minor 更新だけを auto-merge キューに載せる。
+# 実際にマージされるのは、ブランチ保護の必須ステータスチェック(ci.yml の
+# 型・テスト・ビルド / 実機での通しプレイ)が通った後。major 更新はここでは
+# 何もせず、人がレビューして手動でマージする。
+#
+# package-lock.json / package.json の変更は ci.yml の changes ジョブで
+# 「コード」判定されるので、通常どおり型チェック・テスト・ビルド・通しプレイが走る。
+on: pull_request
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    name: patch/minor を auto-merge
+    if: github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: dependabot/fetch-metadata@v2
+        id: metadata
+        with:
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: auto-merge を有効化
+        if: steps.metadata.outputs.update-type != 'version-update:semver-major'
+        run: gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
