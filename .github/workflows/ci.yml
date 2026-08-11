@@ -1,0 +1,103 @@
+name: CI
+
+# PR には必ず、main への push にも走らせる。
+# ブランチ push と PR の両方を拾うと同じコミットで二重に走るので、
+# push は main だけに絞ってある。
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: 型・テスト・ビルド
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: 型チェック
+        run: npm run typecheck
+
+      - name: ユニットテスト
+        # ダンジョン生成の到達可能性(1000シード)と、コミット済み .glb の検査を含む
+        run: npm run test
+
+      - name: 本番ビルド
+        run: npm run build
+
+      - name: ビルド成果物を残す
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          retention-days: 7
+
+  playtest:
+    name: 実機での通しプレイ
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: check
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # playwright は依存に入れていない。ブラウザまで抱えると、遊びたいだけの人にも
+      # 数百MBを背負わせることになるため、CI でだけ入れる。
+      - name: Chromium を用意する
+        run: |
+          npm i --no-save playwright@^1.56
+          npx playwright install --with-deps chromium
+
+      - name: 本番ビルド
+        run: npm run build
+
+      - name: プレビューサーバーを起動して待つ
+        run: |
+          npx vite preview --port 4173 --host 127.0.0.1 > preview.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:4173/ -o /dev/null; then
+              echo "サーバーが立ち上がりました"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "プレビューサーバーが起動しませんでした"
+          cat preview.log
+          exit 1
+
+      # 拠点から潜り、歩いて戦ってアイテムを使い、倒れて拠点に戻るまでを実際に操作する。
+      # ページ内で例外や 4xx が出ていれば、スクリプトが 1 で終了する。
+      # ランナーに GPU は無いので WebGL は SwiftShader で動かしている。
+      - name: 通しプレイ
+        env:
+          URL: http://127.0.0.1:4173/
+          OUT: playtest-shots
+        run: npm run playtest
+
+      - name: スクリーンショットを残す
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playtest-shots
+          path: playtest-shots/
+          retention-days: 7
+          if-no-files-found: warn

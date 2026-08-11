@@ -1,18 +1,25 @@
 /**
  * ヘッドレスブラウザで実際に遊んでみて、動くことを確かめる。
  *
- *   npx vite --port 5173 &
- *   NODE_PATH=/opt/node22/lib/node_modules node tools/playtest.mjs
+ *   npm run dev &
+ *   npm run playtest
  *
- * WebGL はソフトウェア実装 (SwiftShader) を使う。GPU の無い環境で
- * Chromium を動かすときはこの指定が要る。
+ * 環境変数で行き先を変えられる。
+ *   URL              遊びに行くアドレス (既定 http://127.0.0.1:5173/)
+ *   OUT              スクリーンショットの出力先 (既定 ./playtest-shots)
+ *   CHROMIUM_PATH    Chromium の実行ファイル。未指定なら playwright が持つものを使う
+ *   PLAYWRIGHT_PATH  playwright パッケージの場所。依存に無い環境向けの逃げ道
+ *
+ * WebGL はソフトウェア実装 (SwiftShader) で動かす。CI のランナーにも
+ * 手元のコンテナにも GPU は無いので、これが無いと WebGL の初期化に失敗する。
  */
 import { createRequire } from "node:module";
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 
 /**
- * playwright はプロジェクトの依存には入れていない(ブラウザまで抱えると重い)。
- * インストールされていればそれを使い、無ければ環境に置かれているものを探す。
+ * playwright はプロジェクトの依存には入れていない。ブラウザまで抱えると、
+ * ゲームを動かしたいだけの人にまで数百MBを背負わせることになるため。
+ * 入っていればそれを使い、無ければ環境に置かれているものを探す。
  */
 async function loadPlaywright() {
   try {
@@ -27,11 +34,20 @@ async function loadPlaywright() {
 const { chromium } = await loadPlaywright();
 
 const URL = process.env.URL ?? "http://127.0.0.1:5173/";
-const OUT = process.env.OUT ?? "/tmp/shots";
+const OUT = process.env.OUT ?? "playtest-shots";
 mkdirSync(OUT, { recursive: true });
 
+/** 明示された実行ファイルがあればそれを、無ければ playwright に任せる */
+function chromiumPath() {
+  const explicit = process.env.CHROMIUM_PATH;
+  if (explicit) return explicit;
+  // このコンテナには playwright 用の Chromium が別置きされている
+  const preinstalled = "/opt/pw-browsers/chromium";
+  return existsSync(preinstalled) ? preinstalled : undefined;
+}
+
 const browser = await chromium.launch({
-  executablePath: "/opt/pw-browsers/chromium",
+  executablePath: chromiumPath(),
   args: [
     "--use-angle=swiftshader",
     "--enable-unsafe-swiftshader",

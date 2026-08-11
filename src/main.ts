@@ -3,8 +3,7 @@ import { Game, type Command } from "./game";
 import type { GameEvent } from "./core/events";
 import { walkableAt } from "./core/types";
 import { chebyshev, eq } from "./core/grid";
-import { SPECIES } from "./entities/species";
-import { ITEMS } from "./items/catalog";
+import { modelNames } from "./modelList";
 import { Assets } from "./view/assets";
 import { Hud } from "./view/hud";
 import { Input } from "./view/input";
@@ -17,15 +16,6 @@ import { loadSave, recordRun, saveData, type SaveData, type StoredItem } from ".
 import type { Item } from "./core/types";
 
 const MAX_DEPTH = 10;
-
-/** 読み込むモデルの一覧。種族表とアイテム表から自動的に集める */
-function modelNames(): string[] {
-  const names = new Set<string>(["garudo", "wall", "floor", "stairs"]);
-  for (const species of SPECIES) names.add(species.model);
-  for (const item of ITEMS) names.add(item.model);
-  for (const kind of ["damage", "sleep", "alarm", "pitfall"]) names.add(`trap_${kind}`);
-  return [...names];
-}
 
 class App {
   private readonly renderer: Renderer;

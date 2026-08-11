@@ -1,5 +1,7 @@
 # 少年ガルドと迷いの洞窟
 
+[![CI](https://github.com/cyber-tribe/game/actions/workflows/ci.yml/badge.svg)](https://github.com/cyber-tribe/game/actions/workflows/ci.yml)
+
 ブラウザで動く 3D のローグライク。いわゆる「不思議のダンジョン」型で、
 潜るたびに地形が変わる洞窟を、ターン制で一歩ずつ進んでいく。
 
@@ -143,23 +145,42 @@ tools/venv/bin/python tools/build_models.py garudo --no-preview   # 1体だけ�
 ## テスト
 
 ```bash
-npm run test        # コアのユニットテスト (36件)
+npm run test        # ユニットテスト (64件)
 npm run typecheck
 ```
 
 ダンジョン生成は 1000 シードで到達可能性を検証している。ほかに戦闘計算、ターン進行、
-満腹度、持ち物、状態異常、レベルアップを固めてある。
+満腹度、持ち物、状態異常、レベルアップ。
+
+`.glb` はビルド済みのものをコミットしているので、作り直しを忘れたり壊れたものを混ぜたりしても
+気づけない。そこで `tests/models.test.ts` が glTF の中身を直接読み、モデルが全部そろっているか、
+キャラクターに 5 つのクリップとスキンがあるか、ファイルが肥大していないかを検査している。
+必要なモデルの一覧は `src/modelList.ts` に一本化してあるので、モンスターを足して
+`.glb` を作り忘れれば、そのままテストが落ちる。
 
 実機の動作確認はヘッドレスブラウザで行う。
 
 ```bash
 npm run dev &
-node tools/playtest.mjs      # スクリーンショットは /tmp/shots に出る
+npm run playtest      # スクリーンショットは ./playtest-shots に出る
 ```
 
-移動・戦闘・階層移動・アイテム使用・全滅・拠点への帰還までを実際に操作して、
-コンソールエラーが出ないことを確認する。GPU の無い環境向けに WebGL は
+拠点から潜り、歩いて戦ってアイテムを使い、倒れて拠点に戻るまでを実際に操作して、
+ページ内で例外や 4xx が出ないことを確認する。GPU の無い環境向けに WebGL は
 SwiftShader で動かしている。
+
+### CI
+
+`.github/workflows/ci.yml` が PR と `main` への push で走る。
+
+| ジョブ | やること |
+|---|---|
+| 型・テスト・ビルド | `npm ci` → 型チェック → テスト64件 → 本番ビルド。`dist/` を成果物として残す |
+| 実機での通しプレイ | ビルドしたものをプレビューサーバーで配り、Chromium で上記の通しプレイを実行。スクリーンショットを成果物として残す |
+
+モデル制作の側は別枠にしてある(`.github/workflows/models.yml`)。Blender は約 374MB の
+ダウンロードを伴うので毎回は回さず、`tools/models/**` に手が入ったときと手動実行のときだけ、
+スクリプトから全モデルを作り直せるかを確かめる。
 
 ---
 

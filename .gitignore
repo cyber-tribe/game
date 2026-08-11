@@ -13,3 +13,7 @@ tools/.wheels/
 
 __pycache__/
 *.pyc
+
+# playtest のスクリーンショット出力
+playtest-shots/
+preview.log
