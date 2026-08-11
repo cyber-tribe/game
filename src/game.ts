@@ -28,6 +28,7 @@ import {
   type FloorState,
   type Item,
   type ItemDef,
+  type Room,
   type SkillId,
   type StatusKind,
   type Trap,
@@ -56,7 +57,7 @@ import {
 } from "./dungeon/populate";
 import { displayActorName } from "./entities/naming";
 import type { StoredMonster } from "./entities/storedMonster";
-import { updateVisibility } from "./dungeon/visibility";
+import { isVisible, updateVisibility } from "./dungeon/visibility";
 import {
   buildDistanceField,
   canStep,
@@ -78,9 +79,11 @@ import { itemDef } from "./items/catalog";
 import { type EffectContext, addStatus, applyEffect } from "./items/effects";
 import {
   addItem,
+  charmDefId,
   displayName,
   equip,
   findItem,
+  headDefId,
   isFull,
   removeItem,
   shieldMarkId,
@@ -204,6 +207,13 @@ function hasSkill(actor: Actor, id: SkillId): boolean {
   return actor.skills?.includes(id) ?? false;
 }
 
+/** posが、部屋の外縁からチェビシェフ距離rangeマス以内にあるか(部屋の中ならtrue) */
+function isNearRoom(room: Room, pos: Vec2, range: number): boolean {
+  const dx = Math.max(room.x - pos.x, 0, pos.x - (room.x + room.w - 1));
+  const dy = Math.max(room.y - pos.y, 0, pos.y - (room.y + room.h - 1));
+  return Math.max(dx, dy) <= range;
+}
+
 /**
  * 空のタルでモンスターを吸い込める確率。
  * 満タンの相手にはめったに効かず、瀕死ならほぼ確実に入る。
@@ -282,7 +292,7 @@ export class Game {
       for (const ally of this.allies) canonical.set(ally.id, ally);
       this.floor.actors = this.floor.actors.map((a) => canonical.get(a.id) ?? a);
 
-      updateVisibility(this.floor, this.player.pos);
+      updateVisibility(this.floor, this.player.pos, this.visionExtraRange());
       return;
     }
 
@@ -337,7 +347,9 @@ export class Game {
     const start = choosePlayerStart(this.rng, this.floor);
     this.player.pos = start;
     this.floor.actors.push(this.player);
-    populateFloor(this.rng, this.floor, this.ids, start);
+    const boostedItemDefId =
+      charmDefId(this.player.inventory) === "dustLureSachet" ? "hokoraDust" : undefined;
+    populateFloor(this.rng, this.floor, this.ids, start, boostedItemDefId);
 
     // 仲間は階段について来る。プレイヤーの周りの空いたマスに並べる
     for (const ally of this.allies) {
@@ -348,7 +360,7 @@ export class Game {
       this.floor.actors.push(ally);
     }
 
-    updateVisibility(this.floor, this.player.pos);
+    updateVisibility(this.floor, this.player.pos, this.visionExtraRange());
   }
 
   /** 指定位置の近くで、誰も立っていないマスを探す */
@@ -414,7 +426,7 @@ export class Game {
       this.turnCount++;
     }
 
-    updateVisibility(this.floor, this.player.pos);
+    updateVisibility(this.floor, this.player.pos, this.visionExtraRange());
     return events;
   }
 
@@ -764,7 +776,10 @@ export class Game {
     // 「なだめの手つき」で受けた弱らせ(captureBonus)は、この判定で消費する
     const bonus = hit.captureBonus ?? 0;
     hit.captureBonus = 0;
-    const captured = critForced || this.rng.chance(Math.min(0.9, captureChance(hit) + bonus));
+    // 樽なじみの腕輪(plan/protagonist-equipment.md): 捕獲確率+10%
+    const charmBonus = charmDefId(this.player.inventory) === "barrelKinshipBracelet" ? 0.1 : 0;
+    const captured =
+      critForced || this.rng.chance(Math.min(0.9, captureChance(hit) + bonus + charmBonus));
     if (!captured) {
       events.push({ type: "captureFailed", actorId: hit.id, name: hit.name });
       events.push({ type: "message", text: `${hit.name}は吸い込まれなかった。` });
@@ -934,20 +949,24 @@ export class Game {
    * モンスターハウス(plan/monster-house.md)の予告。部屋の外(通路側)から
    * 隣接した時点で、1フロアにつき一度だけ気配のメッセージを出す。
    * 部屋の中に入ってからでは手遅れなので、中にいる間は出さない。
+   * 千里眼の輪(plan/protagonist-equipment.md)を装備していれば、
+   * さらに1マス手前(距離2)から察知できる。
    */
   private checkMonsterHouseWarning(pos: Vec2, events: GameEvent[]): void {
     if (this.monsterHouseWarned) return;
     const room = this.floor.rooms.find((r) => r.kind === "monsterHouse");
     if (!room || roomContains(room, pos)) return;
 
-    const adjacent = ALL_DIRS.some((dir) => {
-      const delta = dirDelta(dir);
-      return roomContains(room, { x: pos.x + delta.x, y: pos.y + delta.y });
-    });
-    if (!adjacent) return;
+    const range = headDefId(this.player.inventory) === "farsightRing" ? 2 : 1;
+    if (!isNearRoom(room, pos, range)) return;
 
     this.monsterHouseWarned = true;
     events.push({ type: "message", text: "――部屋の奥で何かがひしめいている気配がする。" });
+  }
+
+  /** 見晴らしのはちまき(plan/protagonist-equipment.md)ぶんの視界拡張 */
+  private visionExtraRange(): number {
+    return headDefId(this.player.inventory) === "lookoutHeadband" ? 1 : 0;
   }
 
   // ------------------------------------------------------------ 戦闘
@@ -1107,12 +1126,15 @@ export class Game {
       events.push({ type: "statusEnd", actorId: target.id, kind: STATUS_SLEEP });
     }
     if (target.hp <= 0) {
-      // 特技「ふんばり」、またはホネガラミの印(plan/equipment-forging.md):
-      // HPが1残っていた状態からの致死ダメージを1ラン1回だけ耐える
+      // 特技「ふんばり」、ホネガラミの印(plan/equipment-forging.md)、または
+      // 身がわりの鈴(plan/protagonist-equipment.md): HPが1残っていた状態
+      // からの致死ダメージを1ダイブ1回だけ耐える
       const hpBeforeThisHit = target.hp + damage;
       const hasStubbornEffect =
         (target.kind === "ally" && hasSkill(target, "stubborn")) ||
-        (target.kind === "player" && shieldMarkId(this.player.inventory) === "honegarami");
+        (target.kind === "player" &&
+          (shieldMarkId(this.player.inventory) === "honegarami" ||
+            charmDefId(this.player.inventory) === "guardianBell"));
       if (hpBeforeThisHit === 1 && hasStubbornEffect && !this.usedStubborn.has(target.id)) {
         target.hp = 1;
         this.usedStubborn.add(target.id);
@@ -1188,7 +1210,12 @@ export class Game {
     if (!item) return false;
     const def = itemDef(item.defId);
 
-    if (def.category === "weapon" || def.category === "shield") {
+    if (
+      def.category === "weapon" ||
+      def.category === "shield" ||
+      def.category === "head" ||
+      def.category === "charm"
+    ) {
       equip(inv, uid);
       events.push({ type: "equip", actorId: this.player.id, itemUid: uid, name: def.name });
       events.push({ type: "message", text: `${def.name}を装備した。` });
@@ -1199,6 +1226,12 @@ export class Game {
       // ゲンドの工房(拠点)専用の素材。ダンジョン内で使い道はない
       events.push({ type: "message", text: `「${def.name}」は素材だ。ここでは使えない。` });
       return false;
+    }
+
+    if (def.category === "tool") {
+      const handled = this.useTool(item.defId, events);
+      if (handled) removeItem(inv, uid);
+      return handled;
     }
 
     if (def.category === "staff") {
@@ -1224,6 +1257,56 @@ export class Game {
       removeItem(inv, uid);
     }
     return true;
+  }
+
+  /**
+   * 道具(plan/protagonist-equipment.md、category: "tool")の効果。
+   * 杖・草のような`effect`文字列(items/effects.ts)には乗らない、
+   * Gameクラス自身の状態(status・floor・allies)を直接操作する専用アクション。
+   */
+  private useTool(defId: string, events: GameEvent[]): boolean {
+    switch (defId) {
+      case "ashfireDust": {
+        // めざめの階段を使わずに、その場で安全に麓へ戻る。踏破と同じ扱い
+        // (持ち物・仲間を持ち帰れる)だが、checkpointイベントは出さないので
+        // 「めざめの階段を使った」扱いにはならない
+        this.status = "cleared";
+        this.endReason = "送り火の粉で、その場から麓へ戻った。";
+        events.push({ type: "message", text: this.endReason });
+        events.push({ type: "gameOver", reason: this.endReason });
+        return true;
+      }
+      case "barrelAppraisal": {
+        const found = this.floor.barrels
+          .filter((b) => b.kind === "caught" && b.speciesId && isVisible(this.floor, b.pos))
+          .map((b) => speciesById(b.speciesId!).name);
+        events.push({
+          type: "message",
+          text:
+            found.length > 0
+              ? `タルの中身を見分けた: ${found.join("、")}`
+              : "視界内にモンスター入りのタルは無かった。",
+        });
+        return true;
+      }
+      case "homesickRope": {
+        let recalled = 0;
+        for (const ally of this.allies) {
+          if (!ally.alive) continue;
+          const spot = this.freeSpotNear(this.player.pos);
+          if (!spot) continue;
+          ally.pos = spot;
+          recalled++;
+        }
+        events.push({
+          type: "message",
+          text: recalled > 0 ? "仲間を呼び寄せた!" : "呼び寄せる仲間がいない。",
+        });
+        return true;
+      }
+      default:
+        return false;
+    }
   }
 
   private throwItem(uid: number, events: GameEvent[]): boolean {
@@ -1475,7 +1558,10 @@ export class Game {
     if (this.status !== "playing") return;
     const player = this.player;
     const before = player.satiety;
-    const rate = this.floor.gimmick === "feast" ? SATIETY_PER_TURN / 2 : SATIETY_PER_TURN;
+    const feastMultiplier = this.floor.gimmick === "feast" ? 0.5 : 1;
+    // 満たされ石(plan/protagonist-equipment.md): 満腹度の減りが2割ゆるやかになる
+    const charmMultiplier = charmDefId(player.inventory) === "fulfillingStone" ? 0.8 : 1;
+    const rate = SATIETY_PER_TURN * feastMultiplier * charmMultiplier;
     player.satiety = Math.max(0, player.satiety - rate);
 
     if (before > 20 && player.satiety <= 20) {

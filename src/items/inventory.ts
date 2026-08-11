@@ -10,10 +10,13 @@ export interface Inventory {
   /** 装備中の武器の uid。未装備なら null */
   weaponUid: number | null;
   shieldUid: number | null;
+  /** 頭防具・装身具の uid。plan/protagonist-equipment.md 参照 */
+  headUid: number | null;
+  charmUid: number | null;
 }
 
 export function createInventory(maxSize = INVENTORY_SIZE): Inventory {
-  return { items: [], maxSize, weaponUid: null, shieldUid: null };
+  return { items: [], maxSize, weaponUid: null, shieldUid: null, headUid: null, charmUid: null };
 }
 
 export function isFull(inv: Inventory): boolean {
@@ -32,6 +35,8 @@ export function removeItem(inv: Inventory, uid: number): Item | undefined {
   const [item] = inv.items.splice(idx, 1);
   if (inv.weaponUid === uid) inv.weaponUid = null;
   if (inv.shieldUid === uid) inv.shieldUid = null;
+  if (inv.headUid === uid) inv.headUid = null;
+  if (inv.charmUid === uid) inv.charmUid = null;
   return item;
 }
 
@@ -52,11 +57,19 @@ export function equip(inv: Inventory, uid: number): boolean {
     inv.shieldUid = inv.shieldUid === uid ? null : uid;
     return true;
   }
+  if (def.category === "head") {
+    inv.headUid = inv.headUid === uid ? null : uid;
+    return true;
+  }
+  if (def.category === "charm") {
+    inv.charmUid = inv.charmUid === uid ? null : uid;
+    return true;
+  }
   return false;
 }
 
 export function isEquipped(inv: Inventory, uid: number): boolean {
-  return inv.weaponUid === uid || inv.shieldUid === uid;
+  return inv.weaponUid === uid || inv.shieldUid === uid || inv.headUid === uid || inv.charmUid === uid;
 }
 
 export function weaponBonus(inv: Inventory): number {
@@ -83,6 +96,25 @@ export function weaponMarkId(inv: Inventory): MarkId | undefined {
 export function shieldMarkId(inv: Inventory): MarkId | undefined {
   if (inv.shieldUid === null) return undefined;
   return findItem(inv, inv.shieldUid)?.markId;
+}
+
+/** 装備中の頭防具の防御ボーナス(鉄兜のみ)。他の頭防具は数値に触れない方向の効果なので0 */
+export function headBonus(inv: Inventory): number {
+  if (inv.headUid === null) return 0;
+  const item = findItem(inv, inv.headUid);
+  return item ? (itemDef(item.defId).bonus ?? 0) : 0;
+}
+
+/** 装備中の頭防具のdefId。未装備ならnull */
+export function headDefId(inv: Inventory): string | null {
+  if (inv.headUid === null) return null;
+  return findItem(inv, inv.headUid)?.defId ?? null;
+}
+
+/** 装備中の装身具のdefId。未装備ならnull */
+export function charmDefId(inv: Inventory): string | null {
+  if (inv.charmUid === null) return null;
+  return findItem(inv, inv.charmUid)?.defId ?? null;
 }
 
 /** 表示用の名前。杖は残り回数、武器・盾は強化値と印、装備品は装備中である旨を添える */
