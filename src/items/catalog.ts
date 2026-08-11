@@ -364,6 +364,62 @@ export const ITEMS: readonly ItemDef[] = [
     weight: 3,
     description: "defense+7",
   },
+
+  // ---- 素材(plan/equipment-forging.md) ----
+  {
+    id: "hokoraDust",
+    name: "ほこら粉",
+    category: "material",
+    model: "herb",
+    minFloor: 1,
+    weight: 8,
+    description: "ゲンドの工房で、武器・盾の強化や印刻みに使う。",
+  },
+  {
+    id: "markStonePurun",
+    name: "ぷるんの刻印石",
+    category: "material",
+    model: "herb",
+    minFloor: 2,
+    weight: 2,
+    description: "ゲンドの工房で盾に刻める。被弾ダメージを確率5割で1割軽減する。",
+  },
+  {
+    id: "markStoneGajiri",
+    name: "ガジリねずみの刻印石",
+    category: "material",
+    model: "herb",
+    minFloor: 2,
+    weight: 2,
+    description: "ゲンドの工房で武器に刻める。そのランの最初の1手を必ず会心にする。",
+  },
+  {
+    id: "markStoneTsubute",
+    name: "ツブテガエルの刻印石",
+    category: "material",
+    model: "herb",
+    minFloor: 4,
+    weight: 2,
+    description: "ゲンドの工房で武器に刻める。タルを投げたときのダメージ+2。",
+  },
+  {
+    id: "markStoneMadoromi",
+    name: "マドロミダケの刻印石",
+    category: "material",
+    model: "herb",
+    minFloor: 5,
+    weight: 2,
+    description: "ゲンドの工房で武器に刻める。攻撃時、眠り付与の確率+10%。",
+  },
+  {
+    id: "markStoneHonegarami",
+    name: "ホネガラミの刻印石",
+    category: "material",
+    model: "herb",
+    minFloor: 7,
+    weight: 2,
+    description: "ゲンドの工房で盾に刻める。HPが1残っていれば、致死ダメージを1回だけ耐える。",
+  },
 ];
 
 const BY_ID = new Map(ITEMS.map((i) => [i.id, i]));

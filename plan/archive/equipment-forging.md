@@ -1,5 +1,34 @@
 # 装備の強化値と印
 
+> **実装済み。** `src/core/types.ts`(`MarkId` 型・`Item.plus`/`Item.markId`・
+> `ItemCategory` への `"material"` 追加)・`src/entities/forging.ts`
+> (`MARKS`/`markDef`/`MARK_STONE_DEF_ID`/`hokoraDustCost`/`MAX_PLUS` 等の定数)・
+> `src/items/catalog.ts`(ほこら粉・刻印石5種。いずれも`herb`モデルを流用)・
+> `src/items/inventory.ts`(`weaponBonus`/`shieldBonus`のplus加算、
+> `weaponMarkId`/`shieldMarkId`)・`src/game.ts`(5つの印の戦闘効果と、
+> タルを投げたときのダメージ+2)・`src/save.ts`(`StoredItem.plus`/`markId`、
+> `fromStored`、壊れたセーブデータのサニタイズ)・`src/main.ts`
+> (`fromStored`経由でのダイブ持ち込み)・`src/ui/town.ts`(ゲンドの工房。
+> ねむり小屋カラムの右隣に追加し、Enterで強化、Mで印刻みのサブメニュー)。
+> テストは `tests/equipment-forging.test.ts`。
+>
+> 未決事項だった点は次のとおり決めた。
+> - 強化値の上限は仕様どおり+9。印の同時所持数は1つ(将来2つ目に広げる
+>   拡張余地は、`Item.markId` を単一値のままにして今回は見送った)。
+> - 「ほこら粉」「刻印石」の入手率・出現階は、既存アイテムと同じ
+>   `itemsForDepth` の階層別ドロップテーブルに乗せる形にした(刻印石を
+>   対応モンスターの撃破ドロップに専用で結びつける仕組みは、既存コードに
+>   「モンスターがアイテムを落とす」経路が無く新設コストが大きいため
+>   見送り、代わりに種族のminFloorに合わせて出現階を揃えている)。
+> - 頭防具・装身具(`plan/protagonist-equipment.md`)などの新規3Dモデルは
+>   今回のスコープ外。ほこら粉・刻印石も同様に、専用モデルは作らず
+>   `herb` を流用した(`plan/status-effects.md`の毒罠がtrap_damageの
+>   モデルを流用しているのと同じ考え方。カテゴリ内は色違いで済ませる、
+>   という既存の命名コメントの方針にも合う)。
+> - ゲンドの拠点UIは、専用画面ではなく`TownScreen`の6列目(ねむり小屋の
+>   右隣)として実装した。強化・印刻みの対象は「倉庫にある武器・盾」に
+>   限定している(出発前に持ち込みへ移した装備は対象外という単純化)。
+
 README の「これから」にある「装備の強化値と印」を仕様化する。
 `design/characters.md` で設定した拠点NPC **樽転がしのゲンド**(村の樽細工職人)
 に、武器・盾の手入れ役も兼ねてもらう形にし、新規キャラクターは増やさない。

@@ -76,7 +76,16 @@ import {
 import { speciesById } from "./entities/species";
 import { itemDef } from "./items/catalog";
 import { type EffectContext, addStatus, applyEffect } from "./items/effects";
-import { addItem, displayName, equip, findItem, isFull, removeItem } from "./items/inventory";
+import {
+  addItem,
+  displayName,
+  equip,
+  findItem,
+  isFull,
+  removeItem,
+  shieldMarkId,
+  weaponMarkId,
+} from "./items/inventory";
 import { attackOffsets, computeDamage } from "./systems/combat";
 
 /** 双樽鉤(quickSingle)の会心率の上乗せ分 */
@@ -686,11 +695,12 @@ export class Game {
       case "empty": {
         // 貫通で複数体に当たった場合、手前の相手には通過ダメージだけを与え、
         // 最後に当たった相手にだけダメージ+捕獲判定を行う(タルは1体しか収まらない)
+        const barrelDamage = this.barrelThrowDamage();
         for (const passThrough of hits.slice(0, -1)) {
           if (!passThrough.alive) continue;
           const result = computeDamage(
             this.rng,
-            BARREL_DAMAGE,
+            barrelDamage,
             passThrough.def,
             critForced ? { forceCrit: true } : undefined,
           );
@@ -727,7 +737,7 @@ export class Game {
 
     const { damage, critical } = computeDamage(
       this.rng,
-      BARREL_DAMAGE,
+      this.barrelThrowDamage(),
       hit.def,
       critForced ? { forceCrit: true } : undefined,
     );
@@ -1001,14 +1011,13 @@ export class Game {
     const sneakAttack = target.kind === "monster" && !target.aware;
     if (sneakAttack) events.push({ type: "message", text: "不意打ち!" });
 
-    // 特技「ふいうち」(plan/monster-fusion.md): そのダイブで最初の1手は必ず会心
-    const quickStart =
-      attacker.kind === "ally" &&
-      hasSkill(attacker, "quickStart") &&
-      !this.usedQuickStart.has(attacker.id);
-    if (attacker.kind === "ally" && hasSkill(attacker, "quickStart")) {
-      this.usedQuickStart.add(attacker.id);
-    }
+    // 特技「ふいうち」(plan/monster-fusion.md)、またはガジリねずみの印
+    // (plan/equipment-forging.md): そのダイブで最初の1手は必ず会心
+    const hasQuickStartEffect =
+      (attacker.kind === "ally" && hasSkill(attacker, "quickStart")) ||
+      (attacker.kind === "player" && weaponMarkId(this.player.inventory) === "gajiri");
+    const quickStart = hasQuickStartEffect && !this.usedQuickStart.has(attacker.id);
+    if (hasQuickStartEffect) this.usedQuickStart.add(attacker.id);
 
     const defense = target.kind === "player" ? totalDefense(this.player) : target.def;
     const { damage, critical } = computeDamage(this.rng, attackPower, defense, {
@@ -1024,8 +1033,12 @@ export class Game {
     // 攻撃してきた相手には気づく
     if (target.kind === "monster") target.aware = true;
 
-    // 特技「ねむりごな」: 隣接する敵への攻撃に、眠り付与の確率+10%を上乗せする
-    const drowsyBonus = attacker.kind === "ally" && hasSkill(attacker, "drowsyBreath") ? 0.1 : 0;
+    // 特技「ねむりごな」、またはマドロミダケの印(plan/equipment-forging.md):
+    // 隣接する敵への攻撃に、眠り付与の確率+10%を上乗せする
+    const hasDrowsyEffect =
+      (attacker.kind === "ally" && hasSkill(attacker, "drowsyBreath")) ||
+      (attacker.kind === "player" && weaponMarkId(this.player.inventory) === "madoromi");
+    const drowsyBonus = hasDrowsyEffect ? 0.1 : 0;
     const inflictChance = (attacker.inflicts?.chance ?? 0) + drowsyBonus;
     // かなしばりの杖で封じられている間は、特技(状態異常の追加付与)が出せない
     if (target.alive && inflictChance > 0 && !hasStatus(attacker, STATUS_SEAL) && this.rng.chance(inflictChance)) {
@@ -1042,8 +1055,9 @@ export class Game {
   }
 
   /**
-   * 被ダメージへの軽減を適用する。プレイヤーには樽受け身(全無効・最優先)と
-   * 身構え(2割軽減)、仲間には特技「みをまもる」(5割の確率で1割軽減)を適用する。
+   * 被ダメージへの軽減を適用する。プレイヤーには樽受け身(全無効・最優先)、
+   * 身構え(2割軽減)、ぷるんの印(plan/equipment-forging.md、5割の確率で1割軽減)、
+   * 仲間には特技「みをまもる」(5割の確率で1割軽減)を適用する。
    */
   private mitigateIncomingDamage(target: Actor, damage: number, events: GameEvent[]): number {
     if (target.kind === "player") {
@@ -1057,6 +1071,10 @@ export class Game {
         events.push({ type: "message", text: "身構えていたので、ダメージをおさえた!" });
         return Math.max(1, Math.floor(damage * (1 - GUARD_DAMAGE_REDUCTION)));
       }
+      if (shieldMarkId(this.player.inventory) === "purun" && this.rng.chance(0.5)) {
+        events.push({ type: "message", text: "印の力で衝撃をやわらげた!" });
+        return Math.max(1, Math.floor(damage * 0.9));
+      }
       return damage;
     }
 
@@ -1066,6 +1084,11 @@ export class Game {
       return Math.max(1, Math.floor(damage * 0.9));
     }
     return damage;
+  }
+
+  /** タルを投げたときの基礎ダメージ。ツブテガエルの印(plan/equipment-forging.md)で+2 */
+  private barrelThrowDamage(): number {
+    return BARREL_DAMAGE + (weaponMarkId(this.player.inventory) === "tsubute" ? 2 : 0);
   }
 
   private damageActor(target: Actor, damage: number, critical: boolean, events: GameEvent[]): void {
@@ -1084,14 +1107,13 @@ export class Game {
       events.push({ type: "statusEnd", actorId: target.id, kind: STATUS_SLEEP });
     }
     if (target.hp <= 0) {
-      // 特技「ふんばり」: HPが1残っていた状態からの致死ダメージを1ラン1回だけ耐える
+      // 特技「ふんばり」、またはホネガラミの印(plan/equipment-forging.md):
+      // HPが1残っていた状態からの致死ダメージを1ラン1回だけ耐える
       const hpBeforeThisHit = target.hp + damage;
-      if (
-        target.kind === "ally" &&
-        hpBeforeThisHit === 1 &&
-        hasSkill(target, "stubborn") &&
-        !this.usedStubborn.has(target.id)
-      ) {
+      const hasStubbornEffect =
+        (target.kind === "ally" && hasSkill(target, "stubborn")) ||
+        (target.kind === "player" && shieldMarkId(this.player.inventory) === "honegarami");
+      if (hpBeforeThisHit === 1 && hasStubbornEffect && !this.usedStubborn.has(target.id)) {
         target.hp = 1;
         this.usedStubborn.add(target.id);
         events.push({ type: "message", text: `${displayActorName(target)}はふんばりこらえた!` });
@@ -1171,6 +1193,12 @@ export class Game {
       events.push({ type: "equip", actorId: this.player.id, itemUid: uid, name: def.name });
       events.push({ type: "message", text: `${def.name}を装備した。` });
       return true;
+    }
+
+    if (def.category === "material") {
+      // ゲンドの工房(拠点)専用の素材。ダンジョン内で使い道はない
+      events.push({ type: "message", text: `「${def.name}」は素材だ。ここでは使えない。` });
+      return false;
     }
 
     if (def.category === "staff") {

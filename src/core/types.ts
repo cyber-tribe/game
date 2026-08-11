@@ -191,7 +191,13 @@ export type SkillId = "quickStart" | "drowsyBreath" | "longThrow" | "stubborn" |
 
 // ---------------------------------------------------------------- アイテム
 
-export type ItemCategory = "herb" | "scroll" | "staff" | "food" | "weapon" | "shield";
+export type ItemCategory = "herb" | "scroll" | "staff" | "food" | "weapon" | "shield" | "material";
+
+/**
+ * 印(plan/equipment-forging.md)。武器・盾に刻める、モンスター5種に対応した加護。
+ * idは対応する種族idと揃えてある(entities/species.ts参照)。
+ */
+export type MarkId = "purun" | "gajiri" | "tsubute" | "madoromi" | "honegarami";
 
 /**
  * 武器の攻撃パターン。plan/protagonist-weapons.md 参照。
@@ -232,6 +238,10 @@ export interface Item {
   defId: string;
   /** 杖の残り使用回数 */
   charges?: number;
+  /** 強化値(+n)。武器・盾のみ。plan/equipment-forging.md 参照 */
+  plus?: number;
+  /** 刻んだ印。武器・盾のみ、未刻印ならundefined */
+  markId?: MarkId;
 }
 
 export interface GroundItem {

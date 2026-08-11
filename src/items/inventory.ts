@@ -1,4 +1,5 @@
-import type { Item } from "../core/types";
+import type { Item, MarkId } from "../core/types";
+import { SHIELD_PLUS_BONUS, WEAPON_PLUS_BONUS, markDef } from "../entities/forging";
 import { itemDef } from "./catalog";
 
 export const INVENTORY_SIZE = 20;
@@ -61,20 +62,38 @@ export function isEquipped(inv: Inventory, uid: number): boolean {
 export function weaponBonus(inv: Inventory): number {
   if (inv.weaponUid === null) return 0;
   const item = findItem(inv, inv.weaponUid);
-  return item ? (itemDef(item.defId).bonus ?? 0) : 0;
+  if (!item) return 0;
+  return (itemDef(item.defId).bonus ?? 0) + (item.plus ?? 0) * WEAPON_PLUS_BONUS;
 }
 
 export function shieldBonus(inv: Inventory): number {
   if (inv.shieldUid === null) return 0;
   const item = findItem(inv, inv.shieldUid);
-  return item ? (itemDef(item.defId).bonus ?? 0) : 0;
+  if (!item) return 0;
+  return (itemDef(item.defId).bonus ?? 0) + (item.plus ?? 0) * SHIELD_PLUS_BONUS;
 }
 
-/** 表示用の名前。杖は残り回数を、装備品は装備中である旨を添える */
+/** 装備中の武器に刻んである印。未刻印/未装備ならundefined */
+export function weaponMarkId(inv: Inventory): MarkId | undefined {
+  if (inv.weaponUid === null) return undefined;
+  return findItem(inv, inv.weaponUid)?.markId;
+}
+
+/** 装備中の盾に刻んである印。未刻印/未装備ならundefined */
+export function shieldMarkId(inv: Inventory): MarkId | undefined {
+  if (inv.shieldUid === null) return undefined;
+  return findItem(inv, inv.shieldUid)?.markId;
+}
+
+/** 表示用の名前。杖は残り回数、武器・盾は強化値と印、装備品は装備中である旨を添える */
 export function displayName(inv: Inventory, item: Item): string {
   const def = itemDef(item.defId);
   let name = def.name;
   if (def.category === "staff" && item.charges !== undefined) name += `[${item.charges}]`;
+  if (def.category === "weapon" || def.category === "shield") {
+    if (item.plus) name += `+${item.plus}`;
+    if (item.markId) name += `【${markDef(item.markId).name}】`;
+  }
   if (isEquipped(inv, item.uid)) name += " (装備中)";
   return name;
 }
