@@ -1,5 +1,6 @@
 import { TUTORIAL_TIP_IDS, type TutorialTipId } from "./core/tutorial";
 import type { Item } from "./core/types";
+import type { TrainingFocus } from "./entities/player";
 import type { RunSnapshot, RunStatus } from "./game";
 import { ITEMS } from "./items/catalog";
 
@@ -36,6 +37,11 @@ export interface SaveData {
   knownCheckpoints: number[];
   /** 表示済みのチュートリアルヒントid(plan/tutorial.md、アーカイブ済み) */
   seenTutorialTips: TutorialTipId[];
+  /**
+   * 鍛え方(plan/protagonist-training.md、アーカイブ済み)。拠点で選んだ
+   * 方針を次回も引き継ぐ。一度決めておけば以後は何も聞かれない。
+   */
+  trainingFocus: TrainingFocus;
 }
 
 /** 一番最初の持ち物。手ぶらで放り出さない程度に */
@@ -57,6 +63,7 @@ export function initialSave(): SaveData {
     storage: STARTER.map((s) => ({ ...s })),
     knownCheckpoints: [1],
     seenTutorialTips: [],
+    trainingFocus: "balance",
   };
 }
 
@@ -73,6 +80,7 @@ export function loadSave(): SaveData {
       storage: sanitizeStorage(parsed.storage),
       knownCheckpoints: sanitizeCheckpoints(parsed.knownCheckpoints),
       seenTutorialTips: sanitizeTutorialTips(parsed.seenTutorialTips),
+      trainingFocus: sanitizeTrainingFocus(parsed.trainingFocus),
     };
   } catch {
     // 壊れた保存データで起動できなくなるほうが困るので、黙って初期値に戻す
@@ -113,6 +121,14 @@ export function markTutorialTipSeen(current: SaveData, id: TutorialTipId): SaveD
   return next;
 }
 
+/** 鍛え方を保存する。次に拠点を開いたときの既定値になる */
+export function setTrainingFocus(current: SaveData, focus: TrainingFocus): SaveData {
+  if (current.trainingFocus === focus) return current;
+  const next: SaveData = { ...current, trainingFocus: focus };
+  saveData(next);
+  return next;
+}
+
 export function recordRun(
   current: SaveData,
   result: { depth: number; level: number; cleared: boolean; broughtBack: Item[] },
@@ -126,6 +142,7 @@ export function recordRun(
     storage: [...current.storage, ...result.broughtBack.map(toStored)],
     knownCheckpoints: current.knownCheckpoints,
     seenTutorialTips: current.seenTutorialTips,
+    trainingFocus: current.trainingFocus,
   };
   saveData(next);
   return next;
@@ -233,6 +250,16 @@ function isValidSnapshot(value: Partial<RunSnapshot>): value is RunSnapshot {
     value.floor !== null &&
     typeof value.player === "object" &&
     value.player !== null &&
-    Array.isArray(value.allies)
+    Array.isArray(value.allies) &&
+    typeof value.trainingFocus === "string" &&
+    (VALID_TRAINING_FOCI as readonly string[]).includes(value.trainingFocus)
   );
+}
+
+const VALID_TRAINING_FOCI: readonly TrainingFocus[] = ["offense", "defense", "balance"];
+
+function sanitizeTrainingFocus(value: unknown): TrainingFocus {
+  return typeof value === "string" && (VALID_TRAINING_FOCI as readonly string[]).includes(value)
+    ? (value as TrainingFocus)
+    : "balance";
 }

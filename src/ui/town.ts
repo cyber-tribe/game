@@ -1,8 +1,22 @@
+import type { TrainingFocus } from "../entities/player";
 import type { SaveData, StoredItem } from "../save";
 import { itemDef } from "../items/catalog";
 
 /** ダンジョンに持ち込める数。全部持って行けたら倉庫に預ける意味がない */
 export const CARRY_LIMIT = 8;
+
+/** 鍛え方(plan/protagonist-training.md、アーカイブ済み)の選択肢と表示名 */
+const TRAINING_FOCI: readonly TrainingFocus[] = ["offense", "defense", "balance"];
+const TRAINING_FOCUS_LABELS: Record<TrainingFocus, string> = {
+  offense: "攻めを鍛える",
+  defense: "守りを鍛える",
+  balance: "バランスよく鍛える",
+};
+const TRAINING_FOCUS_DESCRIPTIONS: Record<TrainingFocus, string> = {
+  offense: "レベルアップのたびに、攻撃力を大きく伸ばす。",
+  defense: "レベルアップのたびに、守備力を大きく伸ばす。",
+  balance: "レベルアップのたびに、攻撃力と守備力をバランスよく伸ばす。",
+};
 
 /**
  * 拠点。ダンジョンに潜る前に、倉庫の中身から持ち込む道具を選ぶ。
@@ -12,16 +26,23 @@ export const CARRY_LIMIT = 8;
  */
 export class TownScreen {
   private open = false;
-  /** 0 = 倉庫、1 = 持ち込み、2 = 出発地点 */
-  private column: 0 | 1 | 2 = 0;
+  /** 0 = 倉庫、1 = 持ち込み、2 = 出発地点、3 = 鍛え方 */
+  private column: 0 | 1 | 2 | 3 = 0;
   private cursor: [number, number] = [0, 0];
   private storage: StoredItem[] = [];
   private carry: StoredItem[] = [];
   private save: SaveData | null = null;
   /** 出発地点として選んでいる、既知のめざめの階段(1階=常に選べる入口を含む) */
   private startDepthIndex = 0;
+  /** このダイブの鍛え方。前回選んだ方針を引き継いで開く */
+  private trainingFocusIndex = TRAINING_FOCI.indexOf("balance");
   private depart:
-    | ((carry: StoredItem[], storage: StoredItem[], startDepth: number) => void)
+    | ((
+        carry: StoredItem[],
+        storage: StoredItem[],
+        startDepth: number,
+        trainingFocus: TrainingFocus,
+      ) => void)
     | null = null;
 
   constructor(private readonly root: HTMLElement) {
@@ -34,7 +55,12 @@ export class TownScreen {
 
   show(
     save: SaveData,
-    onDepart: (carry: StoredItem[], storage: StoredItem[], startDepth: number) => void,
+    onDepart: (
+      carry: StoredItem[],
+      storage: StoredItem[],
+      startDepth: number,
+      trainingFocus: TrainingFocus,
+    ) => void,
   ): void {
     this.save = save;
     this.storage = save.storage.map((s) => ({ ...s }));
@@ -43,6 +69,9 @@ export class TownScreen {
     this.cursor = [0, 0];
     // 既知のめざめの階段のうち、最も深いところから出発する状態で開く
     this.startDepthIndex = Math.max(0, this.checkpoints().length - 1);
+    // 前回選んだ鍛え方を引き継ぐ。一度決めておけば以後は何も聞かれない
+    const idx = TRAINING_FOCI.indexOf(save.trainingFocus);
+    this.trainingFocusIndex = idx >= 0 ? idx : TRAINING_FOCI.indexOf("balance");
     this.depart = onDepart;
     this.open = true;
     this.root.style.display = "flex";
@@ -75,6 +104,34 @@ export class TownScreen {
         case "ArrowLeft":
         case "KeyA":
           this.column = 1;
+          break;
+        case "ArrowRight":
+        case "KeyD":
+          this.column = 3;
+          break;
+        case "Space":
+          this.departNow();
+          return true;
+        default:
+          return true;
+      }
+      this.render();
+      return true;
+    }
+
+    if (this.column === 3) {
+      switch (code) {
+        case "ArrowUp":
+        case "KeyW":
+          this.trainingFocusIndex = wrap(this.trainingFocusIndex - 1, TRAINING_FOCI.length);
+          break;
+        case "ArrowDown":
+        case "KeyS":
+          this.trainingFocusIndex = wrap(this.trainingFocusIndex + 1, TRAINING_FOCI.length);
+          break;
+        case "ArrowLeft":
+        case "KeyA":
+          this.column = 2;
           break;
         case "Space":
           this.departNow();
@@ -143,8 +200,9 @@ export class TownScreen {
     const carry = this.carry.map((s) => ({ ...s }));
     const storage = this.storage.map((s) => ({ ...s }));
     const startDepth = this.checkpoints()[this.startDepthIndex] ?? 1;
+    const trainingFocus = TRAINING_FOCI[this.trainingFocusIndex] ?? "balance";
     this.hide();
-    depart?.(carry, storage, startDepth);
+    depart?.(carry, storage, startDepth, trainingFocus);
   }
 
   private render(): void {
@@ -179,6 +237,7 @@ export class TownScreen {
       this.renderList("倉庫", this.storage, 0),
       this.renderList(`持ち込む (${this.carry.length} / ${CARRY_LIMIT})`, this.carry, 1),
       this.renderCheckpoints(),
+      this.renderTrainingFocus(),
     );
     box.appendChild(columns);
 
@@ -186,6 +245,9 @@ export class TownScreen {
     desc.className = "town-desc";
     if (this.column === 2) {
       desc.textContent = "既知のめざめの階段から選んで出発できる。";
+    } else if (this.column === 3) {
+      const focus = TRAINING_FOCI[this.trainingFocusIndex] ?? "balance";
+      desc.textContent = TRAINING_FOCUS_DESCRIPTIONS[focus];
     } else {
       const selected = (this.column === 0 ? this.storage : this.carry)[this.cursor[this.column]];
       desc.textContent = selected ? itemDef(selected.defId).description : "";
@@ -247,6 +309,28 @@ export class TownScreen {
       const li = document.createElement("li");
       li.textContent = depth === 1 ? "表の寝穴の入口(1階)" : `めざめの階段(地下${depth}階)`;
       if (this.column === 2 && index === this.startDepthIndex) li.classList.add("selected");
+      list.appendChild(li);
+    });
+    wrapper.appendChild(list);
+    return wrapper;
+  }
+
+  /** 鍛え方(plan/protagonist-training.md、アーカイブ済み)を選ぶ一覧 */
+  private renderTrainingFocus(): HTMLElement {
+    const wrapper = document.createElement("div");
+    wrapper.className = "town-col";
+    if (this.column === 3) wrapper.classList.add("active");
+
+    const heading = document.createElement("div");
+    heading.className = "town-col-title";
+    heading.textContent = "鍛え方";
+    wrapper.appendChild(heading);
+
+    const list = document.createElement("ul");
+    TRAINING_FOCI.forEach((focus, index) => {
+      const li = document.createElement("li");
+      li.textContent = TRAINING_FOCUS_LABELS[focus];
+      if (this.column === 3 && index === this.trainingFocusIndex) li.classList.add("selected");
       list.appendChild(li);
     });
     wrapper.appendChild(list);

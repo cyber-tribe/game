@@ -62,6 +62,7 @@ import {
   MAX_ALLIES,
   MAX_SATIETY,
   type PlayerState,
+  type TrainingFocus,
   createPlayer,
   gainExp,
   totalAttack,
@@ -130,6 +131,11 @@ export interface RunOptions {
    * 指定した場合、他のオプションは無視してスナップショットの状態をそのまま復元する。
    */
   resume?: RunSnapshot;
+  /**
+   * 鍛え方(plan/protagonist-training.md、アーカイブ済み)。
+   * このダイブ中、レベルアップのたびに自動で適用される。省略時は "balance"
+   */
+  trainingFocus?: TrainingFocus;
 }
 
 export type RunStatus = "playing" | "dead" | "cleared";
@@ -153,6 +159,8 @@ export interface RunSnapshot {
   actorIdCounter: number;
   itemUidCounter: number;
   barrelIdCounter: number;
+  /** 鍛え方(plan/protagonist-training.md)。復帰後もこのダイブの方針を引き継ぐ */
+  trainingFocus: TrainingFocus;
 }
 
 /** 満腹度がこのターン数ぶん減る。100 / 0.2 = 500ターンもつ */
@@ -203,6 +211,9 @@ export class Game {
   /** 双樽鉤の「そのラン最初の1手は必ず会心」がまだ使われていないか */
   private firstStrikeAvailable = true;
 
+  /** このダイブの鍛え方(plan/protagonist-training.md)。レベルアップのたびに適用する */
+  private trainingFocus: TrainingFocus = "balance";
+
   private actorIdCounter = 1;
   private itemUidCounter = 1;
   private barrelIdCounter = 1;
@@ -229,6 +240,7 @@ export class Game {
       this.status = s.status;
       this.turnCount = s.turnCount;
       this.endReason = s.endReason;
+      this.trainingFocus = s.trainingFocus;
 
       // JSON化を経由すると、本来は同じオブジェクトを指していたはずの
       // player/allies と floor.actors 内の対応する要素が別オブジェクトに
@@ -245,6 +257,7 @@ export class Game {
 
     this.rng = new Rng(opts.seed);
     this.maxDepth = opts.maxDepth ?? 10;
+    this.trainingFocus = opts.trainingFocus ?? "balance";
     this.player = createPlayer(1);
 
     for (const item of opts.startingItems ?? []) {
@@ -272,6 +285,7 @@ export class Game {
       actorIdCounter: this.actorIdCounter,
       itemUidCounter: this.itemUidCounter,
       barrelIdCounter: this.barrelIdCounter,
+      trainingFocus: this.trainingFocus,
     };
   }
 
@@ -939,7 +953,7 @@ export class Game {
     events.push({ type: "message", text: `${target.name}をたおした!` });
     const exp = target.exp ?? 0;
     if (exp > 0) {
-      const levels = gainExp(this.player, exp);
+      const levels = gainExp(this.player, exp, this.trainingFocus);
       events.push({ type: "message", text: `経験値を${exp}かくとく。` });
       for (let i = 0; i < levels; i++) {
         events.push({ type: "levelUp", actorId: this.player.id, level: this.player.level });
