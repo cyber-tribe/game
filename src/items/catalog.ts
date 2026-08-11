@@ -59,6 +59,27 @@ export const ITEMS: readonly ItemDef[] = [
     weight: 5,
     description: "毒を即座に治す。",
   },
+  {
+    id: "toughLeaf",
+    name: "がんじょうの葉",
+    category: "herb",
+    model: "herb",
+    effect: "defenseUp",
+    power: 1,
+    minFloor: 3,
+    weight: 3,
+    description: "defenseが永続的に1上がる。",
+  },
+  {
+    id: "waypointLeaf",
+    name: "みちしるべの葉",
+    category: "herb",
+    model: "herb",
+    effect: "senseStairs",
+    minFloor: 1,
+    weight: 6,
+    description: "階段の位置と、そこまでの大まかな道筋だけが分かる。",
+  },
 
   // ---- 巻物 ----
   {
@@ -93,6 +114,28 @@ export const ITEMS: readonly ItemDef[] = [
     weight: 5,
     description: "同じ部屋のモンスターを混乱させる。",
   },
+  {
+    id: "invisibilityScroll",
+    name: "とうめいの巻物",
+    category: "scroll",
+    model: "scroll",
+    effect: "invisibility",
+    power: 5,
+    minFloor: 4,
+    weight: 4,
+    description: "数ターンの間、モンスターに新たに発見されなくなる。",
+  },
+  {
+    id: "fearScroll",
+    name: "おびえの巻物",
+    category: "scroll",
+    model: "scroll",
+    effect: "fearRoom",
+    power: 6,
+    minFloor: 2,
+    weight: 5,
+    description: "同じ部屋のモンスターをおびえさせ、逃走させる。",
+  },
 
   // ---- 杖 ----
   {
@@ -118,6 +161,29 @@ export const ITEMS: readonly ItemDef[] = [
     weight: 5,
     description: "向いている方向のモンスターを眠らせる。",
   },
+  {
+    id: "pullStaff",
+    name: "引き寄せの杖",
+    category: "staff",
+    model: "staff",
+    effect: "pull",
+    charges: 4,
+    minFloor: 3,
+    weight: 4,
+    description: "向いている方向のモンスターを1マス引き寄せる。",
+  },
+  {
+    id: "sealStaff",
+    name: "かなしばりの杖",
+    category: "staff",
+    model: "staff",
+    effect: "sealTarget",
+    power: 6,
+    charges: 4,
+    minFloor: 4,
+    weight: 4,
+    description: "向いている方向のモンスターを封じる(特技が使えなくなる)。",
+  },
 
   // ---- 食料 ----
   {
@@ -141,6 +207,28 @@ export const ITEMS: readonly ItemDef[] = [
     minFloor: 3,
     weight: 4,
     description: "満腹度を100回復する。",
+  },
+  {
+    id: "mountainBounty",
+    name: "山の幸",
+    category: "food",
+    model: "bread",
+    effect: "eat",
+    power: 150,
+    minFloor: 6,
+    weight: 3,
+    description: "満腹度を150回復する。",
+  },
+  {
+    id: "driedBerries",
+    name: "ほしぼし",
+    category: "food",
+    model: "bread",
+    effect: "eat",
+    power: 15,
+    minFloor: 1,
+    weight: 10,
+    description: "満腹度を15回復する。軽くて持ち歩きやすい。",
   },
 
   // ---- 武器 ----

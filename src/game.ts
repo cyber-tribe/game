@@ -14,6 +14,8 @@ import {
   ALLY_STANCE_NAMES,
   BARREL_NAMES,
   STATUS_CONFUSE,
+  STATUS_FEAR,
+  STATUS_INVISIBLE,
   STATUS_POISON,
   STATUS_RECOVER,
   STATUS_SEAL,
@@ -88,6 +90,8 @@ const STATUS_END_MESSAGES: Record<StatusKind, string> = {
   [STATUS_SEAL]: "封じが解けた。",
   [STATUS_RECOVER]: "体勢を立て直した。",
   [STATUS_POISON]: "毒が抜けた。",
+  [STATUS_INVISIBLE]: "透明が解けた。",
+  [STATUS_FEAR]: "おびえがおさまった。",
 };
 
 export type Command =
@@ -749,7 +753,13 @@ export class Game {
     // 攻撃してきた相手には気づく
     if (target.kind === "monster") target.aware = true;
 
-    if (target.alive && attacker.inflicts && this.rng.chance(attacker.inflicts.chance)) {
+    // かなしばりの杖で封じられている間は、特技(状態異常の追加付与)が出せない
+    if (
+      target.alive &&
+      attacker.inflicts &&
+      !hasStatus(attacker, STATUS_SEAL) &&
+      this.rng.chance(attacker.inflicts.chance)
+    ) {
       addStatus(
         this.effectContext(events),
         target,

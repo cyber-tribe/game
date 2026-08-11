@@ -46,12 +46,18 @@ export const STATUS_SEAL = "seal";
 export const STATUS_RECOVER = "recover";
 /** 毒。行動は妨げないが、ターン経過でじわじわHPが減る */
 export const STATUS_POISON = "poison";
+/** 透明。モンスターに新たに発見されなくなる(プレイヤー専用) */
+export const STATUS_INVISIBLE = "invisible";
+/** おびえ。モンスターが戦わずに逃げ続ける */
+export const STATUS_FEAR = "fear";
 export type StatusKind =
   | typeof STATUS_SLEEP
   | typeof STATUS_CONFUSE
   | typeof STATUS_SEAL
   | typeof STATUS_RECOVER
-  | typeof STATUS_POISON;
+  | typeof STATUS_POISON
+  | typeof STATUS_INVISIBLE
+  | typeof STATUS_FEAR;
 
 export interface Status {
   kind: StatusKind;

@@ -1,8 +1,10 @@
 import type { Rng } from "../core/rng";
-import { type Dir, type Vec2, dirDelta } from "../core/grid";
+import { ALL_DIRS, type Dir, type Vec2, dirDelta } from "../core/grid";
 import type { GameEvent } from "../core/events";
 import {
   STATUS_CONFUSE,
+  STATUS_FEAR,
+  STATUS_INVISIBLE,
   STATUS_POISON,
   STATUS_SLEEP,
   type Actor,
@@ -11,8 +13,10 @@ import {
   actorAt,
   hasStatus,
   roomOf,
+  tileAt,
   walkableAt,
 } from "../core/types";
+import { buildDistanceField } from "../entities/ai";
 import { MAX_SATIETY, type PlayerState } from "../entities/player";
 
 /**
@@ -51,6 +55,21 @@ export function applyEffect(ctx: EffectContext, effect: string, power: number, d
       return cureStatuses(ctx, [STATUS_SLEEP, STATUS_CONFUSE], "すっきりした");
     case "curePoison":
       return cureStatuses(ctx, [STATUS_POISON], "毒が抜けた");
+    case "defenseUp":
+      ctx.player.def += power;
+      ctx.events.push({ type: "message", text: `体が引きしまった! defense+${power}` });
+      return true;
+    case "senseStairs":
+      return senseStairs(ctx);
+    case "invisibility":
+      addStatus(ctx, ctx.player, STATUS_INVISIBLE, power, "透明になった");
+      return true;
+    case "fearRoom":
+      return affectRoom(ctx, STATUS_FEAR, power, "おびえた");
+    case "pull":
+      return pullTarget(ctx, dir);
+    case "sealTarget":
+      return targetStatus(ctx, dir, "seal", power, "封じられた");
     default:
       ctx.events.push({ type: "message", text: "しかし何も起こらなかった。" });
       return false;
@@ -84,6 +103,58 @@ function revealMap(ctx: EffectContext): boolean {
   for (const tile of ctx.floor.tiles) tile.explored = true;
   for (const trap of ctx.floor.traps) trap.revealed = true;
   ctx.events.push({ type: "message", text: "このフロアの地形が頭に入った!" });
+  return true;
+}
+
+/**
+ * みちしるべの葉。地図の巻物(全地形判明)の下位互換として、階段までの
+ * 最短経路だけをたどって「探索済み」にし、階段のまわりも少し照らす。
+ */
+function senseStairs(ctx: EffectContext): boolean {
+  const { floor, player } = ctx;
+  const field = buildDistanceField(floor, floor.stairs);
+  let here = { ...player.pos };
+  if (field[here.y * floor.width + here.x] === -1) {
+    ctx.events.push({ type: "message", text: "しかし何も感じなかった。" });
+    return true;
+  }
+
+  for (let steps = 0; steps < floor.width * floor.height; steps++) {
+    const tile = tileAt(floor, here);
+    if (tile) tile.explored = true;
+    if (here.x === floor.stairs.x && here.y === floor.stairs.y) break;
+
+    let next = here;
+    let bestValue = field[here.y * floor.width + here.x]!;
+    for (const dir of ALL_DIRS) {
+      const delta = dirDelta(dir);
+      const candidate = { x: here.x + delta.x, y: here.y + delta.y };
+      if (
+        candidate.x < 0 ||
+        candidate.y < 0 ||
+        candidate.x >= floor.width ||
+        candidate.y >= floor.height
+      ) {
+        continue;
+      }
+      const value = field[candidate.y * floor.width + candidate.x]!;
+      if (value >= 0 && value < bestValue) {
+        bestValue = value;
+        next = candidate;
+      }
+    }
+    if (next.x === here.x && next.y === here.y) break;
+    here = next;
+  }
+
+  for (let dy = -2; dy <= 2; dy++) {
+    for (let dx = -2; dx <= 2; dx++) {
+      const tile = tileAt(floor, { x: floor.stairs.x + dx, y: floor.stairs.y + dy });
+      if (tile) tile.explored = true;
+    }
+  }
+
+  ctx.events.push({ type: "message", text: "階段までの道筋がうっすら分かった。" });
   return true;
 }
 
@@ -132,6 +203,26 @@ function swapPlaces(ctx: EffectContext, dir: Dir): boolean {
   target.pos = playerPos;
   ctx.events.push({ type: "swap", aId: ctx.player.id, bId: target.id });
   ctx.events.push({ type: "message", text: `${target.name}と場所を入れ替えた!` });
+  return true;
+}
+
+/** 引き寄せの杖。場所替えの杖の逆方向版で、モンスターを1マスだけ引き寄せる */
+function pullTarget(ctx: EffectContext, dir: Dir): boolean {
+  const target = firstMonsterInLine(ctx.floor, ctx.player.pos, dir);
+  if (!target) {
+    ctx.events.push({ type: "message", text: "しかし何も起こらなかった。" });
+    return false;
+  }
+  const delta = dirDelta(dir);
+  const from = { ...target.pos };
+  const pulled = { x: target.pos.x - delta.x, y: target.pos.y - delta.y };
+  if (!walkableAt(ctx.floor, pulled) || actorAt(ctx.floor, pulled)) {
+    ctx.events.push({ type: "message", text: "しかし引き寄せられなかった。" });
+    return false;
+  }
+  target.pos = pulled;
+  ctx.events.push({ type: "move", actorId: target.id, from, to: pulled });
+  ctx.events.push({ type: "message", text: `${target.name}を引き寄せた!` });
   return true;
 }
 

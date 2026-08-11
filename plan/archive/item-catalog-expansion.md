@@ -1,5 +1,20 @@
 # アイテム図鑑の拡充
 
+> **実装済み。** `src/items/catalog.ts`(草2種・巻物2種・杖2種・食料2種の
+> 計8アイテム)・`src/items/effects.ts`(`defenseUp`・`senseStairs`・
+> `invisibility`・`fearRoom`・`pull`・`sealTarget`)・`src/core/types.ts`
+> (`STATUS_INVISIBLE`・`STATUS_FEAR`)・`src/entities/ai.ts`(透明中は新規に
+> 気づかない、おびえは最優先で逃走、封じられている間は遠隔攻撃/特技を
+> 出さない)・`src/game.ts`(封じられている攻撃者は状態異常の追加付与を
+> 出さない)。テストは `tests/item-catalog-expansion.test.ts`。
+>
+> 実装時の決定:
+> - 「かなしばりの杖」で付与する封じ(`STATUS_SEAL`)は、これまで型だけ
+>   定義されていてゲームロジック上は何もしていなかった。今回はじめて
+>   実際の効果(遠隔攻撃の禁止・攻撃時の状態異常追加付与の禁止)を実装した
+> - 各アイテムの出現階層・重み・持続ターン数(とうめいの巻物5ターン、
+>   おびえの巻物6ターン等)は未決事項だったため実装時に決定した
+
 現状のアイテム図鑑(`src/items/catalog.ts`)は草3種・巻物3種・杖2種・
 食料2種(`plan/status-effects.md` で草2種を追加予定)と、まだ選択の幅が
 狭い。既存の効果システム(`src/items/effects.ts` の `applyEffect` の
