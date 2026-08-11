@@ -140,6 +140,14 @@ tools/venv/bin/python tools/build_models.py garudo --no-preview   # 1体だけ�
 `bpy` 5.0 は CPython 3.11 専用。スクリプトと生成された `.glb` の両方をコミットしてあるので、
 形を直したいときはスクリプトを書き換えて作り直せばよく、遊ぶだけの人は Blender を入れずに済む。
 
+> **`npm run models` のあと、形を変えていなくても12個の `.glb` に差分が出る。**
+> Blender の出力は、同じマシンで同じスクリプトを2回走らせてもバイト一致しない。
+> `uv_sphere` を含むモデルが毎回わずかに変わる(ファイルサイズも頂点数も同じ)。
+> `PYTHONHASHSEED` を固定しても揺れは残るので、Blender 内部の順序に由来するものと見ている。
+> 形は変わっていないので、意図した変更が無ければコミットせず `git checkout -- public/models`
+> で戻してよい。CI は `tools/compare_models.mjs` で頂点数やクリップ名といった構造だけを
+> 比べているため、この揺れでは落ちない。
+
 ---
 
 ## テスト

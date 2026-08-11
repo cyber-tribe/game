@@ -2,8 +2,12 @@ name: モデルのビルド
 
 # Blender (bpy) は約374MBのダウンロードと1GB近い展開を伴うので、毎回の CI では回さない。
 # モデル制作スクリプトに手を入れたときと、手動で叩いたときだけ走らせる。
+#
+# ci.yml と同じく、push は main だけに絞ってある。ブランチ push と PR の両方を拾うと、
+# 同じコミットに対して同じジョブが二重に走ってしまう。
 on:
   push:
+    branches: [main]
     paths:
       - "tools/models/**"
       - "tools/build_models.py"
@@ -12,6 +16,7 @@ on:
     paths:
       - "tools/models/**"
       - "tools/build_models.py"
+      - ".github/workflows/models.yml"
   workflow_dispatch:
 
 concurrency:
@@ -38,6 +43,9 @@ jobs:
 
       - run: npm ci
 
+      - name: コミット済みの .glb を控えておく
+        run: cp -r public/models /tmp/committed-models
+
       - name: bpy を入れる
         run: |
           python -m pip install --upgrade pip
@@ -53,21 +61,16 @@ jobs:
       - name: できたモデルを検査
         run: npm run test -- tests/models.test.ts
 
+      # コミット済みのものと突き合わせる。バイト単位では比較できない
+      # (Blender の出力は同じマシン・同じ入力でも実行ごとに揺れる)ので、
+      # 頂点数・クリップ名といった構造だけを比べる。詳しくは compare_models.mjs を参照。
+      - name: コミット済みと食い違っていないか
+        run: node tools/compare_models.mjs /tmp/committed-models public/models
+
       - name: 生成物を残す
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: models
           path: public/models/
           retention-days: 7
-
-      # コミット済みの .glb と作り直したものがずれていたら知らせる。
-      # Blender の出力は完全に同一とは限らないので、失敗にはせず注意書きに留める。
-      - name: コミット済みとの差分を確認
-        run: |
-          if git diff --quiet -- public/models; then
-            echo "コミット済みの .glb と一致しています。"
-          else
-            echo "::warning::作り直した .glb がコミット済みのものと異なります。"
-            echo "スクリプトを変えたなら npm run models を実行して結果をコミットしてください。"
-            git diff --stat -- public/models
-          fi
