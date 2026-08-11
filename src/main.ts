@@ -60,6 +60,9 @@ class App {
   private clock = new THREE.Clock();
   private elapsed = 0;
   private ended = false;
+  /** 記録の間(plan/records-hall.md)。このダイブ中に倒した・捕まえた数 */
+  private diveDefeats = 0;
+  private diveCaptures = 0;
 
   constructor() {
     this.canvas = document.querySelector<HTMLCanvasElement>("#scene")!;
@@ -136,6 +139,8 @@ class App {
     trainingFocus: TrainingFocus = "balance",
     bringAllies: readonly StoredMonster[] = [],
   ): void {
+    this.diveDefeats = 0;
+    this.diveCaptures = 0;
     const startingItems: Item[] = carry.map((stored, index) => fromStored(stored, index + 1));
     this.game = new Game({
       seed: (Math.random() * 0xffffffff) >>> 0,
@@ -159,6 +164,10 @@ class App {
    * セーブ&ロードによるやり直しは想定していない)。
    */
   private resumeRun(snapshot: RunSnapshot): void {
+    // オートセーブは記録の間(plan/records-hall.md)の途中集計までは持たないため、
+    // 復帰後ぶんだけを数える(クラッシュ前の分は失われるが、致命的ではない)
+    this.diveDefeats = 0;
+    this.diveCaptures = 0;
     this.game = new Game({ seed: 0, resume: snapshot });
     clearRunSnapshot();
     this.presentFloor();
@@ -350,6 +359,9 @@ class App {
       if (event.type === "checkpoint") this.save = addKnownCheckpoint(this.save, event.depth);
       if (event.type === "tutorialTip") this.showTutorialTip(event.id);
       if (event.type === "recruit") this.promptNaming(event.actorId, event.name);
+      // 記録の間(plan/records-hall.md): 倒した・捕まえた数を積み上げる
+      if (event.type === "die" && event.kind === "monster") this.diveDefeats++;
+      if (event.type === "capture") this.diveCaptures++;
     }
 
     const changedFloor = this.game.depth !== beforeDepth;
@@ -396,6 +408,10 @@ class App {
       cleared,
       broughtBack,
       broughtBackAllies,
+      // 倒した・捕まえた数は、全滅した回でも失わずに積み上げる
+      // (design/balance-philosophy.mdの「知識・記録はロストしない」原則)
+      defeats: this.diveDefeats,
+      captures: this.diveCaptures,
     });
     this.hud.showOverlay(
       cleared ? "だっしゅつ成功!" : "ちからつきた……",

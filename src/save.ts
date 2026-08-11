@@ -60,6 +60,18 @@ export interface SaveData {
   hut: StoredMonster[];
   /** ねむり小屋の次の連番。uidの衝突を避けるためだけに使う */
   nextHutUid: number;
+  /**
+   * 記録の間(plan/records-hall.md)。累計ダイブ回数(runs)・踏破回数
+   * (clears)・最深記録(deepest)は既存フィールドをそのまま流用する
+   */
+  records: DiveRecords;
+}
+
+export interface DiveRecords {
+  /** 倒したモンスターの累計数 */
+  totalDefeats: number;
+  /** タルで捕まえた累計数(夢に還した分も含む) */
+  totalCaptures: number;
 }
 
 /** 一番最初の持ち物。手ぶらで放り出さない程度に */
@@ -84,6 +96,7 @@ export function initialSave(): SaveData {
     trainingFocus: "balance",
     hut: [],
     nextHutUid: 1,
+    records: { totalDefeats: 0, totalCaptures: 0 },
   };
 }
 
@@ -103,6 +116,7 @@ export function loadSave(): SaveData {
       trainingFocus: sanitizeTrainingFocus(parsed.trainingFocus),
       hut: sanitizeHut(parsed.hut),
       nextHutUid: numberOr(parsed.nextHutUid, nextHutUidFrom(sanitizeHut(parsed.hut))),
+      records: sanitizeRecords(parsed.records),
     };
   } catch {
     // 壊れた保存データで起動できなくなるほうが困るので、黙って初期値に戻す
@@ -163,6 +177,9 @@ export function recordRun(
      * 「帰還時の処理」)。全滅時は呼び出し側が空配列を渡す(道具と同じ扱い)
      */
     broughtBackAllies?: Actor[];
+    /** 記録の間(plan/records-hall.md)。このダイブ中に倒した・捕まえた数 */
+    defeats?: number;
+    captures?: number;
   },
 ): SaveData {
   let nextHutUid = current.nextHutUid;
@@ -185,6 +202,10 @@ export function recordRun(
     // 生きて連れ帰った仲間だけがねむり小屋に加わる。全滅時は何も加わらない
     hut: [...current.hut, ...newlyStored],
     nextHutUid,
+    records: {
+      totalDefeats: current.records.totalDefeats + (result.defeats ?? 0),
+      totalCaptures: current.records.totalCaptures + (result.captures ?? 0),
+    },
   };
   saveData(next);
   return next;
@@ -322,6 +343,14 @@ function sanitizeStorage(value: unknown): StoredItem[] {
 
 function numberOr(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function sanitizeRecords(value: unknown): DiveRecords {
+  const v = (value ?? {}) as Partial<DiveRecords>;
+  return {
+    totalDefeats: numberOr(v.totalDefeats, 0),
+    totalCaptures: numberOr(v.totalCaptures, 0),
+  };
 }
 
 /** 1階(入口)は常に知っている扱いにする */

@@ -1,6 +1,6 @@
 import type { Vec2 } from "./grid";
 import type { TutorialTipId } from "./tutorial";
-import type { BarrelKind, StatusKind, TrapKind } from "./types";
+import type { ActorKind, BarrelKind, StatusKind, TrapKind } from "./types";
 
 /**
  * コアが1ターンを解決した結果として吐き出す「何が起きたか」の記録。
@@ -13,7 +13,7 @@ export type GameEvent =
   | { type: "damage"; actorId: number; amount: number; hpAfter: number; critical: boolean }
   | { type: "heal"; actorId: number; amount: number; hpAfter: number }
   | { type: "miss"; attackerId: number; targetId: number }
-  | { type: "die"; actorId: number }
+  | { type: "die"; actorId: number; kind: ActorKind }
   | { type: "spawn"; actorId: number }
   | { type: "status"; actorId: number; kind: StatusKind; turns: number }
   | { type: "statusEnd"; actorId: number; kind: StatusKind }

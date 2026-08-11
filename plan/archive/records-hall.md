@@ -1,5 +1,33 @@
 # 記録の間
 
+> **実装済み。** `src/save.ts`(`SaveData.records`(`DiveRecords`)、
+> `recordRun`のdefeats/captures引数)・`src/core/events.ts`(`die`
+> イベントへの`kind`追加)・`src/game.ts`(`killActor`が`kind`を乗せる)・
+> `src/main.ts`(ダイブ中の`diveDefeats`/`diveCaptures`集計、`finish()`で
+> `recordRun`へ渡す)・`src/ui/town.ts`(`TownScreen`の7列目「記録の間」、
+> カーソル移動の無い一覧表示)。テストは `tests/records-hall.test.ts`。
+>
+> 実装したのは以下の6項目。
+> - 最深到達(表の寝穴)・累計ダイブ回数・踏破回数・全滅回数は、
+>   既存の`SaveData.deepest`/`runs`/`clears`をそのまま流用した
+>   (`全滅回数 = runs - clears`)。新規フィールドは追加していない。
+> - 累計撃破数・のべ捕獲数だけが真に新しい集計で、`SaveData.records`
+>   (`totalDefeats`/`totalCaptures`)に持たせた。全滅した回でも
+>   失わずに積み上がる(`design/balance-philosophy.md`の「記録は
+>   ロストしない」原則どおり)。
+>
+> 以下の項目は、対応する機能自体が未実装のため見送った。実装時にそれぞれの
+> 機能側のSaveDataフィールドから`renderRecords`に1行足すだけで拡張できる。
+> - 最速本編クリア(`design/story.md`)
+> - 夜ごとの夢・自己ベスト(`plan/multiple-dungeons.md`)
+> - 腕試しの間・自己ベスト、樽比べ・自己ベスト(`plan/hidden-dungeon.md`
+>   `design/village-festivals.md`)
+> - もっとも連れ添った仲間(`plan/companion-naming.md` — 同伴ダイブ数の
+>   個体別カウントが必要で、現状は仲間の当該情報を持たない)
+>
+> UIは独立画面ではなく、`TownScreen`の既存6列(倉庫〜ゲンドの工房)に
+> 7列目として追加した(`plan/equipment-forging.md`と同じ増築パターン)。
+
 `plan/achievements.md` の実績は「達成したか・していないか」の二値だった。
 ここでは対になる要素として、**遊ぶほど伸びていく数値記録**を一覧できる
 「記録の間」を拠点に追加する。実績が「節目」を示すのに対し、記録の間は

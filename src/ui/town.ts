@@ -37,8 +37,8 @@ const TRAINING_FOCUS_DESCRIPTIONS: Record<TrainingFocus, string> = {
  */
 export class TownScreen {
   private open = false;
-  /** 0 = 倉庫、1 = 持ち込み、2 = 出発地点、3 = 鍛え方、4 = つれていく仲間、5 = ゲンドの工房 */
-  private column: 0 | 1 | 2 | 3 | 4 | 5 = 0;
+  /** 0=倉庫 1=持ち込み 2=出発地点 3=鍛え方 4=つれていく仲間 5=ゲンドの工房 6=記録の間 */
+  private column: 0 | 1 | 2 | 3 | 4 | 5 | 6 = 0;
   private cursor: [number, number] = [0, 0];
   private storage: StoredItem[] = [];
   private carry: StoredItem[] = [];
@@ -248,6 +248,22 @@ export class TownScreen {
       return this.handleWorkshopKey(code);
     }
 
+    if (this.column === 6) {
+      switch (code) {
+        case "ArrowLeft":
+        case "KeyA":
+          this.column = 5;
+          break;
+        case "Space":
+          this.departNow();
+          return true;
+        default:
+          return true;
+      }
+      this.render();
+      return true;
+    }
+
     const column: 0 | 1 = this.column;
     const list = column === 0 ? this.storage : this.carry;
 
@@ -372,6 +388,10 @@ export class TownScreen {
       case "KeyA":
         this.column = 4;
         break;
+      case "ArrowRight":
+      case "KeyD":
+        this.column = 6;
+        break;
       case "Enter":
       case "NumpadEnter":
         this.forgeSelected(targets[this.workshopCursor]);
@@ -494,6 +514,7 @@ export class TownScreen {
       this.renderTrainingFocus(),
       this.renderHut(),
       this.renderWorkshop(),
+      this.renderRecords(),
     );
     box.appendChild(columns);
 
@@ -523,6 +544,8 @@ export class TownScreen {
           ? `所持ほこら粉 ${dust}個。強化には${hokoraDustCost(plus)}個必要(${plus >= MAX_PLUS ? "上限に達した" : `次は+${plus + 1}`})。`
           : "倉庫に武器・盾が無い。";
       }
+    } else if (this.column === 6) {
+      desc.textContent = "見て楽しむだけの記録帳。攻略には関わらない。";
     } else {
       const selected = (this.column === 0 ? this.storage : this.carry)[this.cursor[this.column]];
       desc.textContent = selected ? itemDef(selected.defId).description : "";
@@ -537,6 +560,8 @@ export class TownScreen {
       hint.textContent = this.workshopMarkChoices
         ? "↑↓ 印を選ぶ / Enter 刻む / Esc もどる"
         : "←→ 列を移る / ↑↓ 選ぶ / Enter 強化(+1) / M 印を刻む / Space もぐる";
+    } else if (this.column === 6) {
+      hint.textContent = "← 列を移る / Space もぐる";
     } else {
       hint.textContent = "←→ 列を移る / ↑↓ 選ぶ / Enter 移す / Space もぐる";
     }
@@ -695,6 +720,41 @@ export class TownScreen {
       wrapper.appendChild(sub);
     }
 
+    return wrapper;
+  }
+
+  /**
+   * 記録の間(plan/records-hall.md)。積み重ねてきた数値記録の一覧。
+   * 選択・カーソル移動は無く、見るだけの画面。
+   */
+  private renderRecords(): HTMLElement {
+    const wrapper = document.createElement("div");
+    wrapper.className = "town-col";
+    if (this.column === 6) wrapper.classList.add("active");
+
+    const heading = document.createElement("div");
+    heading.className = "town-col-title";
+    heading.textContent = "記録の間";
+    wrapper.appendChild(heading);
+
+    const save = this.save;
+    const list = document.createElement("ul");
+    const rows: [string, number][] = save
+      ? [
+          ["最深到達(表の寝穴)", save.deepest],
+          ["累計ダイブ回数", save.runs],
+          ["踏破回数", save.clears],
+          ["全滅回数", save.runs - save.clears],
+          ["累計撃破数", save.records.totalDefeats],
+          ["のべ捕獲数", save.records.totalCaptures],
+        ]
+      : [];
+    for (const [label, value] of rows) {
+      const li = document.createElement("li");
+      li.textContent = `${label}: ${value}`;
+      list.appendChild(li);
+    }
+    wrapper.appendChild(list);
     return wrapper;
   }
 }
