@@ -42,7 +42,13 @@ export function roomCenter(room: Room): Vec2 {
 export const STATUS_SLEEP = "sleep";
 export const STATUS_CONFUSE = "confuse";
 export const STATUS_SEAL = "seal";
-export type StatusKind = typeof STATUS_SLEEP | typeof STATUS_CONFUSE | typeof STATUS_SEAL;
+/** 主の大槌(heavySingle)を振るった反動。次の1手を丸ごと失う */
+export const STATUS_RECOVER = "recover";
+export type StatusKind =
+  | typeof STATUS_SLEEP
+  | typeof STATUS_CONFUSE
+  | typeof STATUS_SEAL
+  | typeof STATUS_RECOVER;
 
 export interface Status {
   kind: StatusKind;
@@ -163,6 +169,16 @@ export const ALLY_STANCE_NAMES: Record<AllyStance, string> = {
 
 export type ItemCategory = "herb" | "scroll" | "staff" | "food" | "weapon" | "shield";
 
+/**
+ * 武器の攻撃パターン。plan/protagonist-weapons.md 参照。
+ *  - single:      隣接1マス(既存の「なた」系。既定値)
+ *  - line2:       正面方向、2マス先まで直線(間の敵も巻き込む)
+ *  - arc3:        向いている方向を中心に、正面と斜め前2方向の計3マス
+ *  - quickSingle: 隣接1マス。会心率+15%、そのラン最初の1手は必ず会心
+ *  - heavySingle: 隣接1マス。振るった次の1手ぶん、行動が遅れる(STATUS_RECOVER)
+ */
+export type WeaponPattern = "single" | "line2" | "arc3" | "quickSingle" | "heavySingle";
+
 export interface ItemDef {
   id: string;
   name: string;
@@ -174,6 +190,8 @@ export interface ItemDef {
   power?: number;
   /** 武器なら攻撃力、盾なら守備力の加算値 */
   bonus?: number;
+  /** 武器の攻撃パターン。省略時は "single" */
+  attackPattern?: WeaponPattern;
   /** 杖の初期使用回数 */
   charges?: number;
   /** 出現しはじめる階層 */
