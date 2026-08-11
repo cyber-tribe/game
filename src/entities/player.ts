@@ -1,4 +1,5 @@
 import type { Actor, Barrel } from "../core/types";
+import { type ArtId, createArtCooldowns } from "./arts";
 import { type Inventory, createInventory, shieldBonus, weaponBonus } from "../items/inventory";
 
 export const MAX_SATIETY = 100;
@@ -23,6 +24,14 @@ export interface PlayerState extends Actor {
   carrying: Barrel | null;
   /** 身構え中(足踏みの直後)。次に被弾するまで被ダメージが軽減される */
   guarding: boolean;
+  /** 樽守りの技(plan/protagonist-arts.md)の残りクールダウンターン数 */
+  artCooldowns: Record<ArtId, number>;
+  /** 会心の樽投げが有効。次に投げるからのタルの威力・捕獲判定を最大にする */
+  critBarrelReady: boolean;
+  /** 樽受け身が有効。次の1回の被弾ダメージを無効にする(1ターンだけ) */
+  ukemiReady: boolean;
+  /** 抱え投げの奥義が有効。次に投げるタルを貫通させる */
+  pierceReady: boolean;
 }
 
 /** レベル n に上がるのに必要な累計経験値 */
@@ -67,6 +76,10 @@ export function createPlayer(id: number): PlayerState {
     gold: 0,
     carrying: null,
     guarding: false,
+    artCooldowns: createArtCooldowns(),
+    critBarrelReady: false,
+    ukemiReady: false,
+    pierceReady: false,
   };
 }
 

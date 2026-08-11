@@ -182,7 +182,7 @@
       }
 
       /* ------------------------------------------------ メニュー */
-      #menu, #stance {
+      #menu, #stance, #arts {
         position: absolute;
         top: 50%; left: 50%;
         transform: translate(-50%, -50%);
@@ -209,6 +209,7 @@
         background: rgba(127, 190, 255, 0.20);
         box-shadow: inset 2px 0 0 #7fd6ff;
       }
+      .menu-list li.disabled { color: var(--dim); }
       .menu-sub {
         margin-top: 10px; padding-top: 8px;
         border-top: 1px solid var(--edge);
@@ -329,6 +330,7 @@
           <b>Space</b> 拾う・階段をおりる &nbsp; <b>.</b> 足踏み<br />
           <b>F</b> タルを持つ / 置く &nbsp; <b>G</b> タルを投げる<br />
           <b>I</b> もちもの &nbsp; <b>T</b> 仲間に指示<br />
+          <b>C</b> 技を繰り出す<br />
           <b>R</b> 階段の上で区切って持ち帰る<br />
           <b>Q / E</b> 視点回転 &nbsp; <b>± </b>ズーム
         </div>
@@ -336,6 +338,7 @@
         <div id="fx"></div>
         <div id="menu"></div>
         <div id="stance"></div>
+        <div id="arts"></div>
         <div id="town"></div>
         <div id="overlay"></div>
       </div>

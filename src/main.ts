@@ -10,6 +10,7 @@ import { Input } from "./view/input";
 import { Minimap } from "./view/minimap";
 import { Renderer } from "./view/renderer";
 import { Stage } from "./view/stage";
+import { ArtsMenu } from "./ui/arts";
 import { InventoryMenu } from "./ui/menu";
 import { StanceMenu } from "./ui/stance";
 import { TownScreen } from "./ui/town";
@@ -41,6 +42,7 @@ class App {
   private readonly input = new Input();
   private readonly menu: InventoryMenu;
   private readonly stanceMenu: StanceMenu;
+  private readonly artsMenu: ArtsMenu;
   private readonly town: TownScreen;
   private readonly canvas: HTMLCanvasElement;
 
@@ -60,11 +62,15 @@ class App {
     this.minimap = new Minimap(document.querySelector<HTMLCanvasElement>("#minimap")!);
     this.menu = new InventoryMenu(document.querySelector<HTMLElement>("#menu")!);
     this.stanceMenu = new StanceMenu(document.querySelector<HTMLElement>("#stance")!);
+    this.artsMenu = new ArtsMenu(document.querySelector<HTMLElement>("#arts")!);
     this.town = new TownScreen(document.querySelector<HTMLElement>("#town")!);
     this.save = loadSave();
 
     this.input.onKey = (code) =>
-      this.town.handleKey(code) || this.menu.handleKey(code) || this.stanceMenu.handleKey(code);
+      this.town.handleKey(code) ||
+      this.menu.handleKey(code) ||
+      this.stanceMenu.handleKey(code) ||
+      this.artsMenu.handleKey(code);
   }
 
   async start(): Promise<void> {
@@ -138,6 +144,7 @@ class App {
     this.lock = 0;
     this.menu.hide();
     this.stanceMenu.hide();
+    this.artsMenu.hide();
     this.hud.hideOverlay();
     this.stage.enterFloor(this.game.floor);
     this.renderer.setFocus(this.game.player.pos, true);
@@ -187,6 +194,7 @@ class App {
         !this.ended &&
         !this.menu.isOpen &&
         !this.stanceMenu.isOpen &&
+        !this.artsMenu.isOpen &&
         !this.town.isOpen &&
         this.lock <= 0
       ) {
@@ -195,7 +203,14 @@ class App {
       action = this.input.takeAction();
     }
 
-    if (this.ended || this.menu.isOpen || this.stanceMenu.isOpen || this.town.isOpen || this.lock > 0) {
+    if (
+      this.ended ||
+      this.menu.isOpen ||
+      this.stanceMenu.isOpen ||
+      this.artsMenu.isOpen ||
+      this.town.isOpen ||
+      this.lock > 0
+    ) {
       return;
     }
 
@@ -232,6 +247,7 @@ class App {
         if (
           !this.menu.isOpen &&
           !this.stanceMenu.isOpen &&
+          !this.artsMenu.isOpen &&
           !this.town.isOpen &&
           eq(this.game.player.pos, this.game.floor.stairs)
         ) {
@@ -264,6 +280,9 @@ class App {
         } else {
           this.stanceMenu.show(this.game.allyList, (cmd) => this.submit(cmd));
         }
+        break;
+      case "arts":
+        this.artsMenu.show(this.game.player, (cmd) => this.submit(cmd));
         break;
       case "confirm":
         // 足元の状況に応じて、階段を降りるか拾うかを選ぶ

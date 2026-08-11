@@ -143,6 +143,11 @@ export interface Actor {
   aware?: boolean;
   /** 徘徊中の進行方向 */
   wanderDir?: Dir;
+  /**
+   * 「なだめの手つき」(plan/protagonist-arts.md)で受けた弱らせ量。
+   * 実際のHPは減らさず、樽の捕獲判定にだけ加算される。捕獲を試みると消費される
+   */
+  captureBonus?: number;
 
   // ---- 以下は ally のみ ----
   /** 構え。plan/companion-orders.md 参照。既定は "free" */
