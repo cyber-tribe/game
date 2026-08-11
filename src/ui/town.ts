@@ -1,3 +1,13 @@
+import type { MarkId } from "../core/types";
+import {
+  HOKORA_DUST_DEF_ID,
+  MARKS,
+  MARK_IMPRINT_DUST_COST,
+  MARK_STONE_DEF_ID,
+  MAX_PLUS,
+  hokoraDustCost,
+  markDef,
+} from "../entities/forging";
 import { MAX_ALLIES, type TrainingFocus } from "../entities/player";
 import { speciesById } from "../entities/species";
 import type { SaveData, StoredItem, StoredMonster } from "../save";
@@ -27,8 +37,8 @@ const TRAINING_FOCUS_DESCRIPTIONS: Record<TrainingFocus, string> = {
  */
 export class TownScreen {
   private open = false;
-  /** 0 = 倉庫、1 = 持ち込み、2 = 出発地点、3 = 鍛え方、4 = つれていく仲間 */
-  private column: 0 | 1 | 2 | 3 | 4 = 0;
+  /** 0 = 倉庫、1 = 持ち込み、2 = 出発地点、3 = 鍛え方、4 = つれていく仲間、5 = ゲンドの工房 */
+  private column: 0 | 1 | 2 | 3 | 4 | 5 = 0;
   private cursor: [number, number] = [0, 0];
   private storage: StoredItem[] = [];
   private carry: StoredItem[] = [];
@@ -43,6 +53,13 @@ export class TownScreen {
   private bringUids: number[] = [];
   /** 夢あわせ(plan/monster-fusion.md)で、軸として選んで確定した個体。まだ無ければ null */
   private fusionAxisUid: number | null = null;
+  /** ゲンドの工房(plan/equipment-forging.md)の一覧上のカーソル位置 */
+  private workshopCursor = 0;
+  /** 印を刻む対象として選んでいる装備。選択中(サブメニュー表示中)のみ非null */
+  private workshopMarkTarget: StoredItem | null = null;
+  /** 印刻みの候補一覧(倉庫にある刻印石ぶんだけ)。サブメニュー表示中のみ非null */
+  private workshopMarkChoices: MarkId[] | null = null;
+  private workshopMarkCursor = 0;
   private depart:
     | ((
         carry: StoredItem[],
@@ -88,6 +105,9 @@ export class TownScreen {
     this.hutCursor = 0;
     this.bringUids = [];
     this.fusionAxisUid = null;
+    this.workshopCursor = 0;
+    this.workshopMarkTarget = null;
+    this.workshopMarkChoices = null;
     this.depart = onDepart;
     this.onFuse = onFuse;
     this.onRename = onRename;
@@ -195,6 +215,10 @@ export class TownScreen {
           this.fusionAxisUid = null;
           this.column = 3;
           break;
+        case "ArrowRight":
+        case "KeyD":
+          this.column = 5;
+          break;
         case "Enter":
         case "NumpadEnter":
           this.toggleBring(hut[this.hutCursor]?.uid);
@@ -218,6 +242,10 @@ export class TownScreen {
       }
       this.render();
       return true;
+    }
+
+    if (this.column === 5) {
+      return this.handleWorkshopKey(code);
     }
 
     const column: 0 | 1 = this.column;
@@ -277,6 +305,129 @@ export class TownScreen {
     }
     if (uid !== this.fusionAxisUid) this.onFuse?.(this.fusionAxisUid, uid);
     this.fusionAxisUid = null;
+  }
+
+  /** ゲンドの工房(plan/equipment-forging.md)の対象一覧。倉庫にある武器・盾だけ */
+  private workshopTargets(): StoredItem[] {
+    return this.storage.filter((s) => {
+      const cat = itemDef(s.defId).category;
+      return cat === "weapon" || cat === "shield";
+    });
+  }
+
+  private countMaterial(defId: string): number {
+    return this.storage.filter((s) => s.defId === defId).length;
+  }
+
+  /** 倉庫からdefIdの素材をcount個取り除く。targetの参照はそのまま生き続ける */
+  private consumeMaterial(defId: string, count: number): void {
+    let remaining = count;
+    this.storage = this.storage.filter((s) => {
+      if (remaining > 0 && s.defId === defId) {
+        remaining--;
+        return false;
+      }
+      return true;
+    });
+  }
+
+  private handleWorkshopKey(code: string): boolean {
+    const targets = this.workshopTargets();
+
+    if (this.workshopMarkChoices) {
+      switch (code) {
+        case "ArrowUp":
+        case "KeyW":
+          this.workshopMarkCursor = wrap(this.workshopMarkCursor - 1, this.workshopMarkChoices.length);
+          break;
+        case "ArrowDown":
+        case "KeyS":
+          this.workshopMarkCursor = wrap(this.workshopMarkCursor + 1, this.workshopMarkChoices.length);
+          break;
+        case "Enter":
+        case "NumpadEnter":
+          this.confirmImprint();
+          break;
+        case "Escape":
+          this.workshopMarkChoices = null;
+          this.workshopMarkTarget = null;
+          break;
+        default:
+          return true;
+      }
+      this.render();
+      return true;
+    }
+
+    switch (code) {
+      case "ArrowUp":
+      case "KeyW":
+        this.workshopCursor = wrap(this.workshopCursor - 1, targets.length);
+        break;
+      case "ArrowDown":
+      case "KeyS":
+        this.workshopCursor = wrap(this.workshopCursor + 1, targets.length);
+        break;
+      case "ArrowLeft":
+      case "KeyA":
+        this.column = 4;
+        break;
+      case "Enter":
+      case "NumpadEnter":
+        this.forgeSelected(targets[this.workshopCursor]);
+        break;
+      case "KeyM":
+        this.openImprintChoices(targets[this.workshopCursor]);
+        break;
+      case "Space":
+        this.departNow();
+        return true;
+      default:
+        return true;
+    }
+    this.render();
+    return true;
+  }
+
+  /** 強化する: ほこら粉を消費して+1する(+9が上限) */
+  private forgeSelected(target: StoredItem | undefined): void {
+    if (!target) return;
+    const plus = target.plus ?? 0;
+    if (plus >= MAX_PLUS) return;
+    const cost = hokoraDustCost(plus);
+    if (this.countMaterial(HOKORA_DUST_DEF_ID) < cost) return;
+    this.consumeMaterial(HOKORA_DUST_DEF_ID, cost);
+    target.plus = plus + 1;
+  }
+
+  /** 印を刻む: 対象の部位(武器/盾)に合う印のうち、倉庫にある刻印石ぶんだけ選べる */
+  private openImprintChoices(target: StoredItem | undefined): void {
+    if (!target) return;
+    const category = itemDef(target.defId).category;
+    const slot = category === "weapon" ? "weapon" : category === "shield" ? "shield" : null;
+    if (!slot) return;
+    const owned = MARKS.filter(
+      (m) => m.slot === slot && this.countMaterial(MARK_STONE_DEF_ID[m.id]) > 0,
+    );
+    if (owned.length === 0) return;
+    this.workshopMarkTarget = target;
+    this.workshopMarkChoices = owned.map((m) => m.id);
+    this.workshopMarkCursor = 0;
+  }
+
+  private confirmImprint(): void {
+    const target = this.workshopMarkTarget;
+    const choices = this.workshopMarkChoices;
+    if (!target || !choices) return;
+    const markId = choices[this.workshopMarkCursor];
+    if (!markId) return;
+    if (this.countMaterial(HOKORA_DUST_DEF_ID) < MARK_IMPRINT_DUST_COST) return;
+    if (this.countMaterial(MARK_STONE_DEF_ID[markId]) < 1) return;
+    this.consumeMaterial(HOKORA_DUST_DEF_ID, MARK_IMPRINT_DUST_COST);
+    this.consumeMaterial(MARK_STONE_DEF_ID[markId], 1);
+    target.markId = markId;
+    this.workshopMarkChoices = null;
+    this.workshopMarkTarget = null;
   }
 
   /** 選んでいるアイテムを、倉庫 ⇔ 持ち込み のあいだで移す */
@@ -342,6 +493,7 @@ export class TownScreen {
       this.renderCheckpoints(),
       this.renderTrainingFocus(),
       this.renderHut(),
+      this.renderWorkshop(),
     );
     box.appendChild(columns);
 
@@ -357,6 +509,20 @@ export class TownScreen {
         this.fusionAxisUid === null
           ? `Enterで選択/解除(最大${MAX_ALLIES}体、0体なら手ぶらで出発)。Mで夢あわせの軸を選ぶ。Nで改名。`
           : "夢あわせ: 糧にする個体を選んでMで確定(軸は消えず、糧は消えて軸に溶け込む)。";
+    } else if (this.column === 5) {
+      const dust = this.countMaterial(HOKORA_DUST_DEF_ID);
+      if (this.workshopMarkChoices) {
+        const markId = this.workshopMarkChoices[this.workshopMarkCursor];
+        desc.textContent = markId
+          ? `${markDef(markId).description}(ほこら粉${MARK_IMPRINT_DUST_COST}個+刻印石1個を消費。既にある印は上書きされる)`
+          : "";
+      } else {
+        const target = this.workshopTargets()[this.workshopCursor];
+        const plus = target?.plus ?? 0;
+        desc.textContent = target
+          ? `所持ほこら粉 ${dust}個。強化には${hokoraDustCost(plus)}個必要(${plus >= MAX_PLUS ? "上限に達した" : `次は+${plus + 1}`})。`
+          : "倉庫に武器・盾が無い。";
+      }
     } else {
       const selected = (this.column === 0 ? this.storage : this.carry)[this.cursor[this.column]];
       desc.textContent = selected ? itemDef(selected.defId).description : "";
@@ -365,10 +531,15 @@ export class TownScreen {
 
     const hint = document.createElement("p");
     hint.className = "town-hint";
-    hint.textContent =
-      this.column === 4
-        ? "←→ 列を移る / ↑↓ 選ぶ / Enter 選択・解除 / M 夢あわせ / N 改名 / Space もぐる"
-        : "←→ 列を移る / ↑↓ 選ぶ / Enter 移す / Space もぐる";
+    if (this.column === 4) {
+      hint.textContent = "←→ 列を移る / ↑↓ 選ぶ / Enter 選択・解除 / M 夢あわせ / N 改名 / Space もぐる";
+    } else if (this.column === 5) {
+      hint.textContent = this.workshopMarkChoices
+        ? "↑↓ 印を選ぶ / Enter 刻む / Esc もどる"
+        : "←→ 列を移る / ↑↓ 選ぶ / Enter 強化(+1) / M 印を刻む / Space もぐる";
+    } else {
+      hint.textContent = "←→ 列を移る / ↑↓ 選ぶ / Enter 移す / Space もぐる";
+    }
     box.appendChild(hint);
 
     this.root.appendChild(box);
@@ -479,6 +650,51 @@ export class TownScreen {
       list.appendChild(li);
     });
     wrapper.appendChild(list);
+    return wrapper;
+  }
+
+  /** ゲンドの工房(plan/equipment-forging.md): 武器・盾の強化・印刻み */
+  private renderWorkshop(): HTMLElement {
+    const wrapper = document.createElement("div");
+    wrapper.className = "town-col";
+    if (this.column === 5) wrapper.classList.add("active");
+
+    const heading = document.createElement("div");
+    heading.className = "town-col-title";
+    heading.textContent = "ゲンドの工房";
+    wrapper.appendChild(heading);
+
+    const targets = this.workshopTargets();
+    const list = document.createElement("ul");
+    if (targets.length === 0) {
+      const li = document.createElement("li");
+      li.className = "empty";
+      li.textContent = "強化できる武器・盾が倉庫に無い";
+      list.appendChild(li);
+    }
+    targets.forEach((item, index) => {
+      const def = itemDef(item.defId);
+      const li = document.createElement("li");
+      let text = `${def.name}+${item.plus ?? 0}`;
+      if (item.markId) text += `【${markDef(item.markId).name}】`;
+      li.textContent = text;
+      if (this.column === 5 && index === this.workshopCursor) li.classList.add("selected");
+      list.appendChild(li);
+    });
+    wrapper.appendChild(list);
+
+    if (this.workshopMarkChoices) {
+      const sub = document.createElement("ul");
+      sub.className = "menu-sub";
+      this.workshopMarkChoices.forEach((markId, index) => {
+        const li = document.createElement("li");
+        li.textContent = markDef(markId).name;
+        if (index === this.workshopMarkCursor) li.classList.add("selected");
+        sub.appendChild(li);
+      });
+      wrapper.appendChild(sub);
+    }
+
     return wrapper;
   }
 }

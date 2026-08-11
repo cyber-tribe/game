@@ -18,6 +18,7 @@ import { TownScreen } from "./ui/town";
 import {
   addKnownCheckpoint,
   clearRunSnapshot,
+  fromStored,
   fuseMonsters,
   loadRunSnapshot,
   loadSave,
@@ -135,11 +136,7 @@ class App {
     trainingFocus: TrainingFocus = "balance",
     bringAllies: readonly StoredMonster[] = [],
   ): void {
-    const startingItems: Item[] = carry.map((stored, index) =>
-      stored.charges === undefined
-        ? { uid: index + 1, defId: stored.defId }
-        : { uid: index + 1, defId: stored.defId, charges: stored.charges },
-    );
+    const startingItems: Item[] = carry.map((stored, index) => fromStored(stored, index + 1));
     this.game = new Game({
       seed: (Math.random() * 0xffffffff) >>> 0,
       maxDepth: MAX_DEPTH,

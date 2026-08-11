@@ -1,5 +1,6 @@
 import { TUTORIAL_TIP_IDS, type TutorialTipId } from "./core/tutorial";
-import type { Actor, Item, SkillId } from "./core/types";
+import type { Actor, Item, MarkId, SkillId } from "./core/types";
+import { MARKS, MAX_PLUS } from "./entities/forging";
 import type { TrainingFocus } from "./entities/player";
 import { MAX_SKILLS, NATIVE_SKILL_BY_SPECIES, SKILLS, fullSkillSet } from "./entities/skills";
 import { SPECIES } from "./entities/species";
@@ -21,6 +22,10 @@ const SNAPSHOT_KEY = "garudo-dungeon/v1/run-snapshot";
 export interface StoredItem {
   defId: string;
   charges?: number;
+  /** 強化値(+n)。武器・盾のみ。plan/equipment-forging.md 参照 */
+  plus?: number;
+  /** 刻んだ印。武器・盾のみ */
+  markId?: MarkId;
 }
 
 
@@ -274,10 +279,23 @@ export function fuseMonsters(
 }
 
 export function toStored(item: Item): StoredItem {
-  return item.charges === undefined
-    ? { defId: item.defId }
-    : { defId: item.defId, charges: item.charges };
+  const stored: StoredItem = { defId: item.defId };
+  if (item.charges !== undefined) stored.charges = item.charges;
+  if (item.plus !== undefined) stored.plus = item.plus;
+  if (item.markId !== undefined) stored.markId = item.markId;
+  return stored;
 }
+
+/** 倉庫のStoredItemを、ダイブに持ち込むItemへ戻す(uidはダイブごとに振り直す) */
+export function fromStored(stored: StoredItem, uid: number): Item {
+  const item: Item = { uid, defId: stored.defId };
+  if (stored.charges !== undefined) item.charges = stored.charges;
+  if (stored.plus !== undefined) item.plus = stored.plus;
+  if (stored.markId !== undefined) item.markId = stored.markId;
+  return item;
+}
+
+const VALID_MARK_IDS = new Set(MARKS.map((m) => m.id));
 
 function sanitizeStorage(value: unknown): StoredItem[] {
   if (!Array.isArray(value)) return initialSave().storage;
@@ -286,8 +304,18 @@ function sanitizeStorage(value: unknown): StoredItem[] {
     if (typeof entry !== "object" || entry === null) continue;
     const defId = (entry as StoredItem).defId;
     if (typeof defId !== "string" || !VALID_IDS.has(defId)) continue;
+    const stored: StoredItem = { defId };
     const charges = (entry as StoredItem).charges;
-    out.push(typeof charges === "number" ? { defId, charges } : { defId });
+    if (typeof charges === "number") stored.charges = charges;
+    const plus = (entry as StoredItem).plus;
+    if (typeof plus === "number" && Number.isInteger(plus) && plus >= 0 && plus <= MAX_PLUS) {
+      stored.plus = plus;
+    }
+    const markId = (entry as StoredItem).markId;
+    if (typeof markId === "string" && VALID_MARK_IDS.has(markId as MarkId)) {
+      stored.markId = markId as MarkId;
+    }
+    out.push(stored);
   }
   return out;
 }
