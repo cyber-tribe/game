@@ -17,6 +17,7 @@ import { TownScreen } from "./ui/town";
 import {
   addKnownCheckpoint,
   clearRunSnapshot,
+  fuseMonsters,
   loadRunSnapshot,
   loadSave,
   markTutorialTipSeen,
@@ -24,8 +25,10 @@ import {
   saveData,
   saveRunSnapshot,
   setTrainingFocus,
+  takeFromHut,
   type SaveData,
   type StoredItem,
+  type StoredMonster,
 } from "./save";
 import { TUTORIAL_TIPS, type TutorialTipId } from "./core/tutorial";
 import type { Item } from "./core/types";
@@ -91,20 +94,34 @@ class App {
     this.loop();
   }
 
-  /** 潜る前の拠点。倉庫から持ち込む道具・出発地点・鍛え方を選ぶ */
+  /** 潜る前の拠点。倉庫から持ち込む道具・出発地点・鍛え方・仲間を選ぶ */
   private showTown(): void {
     this.hud.hideOverlay();
-    this.town.show(this.save, (carry, storage, startDepth, trainingFocus) => {
-      this.save = setTrainingFocus({ ...this.save, storage }, trainingFocus);
-      saveData(this.save);
-      this.newRun(carry, startDepth, trainingFocus);
-    });
+    this.town.show(
+      this.save,
+      (carry, storage, startDepth, trainingFocus, bringAllyUids) => {
+        const { save: afterTake, taken } = takeFromHut(
+          setTrainingFocus({ ...this.save, storage }, trainingFocus),
+          bringAllyUids,
+        );
+        this.save = afterTake;
+        saveData(this.save);
+        this.newRun(carry, startDepth, trainingFocus, taken);
+      },
+      (axisUid, foodUid) => {
+        const fused = fuseMonsters(this.save, axisUid, foodUid);
+        if (!fused) return;
+        this.save = fused.save;
+        this.town.refreshSave(this.save);
+      },
+    );
   }
 
   private newRun(
     carry: readonly StoredItem[],
     startDepth = 1,
     trainingFocus: TrainingFocus = "balance",
+    bringAllies: readonly StoredMonster[] = [],
   ): void {
     const startingItems: Item[] = carry.map((stored, index) =>
       stored.charges === undefined
@@ -117,6 +134,7 @@ class App {
       startingItems,
       startDepth,
       trainingFocus,
+      bringAllies: [...bringAllies],
     });
     this.presentFloor();
     this.hud.log(`地下${this.game.depth}階。最深記録は ${this.save.deepest} 階。`);
@@ -346,19 +364,21 @@ class App {
   private finish(reason: string): void {
     this.ended = true;
     const cleared = this.game.status === "cleared";
-    // 踏破したときだけ、持っていたものを倉庫に持ち帰れる。倒れたら全部失う
+    // 踏破したときだけ、持っていたもの・生きて連れていた仲間を持ち帰れる。倒れたら全部失う
     const broughtBack = cleared ? this.game.player.inventory.items : [];
+    const broughtBackAllies = cleared ? [...this.game.allyList] : [];
     this.save = recordRun(this.save, {
       depth: this.game.depth,
       level: this.game.player.level,
       cleared,
       broughtBack,
+      broughtBackAllies,
     });
     this.hud.showOverlay(
       cleared ? "だっしゅつ成功!" : "ちからつきた……",
       cleared
-        ? `${reason}  持ち帰った ${broughtBack.length} 個を倉庫にしまった。`
-        : `${reason}  持ち込んだ道具はすべて失った。`,
+        ? `${reason}  持ち帰った ${broughtBack.length} 個を倉庫に、${broughtBackAllies.length} 体をねむり小屋にしまった。`
+        : `${reason}  持ち込んだ道具・仲間はすべて失った。`,
       `Lv ${this.game.player.level} / ${this.game.turnCount} ターン ・ ` +
         `最深記録 ${this.save.deepest} 階 — R キーで拠点にもどる`,
     );
