@@ -15,6 +15,8 @@ export interface PlayerState extends Actor {
   gold: number;
   /** 頭上に抱えているタル。抱えている間は攻撃できない */
   carrying: Barrel | null;
+  /** 身構え中(足踏みの直後)。次に被弾するまで被ダメージが軽減される */
+  guarding: boolean;
 }
 
 /** レベル n に上がるのに必要な累計経験値 */
@@ -58,6 +60,7 @@ export function createPlayer(id: number): PlayerState {
     inventory: createInventory(),
     gold: 0,
     carrying: null,
+    guarding: false,
   };
 }
 

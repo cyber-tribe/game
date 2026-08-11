@@ -4,6 +4,13 @@ import type { WeaponPattern } from "../core/types";
 
 /** 会心の一撃が出る基本確率(1/32) */
 const CRITICAL_ONE_IN = 32;
+/**
+ * 会心率の合計の上限(plan/combat-mechanics.md)。武器・印・特技などの
+ * 会心率ボーナスをいくら積んでも、この値を超えない。会心が戦闘の主軸に
+ * なりすぎないための歯止め。不意打ち・強制会心(forceCrit)はこの上限の
+ * 対象外(そもそも確率ではなく確定なので)。
+ */
+export const MAX_CRIT_RATE = 0.2;
 
 export interface DamageResult {
   damage: number;
@@ -13,7 +20,7 @@ export interface DamageResult {
 export interface DamageOptions {
   /** 会心率に上乗せする分(例: 双樽鉤の+0.15) */
   critBonus?: number;
-  /** 会心を強制する(例: 双樽鉤のそのラン最初の1手) */
+  /** 会心を強制する(例: 双樽鉤のそのラン最初の1手、不意打ち) */
   forceCrit?: boolean;
 }
 
@@ -28,7 +35,8 @@ export function computeDamage(
   defense: number,
   opts?: DamageOptions,
 ): DamageResult {
-  const critical = opts?.forceCrit || rng.chance(1 / CRITICAL_ONE_IN + (opts?.critBonus ?? 0));
+  const rate = Math.min(MAX_CRIT_RATE, 1 / CRITICAL_ONE_IN + (opts?.critBonus ?? 0));
+  const critical = opts?.forceCrit || rng.chance(rate);
   const base = critical ? attack : attack - defense / 2;
   const damage = Math.max(1, Math.floor(base * rng.float(0.9, 1.1)));
   return { damage, critical };
