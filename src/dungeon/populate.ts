@@ -120,8 +120,17 @@ export function choosePlayerStart(rng: Rng, floor: FloorState): Vec2 {
 }
 
 /**
+ * 「山分けの階」ギミックでアイテム・タル・モンスターの数を増やす倍率。
+ * 増える両者の比率を1:1程度に保つ(plan/floor-gimmicks.md)。
+ */
+const WINDFALL_MULTIPLIER = 1.5;
+/** 「おちあなの階」ギミックで、罠を落とし穴にする確率 */
+const PITFALL_GIMMICK_CHANCE = 0.5;
+
+/**
  * 生成した地形の上にモンスター・アイテム・罠を配置する。
- * 深い階ほどモンスターと罠が増える。
+ * 深い階ほどモンスターと罠が増える。`floor.gimmick`(plan/floor-gimmicks.md)
+ * に応じて出現数・出現内容を調整する。
  */
 export function populateFloor(
   rng: Rng,
@@ -129,8 +138,15 @@ export function populateFloor(
   ids: IdSource,
   playerStart: Vec2,
 ): void {
+  const gimmick = floor.gimmick;
   const pool = speciesForDepth(floor.depth);
-  const monsterCount = Math.min(12, 4 + Math.floor(floor.depth / 2));
+  const baseMonsterCount = Math.min(12, 4 + Math.floor(floor.depth / 2));
+  const monsterCount =
+    gimmick === "silence"
+      ? 0
+      : gimmick === "windfall"
+        ? Math.round(baseMonsterCount * WINDFALL_MULTIPLIER)
+        : baseMonsterCount;
   for (let i = 0; i < monsterCount; i++) {
     const pos = findFreeTile(rng, floor, {
       roomsOnly: true,
@@ -138,11 +154,15 @@ export function populateFloor(
     });
     if (!pos) break;
     const species = rng.pickWeighted(pool, (s) => s.weight);
-    floor.actors.push(createMonster(ids.nextActorId(), species, pos));
+    const monster = createMonster(ids.nextActorId(), species, pos);
+    if (gimmick === "alert") monster.aware = true;
+    floor.actors.push(monster);
   }
 
   const itemPool = itemsForDepth(floor.depth);
-  const itemCount = rng.int(3, 6);
+  const baseItemCount = rng.int(3, 6);
+  const itemCount =
+    gimmick === "windfall" ? Math.round(baseItemCount * WINDFALL_MULTIPLIER) : baseItemCount;
   for (let i = 0; i < itemCount; i++) {
     const pos = findFreeTile(rng, floor, { roomsOnly: true, avoid: [playerStart] });
     if (!pos) break;
@@ -157,7 +177,9 @@ export function populateFloor(
       minDistanceFrom: { pos: playerStart, distance: 3 },
     });
     if (!pos) break;
-    floor.traps.push({ pos, kind: rng.pick(TRAP_KINDS), revealed: false });
+    const kind: TrapKind =
+      gimmick === "pitfall" && rng.chance(PITFALL_GIMMICK_CHANCE) ? "pitfall" : rng.pick(TRAP_KINDS);
+    floor.traps.push({ pos, kind, revealed: false });
   }
 
   placeBarrels(rng, floor, ids, playerStart);
@@ -168,7 +190,9 @@ export function populateFloor(
  * タルが無いと仲間を捕まえられないので、どの階にも必ず数個は置く。
  */
 function placeBarrels(rng: Rng, floor: FloorState, ids: IdSource, playerStart: Vec2): void {
-  const count = rng.int(3, 5);
+  const baseCount = rng.int(3, 5);
+  const count =
+    floor.gimmick === "windfall" ? Math.round(baseCount * WINDFALL_MULTIPLIER) : baseCount;
   const bombChance = Math.min(0.4, 0.08 + floor.depth * 0.035);
   for (let i = 0; i < count; i++) {
     const pos = findFreeTile(rng, floor, {
@@ -186,13 +210,17 @@ export function createBarrel(id: number, kind: BarrelKind, pos: Vec2, speciesId?
   return speciesId === undefined ? { id, kind, pos } : { id, kind, pos, speciesId };
 }
 
-/** 探索中に湧いてくるモンスター。プレイヤーから離れた場所にだけ出す */
+/**
+ * 探索中に湧いてくるモンスター。プレイヤーから離れた場所にだけ出す。
+ * 「しじまの階」ギミック中は野生モンスターがまったく湧かない。
+ */
 export function spawnWanderingMonster(
   rng: Rng,
   floor: FloorState,
   ids: IdSource,
   playerPos: Vec2,
 ): Actor | null {
+  if (floor.gimmick === "silence") return null;
   const pos = findFreeTile(rng, floor, {
     roomsOnly: true,
     minDistanceFrom: { pos: playerPos, distance: 8 },
@@ -201,6 +229,7 @@ export function spawnWanderingMonster(
   const pool = speciesForDepth(floor.depth);
   const species = rng.pickWeighted(pool, (s) => s.weight);
   const monster = createMonster(ids.nextActorId(), species, pos);
+  if (floor.gimmick === "alert") monster.aware = true;
   floor.actors.push(monster);
   return monster;
 }

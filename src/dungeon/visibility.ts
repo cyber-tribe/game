@@ -1,6 +1,9 @@
 import type { Vec2 } from "../core/grid";
 import { type FloorState, roomOf, tileAt } from "../core/types";
 
+/** 「くらやみの階」ギミック中、部屋にいても viewer からこの距離までしか見えない */
+const DARKNESS_RADIUS = 2;
+
 /**
  * 不思議のダンジョン系の視界規則。
  *
@@ -10,12 +13,20 @@ import { type FloorState, roomOf, tileAt } from "../core/types";
  *
  * 明かりの届かない通路を手探りで進む緊張感がこのジャンルの肝なので、
  * 視線計算(レイキャスト)ではなくこの部屋単位の規則をそのまま採用する。
+ * 「くらやみの階」ギミック(plan/floor-gimmicks.md)が乗っている間は、
+ * 部屋にいても全体は見えず、viewer 周辺だけに絞る。
  */
 export function updateVisibility(floor: FloorState, viewer: Vec2): void {
   for (const tile of floor.tiles) tile.visible = false;
 
   const room = roomOf(floor, viewer);
-  if (room) {
+  if (room && floor.gimmick === "darkness") {
+    for (let dy = -DARKNESS_RADIUS; dy <= DARKNESS_RADIUS; dy++) {
+      for (let dx = -DARKNESS_RADIUS; dx <= DARKNESS_RADIUS; dx++) {
+        reveal(floor, viewer.x + dx, viewer.y + dy);
+      }
+    }
+  } else if (room) {
     // 外周1マスまで含めるので、部屋から出ている通路の1マス目もここで見える
     for (let y = room.y - 1; y <= room.y + room.h; y++) {
       for (let x = room.x - 1; x <= room.x + room.w; x++) {
