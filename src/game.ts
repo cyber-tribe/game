@@ -17,6 +17,7 @@ import {
   type Actor,
   type Barrel,
   type BarrelKind,
+  type FloorGimmickKind,
   type FloorState,
   type Item,
   type Trap,
@@ -28,6 +29,7 @@ import {
   walkableAt,
 } from "./core/types";
 import { generateFloor } from "./dungeon/generate";
+import { GIMMICK_MESSAGES, pickFloorGimmick } from "./dungeon/gimmicks";
 import {
   type IdSource,
   choosePlayerStart,
@@ -125,6 +127,9 @@ export class Game {
   /** 連れている仲間。フロアをまたいで付いてくるので、floor とは別に持つ */
   allies: Actor[] = [];
 
+  /** 直前のフロアに乗っていたギミック。連続で同じものを選ばないための記憶 */
+  private previousGimmick?: FloorGimmickKind;
+
   private actorIdCounter = 1;
   private itemUidCounter = 1;
   private barrelIdCounter = 1;
@@ -153,7 +158,9 @@ export class Game {
 
   private enterFloor(depth: number): void {
     this.depth = depth;
-    this.floor = generateFloor(this.rng, { depth });
+    const gimmick = pickFloorGimmick(this.rng, depth, this.previousGimmick);
+    this.previousGimmick = gimmick;
+    this.floor = generateFloor(this.rng, { depth, gimmick });
     const start = choosePlayerStart(this.rng, this.floor);
     this.player.pos = start;
     this.floor.actors.push(this.player);
@@ -198,6 +205,9 @@ export class Game {
     this.enterFloor(this.depth + 1);
     events.push({ type: "descend", depth: this.depth });
     events.push({ type: "message", text: `地下${this.depth}階に降りた。` });
+    if (this.floor.gimmick) {
+      events.push({ type: "message", text: GIMMICK_MESSAGES[this.floor.gimmick] });
+    }
   }
 
   // ------------------------------------------------------------ コマンド処理
@@ -941,7 +951,8 @@ export class Game {
   private tickHunger(events: GameEvent[]): void {
     const player = this.player;
     const before = player.satiety;
-    player.satiety = Math.max(0, player.satiety - SATIETY_PER_TURN);
+    const rate = this.floor.gimmick === "feast" ? SATIETY_PER_TURN / 2 : SATIETY_PER_TURN;
+    player.satiety = Math.max(0, player.satiety - rate);
 
     if (before > 20 && player.satiety <= 20) {
       events.push({ type: "hungerWarning", level: "low" });

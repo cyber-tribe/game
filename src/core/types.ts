@@ -205,6 +205,27 @@ export const BARREL_NAMES: Record<BarrelKind, string> = {
   caught: "モンスター入りのタル",
 };
 
+// ---------------------------------------------------------------- フロアギミック
+
+/**
+ * そのダイブの、特定の1フロアだけに乗る軽いランダム性。
+ * `design/regions.md` の地方固有ギミック(地方ごとに固定)とは異なり、
+ * フロア生成のたびに抽選される。plan/floor-gimmicks.md 参照。
+ */
+export type FloorGimmickKind =
+  /** くらやみの階: 視界範囲が縮む */
+  | "darkness"
+  /** ざわめきの階: モンスターが最初から aware で配置される */
+  | "alert"
+  /** おちあなの階: 落とし穴トラップの出現率が上がる */
+  | "pitfall"
+  /** ほうふくの階: 満腹度の減りが半分になる */
+  | "feast"
+  /** 山分けの階: アイテム・タルもモンスターも多い */
+  | "windfall"
+  /** しじまの階: 野生モンスターが湧かない代わりに階段が分かりにくい */
+  | "silence";
+
 // ---------------------------------------------------------------- フロア
 
 export interface FloorState {
@@ -218,6 +239,8 @@ export interface FloorState {
   items: GroundItem[];
   traps: Trap[];
   barrels: Barrel[];
+  /** そのフロアに乗っているギミック。無ければ「いつも通りの階」 */
+  gimmick?: FloorGimmickKind;
 }
 
 export function tileAt(floor: FloorState, p: Vec2): Tile | undefined {

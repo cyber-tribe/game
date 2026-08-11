@@ -4,6 +4,7 @@ import {
   TILE_CORRIDOR,
   TILE_ROOM,
   TILE_WALL,
+  type FloorGimmickKind,
   type FloorState,
   type Room,
   type Tile,
@@ -15,6 +16,8 @@ export interface GenerateOptions {
   depth: number;
   width?: number;
   height?: number;
+  /** そのフロアに乗るギミック。plan/floor-gimmicks.md 参照 */
+  gimmick?: FloorGimmickKind;
 }
 
 const DEFAULT_WIDTH = 48;
@@ -54,13 +57,19 @@ export function generateFloor(rng: Rng, opts: GenerateOptions): FloorState {
   // 検証に落ちたら作り直す。区画分割方式なら普通は一発で通るが、
   // 乱数の巡り合わせで妙な形になる可能性を潰しておく。
   for (let attempt = 0; attempt < 50; attempt++) {
-    const floor = tryGenerate(rng, opts.depth, width, height);
+    const floor = tryGenerate(rng, opts.depth, width, height, opts.gimmick);
     if (floor && validate(floor)) return floor;
   }
   throw new Error(`フロア生成に失敗しました (depth=${opts.depth})`);
 }
 
-function tryGenerate(rng: Rng, depth: number, width: number, height: number): FloorState | null {
+function tryGenerate(
+  rng: Rng,
+  depth: number,
+  width: number,
+  height: number,
+  gimmick?: FloorGimmickKind,
+): FloorState | null {
   const tiles: Tile[] = new Array(width * height);
   for (let i = 0; i < tiles.length; i++) {
     tiles[i] = { kind: TILE_WALL, roomId: -1, explored: false, visible: false };
@@ -103,7 +112,7 @@ function tryGenerate(rng: Rng, depth: number, width: number, height: number): Fl
     else carveVertical(rng, tiles, width, roomA, roomB);
   }
 
-  const stairsRoom = rng.pick(rooms);
+  const stairsRoom = chooseStairsRoom(rng, sections, rooms, sectionRoom, chosen, gimmick);
   const stairs = randomTileInRoom(rng, stairsRoom);
 
   return {
@@ -117,6 +126,7 @@ function tryGenerate(rng: Rng, depth: number, width: number, height: number): Fl
     items: [],
     traps: [],
     barrels: [],
+    gimmick,
   };
 }
 
@@ -190,6 +200,39 @@ function spanningTree(
     tree.push(edge);
   }
   return tree;
+}
+
+/**
+ * 階段を置く部屋を選ぶ。
+ *
+ * 通常は完全ランダム。「しじまの階」ギミックのときだけ、区画の隣接グラフ
+ * (通路として繋がっている辺の数=次数)が最小の区画を優先する。繋がりが
+ * 少ない区画ほど素通りしにくく、初期状態では階段が視界に入りにくい
+ * 配置になる(plan/floor-gimmicks.md「しじまの階」)。
+ */
+function chooseStairsRoom(
+  rng: Rng,
+  sections: Section[],
+  rooms: Room[],
+  sectionRoom: Map<string, Room>,
+  chosen: Array<[Section, Section]>,
+  gimmick: FloorGimmickKind | undefined,
+): Room {
+  if (gimmick !== "silence") return rng.pick(rooms);
+
+  const key = (s: Section) => `${s.col},${s.row}`;
+  const degree = new Map<string, number>();
+  for (const sec of sections) degree.set(key(sec), 0);
+  for (const [a, b] of chosen) {
+    degree.set(key(a), (degree.get(key(a)) ?? 0) + 1);
+    degree.set(key(b), (degree.get(key(b)) ?? 0) + 1);
+  }
+
+  const minDegree = Math.min(...sections.map((sec) => degree.get(key(sec)) ?? 0));
+  const candidates = sections
+    .filter((sec) => (degree.get(key(sec)) ?? 0) === minDegree)
+    .map((sec) => sectionRoom.get(key(sec))!);
+  return rng.pick(candidates);
 }
 
 function digCorridor(tiles: Tile[], width: number, p: Vec2): void {
