@@ -1,5 +1,28 @@
 # ダイブ中オートセーブ(クラッシュ対策)
 
+> **実装済み。** `src/core/rng.ts`(`getState`/`fromState`)・`src/game.ts`
+> (`RunSnapshot` 型・`toSnapshot()`・コンストラクタの `resume` オプション)・
+> `src/save.ts`(`saveRunSnapshot`/`loadRunSnapshot`/`clearRunSnapshot`)・
+> `src/main.ts`(起動時の復帰・ターンごとの保存・正規終了時のクリア)。
+> テストは `tests/mid-dive-autosave.test.ts`。
+>
+> 実装時の追加・簡略化:
+> - 仕様書の `RunSnapshot` には無いが、`actorIdCounter`・`itemUidCounter`・
+>   `barrelIdCounter` を追加した。無いと復帰後に新規発行するidが
+>   既存のアクター・アイテムと衝突しうるため。
+> - `previousGimmick`・`monsterHouseWarned`・`firstStrikeAvailable` の
+>   ような演出寄りの内部状態はスナップショットに含めていない(復帰時に
+>   初期値へ戻っても、フロアギミックの連続回避が1回だけ緩む・
+>   モンスターハウスの気配メッセージが再度出る・双樽鉤の初撃必殺が
+>   復活する、程度の軽微な影響に留まるため)。
+> - JSON化を経由すると `player`/`allies` と `floor.actors` 内の対応する
+>   要素が別オブジェクトになってしまう問題があり、復帰時に id を頼りに
+>   参照を統一し直す処理を追加した(仕様書には無い実装上の注意点)。
+> - セーブ枠(`design/ui-flow.md`)が未実装のため、「セーブ枠に紐づく
+>   キー」ではなく単一キー(`garudo-dungeon/v1/run-snapshot`)で近似した。
+> - タイトル画面(`design/ui-flow.md`)も未実装のため、「つづきから」の
+>   選択は無く、起動時に有効なスナップショットがあれば無条件に復帰する。
+
 現状、自動保存されているのは拠点の状態(倉庫・所持金など、`src/save.ts`
 の `SaveData`)だけで、**ダイブの途中経過(今どの階にいるか、HP、
 持ち物、仲間の状態)は保存されていない**。`design/playtime-estimate.md`

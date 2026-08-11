@@ -125,9 +125,35 @@ export interface RunOptions {
   maxDepth?: number;
   /** 出発する階。既知のめざめの階段から選べる。省略時は1階 */
   startDepth?: number;
+  /**
+   * ダイブ中オートセーブ(plan/mid-dive-autosave.md)からの復帰。
+   * 指定した場合、他のオプションは無視してスナップショットの状態をそのまま復元する。
+   */
+  resume?: RunSnapshot;
 }
 
 export type RunStatus = "playing" | "dead" | "cleared";
+
+/**
+ * ダイブ中オートセーブのスナップショット。ターン解決のたびに書き出し、
+ * 復帰した瞬間に消費される「1回限りのクラッシュ対策」(plan/mid-dive-autosave.md)。
+ * `previousGimmick`・`monsterHouseWarned`・`firstStrikeAvailable` のような
+ * 演出寄りの内部状態は含めない(復帰時は初期値からやり直しても実害が小さいため)。
+ */
+export interface RunSnapshot {
+  rngState: number;
+  maxDepth: number;
+  depth: number;
+  floor: FloorState;
+  player: PlayerState;
+  allies: Actor[];
+  status: RunStatus;
+  turnCount: number;
+  endReason: string;
+  actorIdCounter: number;
+  itemUidCounter: number;
+  barrelIdCounter: number;
+}
 
 /** 満腹度がこのターン数ぶん減る。100 / 0.2 = 500ターンもつ */
 const SATIETY_PER_TURN = 0.2;
@@ -183,13 +209,42 @@ export class Game {
   private readonly ids: IdSource;
 
   constructor(opts: RunOptions) {
-    this.rng = new Rng(opts.seed);
-    this.maxDepth = opts.maxDepth ?? 10;
     this.ids = {
       nextActorId: () => ++this.actorIdCounter,
       nextItemUid: () => ++this.itemUidCounter,
       nextBarrelId: () => ++this.barrelIdCounter,
     };
+
+    if (opts.resume) {
+      const s = opts.resume;
+      this.rng = Rng.fromState(s.rngState);
+      this.maxDepth = s.maxDepth;
+      this.actorIdCounter = s.actorIdCounter;
+      this.itemUidCounter = s.itemUidCounter;
+      this.barrelIdCounter = s.barrelIdCounter;
+      this.player = s.player;
+      this.depth = s.depth;
+      this.floor = s.floor;
+      this.allies = s.allies;
+      this.status = s.status;
+      this.turnCount = s.turnCount;
+      this.endReason = s.endReason;
+
+      // JSON化を経由すると、本来は同じオブジェクトを指していたはずの
+      // player/allies と floor.actors 内の対応する要素が別オブジェクトに
+      // なってしまう。以後のコードは「floor.actors 内の当人 === player/allies
+      // の要素」という前提で書かれているため、id を頼りに参照を統一し直す
+      const canonical = new Map<number, Actor>();
+      canonical.set(this.player.id, this.player);
+      for (const ally of this.allies) canonical.set(ally.id, ally);
+      this.floor.actors = this.floor.actors.map((a) => canonical.get(a.id) ?? a);
+
+      updateVisibility(this.floor, this.player.pos);
+      return;
+    }
+
+    this.rng = new Rng(opts.seed);
+    this.maxDepth = opts.maxDepth ?? 10;
     this.player = createPlayer(1);
 
     for (const item of opts.startingItems ?? []) {
@@ -200,6 +255,24 @@ export class Game {
 
     const startDepth = Math.min(Math.max(1, Math.floor(opts.startDepth ?? 1)), this.maxDepth);
     this.enterFloor(startDepth);
+  }
+
+  /** ダイブ中オートセーブ用のスナップショットを書き出す */
+  toSnapshot(): RunSnapshot {
+    return {
+      rngState: this.rng.getState(),
+      maxDepth: this.maxDepth,
+      depth: this.depth,
+      floor: this.floor,
+      player: this.player,
+      allies: this.allies,
+      status: this.status,
+      turnCount: this.turnCount,
+      endReason: this.endReason,
+      actorIdCounter: this.actorIdCounter,
+      itemUidCounter: this.itemUidCounter,
+      barrelIdCounter: this.barrelIdCounter,
+    };
   }
 
   // ------------------------------------------------------------ フロア遷移
