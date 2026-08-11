@@ -1,0 +1,76 @@
+name: モデルのビルド
+
+# Blender (bpy) は約374MBのダウンロードと1GB近い展開を伴うので、毎回の CI では回さない。
+# モデル制作スクリプトに手を入れたときと、手動で叩いたときだけ走らせる。
+#
+# ci.yml と同じく、push は main だけに絞ってある。ブランチ push と PR の両方を拾うと、
+# 同じコミットに対して同じジョブが二重に走ってしまう。
+on:
+  push:
+    branches: [main]
+    paths:
+      - "tools/models/**"
+      - "tools/build_models.py"
+      - ".github/workflows/models.yml"
+  pull_request:
+    paths:
+      - "tools/models/**"
+      - "tools/build_models.py"
+      - ".github/workflows/models.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-models:
+    name: スクリプトからモデルを作り直せるか
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      # bpy 5.0 の wheel は CPython 3.11 専用。他のバージョンでは入らない。
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: コミット済みの .glb を控えておく
+        run: cp -r public/models /tmp/committed-models
+
+      - name: bpy を入れる
+        run: |
+          python -m pip install --upgrade pip
+          pip install bpy
+
+      # プレビューのレンダリングは飛ばす。造形の良し悪しは人が見て判断するもので、
+      # ここで確かめたいのは「スクリプトが最後まで走って .glb が出るか」だけ。
+      - name: 全モデルをビルド
+        run: python tools/build_models.py --no-preview
+
+      # 作り直した .glb を、コミット済みのものと同じ基準で検査する。
+      # スクリプトを壊したまま気づかない、という事態を防ぐ。
+      - name: できたモデルを検査
+        run: npm run test -- tests/models.test.ts
+
+      # コミット済みのものと突き合わせる。バイト単位では比較できない
+      # (Blender の出力は同じマシン・同じ入力でも実行ごとに揺れる)ので、
+      # 頂点数・クリップ名といった構造だけを比べる。詳しくは compare_models.mjs を参照。
+      - name: コミット済みと食い違っていないか
+        run: node tools/compare_models.mjs /tmp/committed-models public/models
+
+      - name: 生成物を残す
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: models
+          path: public/models/
+          retention-days: 7

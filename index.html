@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>少年ガルドと迷いの洞窟</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23131a2e'/%3E%3Ccircle cx='16' cy='12' r='7' fill='%23e8c04a'/%3E%3Crect x='9' y='17' width='14' height='11' rx='3' fill='%23a8442a'/%3E%3C/svg%3E"
+    />
+    <style>
+      :root {
+        --ink: #e8ecff;
+        --dim: #93a0c8;
+        --panel: rgba(10, 13, 24, 0.82);
+        --edge: rgba(126, 148, 210, 0.28);
+        --ok: #58c98a;
+        --warn: #e6b455;
+        --bad: #e05f6b;
+      }
+      * { box-sizing: border-box; }
+      html, body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #05060c;
+        color: var(--ink);
+        font-family: "Hiragino Sans", "Noto Sans JP", "Yu Gothic", system-ui, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      #app { position: relative; width: 100vw; height: 100vh; }
+      #scene { display: block; width: 100%; height: 100%; }
+
+      #ui { position: absolute; inset: 0; pointer-events: none; }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--edge);
+        border-radius: 8px;
+        backdrop-filter: blur(6px);
+      }
+
+      /* ------------------------------------------------ ステータス */
+      #status {
+        position: absolute;
+        top: 14px; left: 14px;
+        padding: 10px 14px;
+        min-width: 232px;
+      }
+      #status .row {
+        display: flex; align-items: baseline; justify-content: space-between;
+        gap: 12px;
+      }
+      #hud-depth { font-size: 15px; font-weight: 700; letter-spacing: 0.06em; }
+      #hud-level { font-size: 13px; color: var(--dim); }
+      .bar {
+        position: relative;
+        height: 11px;
+        margin-top: 6px;
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.09);
+        overflow: hidden;
+      }
+      .bar > i {
+        display: block; height: 100%; width: 100%;
+        border-radius: 6px;
+        transition: width 0.18s ease-out;
+      }
+      #hud-hp-fill { background: linear-gradient(90deg, #4fd18a, #7ee6a8); }
+      #hud-hp-fill[data-level="warn"] { background: linear-gradient(90deg, #e0b755, #f2d27a); }
+      #hud-hp-fill[data-level="danger"] { background: linear-gradient(90deg, #e05f6b, #f38b93); }
+      #hud-satiety-fill { background: linear-gradient(90deg, #c99a5a, #e2bd85); }
+      #hud-satiety-fill[data-level="warn"] { background: linear-gradient(90deg, #e0a049, #f0c073); }
+      #hud-satiety-fill[data-level="danger"] { background: linear-gradient(90deg, #d6544f, #ef8a84); }
+      .label {
+        display: flex; justify-content: space-between;
+        font-size: 11px; color: var(--dim); margin-top: 9px;
+        letter-spacing: 0.08em;
+      }
+      #hud-exp { font-size: 11px; color: var(--dim); margin-top: 8px; }
+      #hud-status {
+        margin-top: 7px; font-size: 12px; color: #ffb0bb; font-weight: 600;
+      }
+
+      #hud-carry {
+        margin-top: 8px;
+        padding: 4px 8px;
+        border-radius: 5px;
+        font-size: 12px;
+        font-weight: 600;
+        background: rgba(200, 140, 70, 0.18);
+        border: 1px solid rgba(200, 140, 70, 0.45);
+        color: #e8bc86;
+      }
+      #hud-carry[data-kind="bomb"] {
+        background: rgba(224, 95, 107, 0.18);
+        border-color: rgba(224, 95, 107, 0.5);
+        color: #ff9ea6;
+      }
+      #hud-carry[data-kind="caught"] {
+        background: rgba(90, 200, 255, 0.16);
+        border-color: rgba(90, 200, 255, 0.45);
+        color: #8fdcff;
+      }
+
+      /* ------------------------------------------------ なかま */
+      #allies {
+        position: absolute;
+        top: 232px; left: 14px;
+        width: 232px;
+        padding: 9px 13px;
+        display: none;
+      }
+      .allies-title {
+        font-size: 11px; letter-spacing: 0.1em; color: var(--dim);
+        padding-bottom: 6px; margin-bottom: 6px;
+        border-bottom: 1px solid var(--edge);
+      }
+      .ally-row {
+        display: flex; justify-content: space-between; align-items: baseline;
+        font-size: 12.5px; margin-top: 6px;
+      }
+      .ally-name { color: #c9b4ff; font-weight: 600; }
+      .ally-hp { font-size: 11px; color: var(--dim); }
+      .ally-bar {
+        height: 6px; margin-top: 3px; border-radius: 4px;
+        background: rgba(255, 255, 255, 0.09); overflow: hidden;
+      }
+      .ally-bar > i {
+        display: block; height: 100%; border-radius: 4px;
+        background: linear-gradient(90deg, #8a6ce8, #b39cff);
+        transition: width 0.18s ease-out;
+      }
+      .ally-bar > i[data-level="warn"] { background: linear-gradient(90deg, #e0b755, #f2d27a); }
+      .ally-bar > i[data-level="danger"] { background: linear-gradient(90deg, #e05f6b, #f38b93); }
+
+      /* ------------------------------------------------ ミニマップ */
+      #minimap-wrap { position: absolute; top: 14px; right: 14px; padding: 8px; }
+      #minimap { display: block; image-rendering: pixelated; }
+
+      /* ------------------------------------------------ ログ */
+      #log {
+        position: absolute;
+        left: 14px; bottom: 14px;
+        max-width: 46vw;
+        padding: 10px 14px;
+        font-size: 13px;
+        line-height: 1.65;
+      }
+
+      /* ------------------------------------------------ 操作説明 */
+      #help {
+        position: absolute;
+        right: 14px; bottom: 14px;
+        padding: 9px 13px;
+        font-size: 11px;
+        color: var(--dim);
+        line-height: 1.75;
+        text-align: right;
+      }
+      #help b { color: var(--ink); font-weight: 600; }
+
+      /* ------------------------------------------------ ダメージ表示 */
+      #fx { position: absolute; inset: 0; overflow: hidden; }
+      .damage {
+        position: absolute;
+        transform: translate(-50%, -50%);
+        font-size: 20px;
+        font-weight: 800;
+        color: #ffd9dd;
+        text-shadow: 0 2px 6px rgba(0, 0, 0, 0.9), 0 0 2px #000;
+        animation: float-up 0.9s ease-out forwards;
+        pointer-events: none;
+      }
+      .damage.critical { font-size: 27px; color: #ffe27a; }
+      .damage.heal { color: #96f0b8; }
+      @keyframes float-up {
+        0% { opacity: 0; transform: translate(-50%, -30%) scale(0.7); }
+        18% { opacity: 1; transform: translate(-50%, -60%) scale(1.12); }
+        100% { opacity: 0; transform: translate(-50%, -160%) scale(1); }
+      }
+
+      /* ------------------------------------------------ メニュー */
+      #menu {
+        position: absolute;
+        top: 50%; left: 50%;
+        transform: translate(-50%, -50%);
+        width: 340px;
+        max-height: 74vh;
+        overflow-y: auto;
+        padding: 14px 16px;
+        pointer-events: auto;
+        background: var(--panel);
+        border: 1px solid var(--edge);
+        border-radius: 10px;
+        backdrop-filter: blur(8px);
+      }
+      .menu-title {
+        font-size: 13px; font-weight: 700; letter-spacing: 0.1em;
+        color: var(--dim); padding-bottom: 8px;
+        border-bottom: 1px solid var(--edge);
+      }
+      .menu-list, .menu-sub { list-style: none; margin: 8px 0 0; padding: 0; }
+      .menu-list li, .menu-sub li {
+        padding: 5px 10px; border-radius: 5px; font-size: 14px;
+      }
+      .menu-list li.selected, .menu-sub li.selected {
+        background: rgba(127, 190, 255, 0.20);
+        box-shadow: inset 2px 0 0 #7fd6ff;
+      }
+      .menu-sub {
+        margin-top: 10px; padding-top: 8px;
+        border-top: 1px solid var(--edge);
+      }
+      .menu-desc {
+        margin-top: 9px; font-size: 12px; color: var(--dim); line-height: 1.6;
+      }
+      .menu-empty { margin-top: 12px; font-size: 13px; color: var(--dim); }
+      .menu-hint {
+        margin-top: 11px; font-size: 11px; color: #6b789e; text-align: right;
+      }
+
+      /* ------------------------------------------------ 拠点 */
+      #town {
+        position: absolute; inset: 0;
+        display: none;
+        align-items: center; justify-content: center;
+        background: rgba(4, 5, 12, 0.88);
+        pointer-events: auto;
+      }
+      .town-box {
+        width: min(660px, 92vw);
+        padding: 26px 32px 22px;
+        background: var(--panel);
+        border: 1px solid var(--edge);
+        border-radius: 12px;
+      }
+      .town-box h2 {
+        margin: 0 0 6px; font-size: 22px; letter-spacing: 0.12em; color: #7fd6ff;
+      }
+      .town-stats { margin: 0 0 12px; font-size: 12px; color: var(--dim); }
+      .town-lead {
+        margin: 0 0 18px; font-size: 12.5px; color: #b6c1e4; line-height: 1.75;
+      }
+      .town-columns { display: flex; gap: 18px; }
+      .town-col {
+        flex: 1;
+        min-height: 210px;
+        padding: 10px 12px;
+        border: 1px solid var(--edge);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.03);
+      }
+      .town-col.active { border-color: #7fd6ff; box-shadow: 0 0 0 1px rgba(127, 214, 255, 0.35); }
+      .town-col-title {
+        font-size: 12px; color: var(--dim); letter-spacing: 0.08em;
+        padding-bottom: 7px; border-bottom: 1px solid var(--edge); margin-bottom: 7px;
+      }
+      .town-col ul { list-style: none; margin: 0; padding: 0; }
+      .town-col li { padding: 4px 8px; border-radius: 5px; font-size: 13.5px; }
+      .town-col li.empty { color: #5c6788; font-size: 12px; }
+      .town-col li.selected {
+        background: rgba(127, 190, 255, 0.20);
+        box-shadow: inset 2px 0 0 #7fd6ff;
+      }
+      .town-desc {
+        margin: 14px 0 0; min-height: 20px; font-size: 12px; color: var(--dim);
+      }
+      .town-hint { margin: 10px 0 0; font-size: 11px; color: #6b789e; text-align: right; }
+
+      /* ------------------------------------------------ 全画面表示 */
+      #overlay {
+        position: absolute; inset: 0;
+        display: none;
+        align-items: center; justify-content: center;
+        background: rgba(3, 4, 10, 0.82);
+        pointer-events: auto;
+      }
+      .overlay-box { text-align: center; padding: 30px 44px; }
+      .overlay-box h2 {
+        margin: 0 0 12px; font-size: 30px; letter-spacing: 0.1em; color: #7fd6ff;
+      }
+      .overlay-box p { margin: 6px 0; font-size: 15px; }
+      .overlay-box .hint { margin-top: 20px; font-size: 12px; color: var(--dim); }
+
+      #loading {
+        position: absolute; inset: 0;
+        display: flex; align-items: center; justify-content: center;
+        flex-direction: column; gap: 10px;
+        background: #05060c; z-index: 10;
+      }
+      #loading h1 {
+        font-size: 20px; letter-spacing: 0.26em; font-weight: 600; color: #7fd6ff; margin: 0;
+      }
+      #loading p { font-size: 12px; color: var(--dim); margin: 0; }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="scene"></canvas>
+
+      <div id="ui">
+        <div id="status" class="panel">
+          <div class="row">
+            <span id="hud-depth">地下 1 階</span>
+            <span id="hud-level">Lv 1</span>
+          </div>
+          <div class="label"><span>HP</span><span id="hud-hp-text">25 / 25</span></div>
+          <div class="bar"><i id="hud-hp-fill"></i></div>
+          <div class="label"><span>まんぷく</span><span id="hud-satiety-text">100</span></div>
+          <div class="bar"><i id="hud-satiety-fill"></i></div>
+          <div id="hud-exp">次のLvまで 10</div>
+          <div id="hud-status"></div>
+          <div id="hud-carry"></div>
+        </div>
+
+        <div id="allies" class="panel"></div>
+
+        <div id="minimap-wrap" class="panel">
+          <canvas id="minimap" width="180" height="140"></canvas>
+        </div>
+
+        <div id="log" class="panel"></div>
+
+        <div id="help" class="panel">
+          <b>矢印 / WASD / テンキー</b> 移動・攻撃<br />
+          <b>Shift + 方向</b> 向きだけ変える<br />
+          <b>Space</b> 拾う・階段をおりる &nbsp; <b>.</b> 足踏み<br />
+          <b>F</b> タルを持つ / 置く &nbsp; <b>G</b> タルを投げる<br />
+          <b>I</b> もちもの &nbsp; <b>Q / E</b> 視点回転 &nbsp; <b>± </b>ズーム
+        </div>
+
+        <div id="fx"></div>
+        <div id="menu"></div>
+        <div id="town"></div>
+        <div id="overlay"></div>
+      </div>
+
+      <div id="loading">
+        <h1>少年ガルドと迷いの洞窟</h1>
+        <p>モデルを読み込んでいます…</p>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

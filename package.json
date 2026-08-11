@@ -1,0 +1,30 @@
+{
+  "name": "garudo-dungeon",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "少年ガルドと迷いの洞窟 — 不思議のダンジョン型 3D ローグライク",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "models": "tools/venv/bin/python tools/build_models.py",
+    "playtest": "node tools/playtest.mjs"
+  },
+  "dependencies": {
+    "three": "^0.185.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "@types/three": "^0.185.4",
+    "typescript": "^5.9.3",
+    "vite": "^8.2.1",
+    "vitest": "^4.1.10"
+  },
+  "engines": {
+    "node": ">=22.12"
+  }
+}
