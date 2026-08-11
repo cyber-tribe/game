@@ -11,7 +11,9 @@ export type ActionKey =
   | "zoomIn"
   | "zoomOut"
   | "liftBarrel"
-  | "throwBarrel";
+  | "throwBarrel"
+  /** 仲間への指示(構え)メニューを開く */
+  | "orders";
 
 /** テンキーはそのまま8方向に対応する。5は足踏み */
 const NUMPAD_DIRS: Record<string, Dir> = {
@@ -47,6 +49,7 @@ const ACTION_KEYS: Record<string, ActionKey> = {
   Minus: "zoomOut",
   KeyF: "liftBarrel",
   KeyG: "throwBarrel",
+  KeyT: "orders",
 };
 
 /**

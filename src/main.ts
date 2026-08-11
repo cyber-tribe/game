@@ -11,6 +11,7 @@ import { Minimap } from "./view/minimap";
 import { Renderer } from "./view/renderer";
 import { Stage } from "./view/stage";
 import { InventoryMenu } from "./ui/menu";
+import { StanceMenu } from "./ui/stance";
 import { TownScreen } from "./ui/town";
 import { loadSave, recordRun, saveData, type SaveData, type StoredItem } from "./save";
 import type { Item } from "./core/types";
@@ -25,6 +26,7 @@ class App {
   private readonly minimap: Minimap;
   private readonly input = new Input();
   private readonly menu: InventoryMenu;
+  private readonly stanceMenu: StanceMenu;
   private readonly town: TownScreen;
   private readonly canvas: HTMLCanvasElement;
 
@@ -43,10 +45,12 @@ class App {
     this.hud = new Hud(document.querySelector<HTMLElement>("#ui")!);
     this.minimap = new Minimap(document.querySelector<HTMLCanvasElement>("#minimap")!);
     this.menu = new InventoryMenu(document.querySelector<HTMLElement>("#menu")!);
+    this.stanceMenu = new StanceMenu(document.querySelector<HTMLElement>("#stance")!);
     this.town = new TownScreen(document.querySelector<HTMLElement>("#town")!);
     this.save = loadSave();
 
-    this.input.onKey = (code) => this.town.handleKey(code) || this.menu.handleKey(code);
+    this.input.onKey = (code) =>
+      this.town.handleKey(code) || this.menu.handleKey(code) || this.stanceMenu.handleKey(code);
   }
 
   async start(): Promise<void> {
@@ -82,6 +86,7 @@ class App {
     this.ended = false;
     this.lock = 0;
     this.menu.hide();
+    this.stanceMenu.hide();
     this.hud.hideOverlay();
     this.stage.enterFloor(this.game.floor);
     this.renderer.setFocus(this.game.player.pos, true);
@@ -122,13 +127,21 @@ class App {
         action = this.input.takeAction();
         continue;
       }
-      if (!this.ended && !this.menu.isOpen && !this.town.isOpen && this.lock <= 0) {
+      if (
+        !this.ended &&
+        !this.menu.isOpen &&
+        !this.stanceMenu.isOpen &&
+        !this.town.isOpen &&
+        this.lock <= 0
+      ) {
         this.handleAction(action);
       }
       action = this.input.takeAction();
     }
 
-    if (this.ended || this.menu.isOpen || this.town.isOpen || this.lock > 0) return;
+    if (this.ended || this.menu.isOpen || this.stanceMenu.isOpen || this.town.isOpen || this.lock > 0) {
+      return;
+    }
 
     const dir = this.input.direction();
     if (dir === null) return;
@@ -178,6 +191,13 @@ class App {
         break;
       case "throwBarrel":
         this.submit({ type: "throwBarrel" });
+        break;
+      case "orders":
+        if (this.game.allyList.length === 0) {
+          this.hud.log("指示できる仲間がいない。");
+        } else {
+          this.stanceMenu.show(this.game.allyList, (cmd) => this.submit(cmd));
+        }
         break;
       case "confirm":
         // 足元の状況に応じて、階段を降りるか拾うかを選ぶ

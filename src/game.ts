@@ -11,10 +11,12 @@ import {
 } from "./core/grid";
 import type { GameEvent } from "./core/events";
 import {
+  ALLY_STANCE_NAMES,
   BARREL_NAMES,
   STATUS_CONFUSE,
   STATUS_SLEEP,
   type Actor,
+  type AllyStance,
   type Barrel,
   type BarrelKind,
   type FloorGimmickKind,
@@ -76,7 +78,9 @@ export type Command =
   /** 正面か足元のタルを持ち上げる。抱えていれば下ろす */
   | { type: "liftBarrel" }
   /** 抱えているタルを向いている方向へ投げる */
-  | { type: "throwBarrel" };
+  | { type: "throwBarrel" }
+  /** 仲間への指示(構え)。"all" なら連れている全員に一括で出す */
+  | { type: "setStance"; allyId: number | "all"; stance: AllyStance };
 
 export interface RunOptions {
   seed: number;
@@ -293,7 +297,34 @@ export class Game {
 
       case "throwBarrel":
         return this.throwCarriedBarrel(events);
+
+      case "setStance":
+        return this.setAllyStance(cmd.allyId, cmd.stance, events);
     }
+  }
+
+  // ------------------------------------------------------------ 仲間への指示
+
+  /** 構えを設定する。指示そのものはターンを消費しない */
+  private setAllyStance(
+    allyId: number | "all",
+    stance: AllyStance,
+    events: GameEvent[],
+  ): boolean {
+    const targets = allyId === "all" ? this.allies : this.allies.filter((a) => a.id === allyId);
+    if (targets.length === 0) return false;
+
+    for (const ally of targets) {
+      ally.stance = stance;
+      ally.holdPos = stance === "hold" ? { ...ally.pos } : undefined;
+    }
+
+    const label = allyId === "all" ? "全員" : targets[0]!.name;
+    events.push({
+      type: "message",
+      text: `${label}に「${ALLY_STANCE_NAMES[stance]}」を指示した。`,
+    });
+    return false;
   }
 
   // ------------------------------------------------------------ タル

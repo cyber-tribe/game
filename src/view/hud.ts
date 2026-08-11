@@ -1,7 +1,14 @@
 import * as THREE from "three";
 import type { DamageFx } from "./stage";
 import { MAX_SATIETY, type PlayerState, expToNext } from "../entities/player";
-import { BARREL_NAMES, STATUS_CONFUSE, STATUS_SLEEP, type Actor, hasStatus } from "../core/types";
+import {
+  ALLY_STANCE_NAMES,
+  BARREL_NAMES,
+  STATUS_CONFUSE,
+  STATUS_SLEEP,
+  type Actor,
+  hasStatus,
+} from "../core/types";
 
 const MAX_LOG_LINES = 6;
 
@@ -110,8 +117,12 @@ export class Hud {
       fill.dataset.level = ratio < 0.3 ? "danger" : ratio < 0.6 ? "warn" : "ok";
       bar.appendChild(fill);
 
+      const stance = document.createElement("div");
+      stance.className = "ally-stance";
+      stance.textContent = `構え: ${ALLY_STANCE_NAMES[ally.stance ?? "free"]}`;
+
       row.append(name, hp);
-      this.alliesEl.append(row, bar);
+      this.alliesEl.append(row, bar, stance);
     }
   }
 

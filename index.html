@@ -133,6 +133,7 @@
       }
       .ally-bar > i[data-level="warn"] { background: linear-gradient(90deg, #e0b755, #f2d27a); }
       .ally-bar > i[data-level="danger"] { background: linear-gradient(90deg, #e05f6b, #f38b93); }
+      .ally-stance { font-size: 10.5px; color: #7fd6ff; margin-top: 2px; }
 
       /* ------------------------------------------------ ミニマップ */
       #minimap-wrap { position: absolute; top: 14px; right: 14px; padding: 8px; }
@@ -181,7 +182,7 @@
       }
 
       /* ------------------------------------------------ メニュー */
-      #menu {
+      #menu, #stance {
         position: absolute;
         top: 50%; left: 50%;
         transform: translate(-50%, -50%);
@@ -327,11 +328,13 @@
           <b>Shift + 方向</b> 向きだけ変える<br />
           <b>Space</b> 拾う・階段をおりる &nbsp; <b>.</b> 足踏み<br />
           <b>F</b> タルを持つ / 置く &nbsp; <b>G</b> タルを投げる<br />
-          <b>I</b> もちもの &nbsp; <b>Q / E</b> 視点回転 &nbsp; <b>± </b>ズーム
+          <b>I</b> もちもの &nbsp; <b>T</b> 仲間に指示<br />
+          <b>Q / E</b> 視点回転 &nbsp; <b>± </b>ズーム
         </div>
 
         <div id="fx"></div>
         <div id="menu"></div>
+        <div id="stance"></div>
         <div id="town"></div>
         <div id="overlay"></div>
       </div>
