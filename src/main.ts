@@ -13,7 +13,16 @@ import { Stage } from "./view/stage";
 import { InventoryMenu } from "./ui/menu";
 import { StanceMenu } from "./ui/stance";
 import { TownScreen } from "./ui/town";
-import { addKnownCheckpoint, loadSave, recordRun, saveData, type SaveData, type StoredItem } from "./save";
+import {
+  addKnownCheckpoint,
+  loadSave,
+  markTutorialTipSeen,
+  recordRun,
+  saveData,
+  type SaveData,
+  type StoredItem,
+} from "./save";
+import { TUTORIAL_TIPS, type TutorialTipId } from "./core/tutorial";
 import type { Item } from "./core/types";
 
 const MAX_DEPTH = 10;
@@ -95,6 +104,15 @@ class App {
     this.minimap.draw(this.game.floor, this.game.player);
     this.hud.log(`地下${this.game.depth}階。最深記録は ${this.save.deepest} 階。`);
     this.hud.log("洞窟に降りた。階段をさがそう。");
+    // 「移動と攻撃」だけは特定のGameEventに紐づかないので、ここで直接出す
+    this.showTutorialTip("moveAndAttack");
+  }
+
+  /** その場方式のチュートリアルヒント。まだ見ていなければ表示して既読にする */
+  private showTutorialTip(id: TutorialTipId): void {
+    if (this.save.seenTutorialTips.includes(id)) return;
+    this.save = markTutorialTipSeen(this.save, id);
+    this.hud.log(TUTORIAL_TIPS[id]);
   }
 
   // ------------------------------------------------------------ ループ
@@ -234,6 +252,7 @@ class App {
       if (event.type === "message") this.hud.log(event.text);
       // めざめの階段は、ダイブの結果によらず足を踏み入れた瞬間に記録する
       if (event.type === "checkpoint") this.save = addKnownCheckpoint(this.save, event.depth);
+      if (event.type === "tutorialTip") this.showTutorialTip(event.id);
     }
 
     const changedFloor = this.game.depth !== beforeDepth;

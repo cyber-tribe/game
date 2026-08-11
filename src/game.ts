@@ -448,6 +448,7 @@ export class Game {
       kind: barrel.kind,
     });
     events.push({ type: "message", text: `${BARREL_NAMES[barrel.kind]}を持ち上げた。` });
+    events.push({ type: "tutorialTip", id: "barrel" });
     return true;
   }
 
@@ -593,6 +594,8 @@ export class Game {
     events.push({ type: "spawn", actorId: ally.id });
     events.push({ type: "recruit", actorId: ally.id, name: ally.name });
     events.push({ type: "message", text: `${ally.name}が仲間になった!` });
+    events.push({ type: "tutorialTip", id: "capture" });
+    if (this.allies.length === 2) events.push({ type: "tutorialTip", id: "allyOrders" });
   }
 
   /**
@@ -699,6 +702,7 @@ export class Game {
       // 足を踏み入れた瞬間に「既知」となる。ダイブの結果によらず記録されるべき
       // 事実なので、保存は呼び出し側(main.ts)が checkpoint イベントを見て行う
       events.push({ type: "checkpoint", depth: this.depth });
+      events.push({ type: "tutorialTip", id: "checkpoint" });
     }
   }
 
@@ -775,6 +779,9 @@ export class Game {
     attacker.facing = dirFromDelta(target.pos.x - attacker.pos.x, target.pos.y - attacker.pos.y);
     events.push({ type: "attack", attackerId: attacker.id, targetId: target.id });
     events.push({ type: "message", text: `${attacker.name}のこうげき!` });
+    if (attacker.kind === "player" && target.kind === "monster") {
+      events.push({ type: "tutorialTip", id: "weakenThenThrow" });
+    }
 
     // 不意打ち: まだ気づいていないモンスターへの攻撃は必ず会心になる
     const sneakAttack = target.kind === "monster" && !target.aware;
@@ -846,6 +853,7 @@ export class Game {
       this.endReason = `地下${this.depth}階で力尽きた……`;
       events.push({ type: "message", text: this.endReason });
       events.push({ type: "gameOver", reason: this.endReason });
+      events.push({ type: "tutorialTip", id: "death" });
       return;
     }
 
@@ -864,6 +872,7 @@ export class Game {
         events.push({ type: "levelUp", actorId: this.player.id, level: this.player.level });
         events.push({ type: "message", text: `レベルが${this.player.level}に上がった!` });
       }
+      if (levels > 0) events.push({ type: "tutorialTip", id: "levelUp" });
     }
   }
 
@@ -889,6 +898,7 @@ export class Game {
     const name = itemDef(item.defId).name;
     events.push({ type: "pickup", actorId: this.player.id, itemUid: item.uid, name });
     events.push({ type: "message", text: `${name}をひろった。` });
+    events.push({ type: "tutorialTip", id: "pickup" });
     return true;
   }
 
@@ -1172,6 +1182,7 @@ export class Game {
     if (before > 20 && player.satiety <= 20) {
       events.push({ type: "hungerWarning", level: "low" });
       events.push({ type: "message", text: "おなかがへってきた……" });
+      events.push({ type: "tutorialTip", id: "hunger" });
     }
     if (before > 0 && player.satiety === 0) {
       events.push({ type: "hungerWarning", level: "empty" });

@@ -254,6 +254,7 @@ export function addStatus(
   else target.statuses.push({ kind, turns });
   ctx.events.push({ type: "status", actorId: target.id, kind, turns });
   ctx.events.push({ type: "message", text: `${target.name}は${verb}!` });
+  if (target.id === ctx.player.id) ctx.events.push({ type: "tutorialTip", id: "status" });
 }
 
 /**
