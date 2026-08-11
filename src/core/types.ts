@@ -44,11 +44,14 @@ export const STATUS_CONFUSE = "confuse";
 export const STATUS_SEAL = "seal";
 /** 主の大槌(heavySingle)を振るった反動。次の1手を丸ごと失う */
 export const STATUS_RECOVER = "recover";
+/** 毒。行動は妨げないが、ターン経過でじわじわHPが減る */
+export const STATUS_POISON = "poison";
 export type StatusKind =
   | typeof STATUS_SLEEP
   | typeof STATUS_CONFUSE
   | typeof STATUS_SEAL
-  | typeof STATUS_RECOVER;
+  | typeof STATUS_RECOVER
+  | typeof STATUS_POISON;
 
 export interface Status {
   kind: StatusKind;
@@ -217,7 +220,7 @@ export interface GroundItem {
 
 // ---------------------------------------------------------------- 罠
 
-export type TrapKind = "damage" | "sleep" | "alarm" | "pitfall";
+export type TrapKind = "damage" | "sleep" | "alarm" | "pitfall" | "poison";
 
 export interface Trap {
   pos: Vec2;

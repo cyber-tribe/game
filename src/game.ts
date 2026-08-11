@@ -14,6 +14,7 @@ import {
   ALLY_STANCE_NAMES,
   BARREL_NAMES,
   STATUS_CONFUSE,
+  STATUS_POISON,
   STATUS_RECOVER,
   STATUS_SEAL,
   STATUS_SLEEP,
@@ -75,12 +76,18 @@ const QUICK_SINGLE_CRIT_BONUS = 0.15;
 /** 主の大槌(heavySingle)の反動。1ターン分の行動を失わせる(既存の状態異常と同じ off-by-one 消化) */
 const HEAVY_RECOVER_TURNS = 2;
 
+/** 毒罠にかかったときの持続ターン数 */
+const POISON_TRAP_TURNS = 8;
+/** 毒が1ターンごとに削るHP */
+const POISON_DAMAGE_PER_TURN = 2;
+
 /** 状態異常が明けたときにプレイヤーへ表示するメッセージ */
 const STATUS_END_MESSAGES: Record<StatusKind, string> = {
   [STATUS_SLEEP]: "目が覚めた。",
   [STATUS_CONFUSE]: "混乱がおさまった。",
   [STATUS_SEAL]: "封じが解けた。",
   [STATUS_RECOVER]: "体勢を立て直した。",
+  [STATUS_POISON]: "毒が抜けた。",
 };
 
 export type Command =
@@ -258,11 +265,20 @@ export class Game {
     return events;
   }
 
+  /** 眠っていても使わせてよい行動か(眠りを治す道具の使用だけを許す) */
+  private wakesUpWith(cmd: Command): boolean {
+    if (cmd.type !== "use") return false;
+    const item = findItem(this.player.inventory, cmd.uid);
+    return item !== undefined && itemDef(item.defId).effect === "cureSleepConfuse";
+  }
+
   private resolvePlayerCommand(cmd: Command, events: GameEvent[]): boolean {
     const player = this.player;
 
-    // 眠っている間は何をしようとしてもターンだけが過ぎる
-    if (hasStatus(player, STATUS_SLEEP)) {
+    // 眠っている間は何をしようとしてもターンだけが過ぎる。
+    // ただし「めざめ草」のような眠りを治す道具を使うことだけは例外にする
+    // (でなければ、眠りを治す道具そのものが眠っている間は一生使えなくなってしまう)
+    if (hasStatus(player, STATUS_SLEEP) && !this.wakesUpWith(cmd)) {
       events.push({ type: "message", text: "ガルドは眠っている……" });
       return true;
     }
@@ -953,6 +969,11 @@ export class Game {
         this.descend(events);
         break;
       }
+      case "poison": {
+        events.push({ type: "message", text: "毒の針が刺さった!" });
+        addStatus(this.effectContext(events), this.player, STATUS_POISON, POISON_TRAP_TURNS, "毒を受けた");
+        break;
+      }
     }
   }
 
@@ -1059,6 +1080,13 @@ export class Game {
   }
 
   private tickStatuses(events: GameEvent[]): void {
+    // 毒はターン経過でじわじわHPを削る。行動そのものは妨げない
+    for (const actor of this.floor.actors) {
+      if (!actor.alive || !hasStatus(actor, STATUS_POISON)) continue;
+      this.damageActor(actor, POISON_DAMAGE_PER_TURN, false, events);
+      if (this.status !== "playing") return;
+    }
+
     for (const actor of this.floor.actors) {
       if (!actor.alive) continue;
       for (const status of actor.statuses) {
@@ -1076,6 +1104,8 @@ export class Game {
   }
 
   private tickHunger(events: GameEvent[]): void {
+    // 毒などですでにこのターン力尽きていれば、満腹度の処理は行わない
+    if (this.status !== "playing") return;
     const player = this.player;
     const before = player.satiety;
     const rate = this.floor.gimmick === "feast" ? SATIETY_PER_TURN / 2 : SATIETY_PER_TURN;

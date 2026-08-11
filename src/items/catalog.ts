@@ -39,6 +39,26 @@ export const ITEMS: readonly ItemDef[] = [
     weight: 3,
     description: "attackが永続的に1上がる。",
   },
+  {
+    id: "wakeGrass",
+    name: "めざめ草",
+    category: "herb",
+    model: "herb",
+    effect: "cureSleepConfuse",
+    minFloor: 2,
+    weight: 5,
+    description: "眠り・混乱を即座に治す。",
+  },
+  {
+    id: "antidoteBerry",
+    name: "毒消しの実",
+    category: "herb",
+    model: "herb",
+    effect: "curePoison",
+    minFloor: 2,
+    weight: 5,
+    description: "毒を即座に治す。",
+  },
 
   // ---- 巻物 ----
   {

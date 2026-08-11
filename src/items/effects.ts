@@ -2,10 +2,14 @@ import type { Rng } from "../core/rng";
 import { type Dir, type Vec2, dirDelta } from "../core/grid";
 import type { GameEvent } from "../core/events";
 import {
+  STATUS_CONFUSE,
+  STATUS_POISON,
+  STATUS_SLEEP,
   type Actor,
   type FloorState,
   type StatusKind,
   actorAt,
+  hasStatus,
   roomOf,
   walkableAt,
 } from "../core/types";
@@ -43,6 +47,10 @@ export function applyEffect(ctx: EffectContext, effect: string, power: number, d
       return swapPlaces(ctx, dir);
     case "sleepTarget":
       return targetStatus(ctx, dir, "sleep", power, "眠りに落ちた");
+    case "cureSleepConfuse":
+      return cureStatuses(ctx, [STATUS_SLEEP, STATUS_CONFUSE], "すっきりした");
+    case "curePoison":
+      return cureStatuses(ctx, [STATUS_POISON], "毒が抜けた");
     default:
       ctx.events.push({ type: "message", text: "しかし何も起こらなかった。" });
       return false;
@@ -155,4 +163,24 @@ export function addStatus(
   else target.statuses.push({ kind, turns });
   ctx.events.push({ type: "status", actorId: target.id, kind, turns });
   ctx.events.push({ type: "message", text: `${target.name}は${verb}!` });
+}
+
+/**
+ * プレイヤーから指定した状態異常を即座に取り除く(めざめ草・毒消しの実)。
+ * 対象の状態でなくても失敗にはしない(草は使えば消費される、という
+ * 既存の挙動に合わせる)。
+ */
+function cureStatuses(ctx: EffectContext, kinds: StatusKind[], verb: string): boolean {
+  const player = ctx.player;
+  const hadAny = kinds.some((kind) => hasStatus(player, kind));
+  for (const kind of kinds) {
+    if (!hasStatus(player, kind)) continue;
+    player.statuses = player.statuses.filter((s) => s.kind !== kind);
+    ctx.events.push({ type: "statusEnd", actorId: player.id, kind });
+  }
+  ctx.events.push({
+    type: "message",
+    text: hadAny ? `${verb}!` : "しかし何ともなかった。",
+  });
+  return true;
 }

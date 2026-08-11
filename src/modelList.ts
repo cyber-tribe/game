@@ -1,8 +1,19 @@
 import { SPECIES } from "./entities/species";
 import { ITEMS } from "./items/catalog";
 
-/** 罠の種類。モデル名は trap_<kind> に対応する */
-export const TRAP_KINDS = ["damage", "sleep", "alarm", "pitfall"] as const;
+/**
+ * 罠の種類ごとのモデル。基本は trap_<kind> に対応するが、専用モデルを
+ * 新規に作らない種類は既存モデルを再利用してよい(poison → trap_damage。
+ * 「踏むと毒を受ける」という当たり判定と挙動だけが新しく、見た目までは
+ * 増やさない判断。plan/status-effects.md 参照)。
+ */
+export const TRAP_MODELS = {
+  damage: "trap_damage",
+  sleep: "trap_sleep",
+  alarm: "trap_alarm",
+  pitfall: "trap_pitfall",
+  poison: "trap_damage",
+} as const;
 
 /** 地形のモデル。種族表やアイテム表からは辿れないので直接並べる */
 export const TERRAIN_MODELS = ["wall", "floor", "stairs"] as const;
@@ -25,7 +36,7 @@ export function modelNames(): string[] {
   const names = new Set<string>(["garudo", ...TERRAIN_MODELS]);
   for (const species of SPECIES) names.add(species.model);
   for (const item of ITEMS) names.add(item.model);
-  for (const kind of TRAP_KINDS) names.add(`trap_${kind}`);
+  for (const model of Object.values(TRAP_MODELS)) names.add(model);
   for (const model of Object.values(BARREL_MODELS)) names.add(model);
   return [...names];
 }
