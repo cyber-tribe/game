@@ -1,7 +1,8 @@
 import type { Rng } from "../core/rng";
-import { ALL_DIRS, type Dir, type Vec2, chebyshev, dirDelta, isDiagonal } from "../core/grid";
+import { ALL_DIRS, type Dir, type Vec2, chebyshev, dirDelta, eq, isDiagonal } from "../core/grid";
 import {
   type Actor,
+  type AllyStance,
   type FloorState,
   actorAt,
   barrelAt,
@@ -146,10 +147,8 @@ export function decideMonsterAction(
 }
 
 /**
- * 仲間の行動を決める。
- *
- * 敵が見えていれば向かっていき、いなければプレイヤーについてくる。
- * 近すぎるときは足を止める。そうしないとプレイヤーの周りで押し合いになる。
+ * 仲間の行動を決める。plan/companion-orders.md の「構え」で分岐する。
+ * 隣接する敵への反撃だけは構えによらず共通(自衛はする)。
  */
 export function decideAllyAction(
   rng: Rng,
@@ -162,6 +161,28 @@ export function decideAllyAction(
   const adjacent = adjacentFoe(floor, ally);
   if (adjacent) return { type: "attack", targetId: adjacent.id };
 
+  const stance: AllyStance = ally.stance ?? "free";
+  switch (stance) {
+    case "guard":
+      return guardAction(floor, ally, leader, leaderField);
+    case "hold":
+      return holdAction(floor, ally);
+    case "vanguard":
+      return vanguardAction(rng, floor, ally, foeField);
+    case "free":
+      return freeAction(rng, floor, ally, leader, foeField, leaderField);
+  }
+}
+
+/** おまかせ(既定)。敵が見えていれば向かっていき、いなければ主についてくる */
+function freeAction(
+  rng: Rng,
+  floor: FloorState,
+  ally: Actor,
+  leader: Actor,
+  foeField: Int32Array,
+  leaderField: Int32Array,
+): MonsterAction {
   const foe = nearestVisibleFoe(floor, ally);
   if (foe) {
     if (ally.rangedRange !== undefined) {
@@ -180,6 +201,76 @@ export function decideAllyAction(
   const dir = stepDownField(floor, ally.pos, leaderField);
   if (dir !== null) return { type: "move", dir };
   return rng.chance(0.3) ? wander(rng, floor, ally) : { type: "wait" };
+}
+
+/** そばにいろ。自分からは追わず、主の隣接圏内(距離1以内)を保つだけ */
+function guardAction(
+  floor: FloorState,
+  ally: Actor,
+  leader: Actor,
+  leaderField: Int32Array,
+): MonsterAction {
+  const distanceToLeader = chebyshev(ally.pos, leader.pos);
+  if (distanceToLeader <= 1) return { type: "wait" };
+  const dir = stepDownField(floor, ally.pos, leaderField);
+  if (dir !== null) return { type: "move", dir };
+  return { type: "wait" };
+}
+
+/** そこで待て。指示した瞬間の座標(holdPos)に留まる */
+function holdAction(floor: FloorState, ally: Actor): MonsterAction {
+  const point = ally.holdPos ?? ally.pos;
+  if (eq(ally.pos, point)) return { type: "wait" };
+  const field = buildDistanceField(floor, point);
+  const dir = stepDownField(floor, ally.pos, field);
+  return dir !== null ? { type: "move", dir } : { type: "wait" };
+}
+
+/**
+ * 先陣を切れ。敵が見えていれば主を待たずに応戦し、いなければ未探索タイル
+ * (見つからなければ階段)へ自律的に向かう。
+ */
+function vanguardAction(
+  rng: Rng,
+  floor: FloorState,
+  ally: Actor,
+  foeField: Int32Array,
+): MonsterAction {
+  const foe = nearestVisibleFoe(floor, ally);
+  if (foe) {
+    if (ally.rangedRange !== undefined) {
+      const distance = chebyshev(ally.pos, foe.pos);
+      if (distance <= ally.rangedRange && isStraightLine(ally.pos, foe.pos)) {
+        return { type: "ranged", targetId: foe.id };
+      }
+    }
+    const dir = stepDownField(floor, ally.pos, foeField);
+    if (dir !== null) return { type: "move", dir };
+  }
+
+  const target = nearestUnexploredTile(floor, ally.pos) ?? floor.stairs;
+  const field = buildDistanceField(floor, target);
+  const dir = stepDownField(floor, ally.pos, field);
+  return dir !== null ? { type: "move", dir } : wander(rng, floor, ally);
+}
+
+/** 主に見えている全アクター中でこの仲間だけが到達できる、最も近い未探索の歩行可能マス */
+function nearestUnexploredTile(floor: FloorState, from: Vec2): Vec2 | null {
+  const field = buildDistanceField(floor, from);
+  let best: Vec2 | null = null;
+  let bestDist = Number.POSITIVE_INFINITY;
+  for (let y = 0; y < floor.height; y++) {
+    for (let x = 0; x < floor.width; x++) {
+      if (floor.tiles[y * floor.width + x]!.explored) continue;
+      const p = { x, y };
+      if (!walkableAt(floor, p)) continue;
+      const d = field[y * floor.width + x]!;
+      if (d < 0 || d >= bestDist) continue;
+      bestDist = d;
+      best = p;
+    }
+  }
+  return best;
 }
 
 /** 距離場を1段下る方向を選ぶ */

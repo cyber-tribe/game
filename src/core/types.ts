@@ -126,11 +126,36 @@ export interface Actor {
   aware?: boolean;
   /** 徘徊中の進行方向 */
   wanderDir?: Dir;
+
+  // ---- 以下は ally のみ ----
+  /** 構え。plan/companion-orders.md 参照。既定は "free" */
+  stance?: AllyStance;
+  /** stance === "hold" のときの固定地点 */
+  holdPos?: Vec2;
 }
 
 export function hasStatus(actor: Actor, kind: StatusKind): boolean {
   return actor.statuses.some((s) => s.kind === kind && s.turns > 0);
 }
+
+// ---------------------------------------------------------------- 仲間への指示(構え)
+
+/**
+ * 仲間の行動方針。plan/companion-orders.md 参照。
+ *
+ *  - free:     おまかせ(既定)。隣接する敵を攻撃、見えている敵を追い、いなければ主のそばへ
+ *  - guard:    そばにいろ。自分からは追わず、主の隣接圏内(距離1以内)を保つ
+ *  - hold:     そこで待て。指示した瞬間の座標に留まる
+ *  - vanguard: 先陣を切れ。未探索タイルや階段へ自律的に進む
+ */
+export type AllyStance = "free" | "guard" | "hold" | "vanguard";
+
+export const ALLY_STANCE_NAMES: Record<AllyStance, string> = {
+  free: "おまかせ",
+  guard: "そばにいろ",
+  hold: "そこで待て",
+  vanguard: "先陣を切れ",
+};
 
 // ---------------------------------------------------------------- アイテム
 
