@@ -22,11 +22,13 @@ import {
   recordRun,
   saveData,
   saveRunSnapshot,
+  setTrainingFocus,
   type SaveData,
   type StoredItem,
 } from "./save";
 import { TUTORIAL_TIPS, type TutorialTipId } from "./core/tutorial";
 import type { Item } from "./core/types";
+import type { TrainingFocus } from "./entities/player";
 
 const MAX_DEPTH = 10;
 
@@ -83,17 +85,21 @@ class App {
     this.loop();
   }
 
-  /** 潜る前の拠点。倉庫から持ち込む道具・出発地点を選ぶ */
+  /** 潜る前の拠点。倉庫から持ち込む道具・出発地点・鍛え方を選ぶ */
   private showTown(): void {
     this.hud.hideOverlay();
-    this.town.show(this.save, (carry, storage, startDepth) => {
-      this.save = { ...this.save, storage };
+    this.town.show(this.save, (carry, storage, startDepth, trainingFocus) => {
+      this.save = setTrainingFocus({ ...this.save, storage }, trainingFocus);
       saveData(this.save);
-      this.newRun(carry, startDepth);
+      this.newRun(carry, startDepth, trainingFocus);
     });
   }
 
-  private newRun(carry: readonly StoredItem[], startDepth = 1): void {
+  private newRun(
+    carry: readonly StoredItem[],
+    startDepth = 1,
+    trainingFocus: TrainingFocus = "balance",
+  ): void {
     const startingItems: Item[] = carry.map((stored, index) =>
       stored.charges === undefined
         ? { uid: index + 1, defId: stored.defId }
@@ -104,6 +110,7 @@ class App {
       maxDepth: MAX_DEPTH,
       startingItems,
       startDepth,
+      trainingFocus,
     });
     this.presentFloor();
     this.hud.log(`地下${this.game.depth}階。最深記録は ${this.save.deepest} 階。`);

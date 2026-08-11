@@ -1,5 +1,25 @@
 # 主人公の鍛え方
 
+> **実装済み。** `src/entities/player.ts`(`TrainingFocus` 型・`gainExp` の
+> focus引数)・`src/game.ts`(`RunOptions.trainingFocus`)・`src/ui/town.ts`
+> (拠点の4列目「鍛え方」)・`src/save.ts`(`SaveData.trainingFocus`・
+> `setTrainingFocus`)・`src/main.ts`(選択の受け渡し)。
+> テストは `tests/protagonist-training.test.ts`。
+>
+> 実装時の判断:
+> - 「拠点の出発前にあらかじめ決めておく」方式のみを実装した。
+>   「レベルアップ画面での都度選択」(専用モーダルUI)は見送っている。
+>   毎回選ばせる方式自体が「操作の複雑さを大きく崩さない」方針と
+>   相性が悪いという文書内の指摘を踏まえ、まずは軽い方の実装に絞った。
+> - 「一度選んでおけば以後は何も聞かれない」を成り立たせるため、
+>   仕様書には明記の無い `SaveData.trainingFocus` を追加し、拠点で選んだ
+>   方針を次回の拠点表示にも引き継ぐようにした。
+> - 数値は仕様書の目安(offense: atk+3 / defense: def+2 / balance:
+>   atk+1・def+1、maxHp+6は共通)をそのまま採用した。
+> - `plan/mid-dive-autosave.md`(アーカイブ済み)の `RunSnapshot` に
+>   `trainingFocus` を追加した。無いと、ダイブ中オートセーブから復帰した
+>   あとのレベルアップが既定の "balance" に戻ってしまうため。
+
 現状の実装(`src/entities/player.ts` の `gainExp`)は、レベルが上がると
 `maxHp+6` `atk+2` `def+1` が**固定**で付く。`design/protagonist.md` の
 通りレベルは毎ダイブ1に戻るため、これは「毎回同じ成長を辿るだけ」に

@@ -6,6 +6,12 @@ export const MAX_SATIETY = 100;
 /** 同時に連れ歩ける仲間の数 */
 export const MAX_ALLIES = 2;
 
+/**
+ * 鍛え方(plan/protagonist-training.md、アーカイブ済み)。
+ * レベルアップのたびの成長配分の方針。maxHp+6 はどれを選んでも共通。
+ */
+export type TrainingFocus = "offense" | "defense" | "balance";
+
 export interface PlayerState extends Actor {
   kind: "player";
   exp: number;
@@ -77,8 +83,15 @@ export function totalDefense(player: PlayerState): number {
 /**
  * 経験値を加算し、上がったレベルの数を返す。
  * 一度に複数レベル上がることもあるのでループで判定する。
+ *
+ * maxHp+6 はどの鍛え方でも共通の保証として残し、残りの成長を focus で
+ * 振り分ける("balance" は現行の固定成長 atk+2/def+1 に近い配分)。
  */
-export function gainExp(player: PlayerState, amount: number): number {
+export function gainExp(
+  player: PlayerState,
+  amount: number,
+  focus: TrainingFocus = "balance",
+): number {
   player.exp += amount;
   let levelsGained = 0;
   while (player.level < MAX_LEVEL && player.exp >= expForLevel(player.level + 1)) {
@@ -86,8 +99,14 @@ export function gainExp(player: PlayerState, amount: number): number {
     levelsGained++;
     player.maxHp += 6;
     player.hp += 6;
-    player.atk += 2;
-    player.def += 1;
+    if (focus === "offense") {
+      player.atk += 3;
+    } else if (focus === "defense") {
+      player.def += 2;
+    } else {
+      player.atk += 1;
+      player.def += 1;
+    }
   }
   return levelsGained;
 }
