@@ -1,5 +1,16 @@
 # モンスターハウス
 
+> **実装済み。** `src/core/types.ts`(`Room.kind: "monsterHouse"`)・
+> `src/dungeon/generate.ts`(`designateMonsterHouse`)・
+> `src/dungeon/populate.ts`(`populateMonsterHouse`、`findFreeTile` の
+> `room` オプション、`choosePlayerStart` の除外)・`src/game.ts`
+> (`checkMonsterHouseWarning`)。テストは `tests/monster-house.test.ts`。
+>
+> 予告手段は案Aのみを実装した(案Bはアイテム設計側の別案件に持ち越し)。
+> 出現確率は3階から `min(0.35, 0.08 + (depth-3)*0.015)`、湧かせる体数は
+> `min(8, 5 + depth/10)` としており、初期案どおりプレイテストで調整可能な
+> 数値として実装している。
+
 README の「これから」にある「モンスターハウス」を仕様化する。
 `design/story.md` で先に触れた「乱掘で夢が渋滞して溜まった場所」という
 理屈をそのまま採用する。

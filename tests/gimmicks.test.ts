@@ -105,21 +105,34 @@ describe("populateFloorとギミック", () => {
   });
 
   it("山分けの階ではモンスター・アイテム・タルが通常より多い", () => {
-    const seed = 3;
-    const normalRng = new Rng(seed);
-    const normalFloor = generateFloor(normalRng, { depth: 5 });
-    populateFloor(normalRng, normalFloor, makeIds(), normalFloor.stairs);
+    // 個々のシードでは基準となる乱数の出目次第で同数になることもあるので、
+    // 多シードの合計で比べる(倍率をかけた側が期待値として上回ることを見る)
+    let normalMonsters = 0;
+    let windfallMonsters = 0;
+    let normalItems = 0;
+    let windfallItems = 0;
+    let normalBarrels = 0;
+    let windfallBarrels = 0;
 
-    const windfallRng = new Rng(seed);
-    const windfallFloor = generateFloor(windfallRng, { depth: 5, gimmick: "windfall" });
-    populateFloor(windfallRng, windfallFloor, makeIds(), windfallFloor.stairs);
+    for (let seed = 1; seed <= 50; seed++) {
+      const normalRng = new Rng(seed);
+      const normalFloor = generateFloor(normalRng, { depth: 5 });
+      populateFloor(normalRng, normalFloor, makeIds(), normalFloor.stairs);
+      normalMonsters += normalFloor.actors.filter((a) => a.kind === "monster").length;
+      normalItems += normalFloor.items.length;
+      normalBarrels += normalFloor.barrels.length;
 
-    const monsterCount = (floor: typeof normalFloor) =>
-      floor.actors.filter((a) => a.kind === "monster").length;
+      const windfallRng = new Rng(seed);
+      const windfallFloor = generateFloor(windfallRng, { depth: 5, gimmick: "windfall" });
+      populateFloor(windfallRng, windfallFloor, makeIds(), windfallFloor.stairs);
+      windfallMonsters += windfallFloor.actors.filter((a) => a.kind === "monster").length;
+      windfallItems += windfallFloor.items.length;
+      windfallBarrels += windfallFloor.barrels.length;
+    }
 
-    expect(monsterCount(windfallFloor)).toBeGreaterThan(monsterCount(normalFloor));
-    expect(windfallFloor.items.length).toBeGreaterThan(normalFloor.items.length);
-    expect(windfallFloor.barrels.length).toBeGreaterThan(normalFloor.barrels.length);
+    expect(windfallMonsters).toBeGreaterThan(normalMonsters);
+    expect(windfallItems).toBeGreaterThan(normalItems);
+    expect(windfallBarrels).toBeGreaterThan(normalBarrels);
   });
 
   it("おちあなの階では落とし穴トラップの出現比率が上がる", () => {
