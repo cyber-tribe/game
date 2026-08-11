@@ -257,6 +257,26 @@ push (main へのマージ後) と手動実行は、この判定を通さず常�
 
 ---
 
+## モバイル配信
+
+複数プラットフォーム展開と収益化を目的に、[Capacitor](https://capacitorjs.com/) で
+Web 版のビルド(`dist/`)をそのままネイティブの WebView に包んでアプリ化する方針にしている。
+経緯は [`adr/0001-mobile-release-via-capacitor.md`](adr/0001-mobile-release-via-capacitor.md) を参照。
+ゲームロジック・描画コードは変更せず、配信形態が増えるだけという位置づけ。
+
+```bash
+npm run build         # dist/ を作る
+npx cap add android   # 初回のみ。android/ ネイティブプロジェクトを生成
+npx cap add ios       # 初回のみ。ios/ ネイティブプロジェクトを生成(macOS + Xcode が要る)
+npm run cap:sync      # dist/ をビルドし直してネイティブ側に反映
+```
+
+`cap add` はローカルの Android Studio / Xcode を前提にしており、この環境(CI含む)には
+ネイティブツールチェインが無いため、`android/` `ios/` の生成はまだ行っていない。
+そのため、この時点ではタッチ操作向けのUI/UX(仮想パッド等)も未着手。
+
+---
+
 ## これから
 
 潜って戦って階段を降り、タルでモンスターを捕まえて連れ歩くところまで動いている。
