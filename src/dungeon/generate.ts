@@ -116,6 +116,7 @@ function tryGenerate(rng: Rng, depth: number, width: number, height: number): Fl
     actors: [],
     items: [],
     traps: [],
+    barrels: [],
   };
 }
 

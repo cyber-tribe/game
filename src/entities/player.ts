@@ -1,7 +1,10 @@
-import type { Actor } from "../core/types";
+import type { Actor, Barrel } from "../core/types";
 import { type Inventory, createInventory, shieldBonus, weaponBonus } from "../items/inventory";
 
 export const MAX_SATIETY = 100;
+
+/** 同時に連れ歩ける仲間の数 */
+export const MAX_ALLIES = 2;
 
 export interface PlayerState extends Actor {
   kind: "player";
@@ -10,6 +13,8 @@ export interface PlayerState extends Actor {
   maxSatiety: number;
   inventory: Inventory;
   gold: number;
+  /** 頭上に抱えているタル。抱えている間は攻撃できない */
+  carrying: Barrel | null;
 }
 
 /** レベル n に上がるのに必要な累計経験値 */
@@ -52,6 +57,7 @@ export function createPlayer(id: number): PlayerState {
     maxSatiety: MAX_SATIETY,
     inventory: createInventory(),
     gold: 0,
+    carrying: null,
   };
 }
 

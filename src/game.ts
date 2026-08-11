@@ -11,28 +11,42 @@ import {
 } from "./core/grid";
 import type { GameEvent } from "./core/events";
 import {
+  BARREL_NAMES,
   STATUS_CONFUSE,
   STATUS_SLEEP,
   type Actor,
+  type Barrel,
+  type BarrelKind,
   type FloorState,
   type Item,
   type Trap,
   actorAt,
+  barrelAt,
   hasStatus,
+  isFree,
+  isHostile,
   walkableAt,
 } from "./core/types";
 import { generateFloor } from "./dungeon/generate";
 import {
   type IdSource,
   choosePlayerStart,
+  createAlly,
+  createBarrel,
   createItem,
   findFreeTile,
   populateFloor,
   spawnWanderingMonster,
 } from "./dungeon/populate";
 import { updateVisibility } from "./dungeon/visibility";
-import { buildDistanceField, canStep, decideMonsterAction } from "./entities/ai";
 import {
+  buildDistanceField,
+  canStep,
+  decideAllyAction,
+  decideMonsterAction,
+} from "./entities/ai";
+import {
+  MAX_ALLIES,
   MAX_SATIETY,
   type PlayerState,
   createPlayer,
@@ -40,6 +54,7 @@ import {
   totalAttack,
   totalDefense,
 } from "./entities/player";
+import { speciesById } from "./entities/species";
 import { itemDef } from "./items/catalog";
 import { type EffectContext, addStatus, applyEffect } from "./items/effects";
 import { addItem, displayName, equip, findItem, isFull, removeItem } from "./items/inventory";
@@ -55,7 +70,11 @@ export type Command =
   | { type: "use"; uid: number }
   | { type: "throw"; uid: number }
   | { type: "drop"; uid: number }
-  | { type: "equip"; uid: number };
+  | { type: "equip"; uid: number }
+  /** 正面か足元のタルを持ち上げる。抱えていれば下ろす */
+  | { type: "liftBarrel" }
+  /** 抱えているタルを向いている方向へ投げる */
+  | { type: "throwBarrel" };
 
 export interface RunOptions {
   seed: number;
@@ -74,6 +93,24 @@ const REGEN_INTERVAL = 8;
 /** このターンごとにモンスターが1体湧く */
 const SPAWN_INTERVAL = 45;
 
+/** タルの飛距離 */
+const BARREL_RANGE = 8;
+/** タルをぶつけたときの基本ダメージ */
+const BARREL_DAMAGE = 8;
+/** 爆発タルの威力と巻き込む範囲 */
+const BOMB_DAMAGE = 22;
+const BOMB_RADIUS = 1;
+
+/**
+ * 空のタルでモンスターを吸い込める確率。
+ * 満タンの相手にはめったに効かず、瀕死ならほぼ確実に入る。
+ * 「弱らせてから捕まえる」が自然な手順になるように振ってある。
+ */
+export function captureChance(target: Actor): number {
+  const wounded = 1 - target.hp / target.maxHp;
+  return Math.min(0.85, 0.12 + 0.68 * wounded);
+}
+
 export class Game {
   readonly rng: Rng;
   readonly maxDepth: number;
@@ -85,8 +122,12 @@ export class Game {
   /** 死亡・クリアの理由。UIの表示に使う */
   endReason = "";
 
+  /** 連れている仲間。フロアをまたいで付いてくるので、floor とは別に持つ */
+  allies: Actor[] = [];
+
   private actorIdCounter = 1;
   private itemUidCounter = 1;
+  private barrelIdCounter = 1;
   private readonly ids: IdSource;
 
   constructor(opts: RunOptions) {
@@ -95,6 +136,7 @@ export class Game {
     this.ids = {
       nextActorId: () => ++this.actorIdCounter,
       nextItemUid: () => ++this.itemUidCounter,
+      nextBarrelId: () => ++this.barrelIdCounter,
     };
     this.player = createPlayer(1);
 
@@ -116,7 +158,33 @@ export class Game {
     this.player.pos = start;
     this.floor.actors.push(this.player);
     populateFloor(this.rng, this.floor, this.ids, start);
+
+    // 仲間は階段について来る。プレイヤーの周りの空いたマスに並べる
+    for (const ally of this.allies) {
+      const spot = this.freeSpotNear(start);
+      if (!spot) continue;
+      ally.pos = spot;
+      ally.aware = true;
+      this.floor.actors.push(ally);
+    }
+
     updateVisibility(this.floor, this.player.pos);
+  }
+
+  /** 指定位置の近くで、誰も立っていないマスを探す */
+  private freeSpotNear(center: Vec2, maxRing = 3): Vec2 | null {
+    for (let ring = 1; ring <= maxRing; ring++) {
+      const candidates: Vec2[] = [];
+      for (let dy = -ring; dy <= ring; dy++) {
+        for (let dx = -ring; dx <= ring; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== ring) continue;
+          const p = { x: center.x + dx, y: center.y + dy };
+          if (isFree(this.floor, p)) candidates.push(p);
+        }
+      }
+      if (candidates.length > 0) return this.rng.pick(candidates);
+    }
+    return null;
   }
 
   private descend(events: GameEvent[]): void {
@@ -141,7 +209,7 @@ export class Game {
     const consumedTurn = this.resolvePlayerCommand(cmd, events);
 
     if (consumedTurn && this.status === "playing") {
-      this.runMonsters(events);
+      this.runActors(events);
       this.upkeep(events);
       this.turnCount++;
     }
@@ -209,7 +277,227 @@ export class Game {
         });
         return true;
       }
+
+      case "liftBarrel":
+        return this.liftOrPutBarrel(events);
+
+      case "throwBarrel":
+        return this.throwCarriedBarrel(events);
     }
+  }
+
+  // ------------------------------------------------------------ タル
+
+  /** 抱えていなければ持ち上げ、抱えていれば下ろす */
+  private liftOrPutBarrel(events: GameEvent[]): boolean {
+    const player = this.player;
+
+    if (player.carrying) {
+      const delta = dirDelta(player.facing);
+      const front = { x: player.pos.x + delta.x, y: player.pos.y + delta.y };
+      const spot = isFree(this.floor, front) ? front : this.freeSpotNear(player.pos, 1);
+      if (!spot) {
+        events.push({ type: "message", text: "タルを置く場所がない。" });
+        return false;
+      }
+      const barrel = player.carrying;
+      player.carrying = null;
+      barrel.pos = spot;
+      this.floor.barrels.push(barrel);
+      events.push({ type: "putBarrel", actorId: player.id, barrelId: barrel.id, pos: spot });
+      events.push({ type: "message", text: `${BARREL_NAMES[barrel.kind]}を置いた。` });
+      return true;
+    }
+
+    // 正面を優先し、無ければ足元を見る
+    const delta = dirDelta(player.facing);
+    const front = { x: player.pos.x + delta.x, y: player.pos.y + delta.y };
+    const barrel = barrelAt(this.floor, front) ?? barrelAt(this.floor, player.pos);
+    if (!barrel) {
+      events.push({ type: "message", text: "持ち上げられるタルがない。" });
+      return false;
+    }
+
+    this.floor.barrels = this.floor.barrels.filter((b) => b.id !== barrel.id);
+    player.carrying = barrel;
+    events.push({
+      type: "liftBarrel",
+      actorId: player.id,
+      barrelId: barrel.id,
+      kind: barrel.kind,
+    });
+    events.push({ type: "message", text: `${BARREL_NAMES[barrel.kind]}を持ち上げた。` });
+    return true;
+  }
+
+  /**
+   * 抱えているタルを投げる。飛んでいって最初に当たったものに応じて結果が変わる。
+   *   空のタル      → 相手にダメージ。確率で吸い込んで「モンスター入り」になる
+   *   爆発タル      → その場で爆発し、周囲もろとも巻き込む
+   *   モンスター入り → 中身が飛び出して仲間になる
+   */
+  private throwCarriedBarrel(events: GameEvent[]): boolean {
+    const player = this.player;
+    const barrel = player.carrying;
+    if (!barrel) {
+      events.push({ type: "message", text: "タルを持っていない。" });
+      return false;
+    }
+
+    player.carrying = null;
+    const delta = dirDelta(player.facing);
+    const from = player.pos;
+    let landing = from;
+    let hit: Actor | null = null;
+
+    for (let step = 1; step <= BARREL_RANGE; step++) {
+      const p = { x: from.x + delta.x * step, y: from.y + delta.y * step };
+      if (!walkableAt(this.floor, p)) break;
+      const blocker = barrelAt(this.floor, p);
+      if (blocker) break;
+      landing = p;
+      const actor = actorAt(this.floor, p);
+      if (actor && actor.id !== player.id) {
+        hit = actor;
+        break;
+      }
+    }
+
+    events.push({
+      type: "throwBarrel",
+      actorId: player.id,
+      barrelId: barrel.id,
+      from,
+      to: landing,
+    });
+    events.push({ type: "message", text: `${BARREL_NAMES[barrel.kind]}を投げた!` });
+
+    switch (barrel.kind) {
+      case "bomb":
+        this.explode(landing, events);
+        events.push({ type: "barrelBreak", barrelId: barrel.id, pos: landing });
+        return true;
+
+      case "caught":
+        this.releaseFromBarrel(barrel, landing, events);
+        return true;
+
+      case "empty":
+        return this.resolveEmptyBarrel(barrel, landing, hit, events);
+    }
+  }
+
+  private resolveEmptyBarrel(
+    barrel: Barrel,
+    landing: Vec2,
+    hit: Actor | null,
+    events: GameEvent[],
+  ): boolean {
+    if (!hit) {
+      this.dropBarrelNear(barrel, landing, events);
+      return true;
+    }
+
+    const { damage, critical } = computeDamage(this.rng, BARREL_DAMAGE, hit.def);
+    events.push({ type: "message", text: `${hit.name}に${damage}のダメージ!` });
+    this.damageActor(hit, damage, critical, events);
+
+    // 倒れてしまったら吸い込めない。タルは砕けずその場に落ちる
+    if (!hit.alive) {
+      this.dropBarrelNear(barrel, landing, events);
+      return true;
+    }
+
+    // 仲間にできるのはモンスターだけ。すでに手一杯なら吸い込まない
+    if (hit.kind !== "monster" || hit.speciesId === undefined) {
+      this.dropBarrelNear(barrel, landing, events);
+      return true;
+    }
+    if (this.allies.length >= MAX_ALLIES) {
+      events.push({ type: "message", text: "これ以上は連れて歩けない。" });
+      this.dropBarrelNear(barrel, landing, events);
+      return true;
+    }
+
+    if (!this.rng.chance(captureChance(hit))) {
+      events.push({ type: "captureFailed", actorId: hit.id, name: hit.name });
+      events.push({ type: "message", text: `${hit.name}は吸い込まれなかった。` });
+      this.dropBarrelNear(barrel, landing, events);
+      return true;
+    }
+
+    // 吸い込み成功。モンスターは盤面から消え、タルが中身入りになって落ちる
+    hit.alive = false;
+    this.floor.actors = this.floor.actors.filter((a) => a.id !== hit.id);
+    barrel.kind = "caught";
+    barrel.speciesId = hit.speciesId;
+    events.push({ type: "capture", actorId: hit.id, barrelId: barrel.id, name: hit.name });
+    events.push({ type: "message", text: `${hit.name}をタルに吸い込んだ!` });
+    this.dropBarrelNear(barrel, hit.pos, events);
+    return true;
+  }
+
+  /** タルを着地点に置く。塞がっていれば近くの空きマスへ転がす */
+  private dropBarrelNear(barrel: Barrel, preferred: Vec2, events: GameEvent[]): void {
+    const spot = isFree(this.floor, preferred) ? preferred : this.freeSpotNear(preferred, 2);
+    if (!spot) {
+      // 置き場所が無ければ壊れたことにする。宙に浮かせるよりは筋が通る
+      events.push({ type: "barrelBreak", barrelId: barrel.id, pos: preferred });
+      events.push({ type: "message", text: `${BARREL_NAMES[barrel.kind]}は砕けてしまった。` });
+      return;
+    }
+    barrel.pos = spot;
+    this.floor.barrels.push(barrel);
+  }
+
+  /** 中身入りのタルを開けて、モンスターを仲間として盤面に出す */
+  private releaseFromBarrel(barrel: Barrel, landing: Vec2, events: GameEvent[]): void {
+    events.push({ type: "barrelBreak", barrelId: barrel.id, pos: landing });
+
+    if (barrel.speciesId === undefined) return;
+    const spot = isFree(this.floor, landing) ? landing : this.freeSpotNear(landing, 2);
+    if (!spot) {
+      events.push({ type: "message", text: "出てくる場所がなかった……" });
+      return;
+    }
+    if (this.allies.length >= MAX_ALLIES) {
+      events.push({ type: "message", text: "これ以上は連れて歩けない。" });
+      return;
+    }
+
+    const species = speciesById(barrel.speciesId);
+    const ally = createAlly(this.ids.nextActorId(), species, spot);
+    this.allies.push(ally);
+    this.floor.actors.push(ally);
+    events.push({ type: "spawn", actorId: ally.id });
+    events.push({ type: "recruit", actorId: ally.id, name: ally.name });
+    events.push({ type: "message", text: `${ally.name}が仲間になった!` });
+  }
+
+  /** 爆発。中心とその周囲にいるものをまとめて巻き込む */
+  private explode(center: Vec2, events: GameEvent[]): void {
+    events.push({ type: "explosion", pos: center, radius: BOMB_RADIUS });
+    events.push({ type: "message", text: "タルが爆発した!" });
+
+    const caught = this.floor.actors.filter(
+      (a) => a.alive && chebyshev(a.pos, center) <= BOMB_RADIUS,
+    );
+    for (const actor of caught) {
+      const { damage, critical } = computeDamage(this.rng, BOMB_DAMAGE, actor.def);
+      events.push({ type: "message", text: `${actor.name}に${damage}のダメージ!` });
+      this.damageActor(actor, damage, critical, events);
+      if (this.status !== "playing") return;
+    }
+
+    // 巻き込まれたタルは誘爆させず、その場で壊れるだけにしておく。
+    // 連鎖させると1発で階が壊滅しかねない
+    const destroyed = this.floor.barrels.filter((b) => chebyshev(b.pos, center) <= BOMB_RADIUS);
+    for (const barrel of destroyed) {
+      events.push({ type: "barrelBreak", barrelId: barrel.id, pos: barrel.pos });
+    }
+    this.floor.barrels = this.floor.barrels.filter(
+      (b) => chebyshev(b.pos, center) > BOMB_RADIUS,
+    );
   }
 
   private movePlayer(dir: Dir, events: GameEvent[]): boolean {
@@ -219,12 +507,27 @@ export class Game {
 
     const target = actorAt(this.floor, to);
     if (target && target.id !== player.id) {
-      this.attack(player, target, totalAttack(player), events);
+      if (isHostile(player, target)) {
+        this.attack(player, target, totalAttack(player), events);
+        return true;
+      }
+      // 仲間とは位置を入れ替える。通せんぼで足止めされては連れ歩けない
+      const from = player.pos;
+      player.pos = to;
+      target.pos = from;
+      events.push({ type: "swap", aId: player.id, bId: target.id });
       return true;
     }
 
     if (!walkableAt(this.floor, to)) {
       events.push({ type: "bump", actorId: player.id, dir: delta });
+      return false;
+    }
+
+    // タルは押しのけられない。持ち上げるか、回り込む
+    if (barrelAt(this.floor, to)) {
+      events.push({ type: "bump", actorId: player.id, dir: delta });
+      events.push({ type: "message", text: "タルが道をふさいでいる。" });
       return false;
     }
     // 斜めの角抜けは禁止
@@ -319,6 +622,12 @@ export class Game {
       return;
     }
 
+    if (target.kind === "ally") {
+      this.allies = this.allies.filter((a) => a.id !== target.id);
+      events.push({ type: "message", text: `${target.name}は力尽きた……` });
+      return;
+    }
+
     events.push({ type: "message", text: `${target.name}をたおした!` });
     const exp = target.exp ?? 0;
     if (exp > 0) {
@@ -334,6 +643,10 @@ export class Game {
   // ------------------------------------------------------------ アイテム
 
   private pickUp(events: GameEvent[]): boolean {
+    if (this.player.carrying) {
+      events.push({ type: "message", text: "タルで手がふさがっている。" });
+      return false;
+    }
     const idx = this.floor.items.findIndex((gi) => eq(gi.pos, this.player.pos));
     if (idx < 0) {
       events.push({ type: "message", text: "足元には何もない。" });
@@ -492,59 +805,87 @@ export class Game {
 
   // ------------------------------------------------------------ モンスターの行動
 
-  private runMonsters(events: GameEvent[]): void {
-    const field = buildDistanceField(this.floor, this.player.pos);
+  /**
+   * プレイヤー以外の全員を動かす。仲間もモンスターも同じ枠で処理する。
+   *
+   * 距離場は陣営ごとに1本ずつ作って全員で使い回す。始点を「その陣営の敵全員」に
+   * しておけば、各自が自然といちばん近い相手へ向かう。
+   */
+  private runActors(events: GameEvent[]): void {
+    const alive = (a: Actor) => a.alive;
+    const friendlyPositions = this.floor.actors
+      .filter((a) => alive(a) && a.kind !== "monster")
+      .map((a) => a.pos);
+    const foePositions = this.floor.actors
+      .filter((a) => alive(a) && a.kind === "monster")
+      .map((a) => a.pos);
+
+    const towardsFriendly = buildDistanceField(this.floor, friendlyPositions);
+    const towardsFoe =
+      foePositions.length > 0 ? buildDistanceField(this.floor, foePositions) : null;
+    const towardsLeader = buildDistanceField(this.floor, this.player.pos);
+
     // 行動中に配列が変化しても安全なようにコピーしてから回す
-    const monsters = this.floor.actors.filter((a) => a.kind === "monster" && a.alive);
+    const movers = this.floor.actors.filter((a) => alive(a) && a.kind !== "player");
 
-    for (const monster of monsters) {
-      if (!monster.alive || this.status !== "playing") continue;
+    for (const actor of movers) {
+      if (!actor.alive || this.status !== "playing") continue;
+      if (hasStatus(actor, STATUS_SLEEP)) continue;
 
-      if (hasStatus(monster, STATUS_SLEEP)) continue;
-
-      if (hasStatus(monster, STATUS_CONFUSE)) {
-        const options = ALL_DIRS.filter((d) => canStep(this.floor, monster.pos, d));
-        if (options.length > 0) {
-          const dir = this.rng.pick(options);
-          this.moveMonster(monster, dir, events);
-        }
+      if (hasStatus(actor, STATUS_CONFUSE)) {
+        const options = ALL_DIRS.filter((d) => canStep(this.floor, actor.pos, d));
+        if (options.length > 0) this.moveActor(actor, this.rng.pick(options), events);
         continue;
       }
 
-      const action = decideMonsterAction(this.rng, this.floor, monster, this.player, field);
+      const action =
+        actor.kind === "ally"
+          ? decideAllyAction(
+              this.rng,
+              this.floor,
+              actor,
+              this.player,
+              towardsFoe ?? towardsLeader,
+              towardsLeader,
+            )
+          : decideMonsterAction(this.rng, this.floor, actor, this.player, towardsFriendly);
+
       switch (action.type) {
         case "wait":
           break;
         case "move":
-          this.moveMonster(monster, action.dir, events);
+          this.moveActor(actor, action.dir, events);
           break;
-        case "attack":
-          this.attack(monster, this.player, monster.atk, events);
+        case "attack": {
+          const target = this.floor.actors.find((a) => a.id === action.targetId && a.alive);
+          if (target) this.attack(actor, target, actor.atk, events);
           break;
+        }
         case "ranged": {
-          monster.facing = dirFromDelta(
-            this.player.pos.x - monster.pos.x,
-            this.player.pos.y - monster.pos.y,
-          );
-          events.push({ type: "attack", attackerId: monster.id, targetId: this.player.id });
-          events.push({ type: "message", text: `${monster.name}が つぶてを投げた!` });
-          const { damage, critical } = computeDamage(this.rng, monster.atk, totalDefense(this.player));
-          events.push({ type: "message", text: `${this.player.name}に${damage}のダメージ!` });
-          this.damageActor(this.player, damage, critical, events);
+          const target = this.floor.actors.find((a) => a.id === action.targetId && a.alive);
+          if (!target) break;
+          actor.facing = dirFromDelta(target.pos.x - actor.pos.x, target.pos.y - actor.pos.y);
+          events.push({ type: "attack", attackerId: actor.id, targetId: target.id });
+          events.push({ type: "message", text: `${actor.name}が つぶてを投げた!` });
+          const defense =
+            target.kind === "player" ? totalDefense(this.player) : target.def;
+          const { damage, critical } = computeDamage(this.rng, actor.atk, defense);
+          events.push({ type: "message", text: `${target.name}に${damage}のダメージ!` });
+          this.damageActor(target, damage, critical, events);
           break;
         }
       }
     }
   }
 
-  private moveMonster(monster: Actor, dir: Dir, events: GameEvent[]): void {
-    if (!canStep(this.floor, monster.pos, dir)) return;
+  private moveActor(actor: Actor, dir: Dir, events: GameEvent[]): void {
+    if (!canStep(this.floor, actor.pos, dir)) return;
     const delta = dirDelta(dir);
-    const from = monster.pos;
+    const from = actor.pos;
     const to = { x: from.x + delta.x, y: from.y + delta.y };
-    monster.pos = to;
-    monster.facing = dir;
-    events.push({ type: "move", actorId: monster.id, from, to });
+    actor.pos = to;
+    actor.facing = dir;
+    events.push({ type: "move", actorId: actor.id, from, to });
   }
 
   // ------------------------------------------------------------ 毎ターンの処理
@@ -559,8 +900,9 @@ export class Game {
       spawnWanderingMonster(this.rng, this.floor, this.ids, this.player.pos);
     }
 
-    // 倒されたモンスターを取り除く。プレイヤーは死んでも参照が要るので残す
+    // 倒された者を取り除く。プレイヤーは死んでも参照が要るので残す
     this.floor.actors = this.floor.actors.filter((a) => a.alive || a.kind === "player");
+    this.allies = this.allies.filter((a) => a.alive);
   }
 
   private tickStatuses(events: GameEvent[]): void {
@@ -615,6 +957,18 @@ export class Game {
     const def = itemDef(defId);
     const item = createItem(this.ids.nextItemUid(), def.id, def.charges);
     return addItem(this.player.inventory, item) ? item : null;
+  }
+
+  /** テストとデバッグ用。タルを抱えた状態にする */
+  giveBarrel(kind: BarrelKind, speciesId?: string): Barrel {
+    const barrel = createBarrel(this.ids.nextBarrelId(), kind, this.player.pos, speciesId);
+    this.player.carrying = barrel;
+    return barrel;
+  }
+
+  /** 連れている仲間(表示や判定の入口) */
+  get allyList(): readonly Actor[] {
+    return this.allies;
   }
 
   /** 満腹度の割合(0〜1) */

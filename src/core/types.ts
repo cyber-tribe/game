@@ -50,7 +50,20 @@ export interface Status {
 
 // ---------------------------------------------------------------- アクター
 
-export type ActorKind = "player" | "monster";
+export type ActorKind = "player" | "monster" | "ally";
+
+/**
+ * 陣営。プレイヤーと仲間が 0、モンスターが 1。
+ * 追跡AIも攻撃判定も「相手が別の陣営か」だけを見るので、
+ * 仲間が増えても分岐は増えない。
+ */
+export function teamOf(actor: Actor): 0 | 1 {
+  return actor.kind === "monster" ? 1 : 0;
+}
+
+export function isHostile(a: Actor, b: Actor): boolean {
+  return teamOf(a) !== teamOf(b);
+}
 
 /** モンスターの行動傾向 */
 export type AiKind =
@@ -168,6 +181,30 @@ export interface Trap {
   revealed: boolean;
 }
 
+// ---------------------------------------------------------------- タル
+
+export type BarrelKind =
+  /** 空。ぶつけるとモンスターを吸い込むことがある */
+  | "empty"
+  /** 爆発する。当たった場所の周囲もろとも吹き飛ばす */
+  | "bomb"
+  /** モンスターが入っている。投げて開けると仲間になる */
+  | "caught";
+
+export interface Barrel {
+  id: number;
+  kind: BarrelKind;
+  pos: Vec2;
+  /** caught のとき、中にいるモンスターの種族 */
+  speciesId?: string;
+}
+
+export const BARREL_NAMES: Record<BarrelKind, string> = {
+  empty: "からのタル",
+  bomb: "ばくはつタル",
+  caught: "モンスター入りのタル",
+};
+
 // ---------------------------------------------------------------- フロア
 
 export interface FloorState {
@@ -180,6 +217,7 @@ export interface FloorState {
   actors: Actor[];
   items: GroundItem[];
   traps: Trap[];
+  barrels: Barrel[];
 }
 
 export function tileAt(floor: FloorState, p: Vec2): Tile | undefined {
@@ -194,6 +232,15 @@ export function walkableAt(floor: FloorState, p: Vec2): boolean {
 
 export function actorAt(floor: FloorState, p: Vec2): Actor | undefined {
   return floor.actors.find((a) => a.alive && a.pos.x === p.x && a.pos.y === p.y);
+}
+
+export function barrelAt(floor: FloorState, p: Vec2): Barrel | undefined {
+  return floor.barrels.find((b) => b.pos.x === p.x && b.pos.y === p.y);
+}
+
+/** 誰かが立てるマスか。壁でなく、アクターもタルも載っていないこと */
+export function isFree(floor: FloorState, p: Vec2): boolean {
+  return walkableAt(floor, p) && !actorAt(floor, p) && !barrelAt(floor, p);
 }
 
 export function roomOf(floor: FloorState, p: Vec2): Room | undefined {

@@ -1,5 +1,5 @@
 import type { Vec2 } from "./grid";
-import type { StatusKind, TrapKind } from "./types";
+import type { BarrelKind, StatusKind, TrapKind } from "./types";
 
 /**
  * コアが1ターンを解決した結果として吐き出す「何が起きたか」の記録。
@@ -25,6 +25,18 @@ export type GameEvent =
   | { type: "trap"; pos: Vec2; kind: TrapKind }
   | { type: "teleport"; actorId: number; from: Vec2; to: Vec2 }
   | { type: "swap"; aId: number; bId: number }
+  // ---- タル ----
+  | { type: "liftBarrel"; actorId: number; barrelId: number; kind: BarrelKind }
+  | { type: "putBarrel"; actorId: number; barrelId: number; pos: Vec2 }
+  | { type: "throwBarrel"; actorId: number; barrelId: number; from: Vec2; to: Vec2 }
+  | { type: "barrelBreak"; barrelId: number; pos: Vec2 }
+  | { type: "explosion"; pos: Vec2; radius: number }
+  /** モンスターをタルに吸い込んだ */
+  | { type: "capture"; actorId: number; barrelId: number; name: string }
+  /** 吸い込みに失敗した */
+  | { type: "captureFailed"; actorId: number; name: string }
+  /** タルから出して仲間になった */
+  | { type: "recruit"; actorId: number; name: string }
   | { type: "descend"; depth: number }
   | { type: "hungerWarning"; level: "low" | "empty" }
   | { type: "gameOver"; reason: string }

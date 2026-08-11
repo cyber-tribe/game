@@ -232,7 +232,11 @@ def box(name: str, center, size, bevel: float = 0.0, bevel_segments: int = 2,
 
 
 def cylinder(name: str, center, radius: float, depth: float, segments: int = 20,
-             axis: str = "Z", bevel: float = 0.0) -> bpy.types.Object:
+             axis: str = "Z", bevel: float = 0.0, smooth: bool = True) -> bpy.types.Object:
+    """
+    円柱。smooth=False にすると側面の平らな面がそのまま見える。
+    面数を落としたうえでフラットにすると、樽の板張りのような表現になる。
+    """
     mesh = bpy.data.meshes.new(name)
     obj = bpy.data.objects.new(name, mesh)
     bpy.context.collection.objects.link(obj)
@@ -251,8 +255,9 @@ def cylinder(name: str, center, radius: float, depth: float, segments: int = 20,
     bmesh.ops.translate(bm, vec=Vector(center), verts=bm.verts)
     bm.to_mesh(mesh)
     bm.free()
-    activate(obj)
-    bpy.ops.object.shade_smooth()
+    if smooth:
+        activate(obj)
+        bpy.ops.object.shade_smooth()
     return obj
 
 

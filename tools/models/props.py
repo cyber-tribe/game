@@ -160,6 +160,106 @@ def build_trap_pitfall():
     return [C.join([ring, hole], "trap_pitfall")]
 
 
+# --------------------------------------------------------------------------- タル
+
+BARREL_WOOD = (0.52, 0.34, 0.19)
+BARREL_WOOD_DARK = (0.26, 0.20, 0.17)
+BARREL_IRON = (0.34, 0.35, 0.38)
+
+
+BARREL_HEIGHT = 0.52
+BARREL_RADIUS = 0.245
+
+
+def _barrel_body(name: str, wood, iron, height: float = BARREL_HEIGHT,
+                 radius: float = BARREL_RADIUS):
+    """
+    タルの胴。中央を膨らませた樽形にする。
+    面数を12に抑えたうえでフラットシェーディングにしてあるので、
+    側面の平らな面がそのまま「板を並べた樽」に見える。
+    """
+    body = C.cylinder(f"{name}_body", (0.0, 0.0, height / 2), radius, height,
+                      segments=12, smooth=False)
+    # 中央を膨らませる。上下の縁は細く、腹は太く
+    for vert in body.data.vertices:
+        t = vert.co.z / height          # 0(底) 〜 1(上)
+        bulge = 1.0 + 0.16 * math.sin(t * math.pi)
+        vert.co.x *= bulge
+        vert.co.y *= bulge
+    C.assign_material(body, C.make_material(f"{name}_wood", wood, roughness=0.85))
+
+    objs = [body]
+
+    # 鉄輪。腹の膨らみに合わせて半径を変える
+    for i, (t, extra) in enumerate([(0.17, 1.06), (0.50, 1.17), (0.83, 1.06)]):
+        hoop = C.cylinder(f"{name}_hoop{i}", (0.0, 0.0, height * t),
+                          radius * extra + 0.008, 0.040, segments=14)
+        C.assign_material(hoop, C.make_material(f"{name}_iron{i}", iron,
+                                                roughness=0.45, metallic=0.7))
+        objs.append(hoop)
+
+    return objs
+
+
+def _barrel_lid(name: str, color, lift: float = 0.0, tilt: float = 0.0):
+    """
+    上蓋。胴の縁より少しだけ外に張り出させて、上から見ても閉じていると分かるようにする。
+    胴の中に沈めると、真上から覗いたときに口の開いた樽に見えてしまう。
+    """
+    lid = C.cylinder(f"{name}_lid", (0.0, 0.0, BARREL_HEIGHT + 0.022 + lift),
+                     BARREL_RADIUS + 0.012, 0.044, segments=12, smooth=False)
+    if tilt:
+        lid.rotation_euler = (math.radians(tilt), 0.0, math.radians(tilt * 0.7))
+    C.assign_material(lid, C.make_material(f"{name}_lid_m", color, roughness=0.9))
+    return lid
+
+
+def build_barrel():
+    """空のタル。持ち上げて投げられる、この作品の看板になる道具。"""
+    objs = _barrel_body("barrel", BARREL_WOOD, BARREL_IRON)
+    objs.append(_barrel_lid("barrel", (0.46, 0.30, 0.17)))
+    return [C.join(objs, "barrel")]
+
+
+def build_barrel_bomb():
+    """爆発タル。黒く塗った胴に導火線を立て、火花を灯しておく。"""
+    objs = _barrel_body("barrelbomb", BARREL_WOOD_DARK, (0.52, 0.22, 0.19))
+    objs.append(_barrel_lid("barrelbomb", (0.20, 0.16, 0.14)))
+
+    # 導火線。少し斜めに立てる
+    fuse = C.cylinder("barrelbomb_fuse", (0.0, 0.0, 0.615), 0.020, 0.14, segments=8)
+    fuse.rotation_euler = (math.radians(16), 0.0, 0.0)
+    C.assign_material(fuse, C.make_material("barrelbomb_fuse_m", (0.30, 0.25, 0.18),
+                                            roughness=0.95))
+    objs.append(fuse)
+
+    spark = C.uv_sphere("barrelbomb_spark", (0.0, -0.040, 0.690), 0.050,
+                        segments=12, rings=9)
+    C.assign_material(spark, C.make_material("barrelbomb_spark_m", (1.0, 0.70, 0.20),
+                                             roughness=0.2, emission=5.0))
+    objs.append(spark)
+
+    return [C.join(objs, "barrel_bomb")]
+
+
+def build_barrel_caught():
+    """
+    モンスターを吸い込んだタル。蓋が浮いて隙間から光が漏れている状態にして、
+    空のタルと一目で見分けられるようにする。
+    """
+    objs = _barrel_body("barrelcaught", (0.46, 0.34, 0.26), (0.40, 0.38, 0.30))
+
+    # 蓋を押し上げている隙間の光。蓋より下に置いて、縁からこぼれるように見せる
+    glow = C.cylinder("barrelcaught_glow", (0.0, 0.0, BARREL_HEIGHT + 0.030),
+                      BARREL_RADIUS + 0.004, 0.060, segments=12, smooth=False)
+    C.assign_material(glow, C.make_material("barrelcaught_glow_m", (0.50, 0.85, 1.0),
+                                            roughness=0.2, emission=3.5))
+    objs.append(glow)
+
+    objs.append(_barrel_lid("barrelcaught", (0.46, 0.30, 0.17), lift=0.055, tilt=10.0))
+    return [C.join(objs, "barrel_caught")]
+
+
 # --------------------------------------------------------------------------- アイテム
 
 def build_herb():
@@ -276,6 +376,9 @@ def build_shield_item():
 
 PROPS = {
     "wall": build_wall,
+    "barrel": build_barrel,
+    "barrel_bomb": build_barrel_bomb,
+    "barrel_caught": build_barrel_caught,
     "floor": build_floor,
     "stairs": build_stairs,
     "trap_damage": build_trap_damage,
