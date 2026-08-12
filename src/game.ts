@@ -72,6 +72,7 @@ import {
   CHAPTER3_COLLAPSE_DEPTH,
   type DungeonDef,
   MAIN_CAVE_ID,
+  MOUNTAIN_CORE_ID,
   NIGHTLY_DREAM_ID,
   REGION_SIZE,
   TRIAL_CHAMBER_ID,
@@ -311,6 +312,23 @@ const ECHO_ATTACK_MAX = 2;
 
 /** 松明(plan/region-darkness.md): 使うと持続する視界拡張の効果時間(ターン)。数値は初期案 */
 const TORCH_DURATION_TURNS = 20;
+
+/**
+ * 山の芯(plan/mountain-core.md): 最終フロア到達時の固定の会話イベント。
+ * design/characters.mdの頭目マサカリのドンズルを踏まえた短い掛け合い。
+ * 台詞の実際の執筆はプランのスコープ外だったため、実装時に新規に書いた
+ * (design/story.mdの「倒す」より「山の正体を思い知らせ、出て行かせる」
+ * という終章方針どおり、戦闘には発展させない)
+ */
+const MOUNTAIN_CORE_DIALOGUE: readonly string[] = [
+  "マサカリのドンズル「ここまで来たか、小僧。だが引き返せ、この山はワシらの資源だ」",
+  "ガルド「――違う。この山は、ヨリシロっていう生きものの、眠りそのものなんだ」",
+  "ドンズル「ヨリシロ……? 寝言を抜かすな。夢のかけらは金になる、それで十分だろう」",
+  "杭を打ち込む音が響くたび、あたり一帯がかすかに震えているのに気づく。",
+  "ドンズル「……まさか、本当に……?」",
+  "ドンズル「……分かった。今日のところは引き上げる。だが、忘れたわけじゃないぞ」",
+  "近道屋の一団が、山を降りていく足音が遠ざかっていった。",
+];
 /** 松明: 見晴らしのはちまき(+1)より強い光源として、くらやみの階の暗さを大きく緩和する */
 const TORCH_VISION_BONUS = 2;
 
@@ -382,6 +400,12 @@ export class Game {
   private torchTurnsLeft = 0;
   /** 実績帳「挑戦」カテゴリ(plan/challenge-achievements.md)。杖・巻物・食料等を使ったか */
   usedItemThisRun = false;
+  /**
+   * 山の芯(plan/mountain-core.md)。このダイブ中に撃破した地方ボスの
+   * speciesId(重複しない)。SaveData.defeatedRegionBossesへの反映は
+   * 呼び出し側(main.ts、recordRun経由)が行う
+   */
+  readonly defeatedRegionBossesThisRun = new Set<string>();
   /** 実績帳「挑戦」カテゴリ。武器を持ち替えたか(素手・未装備からの初回装備は数えない) */
   usedMultipleWeaponsThisRun = false;
   /**
@@ -778,8 +802,21 @@ export class Game {
     events.push({ type: "move", actorId: player.id, from, to: spot });
   }
 
+  /**
+   * 山の芯(plan/mountain-core.md): 最終フロアに立った時点(階段を降りる・
+   * 区切って持ち帰るのどちらでも)で、固定の会話イベントを1回だけ挟む
+   */
+  private maybePlayMountainCoreEnding(events: GameEvent[]): void {
+    if (this.dungeon.id !== MOUNTAIN_CORE_ID || this.depth < this.maxDepth) return;
+    for (const line of MOUNTAIN_CORE_DIALOGUE) {
+      events.push({ type: "message", text: line });
+    }
+    events.push({ type: "mountainCoreCleared" });
+  }
+
   private descend(events: GameEvent[]): void {
     if (this.depth >= this.maxDepth) {
+      this.maybePlayMountainCoreEnding(events);
       this.status = "cleared";
       this.endReason = `${this.maxDepth}階を踏破した!`;
       events.push({ type: "message", text: this.endReason });
@@ -810,6 +847,7 @@ export class Game {
       this.pushBackFromStairs(events);
       return true;
     }
+    this.maybePlayMountainCoreEnding(events);
     this.status = "cleared";
     this.endReason = `地下${this.depth}階のめざめの階段で区切って持ち帰った!`;
     events.push({ type: "message", text: this.endReason });
@@ -1930,6 +1968,10 @@ export class Game {
     if (bossDrop) {
       this.floor.items.push({ item: createItem(this.ids.nextItemUid(), bossDrop), pos: { ...target.pos } });
       events.push({ type: "message", text: "地方ボスの証となる、特別な素材が現れた!" });
+    }
+    // 山の芯(plan/mountain-core.md): 撃破した地方ボスを記録する
+    if (target.speciesId && speciesById(target.speciesId).isRegionBoss) {
+      this.defeatedRegionBossesThisRun.add(target.speciesId);
     }
     const exp = target.exp ?? 0;
     if (exp > 0) {

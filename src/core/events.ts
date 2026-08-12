@@ -63,7 +63,13 @@ export type GameEvent =
    * 地方ボス(plan/region-boss-horikuinonushi.md)。予兆ターンに、大技
    * (groundSpikes)の発動位置(Tile.crackWarningを立てたマス)を通知する
    */
-  | { type: "crackWarning"; positions: Vec2[] };
+  | { type: "crackWarning"; positions: Vec2[] }
+  /**
+   * 山の芯(plan/mountain-core.md)。最終フロアの会話イベントを経験した
+   * ことを通知する。セーブへの反映(SaveData.storyCleared)は
+   * 呼び出し側(main.ts)が行う
+   */
+  | { type: "mountainCoreCleared" };
 
 /** メッセージイベントを作るだけの短縮。呼び出し側の見通しのため */
 export function msg(text: string): GameEvent {

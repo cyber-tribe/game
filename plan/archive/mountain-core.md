@@ -1,3 +1,47 @@
+> **実装済み。** `MOUNTAIN_CORE_ID`("mountainCore")を`DUNGEONS`に追加し、
+> `DungeonDef.unlock`に`{ afterBossDefeated: string }`バリアントを追加した。
+> `isDungeonUnlocked`は`defeatedRegionBosses.includes(...)`で判定する。
+>
+> `SaveData`に`defeatedRegionBosses: string[]`・`storyCleared: boolean`を
+> 新設し、`killActor`(`src/game.ts`)が`isRegionBoss`な種族の撃破を
+> `Game.defeatedRegionBossesThisRun`に記録、`recordRun`(`src/save.ts`)が
+> 重複を除いて`SaveData.defeatedRegionBosses`にマージする。全滅時も
+> この記録は失われない(「知識・記録はロストしない」方針どおり、
+> `finish()`側で無条件に渡している)。save-compatフィクスチャ
+> `tests/fixtures/save/v9-mountain-core.json`を追加し、旧フィクスチャ
+> (新フィールドなし)が既定値にフォールバックすることも確認した。
+>
+> 最終フロア(3階)到達時の会話イベントは、`descend()`と`bankRun()`
+> **両方**の最終フロア到達経路から呼ばれる共有ヘルパー
+> `maybePlayMountainCoreEnding()`として実装した。本文書は「階段を降りる」
+> 経路しか明記していなかったが、区切って持ち帰る(R キー)側でも
+> 同じ3階に立てるため、そちらを素通りさせるとイベントを一度も見ずに
+> ダイブを終えられてしまう。物語上の到達点を取りこぼさないよう、
+> スコープを広げて両経路に実装した。
+>
+> 会話イベントの台詞は「未決事項」としてスコープ外にされていたが、
+> `design/characters.md`の頭目マサカリのドンズルの人物像を踏まえて
+> このセッションで新規に書き下ろした(`src/game.ts`の
+> `MOUNTAIN_CORE_DIALOGUE`)。本文書が示した骨子(資源として掘り続け
+> ようとするドンズル→ヨリシロの正体を告げるガルド→動揺し引き上げる
+> ドンズル)どおりの短い掛け合いで、`design/story.md`の「倒す」ではなく
+> 「山の正体を思い知らせ、出て行かせる」という方針に沿い、戦闘には
+> 発展させていない。ドンズルの手下の同席有無など、台詞の細部の物語的
+> 詰めは今回のスコープでも保留とした。
+>
+> `floorOffset: 42`は、`maxDepth: 3`の1〜3階を第八地方(43〜48階)の
+> 43〜45階ぶんのテーブルに対応させるための値(近道屋の裏穴と同じ
+> 「floorOffsetで底上げする」既存の仕組みをそのまま再利用)。
+>
+> これにより`design/postgame.md`が前提とする「全地方ボス撃破」
+> 「物語クリア」は、`SaveData.defeatedRegionBosses.length`・
+> `SaveData.storyCleared`で直接判定できるようになった(`postgame.md`
+> 自体の実装は本文書のスコープ外)。
+>
+> テストは `tests/mountain-core.test.ts`(解放条件・ボス撃破記録・
+> 両経路での会話イベント発火・recordRunのマージ挙動)と
+> `tests/save-compat.test.ts`のv9フィクスチャ追加分で検証した。
+
 # 山の芯(対近道屋の決着ダンジョン)
 
 `plan/archive/multiple-dungeons.md` が「③山の芯」として実装を見送り、

@@ -234,6 +234,17 @@ export interface SaveData {
    * スロット選択画面の一覧表示用。saveDataが呼ばれるたびに更新される
    */
   lastPlayedAt: string;
+  /**
+   * 山の芯(plan/mountain-core.md)。撃破済みの地方ボスのspeciesId一覧。
+   * 初出のIDだけ追加し、重複しない。design/postgame.mdの「全地方ボス撃破」
+   * 判定にも使い回せる
+   */
+  defeatedRegionBosses: string[];
+  /**
+   * 山の芯(plan/mountain-core.md)。3階の会話イベントを経験した時点でtrueになる。
+   * design/postgame.mdが前提とする「物語クリア」の直接判定に使う
+   */
+  storyCleared: boolean;
 }
 
 /** 腕試しの間(plan/hidden-dungeon.md)。踏破1回ぶんの記録 */
@@ -303,6 +314,8 @@ export function initialSave(): SaveData {
     lastGiftDates: {},
     foundVaultPassages: [],
     lastPlayedAt: new Date().toISOString(),
+    defeatedRegionBosses: [],
+    storyCleared: false,
   };
 }
 
@@ -350,6 +363,8 @@ export function loadSave(slot: number = activeSlot): SaveData {
       lastGiftDates: sanitizeLastGiftDates(parsed.lastGiftDates),
       foundVaultPassages: sanitizeFoundVaultPassages(parsed.foundVaultPassages),
       lastPlayedAt: typeof parsed.lastPlayedAt === "string" ? parsed.lastPlayedAt : new Date(0).toISOString(),
+      defeatedRegionBosses: sanitizeDefeatedRegionBosses(parsed.defeatedRegionBosses),
+      storyCleared: parsed.storyCleared === true,
     };
   } catch {
     // 壊れた保存データで起動できなくなるほうが困るので、黙って初期値に戻す
@@ -558,6 +573,10 @@ export function recordRun(
     usedItem?: boolean;
     /** 実績帳「挑戦」カテゴリ: このダイブ中に武器を持ち替えたか(素手・未装備からの初回装備は数えない) */
     usedMultipleWeapons?: boolean;
+    /** 山の芯(plan/mountain-core.md): このダイブ中に撃破した地方ボスのspeciesId */
+    defeatedRegionBosses?: string[];
+    /** 山の芯(plan/mountain-core.md): このダイブで最終フロアの会話イベントを経験したか */
+    mountainCoreCleared?: boolean;
   },
 ): SaveData {
   let nextHutUid = current.nextHutUid;
@@ -630,6 +649,10 @@ export function recordRun(
     lastGiftDates: current.lastGiftDates,
     foundVaultPassages: current.foundVaultPassages,
     lastPlayedAt: current.lastPlayedAt,
+    defeatedRegionBosses: Array.from(
+      new Set([...current.defeatedRegionBosses, ...(result.defeatedRegionBosses ?? [])]),
+    ),
+    storyCleared: current.storyCleared || (result.mountainCoreCleared ?? false),
   };
   // 依頼板(plan/quest-board.md): 受注中の依頼を判定し、達成していれば報酬を渡して外す
   const withQuests = resolveQuests(next, result);
@@ -1585,6 +1608,13 @@ const VALID_REGION_IDS = new Set(Array.from({ length: 8 }, (_, i) => `region${i 
 function sanitizeFoundVaultPassages(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   const found = new Set(value.filter((v): v is string => typeof v === "string" && VALID_REGION_IDS.has(v)));
+  return [...found];
+}
+
+/** 山の芯(plan/mountain-core.md): 実在する種族idだけを残す。重複しない */
+function sanitizeDefeatedRegionBosses(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const found = new Set(value.filter((v): v is string => typeof v === "string" && VALID_SPECIES_IDS.has(v)));
   return [...found];
 }
 

@@ -72,6 +72,8 @@ describe("save.ts: recordRunは腕試しの間の踏破を記録する(plan/hidd
       lastGiftDates: {},
       foundVaultPassages: [],
       lastPlayedAt: new Date(0).toISOString(),
+      defeatedRegionBosses: [],
+      storyCleared: false,
     };
   }
 
