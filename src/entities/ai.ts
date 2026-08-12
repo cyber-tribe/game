@@ -36,8 +36,10 @@ const WARN_CALL_RANGE = 4;
 export type MonsterAction =
   | { type: "wait" }
   | { type: "move"; dir: Dir }
-  | { type: "attack"; targetId: number }
-  | { type: "ranged"; targetId: number };
+  | { type: "attack"; targetId: number; empowered?: boolean }
+  | { type: "ranged"; targetId: number }
+  /** 地方ボス(plan/region-bosses.md)の予兆。この手は攻撃せず、次の隣接攻撃が大技になる */
+  | { type: "telegraph"; targetId: number };
 
 /**
  * 指定した地点からの歩数を全マスぶん求めた距離場(いわゆるダイクストラマップ)。
@@ -262,7 +264,25 @@ export function decideMonsterAction(
 
   // 隣に敵がいるなら、それが誰であれ殴る。仲間が割り込んでいれば仲間を殴る
   const adjacent = adjacentFoe(floor, monster, { avoidDisguised: true });
-  if (adjacent) return { type: "attack", targetId: adjacent.id };
+  if (adjacent) {
+    // 地方ボス(plan/region-bosses.md): 予兆つきの大技。1ターン警告してから、
+    // 次に隣接して攻撃する手が必ず大技になる。既存のattack/telegraphの枠組みに
+    // 乗せるだけで、専用の移動AIやUIは増やさない
+    const telegraph = monster.speciesId ? speciesById(monster.speciesId).bossTelegraph : undefined;
+    if (telegraph) {
+      if (monster.telegraphCooldown && monster.telegraphCooldown > 0) monster.telegraphCooldown--;
+      if (monster.telegraphCharge) {
+        monster.telegraphCharge = false;
+        return { type: "attack", targetId: adjacent.id, empowered: true };
+      }
+      if (!monster.telegraphCooldown) {
+        monster.telegraphCharge = true;
+        monster.telegraphCooldown = telegraph.cooldownTurns;
+        return { type: "telegraph", targetId: adjacent.id };
+      }
+    }
+    return { type: "attack", targetId: adjacent.id };
+  }
 
   // 逃げ腰のモンスターは瀕死になると距離を取る
   if (monster.aiKind === "coward" && monster.hp <= monster.maxHp * 0.3) {

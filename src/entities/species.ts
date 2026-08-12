@@ -135,6 +135,27 @@ export const SPECIES: readonly Species[] = [
     inflicts: { kind: "sleep", chance: 0.2, turns: 3 },
   },
 
+  // ---- plan/region-bosses.md: 地方ボス ----
+  // 野生出現テーブルには乗せず(minFloor: Infinity、weight: 0)、
+  // REGION_BOSS_FLOORS の階でだけ専用に配置する
+  {
+    // 第一地方: うたたねの参道(design/regions.md 1〜6階)。
+    // ぷるんが大きくなりすぎた姿。単純な単一フェーズの、チュートリアル的な最初のボス
+    id: "oonebosuke",
+    name: "おおねぼすけ",
+    model: "purun",
+    maxHp: 30,
+    atk: 11,
+    def: 4,
+    exp: 40,
+    ai: "melee",
+    minFloor: Number.POSITIVE_INFINITY,
+    weight: 0,
+    isRegionBoss: true,
+    bossTelegraph: { message: "大きく身をかがめた", multiplier: 2, cooldownTurns: 3 },
+    bossGuaranteedDrop: "oonebosukeDust",
+  },
+
   // ---- plan/monster-compendium.md: 地方別の新種 ----
   // 新規3Dモデルは今回のスコープでは制作せず、既存モデルを色違いの発想で
   // 流用する(毒罠がtrap_damageモデルを流用しているのと同じ考え方)
@@ -355,3 +376,13 @@ export function speciesById(id: string): Species {
 export function speciesForDepth(depth: number): Species[] {
   return SPECIES.filter((s) => depth >= s.minFloor && (s.maxFloor === undefined || depth <= s.maxFloor));
 }
+
+/**
+ * 地方ボス(plan/region-bosses.md)。表の寝穴(MAIN_CAVE_ID)で、その階の
+ * 地方の最終階(6階目)にだけ専用に配置する種族id。design/regions.mdは
+ * 8地方(6階ごと、48階)を想定するが、8地方の床構造自体は未実装のため、
+ * 現行の表の寝穴(10階)にそのまま収まる第一地方の6階だけを実装する
+ */
+export const REGION_BOSS_FLOORS: Readonly<Record<number, string>> = {
+  6: "oonebosuke",
+};
