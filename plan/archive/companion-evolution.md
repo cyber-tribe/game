@@ -1,5 +1,58 @@
 # 仲間の進化
 
+> **実装済み(3系統の実装例、全種族分の系統図は対象外)。**
+> `src/entities/evolution.ts`(新規。`EvolutionRule`・`EVOLUTION_RULES`・
+> `tryEvolve`・`MAX_RECENT_FUSION_MATERIALS`)・`src/entities/species.ts`
+> (進化後の3種`ishizuenezumi`・`tokoshiepurun`・`yumemirupurun`を追加。
+> 既存モデル(gajiri/purun)を流用し、`minFloor: Number.POSITIVE_INFINITY`
+> で野生出現から除外)・`src/entities/skills.ts`(新特技`steadfastBody`
+> 「ゆるがぬからだ」。とこしえのぷるんの種族固有特技)・
+> `src/entities/storedMonster.ts`(`StoredMonster.recentFusionMaterials`)・
+> `src/core/types.ts`(`SkillId`に`steadfastBody`追加、`Actor.
+> recentFusionMaterials`でダイブ中も値を引き継ぐ)・`src/dungeon/populate.ts`
+> (`createAllyFromStored`が`recentFusionMaterials`をActorへ渡す)・
+> `src/save.ts`(`fuseMonsters`が夢あわせのたびに糧の種族履歴を更新し、
+> `tryEvolve`で進化判定。進化した種族も図鑑に登録)・`src/game.ts`
+> (`steadfastBody`は確率判定なしで必ずダメージを1割軽減する、
+> `softBody`の常時発動版)。テストは `tests/companion-evolution.test.ts`
+> (13件)。
+>
+> 実装にあたって次の判断をした。
+>
+> - **本文の3つの例(いしずえねずみ・とこしえのぷるん・ゆめみるぷるん)を
+>   そのまま実装し、それ以外の系統図(全種族・全組み合わせ)は本文が
+>   明記するとおり対象外にした。** `EVOLUTION_RULES`に配列としてルールを
+>   追加していく形にしてあるため、今後の拡張はここに1件足すだけで済む。
+> - **新規3Dモデルは制作せず、進化前と同じ既存モデル(gajiri/purun)を
+>   流用した。** `models.test.ts`が要求する「5種の既存アニメーション付き
+>   モデルのいずれかを使う」という制約に従う、既存のスリガラス・モンスター
+>   図鑑拡張種と同じ方針。
+> - **進化後の種族は`minFloor: Number.POSITIVE_INFINITY`にして野生出現
+>   から除外した。** `speciesForDepth`は`minFloor`しか見ないため、
+>   到達不能な値にするだけで確実に除外できる。成熟でしか出会えない姿、
+>   という世界観の一貫性を保つ狙い。
+> - **ステータス・AI・特技の再計算は、既存の設計をそのまま活かせた。**
+>   `StoredMonster`は`speciesId`のほかに実数値を持たず、
+>   `createAllyFromStored`が常に`speciesById(stored.speciesId)`から
+>   基礎値を引き直す設計だったため、`speciesId`を差し替えるだけで
+>   本文の「種族基礎値のカーブに乗り直す」再計算が自動的に成立した。
+>   特技の持ち越しも同様に、既存の`skills`配列(native以外の追加分だけ
+>   保存する設計)を一切変更せずに成立している。
+> - **`recentFusionMaterials`はダイブ中に値が変化しないにもかかわらず、
+>   `bondSuccessCount`と同じパターンで`Actor`にも一時的に持たせる
+>   実装にした。** ダイブに連れ出した個体が`actorToStoredMonster`で
+>   ねむり小屋へ戻る際、この値をActor経由で引き継がないと帰還のたびに
+>   進化の進捗がリセットされてしまうため。
+> - **「進化後の個体の刻印石は進化後の種族のものとして扱う」という本文の
+>   記述は、現行実装には該当しなかった。** `plan/equipment-forging.md`の
+>   刻印石は「かがやきの夢のかけら」を倒した際の完全ランダムドロップで、
+>   種族に紐づいていないため(`MarkId`も5つの基本モデルにしか対応しない)、
+>   この記述が前提とする仕組み自体が現状のゲームに存在しない。
+> - **進化専用のUI・通知は追加していない。** 本文の「進化専用の操作を
+>   増やさず、夢あわせの延長として自然に起こる」方針どおり、ねむり小屋の
+>   一覧に表示される種族名が(`refreshSave`後に)自動的に切り替わるだけで、
+>   既存の夢あわせ自体にも結果通知が無いことと平仄を合わせた。
+
 `plan/monster-fusion.md`(夢あわせ)と `plan/monster-compendium.md`
 (種族拡充・特技/特性)を前提にした拡張。**夢あわせの「何を糧に選んだか」
 によって、軸にした仲間が別の姿へ育つ**進化(この世界では **成熟(せいじゅく)**

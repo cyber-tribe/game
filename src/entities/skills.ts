@@ -68,6 +68,12 @@ export const SKILLS: readonly SkillDef[] = [
     name: "みをかくす",
     description: "複数の相手に隣接されたとき、自分が狙われにくくなる。",
   },
+  // ---- ここから plan/companion-evolution.md ----
+  {
+    id: "steadfastBody",
+    name: "ゆるがぬからだ",
+    description: "被弾ダメージを必ず1割軽減する(「みをまもる」の常時発動版)。",
+  },
 ];
 
 /** 種族固有の特技(由来種族を捕まえた/夢あわせで習得した個体が持つ) */
@@ -88,6 +94,10 @@ export const NATIVE_SKILL_BY_SPECIES: Record<string, SkillId> = {
   menkaburikozo: "ambushStrike",
   yumemayoinokage: "disguise",
   // オイテケボシ・しずくうお・こだまうさぎ・かざりだるま・ヨリシロの残響: 特技なし
+  // ---- ここから plan/companion-evolution.md ----
+  tokoshiepurun: "steadfastBody",
+  // いしずえねずみ: 特技なし(coward→guardのAI変化とステータス底上げが本体)
+  // ゆめみるぷるん: 特技ではなくspecies.inflicts(眠り付与)そのもので表現する
 };
 
 /** 1体が同時に持てる特技の最大数(自分の種族由来 + 夢あわせで得た1つ、程度の枠) */

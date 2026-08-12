@@ -84,6 +84,54 @@ export const SPECIES: readonly Species[] = [
     weight: 4,
   },
 
+  // ---- plan/companion-evolution.md: 夢あわせで成熟した先の姿 ----
+  // 新規3Dモデルは今回のスコープでは制作せず、進化前と地続きの既存モデルを
+  // 流用する。野生では出現させない(minFloorを到達不能な値にして
+  // speciesForDepthの対象から外す。成熟でしか出会えない姿として扱う)
+  {
+    // ガジリねずみ(不安)+ホネガラミ(古い記憶)の夢あわせを重ねて育った姿。
+    // 不安を乗り越え、その場を守れるようになる(coward→guard)
+    id: "ishizuenezumi",
+    name: "いしずえねずみ",
+    model: "gajiri",
+    maxHp: 24,
+    atk: 11,
+    def: 9,
+    exp: 20,
+    ai: "guard",
+    minFloor: Number.POSITIVE_INFINITY,
+    weight: 0,
+  },
+  {
+    // ぷるん同士の夢あわせを重ねて育った姿。被弾軽減の特性(みをまもる)が
+    // 常時発動になる(ゆるがぬからだ)
+    id: "tokoshiepurun",
+    name: "とこしえのぷるん",
+    model: "purun",
+    maxHp: 22,
+    atk: 9,
+    def: 6,
+    exp: 18,
+    ai: "melee",
+    minFloor: Number.POSITIVE_INFINITY,
+    weight: 0,
+  },
+  {
+    // ぷるん(まどろみの余韻)+マドロミダケ(眠気そのもの)の夢あわせを
+    // 重ねて育った姿。攻撃に眠り付与が乗るようになる
+    id: "yumemirupurun",
+    name: "ゆめみるぷるん",
+    model: "purun",
+    maxHp: 20,
+    atk: 9,
+    def: 4,
+    exp: 18,
+    ai: "melee",
+    minFloor: Number.POSITIVE_INFINITY,
+    weight: 0,
+    inflicts: { kind: "sleep", chance: 0.2, turns: 3 },
+  },
+
   // ---- plan/monster-compendium.md: 地方別の新種 ----
   // 新規3Dモデルは今回のスコープでは制作せず、既存モデルを色違いの発想で
   // 流用する(毒罠がtrap_damageモデルを流用しているのと同じ考え方)

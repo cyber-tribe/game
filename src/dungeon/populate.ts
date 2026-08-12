@@ -113,6 +113,9 @@ export function createAllyFromStored(id: number, stored: StoredMonster, pos: Vec
     actor.atk = Math.round(actor.atk * (1 + bond));
     actor.def = Math.round(actor.def * (1 + bond));
   }
+  // 成熟(plan/companion-evolution.md): ダイブ中は夢あわせを行えないため値自体は
+  // 変化しないが、帰還時にactorToStoredMonsterへ引き継ぐために乗せておく
+  actor.recentFusionMaterials = stored.recentFusionMaterials;
   return actor;
 }
 

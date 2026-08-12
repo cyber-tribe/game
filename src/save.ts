@@ -2,6 +2,7 @@ import { TUTORIAL_TIP_IDS, type TutorialTipId } from "./core/tutorial";
 import type { Actor, Item, MarkId, SkillId } from "./core/types";
 import { ACHIEVEMENTS, achievementDef } from "./entities/achievements";
 import { DIFFICULTY_MODES, type DifficultyMode } from "./entities/difficulty";
+import { MAX_RECENT_FUSION_MATERIALS, tryEvolve } from "./entities/evolution";
 import { HOKORA_DUST_DEF_ID, MARKS, MAX_PLUS } from "./entities/forging";
 import { MAX_ACTIVE_QUESTS, QUESTS, questDef, questsForDate } from "./entities/quests";
 import type { TrainingFocus } from "./entities/player";
@@ -405,6 +406,8 @@ export function actorToStoredMonster(uid: number, actor: Actor): StoredMonster {
     // なじみ(plan/companion-bond-growth.md): この呼び出し自体が「生きて連れ帰った」
     // 成功なので+1する。連れ出していない新規個体はactor.bondSuccessCountがundefinedのまま
     bondSuccessCount: (actor.bondSuccessCount ?? 0) + 1,
+    // 成熟(plan/companion-evolution.md): ダイブ中は変化しないため、そのまま引き継ぐ
+    recentFusionMaterials: actor.recentFusionMaterials ?? [],
   };
 }
 
@@ -488,20 +491,28 @@ export function fuseMonsters(
   const skills =
     inheritable && axisFull.length < MAX_SKILLS ? [...axis.skills, inheritable] : [...axis.skills];
 
-  const result: StoredMonster = {
+  // 成熟(plan/companion-evolution.md): 直近の糧の種族履歴を更新してから、成熟条件を判定する
+  const recentFusionMaterials = [...axis.recentFusionMaterials, food.speciesId].slice(
+    -MAX_RECENT_FUSION_MATERIALS,
+  );
+  const fused: StoredMonster = {
     ...axis,
     level: axis.level + Math.floor(food.level / 2) + 1,
     skills,
+    recentFusionMaterials,
   };
+  const result = tryEvolve(fused);
 
   const hut = current.hut
     .filter((m) => m.uid !== foodUid)
     .map((m) => (m.uid === axisUid ? result : m));
-  // 図鑑(plan/monster-compendium.md): 夢あわせの糧にした種族も「捕まえた」扱いにする
+  // 図鑑(plan/monster-compendium.md): 夢あわせの糧にした種族も「捕まえた」扱いにする。
+  // 成熟が起きた場合は、進化後の姿も別エントリとして「捕まえた」にする
   const compendium: Record<string, CompendiumStatus> = {
     ...current.compendium,
     [axis.speciesId]: "captured",
     [food.speciesId]: "captured",
+    ...(result.speciesId !== fused.speciesId ? { [result.speciesId]: "captured" as const } : {}),
   };
   const next: SaveData = { ...current, hut, compendium };
   const withAchievements = checkAchievements(next);
@@ -855,6 +866,11 @@ function sanitizeHut(value: unknown): StoredMonster[] {
         typeof m.bondSuccessCount === "number" && Number.isFinite(m.bondSuccessCount) && m.bondSuccessCount >= 0
           ? m.bondSuccessCount
           : 0,
+      recentFusionMaterials: Array.isArray(m.recentFusionMaterials)
+        ? m.recentFusionMaterials
+            .filter((id): id is string => typeof id === "string" && VALID_SPECIES_IDS.has(id))
+            .slice(-MAX_RECENT_FUSION_MATERIALS)
+        : [],
     });
   }
   return out;
