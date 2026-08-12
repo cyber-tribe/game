@@ -6,9 +6,9 @@ import {
   createInventory,
   equip,
   shieldBonus,
-  shieldMarkId,
+  shieldMarkIds,
   weaponBonus,
-  weaponMarkId,
+  weaponMarkIds,
 } from "../src/items/inventory";
 import { STATUS_SLEEP, hasStatus, isFree, type Actor, type MarkId } from "../src/core/types";
 import { fromStored, loadSave, toStored, type StoredItem } from "../src/save";
@@ -40,24 +40,31 @@ describe("items/inventory.ts: 強化値・印", () => {
     expect(shieldBonus(inv)).toBe(3 + 2 * 1);
   });
 
-  it("weaponMarkId/shieldMarkIdは装備中のアイテムのmarkIdを返す", () => {
+  it("weaponMarkIds/shieldMarkIdsは装備中のアイテムのmarkIdsを返す(plan/dual-mark-equipment.md)", () => {
     const inv = createInventory();
-    addItem(inv, { uid: 1, defId: "hatchet", markId: "gajiri" });
+    addItem(inv, { uid: 1, defId: "hatchet", markIds: ["gajiri"] });
     equip(inv, 1);
-    expect(weaponMarkId(inv)).toBe("gajiri");
-    expect(shieldMarkId(inv)).toBeUndefined();
+    expect(weaponMarkIds(inv)).toEqual(["gajiri"]);
+    expect(shieldMarkIds(inv)).toEqual([]);
+  });
+
+  it("weaponMarkIds/shieldMarkIdsは2つ目の印まで返す(plan/dual-mark-equipment.md)", () => {
+    const inv = createInventory();
+    addItem(inv, { uid: 1, defId: "hatchet", markIds: ["gajiri", "tsubute"] });
+    equip(inv, 1);
+    expect(weaponMarkIds(inv)).toEqual(["gajiri", "tsubute"]);
   });
 });
 
-describe("save.ts: toStored/fromStoredはplus・markIdを保つ", () => {
-  it("round-tripでplus・markIdが失われない", () => {
-    const stored = toStored({ uid: 9, defId: "hatchet", plus: 4, markId: "tsubute" });
-    expect(stored).toEqual({ defId: "hatchet", plus: 4, markId: "tsubute" });
+describe("save.ts: toStored/fromStoredはplus・markIdsを保つ", () => {
+  it("round-tripでplus・markIdsが失われない", () => {
+    const stored = toStored({ uid: 9, defId: "hatchet", plus: 4, markIds: ["tsubute"] });
+    expect(stored).toEqual({ defId: "hatchet", plus: 4, markIds: ["tsubute"] });
     const item = fromStored(stored, 9);
-    expect(item).toEqual({ uid: 9, defId: "hatchet", plus: 4, markId: "tsubute" });
+    expect(item).toEqual({ uid: 9, defId: "hatchet", plus: 4, markIds: ["tsubute"] });
   });
 
-  it("plus・markIdが無ければキー自体を持たない", () => {
+  it("plus・markIdsが無ければキー自体を持たない", () => {
     const stored = toStored({ uid: 1, defId: "healLeaf" });
     expect(stored).toEqual({ defId: "healLeaf" });
   });
@@ -79,27 +86,59 @@ function withMockedLocalStorage(run: () => void): void {
   }
 }
 
-describe("save.ts: 壊れたセーブデータのplus・markId", () => {
+describe("save.ts: 壊れたセーブデータのplus・markIds", () => {
   it("範囲外のplus・未知のmarkIdは捨てる", () => {
     withMockedLocalStorage(() => {
       localStorage.setItem(
         "garudo-dungeon/v1",
         JSON.stringify({
           storage: [
-            { defId: "hatchet", plus: 3, markId: "gajiri" }, // 正常
+            { defId: "hatchet", plus: 3, markIds: ["gajiri"] }, // 正常
             { defId: "hatchet", plus: -1 }, // 範囲外
             { defId: "hatchet", plus: 999 }, // 範囲外
-            { defId: "hatchet", markId: "みしらぬ印" }, // 未知
+            { defId: "hatchet", markIds: ["みしらぬ印"] }, // 未知
           ],
         }),
       );
       const loaded = loadSave();
       const items = loaded.storage as StoredItem[];
       expect(items).toHaveLength(4);
-      expect(items[0]).toEqual({ defId: "hatchet", plus: 3, markId: "gajiri" });
+      expect(items[0]).toEqual({ defId: "hatchet", plus: 3, markIds: ["gajiri"] });
       expect(items[1]).toEqual({ defId: "hatchet" });
       expect(items[2]).toEqual({ defId: "hatchet" });
       expect(items[3]).toEqual({ defId: "hatchet" });
+    });
+  });
+
+  it("2つを超えるmarkIdsは先頭2件までに切り詰める", () => {
+    withMockedLocalStorage(() => {
+      localStorage.setItem(
+        "garudo-dungeon/v1",
+        JSON.stringify({
+          storage: [{ defId: "hatchet", markIds: ["gajiri", "tsubute", "madoromi"] }],
+        }),
+      );
+      const loaded = loadSave();
+      const items = loaded.storage as StoredItem[];
+      expect(items[0]).toEqual({ defId: "hatchet", markIds: ["gajiri", "tsubute"] });
+    });
+  });
+
+  it("plan/dual-mark-equipment.md以前の単数形markIdは、markIds: [markId]へ読み替える", () => {
+    withMockedLocalStorage(() => {
+      localStorage.setItem(
+        "garudo-dungeon/v1",
+        JSON.stringify({
+          storage: [
+            { defId: "hatchet", plus: 9, markId: "gajiri" }, // 旧形式
+            { defId: "hatchet", markId: "みしらぬ印" }, // 旧形式・未知
+          ],
+        }),
+      );
+      const loaded = loadSave();
+      const items = loaded.storage as StoredItem[];
+      expect(items[0]).toEqual({ defId: "hatchet", plus: 9, markIds: ["gajiri"] });
+      expect(items[1]).toEqual({ defId: "hatchet" });
     });
   });
 });
@@ -155,7 +194,7 @@ function newGameWithMark(seed: number, defId: "hatchet" | "woodShield", markId?:
   const game = new Game({ seed });
   if (markId) {
     const inv = game.player.inventory;
-    addItem(inv, { uid: 9999, defId, markId });
+    addItem(inv, { uid: 9999, defId, markIds: [markId] });
     equip(inv, 9999);
   }
   return game;

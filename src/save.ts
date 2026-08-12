@@ -5,7 +5,7 @@ import { COSTUMES, DEFAULT_COSTUME_ID, type CostumeDef } from "./entities/costum
 import { DIFFICULTY_MODES, type DifficultyMode } from "./entities/difficulty";
 import { NIGHTLY_DREAM_ID, TRIAL_CHAMBER_ID } from "./entities/dungeons";
 import { MAX_RECENT_FUSION_MATERIALS, tryEvolve } from "./entities/evolution";
-import { HOKORA_DUST_DEF_ID, MARKS, MAX_PLUS } from "./entities/forging";
+import { HOKORA_DUST_DEF_ID, MARKS, MAX_MARK_SLOTS, MAX_PLUS } from "./entities/forging";
 import { MAX_ACTIVE_QUESTS, QUESTS, questDef, questsForDate, todayKey } from "./entities/quests";
 import type { TrainingFocus } from "./entities/player";
 import { bondStage } from "./entities/companionBond";
@@ -39,8 +39,8 @@ export interface StoredItem {
   charges?: number;
   /** 強化値(+n)。武器・盾のみ。plan/equipment-forging.md 参照 */
   plus?: number;
-  /** 刻んだ印。武器・盾のみ */
-  markId?: MarkId;
+  /** 刻んだ印。武器・盾のみ、最大2件(plan/dual-mark-equipment.md) */
+  markIds?: MarkId[];
 }
 
 
@@ -737,7 +737,7 @@ export function toStored(item: Item): StoredItem {
   const stored: StoredItem = { defId: item.defId };
   if (item.charges !== undefined) stored.charges = item.charges;
   if (item.plus !== undefined) stored.plus = item.plus;
-  if (item.markId !== undefined) stored.markId = item.markId;
+  if (item.markIds !== undefined && item.markIds.length > 0) stored.markIds = item.markIds;
   return stored;
 }
 
@@ -746,7 +746,7 @@ export function fromStored(stored: StoredItem, uid: number): Item {
   const item: Item = { uid, defId: stored.defId };
   if (stored.charges !== undefined) item.charges = stored.charges;
   if (stored.plus !== undefined) item.plus = stored.plus;
-  if (stored.markId !== undefined) item.markId = stored.markId;
+  if (stored.markIds !== undefined && stored.markIds.length > 0) item.markIds = stored.markIds;
   return item;
 }
 
@@ -766,9 +766,18 @@ function sanitizeStorage(value: unknown): StoredItem[] {
     if (typeof plus === "number" && Number.isInteger(plus) && plus >= 0 && plus <= MAX_PLUS) {
       stored.plus = plus;
     }
-    const markId = (entry as StoredItem).markId;
-    if (typeof markId === "string" && VALID_MARK_IDS.has(markId as MarkId)) {
-      stored.markId = markId as MarkId;
+    // dual-mark-equipment.md以前のセーブは単数形markIdを持つ。
+    // markIds: [markId] へ読み替える(この1箇所限りのマイグレーション)
+    const legacyMarkId = (entry as { markId?: unknown }).markId;
+    const rawMarkIds = (entry as { markIds?: unknown }).markIds;
+    let markIds: MarkId[] | undefined;
+    if (Array.isArray(rawMarkIds)) {
+      markIds = rawMarkIds.filter((m): m is MarkId => typeof m === "string" && VALID_MARK_IDS.has(m as MarkId));
+    } else if (typeof legacyMarkId === "string" && VALID_MARK_IDS.has(legacyMarkId as MarkId)) {
+      markIds = [legacyMarkId as MarkId];
+    }
+    if (markIds && markIds.length > 0) {
+      stored.markIds = markIds.slice(0, MAX_MARK_SLOTS);
     }
     out.push(stored);
   }
@@ -965,7 +974,7 @@ export function checkAchievements(current: SaveData, extraItems: readonly Stored
 
   const items = [...next.storage, ...extraItems];
   if (items.some((i) => (i.plus ?? 0) >= MAX_PLUS)) next = unlockAchievement(next, "maxPlusReached");
-  const forgedMarkIds = new Set(items.map((i) => i.markId).filter((m): m is MarkId => m !== undefined));
+  const forgedMarkIds = new Set(items.flatMap((i) => i.markIds ?? []));
   if (MARKS.every((m) => forgedMarkIds.has(m.id))) next = unlockAchievement(next, "allMarksForged");
 
   // 装備図鑑(plan/equipment-compendium.md): 武器図鑑コンプリートの称号
@@ -1022,11 +1031,11 @@ export function checkEquipmentCompendium(current: SaveData, extraItems: readonly
       const isWeapon = WEAPON_DEF_IDS.has(item.defId);
       // 頭防具・装身具は強化・刻印の概念が無いので、入手した時点で自動的に極めた扱い。
       // 武器は+9かつ印を刻んで初めて極めたになる
-      const mastered = !isWeapon || ((item.plus ?? 0) >= MAX_PLUS && item.markId !== undefined);
+      const mastered = !isWeapon || ((item.plus ?? 0) >= MAX_PLUS && (item.markIds?.length ?? 0) > 0);
       equipmentCompendium[item.defId] = mastered ? "mastered" : "owned";
     }
     if (VALID_MATERIAL_DEF_IDS.has(item.defId)) materialCompendium[item.defId] = "owned";
-    if (item.markId !== undefined) markCompendium[item.markId] = "owned";
+    for (const markId of item.markIds ?? []) markCompendium[markId] = "owned";
   }
 
   const next: SaveData = { ...current, equipmentCompendium, markCompendium, materialCompendium };

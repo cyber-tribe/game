@@ -43,7 +43,7 @@ describe("save.ts: checkEquipmentCompendium", () => {
       const next1 = checkEquipmentCompendium(save1);
       expect(next1.equipmentCompendium["hatchet"]).toBe("owned");
 
-      const mastered: StoredItem = { defId: "hatchet", plus: MAX_PLUS, markId: "gajiri" };
+      const mastered: StoredItem = { defId: "hatchet", plus: MAX_PLUS, markIds: ["gajiri"] };
       const save2: SaveData = { ...initialSave(), storage: [mastered] };
       const next2 = checkEquipmentCompendium(save2);
       expect(next2.equipmentCompendium["hatchet"]).toBe("mastered");
@@ -54,7 +54,7 @@ describe("save.ts: checkEquipmentCompendium", () => {
     withMockedLocalStorage(() => {
       let save: SaveData = {
         ...initialSave(),
-        storage: [{ defId: "hatchet", plus: MAX_PLUS, markId: "gajiri" }],
+        storage: [{ defId: "hatchet", plus: MAX_PLUS, markIds: ["gajiri"] }],
       };
       save = checkEquipmentCompendium(save);
       expect(save.equipmentCompendium["hatchet"]).toBe("mastered");
@@ -78,7 +78,7 @@ describe("save.ts: checkEquipmentCompendium", () => {
     withMockedLocalStorage(() => {
       const save: SaveData = {
         ...initialSave(),
-        storage: [{ defId: "hokoraDust" }, { defId: "hatchet", markId: "madoromi" }],
+        storage: [{ defId: "hokoraDust" }, { defId: "hatchet", markIds: ["madoromi"] }],
       };
       const next = checkEquipmentCompendium(save);
       expect(next.materialCompendium["hokoraDust"]).toBe("owned");
@@ -109,7 +109,7 @@ describe("save.ts: isWeaponCompendiumComplete", () => {
       let save = initialSave();
       expect(isWeaponCompendiumComplete(save)).toBe(false);
       // hatchetだけ極めても全体は埋まらない
-      save = checkEquipmentCompendium(save, [{ defId: "hatchet", plus: MAX_PLUS, markId: "gajiri" }]);
+      save = checkEquipmentCompendium(save, [{ defId: "hatchet", plus: MAX_PLUS, markIds: ["gajiri"] }]);
       expect(isWeaponCompendiumComplete(save)).toBe(false);
     });
   });
@@ -119,7 +119,7 @@ describe("save.ts: isWeaponCompendiumComplete", () => {
       const allWeapons: StoredItem[] = ITEMS.filter((i) => i.category === "weapon").map((i) => ({
         defId: i.id,
         plus: MAX_PLUS,
-        markId: "gajiri",
+        markIds: ["gajiri"],
       }));
       let save: SaveData = { ...initialSave(), storage: allWeapons };
       save = checkEquipmentCompendium(save);

@@ -425,8 +425,11 @@ export interface Item {
   charges?: number;
   /** 強化値(+n)。武器・盾のみ。plan/equipment-forging.md 参照 */
   plus?: number;
-  /** 刻んだ印。武器・盾のみ、未刻印ならundefined */
-  markId?: MarkId;
+  /**
+   * 刻んだ印。武器・盾のみ、最大2件(plan/dual-mark-equipment.md)。
+   * 未刻印ならundefined(空配列にはしない)
+   */
+  markIds?: MarkId[];
   /**
    * 近道屋の出店(plan/shops-and-thieves.md)で、お金が足りないまま
    * 持ち出した品。持ったまま店の部屋を出ると万引き扱いになる

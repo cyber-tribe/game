@@ -1,3 +1,44 @@
+> **実装済み。**
+> `src/core/types.ts`(`Item.markId` → `Item.markIds: MarkId[]`)、
+> `src/save.ts`(`StoredItem.markIds`・`toStored`/`fromStored`・
+> `checkAchievements`・`checkEquipmentCompendium`)、`src/entities/forging.ts`
+> (`MAX_MARK_SLOTS`・`OVERLAY_STONE_DEF_ID`・`OVERLAY_STONE_DUST_COST`)、
+> `src/items/inventory.ts`(`weaponMarkId`/`shieldMarkId` →
+> `weaponMarkIds`/`shieldMarkIds`、`displayName`)、`src/game.ts`(印判定
+> 5箇所を`.includes()`形式に置き換え)、`src/items/catalog.ts`(新規素材
+> `overlayMarkStone`「重ね刻みの砥石」を追加)、`src/ui/town.ts`(工房画面に
+> 2枠目の刻印・砥石の合成を追加)に実装した。テストは
+> `tests/dual-mark-equipment.test.ts`(新規7件)、
+> `tests/equipment-forging.test.ts`・`tests/achievements.test.ts`・
+> `tests/equipment-compendium.test.ts`(既存分をmarkIds形式へ更新)。
+>
+> 実装時の判断:
+> - **セーブ移行**: プランの想定通り、`Item`(ダイブ中の一時データ)側は
+>   互換レイヤーなしで`markIds`に一本化した。`StoredItem`(倉庫の永続化
+>   データ)側だけ、`sanitizeStorage`の1箇所で旧形式の単数形`markId`を
+>   `markIds: [markId]`へ読み替えるマイグレーションを追加した(新形式の
+>   `markIds`配列も、不正な値の除去・2件までの切り詰めを行う)。
+> - **重ね刻みの砥石の合成コスト**(未決事項): 刻印石2個(同じ種類のもの
+>   2個、異なる2種類の組み合わせは選べない — 単一リストからの選択という
+>   既存UIパターンをそのまま再利用するための簡略化)+ほこら粉8個
+>   (通常の印刻み3個より多めに)とした。ゲンドの工房に新規キー`C`で
+>   「重ね刻みの砥石を合成する」を追加した。
+> - **2つ目の刻印の可否判定**: 対象が+9かつ1つの印を持ち、かつ重ね刻みの
+>   砥石を1個以上持っている場合だけ、`M`キーの候補に「既にある印を除いた
+>   2つ目の候補」を出す。それ以外(0枠、または条件未達の1枠)は従来通り
+>   `M`で1枠目を選び直せる(上書き)。2つ目を刻む際は通常の印刻みコスト
+>   (ほこら粉3個+刻印石1個)に加えて砥石1個を消費する。
+> - **同じ印の重複**(未決事項): プラン初期案の「禁止」を採用し、UI側の
+>   2枠目候補生成で既にある印を除外した。型としては`markIds`に同じ値を
+>   2つ入れることを禁止していない(倉庫データを直接いじる不正なセーブ等を
+>   意図的に弾かない、というだけの緩い制約)。
+> - `src/ui/town.ts`はこのプロジェクトのテスト環境(`environment: "node"`)
+>   では元々DOM依存のため単体テストが無い層(既存の`town.ts`にも
+>   テストが無いことを確認済み)。型チェック・ビルドの成功で担保し、
+>   UI状態遷移(`workshopMarkAddingSecond`・`workshopSynthesisChoices`
+>   まわりのロジック)自体は`src/game.ts`側の効果(併存する印が両方
+>   発火すること)をテストで検証する形にした。
+
 # 装備の刻印を2つ目まで拡張する
 
 `plan/archive/equipment-forging.md`が未決事項として残していた「印の

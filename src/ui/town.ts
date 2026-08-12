@@ -12,7 +12,10 @@ import {
   MARKS,
   MARK_IMPRINT_DUST_COST,
   MARK_STONE_DEF_ID,
+  MAX_MARK_SLOTS,
   MAX_PLUS,
+  OVERLAY_STONE_DEF_ID,
+  OVERLAY_STONE_DUST_COST,
   hokoraDustCost,
   markDef,
 } from "../entities/forging";
@@ -95,6 +98,11 @@ export class TownScreen {
   /** 印刻みの候補一覧(倉庫にある刻印石ぶんだけ)。サブメニュー表示中のみ非null */
   private workshopMarkChoices: MarkId[] | null = null;
   private workshopMarkCursor = 0;
+  /** 開いている印刻み候補が、2つ目の枠を埋めるためのものか(plan/dual-mark-equipment.md) */
+  private workshopMarkAddingSecond = false;
+  /** 重ね刻みの砥石(plan/dual-mark-equipment.md)の合成候補。サブメニュー表示中のみ非null */
+  private workshopSynthesisChoices: MarkId[] | null = null;
+  private workshopSynthesisCursor = 0;
   /** 村の暮らし(plan/village-life.md)。NPC一覧上のカーソル位置(visibleVillageNpcsの中での位置) */
   private npcIndex = 0;
   private depart:
@@ -177,6 +185,8 @@ export class TownScreen {
     this.workshopCursor = 0;
     this.workshopMarkTarget = null;
     this.workshopMarkChoices = null;
+    this.workshopMarkAddingSecond = false;
+    this.workshopSynthesisChoices = null;
     this.npcIndex = 0;
     this.depart = onDepart;
     this.onFuse = onFuse;
@@ -847,6 +857,31 @@ export class TownScreen {
         case "Escape":
           this.workshopMarkChoices = null;
           this.workshopMarkTarget = null;
+          this.workshopMarkAddingSecond = false;
+          break;
+        default:
+          return true;
+      }
+      this.render();
+      return true;
+    }
+
+    if (this.workshopSynthesisChoices) {
+      switch (code) {
+        case "ArrowUp":
+        case "KeyW":
+          this.workshopSynthesisCursor = wrap(this.workshopSynthesisCursor - 1, this.workshopSynthesisChoices.length);
+          break;
+        case "ArrowDown":
+        case "KeyS":
+          this.workshopSynthesisCursor = wrap(this.workshopSynthesisCursor + 1, this.workshopSynthesisChoices.length);
+          break;
+        case "Enter":
+        case "NumpadEnter":
+          this.confirmSynthesis();
+          break;
+        case "Escape":
+          this.workshopSynthesisChoices = null;
           break;
         default:
           return true;
@@ -879,6 +914,10 @@ export class TownScreen {
       case "KeyM":
         this.openImprintChoices(targets[this.workshopCursor]);
         break;
+      case "KeyC":
+        // 重ね刻みの砥石を合成する(plan/dual-mark-equipment.md)
+        this.openSynthesisChoices();
+        break;
       case "Space":
         this.departNow();
         return true;
@@ -900,19 +939,45 @@ export class TownScreen {
     target.plus = plus + 1;
   }
 
-  /** 印を刻む: 対象の部位(武器/盾)に合う印のうち、倉庫にある刻印石ぶんだけ選べる */
+  /**
+   * すでに+9かつ1つ目の印を持ち、重ね刻みの砥石も持っているか
+   * (plan/dual-mark-equipment.md: 2つ目の刻印を可能にする条件)
+   */
+  private eligibleForSecondMark(target: StoredItem): boolean {
+    const existing = target.markIds ?? [];
+    return (
+      existing.length === 1 &&
+      (target.plus ?? 0) >= MAX_PLUS &&
+      this.countMaterial(OVERLAY_STONE_DEF_ID) >= 1
+    );
+  }
+
+  /**
+   * 印を刻む: 対象の部位(武器/盾)に合う印のうち、倉庫にある刻印石ぶんだけ選べる。
+   * すでに2枠(plan/dual-mark-equipment.md)埋まっていれば何もしない。1枠目が
+   * 埋まっていて2枠目の条件を満たしていれば、既にある印を除いた候補から2枠目を
+   * 選ばせる(重複禁止)。それ以外(0枠、または条件未達の1枠)は従来通り
+   * 1枠目を選び直させる(既にある印は上書きされる)
+   */
   private openImprintChoices(target: StoredItem | undefined): void {
     if (!target) return;
     const category = itemDef(target.defId).category;
     const slot = category === "weapon" ? "weapon" : category === "shield" ? "shield" : null;
     if (!slot) return;
+    const existing = target.markIds ?? [];
+    if (existing.length >= MAX_MARK_SLOTS) return;
+    const addingSecond = this.eligibleForSecondMark(target);
     const owned = MARKS.filter(
-      (m) => m.slot === slot && this.countMaterial(MARK_STONE_DEF_ID[m.id]) > 0,
+      (m) =>
+        m.slot === slot &&
+        this.countMaterial(MARK_STONE_DEF_ID[m.id]) > 0 &&
+        !(addingSecond && existing.includes(m.id)),
     );
     if (owned.length === 0) return;
     this.workshopMarkTarget = target;
     this.workshopMarkChoices = owned.map((m) => m.id);
     this.workshopMarkCursor = 0;
+    this.workshopMarkAddingSecond = addingSecond;
   }
 
   private confirmImprint(): void {
@@ -921,13 +986,43 @@ export class TownScreen {
     if (!target || !choices) return;
     const markId = choices[this.workshopMarkCursor];
     if (!markId) return;
+    const addingSecond = this.workshopMarkAddingSecond;
+    if (addingSecond && this.countMaterial(OVERLAY_STONE_DEF_ID) < 1) return;
     if (this.countMaterial(HOKORA_DUST_DEF_ID) < MARK_IMPRINT_DUST_COST) return;
     if (this.countMaterial(MARK_STONE_DEF_ID[markId]) < 1) return;
     this.consumeMaterial(HOKORA_DUST_DEF_ID, MARK_IMPRINT_DUST_COST);
     this.consumeMaterial(MARK_STONE_DEF_ID[markId], 1);
-    target.markId = markId;
+    if (addingSecond) {
+      this.consumeMaterial(OVERLAY_STONE_DEF_ID, 1);
+      target.markIds = [...(target.markIds ?? []), markId];
+    } else {
+      target.markIds = [markId];
+    }
     this.workshopMarkChoices = null;
     this.workshopMarkTarget = null;
+    this.workshopMarkAddingSecond = false;
+  }
+
+  /** 重ね刻みの砥石(plan/dual-mark-equipment.md)の合成候補: 同じ刻印石を2個以上持つ印だけ選べる */
+  private openSynthesisChoices(): void {
+    if (this.countMaterial(HOKORA_DUST_DEF_ID) < OVERLAY_STONE_DUST_COST) return;
+    const eligible = MARKS.filter((m) => this.countMaterial(MARK_STONE_DEF_ID[m.id]) >= 2).map((m) => m.id);
+    if (eligible.length === 0) return;
+    this.workshopSynthesisChoices = eligible;
+    this.workshopSynthesisCursor = 0;
+  }
+
+  private confirmSynthesis(): void {
+    const choices = this.workshopSynthesisChoices;
+    if (!choices) return;
+    const markId = choices[this.workshopSynthesisCursor];
+    if (!markId) return;
+    if (this.countMaterial(MARK_STONE_DEF_ID[markId]) < 2) return;
+    if (this.countMaterial(HOKORA_DUST_DEF_ID) < OVERLAY_STONE_DUST_COST) return;
+    this.consumeMaterial(MARK_STONE_DEF_ID[markId], 2);
+    this.consumeMaterial(HOKORA_DUST_DEF_ID, OVERLAY_STONE_DUST_COST);
+    this.storage.push({ defId: OVERLAY_STONE_DEF_ID });
+    this.workshopSynthesisChoices = null;
   }
 
   /** 選んでいるアイテムを、倉庫 ⇔ 持ち込み のあいだで移す */
@@ -1047,15 +1142,22 @@ export class TownScreen {
       const dust = this.countMaterial(HOKORA_DUST_DEF_ID);
       if (this.workshopMarkChoices) {
         const markId = this.workshopMarkChoices[this.workshopMarkCursor];
+        const costNote = this.workshopMarkAddingSecond
+          ? `ほこら粉${MARK_IMPRINT_DUST_COST}個+刻印石1個+重ね刻みの砥石1個を消費して、2つ目の印を刻む`
+          : `ほこら粉${MARK_IMPRINT_DUST_COST}個+刻印石1個を消費。既にある印は上書きされる`;
+        desc.textContent = markId ? `${markDef(markId).description}(${costNote})` : "";
+      } else if (this.workshopSynthesisChoices) {
+        const markId = this.workshopSynthesisChoices[this.workshopSynthesisCursor];
         desc.textContent = markId
-          ? `${markDef(markId).description}(ほこら粉${MARK_IMPRINT_DUST_COST}個+刻印石1個を消費。既にある印は上書きされる)`
+          ? `${markDef(markId).name}の刻印石2個+ほこら粉${OVERLAY_STONE_DUST_COST}個を消費して、重ね刻みの砥石を1個作る。`
           : "";
       } else {
         const target = this.workshopTargets()[this.workshopCursor];
         const plus = target?.plus ?? 0;
+        const stones = this.countMaterial(OVERLAY_STONE_DEF_ID);
         desc.textContent = target
-          ? `所持ほこら粉 ${dust}個。強化には${hokoraDustCost(plus)}個必要(${plus >= MAX_PLUS ? "上限に達した" : `次は+${plus + 1}`})。`
-          : "倉庫に武器・盾が無い。";
+          ? `所持ほこら粉 ${dust}個・重ね刻みの砥石 ${stones}個。強化には${hokoraDustCost(plus)}個必要(${plus >= MAX_PLUS ? "上限に達した" : `次は+${plus + 1}`})。Mで印を刻む、Cで重ね刻みの砥石を合成する。`
+          : "倉庫に武器・盾が無い。Cで重ね刻みの砥石を合成できる。";
       }
     } else if (this.column === 6) {
       desc.textContent = "見て楽しむだけの記録帳。攻略には関わらない。";
@@ -1129,7 +1231,9 @@ export class TownScreen {
     } else if (this.column === 5) {
       hint.textContent = this.workshopMarkChoices
         ? "↑↓ 印を選ぶ / Enter 刻む / Esc もどる"
-        : "←→ 列を移る / ↑↓ 選ぶ / Enter 強化(+1) / M 印を刻む / Space もぐる";
+        : this.workshopSynthesisChoices
+          ? "↑↓ 印を選ぶ / Enter 合成 / Esc もどる"
+          : "←→ 列を移る / ↑↓ 選ぶ / Enter 強化(+1) / M 印を刻む / C 重ね刻みの砥石を合成 / Space もぐる";
     } else if (this.column === 6) {
       hint.textContent = "← 列を移る / Space もぐる";
     } else if (this.column === 16) {
@@ -1281,7 +1385,7 @@ export class TownScreen {
       const def = itemDef(item.defId);
       const li = document.createElement("li");
       let text = `${def.name}+${item.plus ?? 0}`;
-      if (item.markId) text += `【${markDef(item.markId).name}】`;
+      for (const markId of item.markIds ?? []) text += `【${markDef(markId).name}】`;
       li.textContent = text;
       if (this.column === 5 && index === this.workshopCursor) li.classList.add("selected");
       list.appendChild(li);
@@ -1295,6 +1399,18 @@ export class TownScreen {
         const li = document.createElement("li");
         li.textContent = markDef(markId).name;
         if (index === this.workshopMarkCursor) li.classList.add("selected");
+        sub.appendChild(li);
+      });
+      wrapper.appendChild(sub);
+    }
+
+    if (this.workshopSynthesisChoices) {
+      const sub = document.createElement("ul");
+      sub.className = "menu-sub";
+      this.workshopSynthesisChoices.forEach((markId, index) => {
+        const li = document.createElement("li");
+        li.textContent = `${markDef(markId).name}の刻印石×2 → 重ね刻みの砥石`;
+        if (index === this.workshopSynthesisCursor) li.classList.add("selected");
         sub.appendChild(li);
       });
       wrapper.appendChild(sub);

@@ -106,7 +106,7 @@ describe("save.ts: checkAchievements", () => {
 
   it("倉庫と持ち込み品を合わせて5種類すべての印が揃うと、allMarksForgedが付く", () => {
     withMockedLocalStorage(() => {
-      const forged: StoredItem[] = MARKS.map((m, i) => ({ defId: "hatchet", markId: m.id, charges: i }));
+      const forged: StoredItem[] = MARKS.map((m, i) => ({ defId: "hatchet", markIds: [m.id], charges: i }));
       // 1つは倉庫、残りは持ち込み品(まだ倉庫に戻っていない)側にある想定
       let save: SaveData = { ...initialSave(), storage: [forged[0]!] };
       save = checkAchievements(save, forged.slice(1));
