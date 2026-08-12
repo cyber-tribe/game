@@ -5,6 +5,7 @@ import { roomContains } from "../src/core/types";
 import { decideMonsterAction } from "../src/entities/ai";
 import { REGION_BOSS_ORDER, speciesById } from "../src/entities/species";
 import { Game } from "../src/game";
+import { makeEmptyFloor } from "./helpers/floor";
 
 function bossActor(overrides: Partial<Actor> = {}): Actor {
   const species = speciesById("honezukaNoNushi");
@@ -48,27 +49,7 @@ function player(pos = { x: 5, y: 6 }): Actor {
 }
 
 function emptyFloor(): FloorState {
-  const width = 12;
-  const height = 12;
-  return {
-    depth: 24,
-    width,
-    height,
-    rooms: [{ id: 0, x: 0, y: 0, w: width, h: height }],
-    stairs: { x: 0, y: 0 },
-    actors: [],
-    items: [],
-    traps: [],
-    barrels: [],
-    goldPiles: [],
-    fieldObstacles: [],
-    secretPassages: [],
-    tiles: Array.from({ length: width * height }, () => ({
-      kind: "floor",
-      explored: true,
-      visible: true,
-    })),
-  } as unknown as FloorState;
+  return makeEmptyFloor({ depth: 24, rooms: [{ id: 0, x: 0, y: 0, w: 12, h: 12 }] });
 }
 
 describe("entities/species.ts: ホネヅカのぬし(第四地方ボス)", () => {

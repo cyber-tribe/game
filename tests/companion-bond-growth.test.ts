@@ -3,6 +3,7 @@ import type { Actor } from "../src/core/types";
 import { bondBonus, bondStage, bondStageLabel } from "../src/entities/companionBond";
 import { createAllyFromStored } from "../src/dungeon/populate";
 import { actorToStoredMonster, fuseMonsters, initialSave, loadSave, type StoredMonster } from "../src/save";
+import { withMockedLocalStorage } from "./helpers/localStorage";
 
 function actor(overrides: Partial<Actor> = {}): Actor {
   return {
@@ -138,22 +139,6 @@ describe("save.ts: 夢あわせ(fuseMonsters)とbondSuccessCount", () => {
     expect(fused!.save.hut.find((m) => m.uid === 2)).toBeUndefined();
   });
 });
-
-function withMockedLocalStorage(run: () => void): void {
-  const original = globalThis.localStorage;
-  const store = new Map<string, string>();
-  (globalThis as { localStorage?: unknown }).localStorage = {
-    getItem: (k: string) => store.get(k) ?? null,
-    setItem: (k: string, v: string) => {
-      store.set(k, v);
-    },
-  };
-  try {
-    run();
-  } finally {
-    (globalThis as { localStorage?: unknown }).localStorage = original;
-  }
-}
 
 describe("save.ts: 壊れたセーブデータのbondSuccessCount", () => {
   it("欠けていても0で初期化される", () => {

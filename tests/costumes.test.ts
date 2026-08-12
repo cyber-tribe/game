@@ -11,22 +11,7 @@ import {
   refreshUnlockedCostumes,
   type SaveData,
 } from "../src/save";
-
-function withMockedLocalStorage(run: () => void): void {
-  const original = globalThis.localStorage;
-  const store = new Map<string, string>();
-  (globalThis as { localStorage?: unknown }).localStorage = {
-    getItem: (k: string) => store.get(k) ?? null,
-    setItem: (k: string, v: string) => {
-      store.set(k, v);
-    },
-  };
-  try {
-    run();
-  } finally {
-    (globalThis as { localStorage?: unknown }).localStorage = original;
-  }
-}
+import { withMockedLocalStorage } from "./helpers/localStorage";
 
 describe("entities/costumes.ts", () => {
   it("既定の衣装は最初から解放されている想定(unlock: always)", () => {

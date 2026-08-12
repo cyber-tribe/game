@@ -4,6 +4,7 @@ import type { Actor, FloorState } from "../src/core/types";
 import { decideMonsterAction } from "../src/entities/ai";
 import { speciesById } from "../src/entities/species";
 import { Game } from "../src/game";
+import { makeEmptyFloor } from "./helpers/floor";
 import { fuseMonsters, initialSave, type StoredMonster } from "../src/save";
 
 function stored(overrides: Partial<StoredMonster> = {}): StoredMonster {
@@ -61,27 +62,7 @@ function player(pos = { x: 5, y: 6 }): Actor {
 }
 
 function emptyFloor(): FloorState {
-  const width = 12;
-  const height = 12;
-  return {
-    depth: 6,
-    width,
-    height,
-    rooms: [],
-    stairs: { x: 0, y: 0 },
-    actors: [],
-    items: [],
-    traps: [],
-    barrels: [],
-    goldPiles: [],
-    fieldObstacles: [],
-    secretPassages: [],
-    tiles: Array.from({ length: width * height }, () => ({
-      kind: "floor",
-      explored: true,
-      visible: true,
-    })),
-  } as unknown as FloorState;
+  return makeEmptyFloor({ depth: 6 });
 }
 
 describe("entities/species.ts: おおねぼすけ(地方ボス)", () => {

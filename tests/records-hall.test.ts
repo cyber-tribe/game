@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Game } from "../src/game";
 import { initialSave, loadSave, recordRun } from "../src/save";
+import { withMockedLocalStorage } from "./helpers/localStorage";
 
 describe("save.ts: 記録の間(records)", () => {
   it("初期状態は0", () => {
@@ -38,22 +39,6 @@ describe("save.ts: 記録の間(records)", () => {
     expect(save.records).toEqual({ totalDefeats: 0, totalCaptures: 0 });
   });
 });
-
-function withMockedLocalStorage(run: () => void): void {
-  const original = globalThis.localStorage;
-  const store = new Map<string, string>();
-  (globalThis as { localStorage?: unknown }).localStorage = {
-    getItem: (k: string) => store.get(k) ?? null,
-    setItem: (k: string, v: string) => {
-      store.set(k, v);
-    },
-  };
-  try {
-    run();
-  } finally {
-    (globalThis as { localStorage?: unknown }).localStorage = original;
-  }
-}
 
 describe("save.ts: 壊れたセーブデータのrecords", () => {
   it("recordsが無い・壊れていても0で初期化される", () => {
