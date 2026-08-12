@@ -214,45 +214,62 @@ function rollShining(rng: Rng, monster: Actor, shiningChanceMultiplier: number):
   monster.def = Math.round(monster.def * SHINING_STAT_MULTIPLIER);
 }
 
-export function populateFloor(
-  rng: Rng,
-  floor: FloorState,
-  ids: IdSource,
-  playerStart: Vec2,
+export interface PopulateOptions {
   /** ほこら粉寄せの匂い袋を装備中なら "hokoraDust" を渡す。出現重みを底上げする */
-  boostedItemDefId?: string,
+  boostedItemDefId?: string;
   /** 万引き済みで警戒状態(plan/shops-and-thieves.md)なら true。売値が割高になる */
-  shopWary = false,
+  shopWary?: boolean;
   /** 図鑑コンプリート済みなら、かがやきの夢のかけらの出現確率に掛ける倍率(plan/monster-compendium.md) */
-  shiningChanceMultiplier = 1,
+  shiningChanceMultiplier?: number;
   /** 難易度モード(plan/difficulty-modes.md)による、モンスターの攻撃力に掛ける倍率 */
-  monsterAtkMultiplier = 1,
+  monsterAtkMultiplier?: number;
   /** 難易度モード(plan/difficulty-modes.md)による、金貨の山の量に掛ける倍率 */
-  goldRewardMultiplier = 1,
+  goldRewardMultiplier?: number;
   /**
    * ダンジョンごと(plan/multiple-dungeons.md)の、出現モンスター・アイテムの
    * 抽選テーブルに足す深さのずれ。実際の階数(floor.depth、モンスター数や
    * 金貨の量に使う)はそのままで、テーブル選択だけをずらす
    */
-  speciesDepthOffset = 0,
+  speciesDepthOffset?: number;
   /**
    * 地方ボス(plan/region-bosses.md)。指定があれば、通常の野生モンスター湧きは
    * 一切行わず、この種族を1体だけ配置する(ボス部屋には道中の雑魚を混ぜない)
    */
-  bossSpeciesId?: string,
+  bossSpeciesId?: string;
   /** 忘れ物蔵(plan/lost-and-found-vault.md)。野生モンスターの湧き数に掛ける倍率 */
-  monsterCountMultiplier = 1,
+  monsterCountMultiplier?: number;
   /**
    * 夜ごとの夢のモンスター強化カーブ(plan/nightly-dream-scaling.md)。
    * maxHp/atk/defに掛ける倍率(nightlyDreamStatMultiplier)。難易度モードの
    * monsterAtkMultiplierとは掛け算で併存する。expには掛けない
    */
-  statMultiplier = 1,
+  statMultiplier?: number;
   /** ヨリシロの気分(plan/yorishiro-moods.md)。フロアに落ちているアイテムの個数に掛ける倍率 */
-  itemCountMultiplier = 1,
+  itemCountMultiplier?: number;
   /** ヨリシロの気分(plan/yorishiro-moods.md)。野生湧きでスリガラス(ai: "thief")が選ばれる重みに掛ける倍率 */
-  thiefWeightMultiplier = 1,
+  thiefWeightMultiplier?: number;
+}
+
+export function populateFloor(
+  rng: Rng,
+  floor: FloorState,
+  ids: IdSource,
+  playerStart: Vec2,
+  opts: PopulateOptions = {},
 ): void {
+  const {
+    boostedItemDefId,
+    shopWary = false,
+    shiningChanceMultiplier = 1,
+    monsterAtkMultiplier = 1,
+    goldRewardMultiplier = 1,
+    speciesDepthOffset = 0,
+    bossSpeciesId,
+    monsterCountMultiplier = 1,
+    statMultiplier = 1,
+    itemCountMultiplier = 1,
+    thiefWeightMultiplier = 1,
+  } = opts;
   const gimmick = floor.gimmick;
   const tableDepth = Math.max(1, floor.depth + speciesDepthOffset);
 
