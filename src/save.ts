@@ -9,7 +9,12 @@ import { HOKORA_DUST_DEF_ID, MARKS, MAX_MARK_SLOTS, MAX_PLUS } from "./entities/
 import { MAX_ACTIVE_QUESTS, QUESTS, questDef, questsForDate, todayKey } from "./entities/quests";
 import type { TrainingFocus } from "./entities/player";
 import { type BondStage, bondStage } from "./entities/companionBond";
-import { OTAMA_VISIT_STORY, type SideStoryDef, sideStoryFor } from "./entities/sideStories";
+import {
+  OTAMA_VISIT_STORY,
+  type SideStoryDef,
+  type SideStoryStage,
+  sideStoryFor,
+} from "./entities/sideStories";
 import { storyChapter } from "./entities/story";
 import {
   VILLAGE_NPCS,
@@ -508,6 +513,10 @@ function isCostumeUnlocked(costume: CostumeDef, save: SaveData): boolean {
       return save.villageStage >= costume.unlock.stage;
     case "nightlyDreamDepth":
       return save.nightlyDreamBestDepth >= costume.unlock.depth;
+    // NPCサイドストーリー(plan/side-stories-part2.md): 自動判定はしない。
+    // talkToNpc側が対応する段の解放時に直接unlockedCostumesへ加える
+    case "npcSideStory":
+      return false;
   }
 }
 
@@ -1645,17 +1654,46 @@ export function villageNpcBondStage(current: SaveData, npcId: VillageNpcId): Ret
 const BOND_STAGE_RANK: readonly BondStage[] = ["none", "familiar", "close", "irreplaceable"];
 
 /**
- * NPCサイドストーリー第1弾(plan/side-stories-part1.md)。話しかけた結果、
- * 新たに解放された一言があれば`message`を返す(無ければ従来どおり沈黙する)。
- * モグラ婆・ゲンドは絆段階(+追加条件)、目覚めたおたまは訪問回数
- * (seenVillageEventsの件数)で段が進む。それ以外のNPC(オトネ・おキヨ・
- * ポチ、plan/side-stories-part2.md未実装)は従来どおり沈黙のまま
+ * NPCサイドストーリー第1弾(plan/side-stories-part1.md)・第2弾(plan/
+ * side-stories-part2.md)。話しかけた結果、新たに解放された一言があれば
+ * `message`を返す(無ければ沈黙する)。モグラ婆・ゲンド・オトネ・おキヨ・
+ * ポチは絆段階(+追加条件)、目覚めたおたまは訪問回数(seenVillageEvents
+ * の件数)で段が進む
  */
 export function talkToNpc(current: SaveData, npcId: VillageNpcId): { save: SaveData; message?: string } {
   const story = sideStoryFor(npcId);
   if (story) return talkSideStoryNpc(current, npcId, story);
   if (npcId === "otama") return talkToOtama(current);
   return { save: current };
+}
+
+/** おキヨ第2段(plan/side-stories-part2.md): 図鑑を半分以上「捕まえた」で埋めているか */
+function isCompendiumHalf(save: SaveData): boolean {
+  const captured = SPECIES.filter((s) => save.compendium[s.id] === "captured").length;
+  return captured * 2 >= SPECIES.length;
+}
+
+function sideStoryStageMet(current: SaveData, bondStageOfNpc: BondStage, s: SideStoryStage): boolean {
+  if (BOND_STAGE_RANK.indexOf(bondStageOfNpc) < BOND_STAGE_RANK.indexOf(s.minBondStage)) return false;
+  if (s.minDeepest !== undefined && current.deepest < s.minDeepest) return false;
+  if (s.minCompletedQuests !== undefined && current.completedQuestIds.length < s.minCompletedQuests) return false;
+  if (s.minVillageStage !== undefined && current.villageStage < s.minVillageStage) return false;
+  if (s.requiresCompendiumHalf && !isCompendiumHalf(current)) return false;
+  if (s.requiresCompendiumComplete && !isCompendiumComplete(current)) return false;
+  if (
+    s.minStoryChapter !== undefined &&
+    storyChapter(current.deepest, current.storyCleared) < s.minStoryChapter
+  ) {
+    return false;
+  }
+  if (s.requiresStoryCleared && !current.storyCleared) return false;
+  if (
+    s.requiredMaterialDefIds &&
+    !s.requiredMaterialDefIds.every((defId) => current.storage.some((item) => item.defId === defId))
+  ) {
+    return false;
+  }
+  return true;
 }
 
 function talkSideStoryNpc(
@@ -1666,15 +1704,7 @@ function talkSideStoryNpc(
   const stage = bondStage(current.bonds[npcId] ?? 0);
   let resolvedIndex = -1;
   story.stages.forEach((s, i) => {
-    if (BOND_STAGE_RANK.indexOf(stage) < BOND_STAGE_RANK.indexOf(s.minBondStage)) return;
-    if (s.minDeepest !== undefined && current.deepest < s.minDeepest) return;
-    if (
-      s.requiredMaterialDefIds &&
-      !s.requiredMaterialDefIds.every((defId) => current.storage.some((item) => item.defId === defId))
-    ) {
-      return;
-    }
-    resolvedIndex = i;
+    if (sideStoryStageMet(current, stage, s)) resolvedIndex = i;
   });
   if (resolvedIndex < 0) return { save: current };
 
@@ -1691,6 +1721,9 @@ function talkSideStoryNpc(
     }
     storage = [...storage, { defId: resolvedStage.rewardItemDefId }];
     next = { ...next, storage };
+  }
+  if (resolvedStage.rewardCostumeId && !next.unlockedCostumes.includes(resolvedStage.rewardCostumeId)) {
+    next = { ...next, unlockedCostumes: [...next.unlockedCostumes, resolvedStage.rewardCostumeId] };
   }
   saveData(next);
   return { save: next, message: resolvedStage.text };
