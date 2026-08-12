@@ -79,10 +79,23 @@ export interface SaveData {
   achievements: Record<string, string>;
   /** 現在身につけている称号の実績id。未選択ならundefined */
   equippedTitle?: string;
+  /**
+   * 装備図鑑(plan/equipment-compendium.md)。武器・頭防具・装身具のdefIdごとに
+   * "owned"(入手済み)/"mastered"(極めた)を記録する。武器は+9かつ印を刻んで
+   * 初めて"mastered"になり、頭防具・装身具は入手した時点で自動的に"mastered"
+   * (強化・刻印の概念が無いため)
+   */
+  equipmentCompendium: Record<string, EquipmentCompendiumStatus>;
+  /** 装備図鑑: 一度でも刻んだことのある印(plan/equipment-forging.md)。defIdではなくMarkIdをキーにする */
+  markCompendium: Record<string, "owned">;
+  /** 装備図鑑: 一度でも入手したことのある素材(ほこら粉・刻印石) */
+  materialCompendium: Record<string, "owned">;
 }
 
 /** "seen": 遭遇した。"captured": タルで捕まえた、または夢あわせの糧にした */
 export type CompendiumStatus = "seen" | "captured";
+
+export type EquipmentCompendiumStatus = "owned" | "mastered";
 
 export interface DiveRecords {
   /** 倒したモンスターの累計数 */
@@ -116,6 +129,9 @@ export function initialSave(): SaveData {
     records: { totalDefeats: 0, totalCaptures: 0 },
     compendium: {},
     achievements: {},
+    equipmentCompendium: {},
+    markCompendium: {},
+    materialCompendium: {},
   };
 }
 
@@ -139,6 +155,9 @@ export function loadSave(): SaveData {
       compendium: sanitizeCompendium(parsed.compendium),
       achievements: sanitizeAchievements(parsed.achievements),
       equippedTitle: sanitizeEquippedTitle(parsed.equippedTitle, sanitizeAchievements(parsed.achievements)),
+      equipmentCompendium: sanitizeEquipmentCompendium(parsed.equipmentCompendium),
+      markCompendium: sanitizeMarkCompendium(parsed.markCompendium),
+      materialCompendium: sanitizeMaterialCompendium(parsed.materialCompendium),
     };
   } catch {
     // 壊れた保存データで起動できなくなるほうが困るので、黙って初期値に戻す
@@ -235,8 +254,14 @@ export function recordRun(
     ),
     achievements: current.achievements,
     equippedTitle: current.equippedTitle,
+    equipmentCompendium: current.equipmentCompendium,
+    markCompendium: current.markCompendium,
+    materialCompendium: current.materialCompendium,
   };
-  const withAchievements = checkAchievements(next);
+  // 装備図鑑(plan/equipment-compendium.md): 持ち帰った装備・素材を反映してから、
+  // 実績帳(plan/achievements.md)の判定に渡す
+  const withEquipmentCompendium = checkEquipmentCompendium(next);
+  const withAchievements = checkAchievements(withEquipmentCompendium);
   saveData(withAchievements);
   return withAchievements;
 }
@@ -443,6 +468,25 @@ function sanitizeAchievements(value: unknown): Record<string, string> {
   return out;
 }
 
+const VALID_EQUIPMENT_DEF_IDS = new Set(
+  ITEMS.filter((i) => i.category === "weapon" || i.category === "head" || i.category === "charm").map(
+    (i) => i.id,
+  ),
+);
+const VALID_MATERIAL_DEF_IDS = new Set(ITEMS.filter((i) => i.category === "material").map((i) => i.id));
+const WEAPON_DEF_IDS = new Set(ITEMS.filter((i) => i.category === "weapon").map((i) => i.id));
+
+function sanitizeEquipmentCompendium(value: unknown): Record<string, EquipmentCompendiumStatus> {
+  const out: Record<string, EquipmentCompendiumStatus> = {};
+  if (typeof value !== "object" || value === null) return out;
+  for (const [defId, status] of Object.entries(value as Record<string, unknown>)) {
+    if (!VALID_EQUIPMENT_DEF_IDS.has(defId)) continue;
+    if (status !== "owned" && status !== "mastered") continue;
+    out[defId] = status;
+  }
+  return out;
+}
+
 function sanitizeEquippedTitle(value: unknown, achievements: Record<string, string>): string | undefined {
   if (typeof value !== "string") return undefined;
   if (achievements[value] === undefined) return undefined;
@@ -498,6 +542,61 @@ export function setEquippedTitle(current: SaveData, id: string | undefined): Sav
   const next: SaveData = { ...current, equippedTitle: id };
   saveData(next);
   return next;
+}
+
+function sanitizeMarkCompendium(value: unknown): Record<string, "owned"> {
+  const out: Record<string, "owned"> = {};
+  if (typeof value !== "object" || value === null) return out;
+  for (const [markId, status] of Object.entries(value as Record<string, unknown>)) {
+    if (!VALID_MARK_IDS.has(markId as MarkId) || status !== "owned") continue;
+    out[markId] = "owned";
+  }
+  return out;
+}
+
+function sanitizeMaterialCompendium(value: unknown): Record<string, "owned"> {
+  const out: Record<string, "owned"> = {};
+  if (typeof value !== "object" || value === null) return out;
+  for (const [defId, status] of Object.entries(value as Record<string, unknown>)) {
+    if (!VALID_MATERIAL_DEF_IDS.has(defId) || status !== "owned") continue;
+    out[defId] = "owned";
+  }
+  return out;
+}
+
+/**
+ * 装備図鑑(plan/equipment-compendium.md)。倉庫(+持ち込み品)を走査し、
+ * 武器・頭防具・装身具・印・素材の入手/極めた状態をまとめて更新する。
+ * `unlockAchievement`と同じく、一度記録した段階は取り消さない
+ * (頭防具・装身具・素材・印は、入手した時点で自動的に"mastered"/"owned"扱い。
+ * 強化・刻印の概念があるのは武器だけ)
+ */
+export function checkEquipmentCompendium(current: SaveData, extraItems: readonly StoredItem[] = []): SaveData {
+  const items = [...current.storage, ...extraItems];
+  const equipmentCompendium = { ...current.equipmentCompendium };
+  const markCompendium = { ...current.markCompendium };
+  const materialCompendium = { ...current.materialCompendium };
+
+  for (const item of items) {
+    if (VALID_EQUIPMENT_DEF_IDS.has(item.defId) && equipmentCompendium[item.defId] !== "mastered") {
+      const isWeapon = WEAPON_DEF_IDS.has(item.defId);
+      // 頭防具・装身具は強化・刻印の概念が無いので、入手した時点で自動的に極めた扱い。
+      // 武器は+9かつ印を刻んで初めて極めたになる
+      const mastered = !isWeapon || ((item.plus ?? 0) >= MAX_PLUS && item.markId !== undefined);
+      equipmentCompendium[item.defId] = mastered ? "mastered" : "owned";
+    }
+    if (VALID_MATERIAL_DEF_IDS.has(item.defId)) materialCompendium[item.defId] = "owned";
+    if (item.markId !== undefined) markCompendium[item.markId] = "owned";
+  }
+
+  const next: SaveData = { ...current, equipmentCompendium, markCompendium, materialCompendium };
+  saveData(next);
+  return next;
+}
+
+/** 武器図鑑を全系統「極めた」まで埋めているか(称号「樽守りの目利き」の条件) */
+export function isWeaponCompendiumComplete(current: SaveData): boolean {
+  return [...WEAPON_DEF_IDS].every((id) => current.equipmentCompendium[id] === "mastered");
 }
 
 /** 1階(入口)は常に知っている扱いにする */
