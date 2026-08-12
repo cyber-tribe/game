@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Game } from "../src/game";
+import { access } from "./helpers/access";
 import { Rng } from "../src/core/rng";
 import { generateFloor } from "../src/dungeon/generate";
 import { decideMonsterAction } from "../src/entities/ai";
@@ -196,7 +197,7 @@ describe("game.ts: 近道屋の出店(購入・万引き)", () => {
 
     expect(game.player.inventory.items.every((i) => !i.unpaid)).toBe(true);
     expect(keeper.angry).toBe(true);
-    expect((game as unknown as { shopWary: boolean }).shopWary).toBe(true);
+    expect(access(game).shopWary).toBe(true);
     expect(events.some((e) => e.type === "message" && e.text === "万引きだ! 店主が豹変した!")).toBe(true);
   });
 
@@ -348,9 +349,7 @@ describe("game.ts: スリガラスの盗み・逃走・討伐", () => {
       stolenGold: 17,
     });
     game.floor.goldPiles = [];
-    const killActor = (
-      game as unknown as { killActor: (target: Actor, events: unknown[]) => void }
-    ).killActor.bind(game);
+    const killActor = access(game).killActor.bind(game);
     const events: { type: string; text?: string }[] = [];
     killActor(thief, events);
     expect(game.floor.goldPiles).toHaveLength(1);

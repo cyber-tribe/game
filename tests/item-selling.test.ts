@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Game } from "../src/game";
+import { access } from "./helpers/access";
 import { shopPrice, sellPrice, WARY_PRICE_MULTIPLIER } from "../src/entities/shop";
 import { itemDef } from "../src/items/catalog";
 import { roomCenter, roomContains } from "../src/core/types";
@@ -63,7 +64,7 @@ describe("game.ts: 店の部屋でアイテムを「置く」と売却になる"
 
   it("万引き後の警戒状態(shopWary)では、売却額も割高な計算式になる", () => {
     const { game } = setupShop(1);
-    (game as unknown as { shopWary: boolean }).shopWary = true;
+    access(game).shopWary = true;
     game.player.gold = 0;
     game.player.inventory.items.push({ uid: 1, defId: "healLeaf" });
     const price = sellPrice(itemDef("healLeaf"), { uid: 1, defId: "healLeaf" }, true);
