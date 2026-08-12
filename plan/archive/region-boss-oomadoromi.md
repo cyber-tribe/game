@@ -1,3 +1,29 @@
+> **実装済み。**
+> `src/core/types.ts`(`Species.bossTelegraph.effect?: "targetedStrike" |
+> "aoeSleep"` を追加)、`src/entities/ai.ts`(`MonsterAction` に
+> `{ type: "boomAoeSleep" }` を追加。ボス分岐で `effect === "aoeSleep"` の
+> ときは隣接攻撃強化ではなく `boomAoeSleep` を返す)、
+> `src/entities/species.ts`(`oomadoromi` を追加、`REGION_BOSS_FLOORS[18]` /
+> `REGION_BOSS_ORDER` に登録)、`src/items/catalog.ts`
+> (`oomadoromiHoushi` を追加)、`src/game.ts`(`"boomAoeSleep"` ケースを
+> 追加。`plan/spore-grove.md` の胞子パルスから睡眠判定ロジックを
+> `applySleepPulse` として抽出し、両者で共有。`explode()` に、爆心と
+> 同じ部屋に予兆中のボスがいれば `telegraphCharge` を解除する処理を追加)
+> に実装した。テストは `tests/region-boss-oomadoromi.test.ts`(10件)。
+>
+> 実装時の判断:
+> - **モデル**: 新規3Dモデルは作らず、`madoromi` をそのまま流用した
+>   (`oonebosuke`/`nushigaeru`の前例に合わせた判断)。
+> - **共有ロジックの抽出**: 本文書が「関数として共有できるとよい」と
+>   していた胞子パルスの睡眠判定を、`tickSporeRooms`から`applySleepPulse`
+>   として切り出し、`"boomAoeSleep"`ケースからも同じ関数を呼ぶ形にした。
+> - **睡眠付与のchance/turns**: 未決事項どおり、`plan/spore-grove.md`と
+>   同じ値(`SPORE_SLEEP_CHANCE`・`SPORE_SLEEP_TURNS`)をそのまま使い、
+>   ボス戦専用に強めの値は設けなかった。
+> - **HP・攻撃力・防御力**: 第三地方雑魚最上位種(`madoromi`系統)を基準に、
+>   `plan/archive/region-bosses.md`の共通仕様(HP1.8〜2.2倍・攻撃力1.3倍
+>   程度)で算出した(maxHp82・atk22・def12)。
+
 # 第三地方ボス: オオマドロミ
 
 `plan/archive/region-bosses.md` の共通仕様の上に、第三地方(まどろみの

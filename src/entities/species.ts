@@ -179,6 +179,28 @@ export const SPECIES: readonly Species[] = [
     bossGuaranteedDrop: "nushigaeruUroko",
     hidesInQuagmire: true,
   },
+  {
+    // 第三地方: まどろみの茸林(design/regions.md 13〜18階)。巨大なマドロミダケ。
+    // 大技は隣接攻撃ではなく、自分のいる部屋全体への睡眠放出(plan/region-boss-oomadoromi.md)
+    id: "oomadoromi",
+    name: "オオマドロミ",
+    model: "madoromi",
+    maxHp: 82,
+    atk: 22,
+    def: 12,
+    exp: 65,
+    ai: "melee",
+    minFloor: Number.POSITIVE_INFINITY,
+    weight: 0,
+    isRegionBoss: true,
+    bossTelegraph: {
+      message: "身体中から胞子が立ちのぼりはじめた",
+      multiplier: 1,
+      cooldownTurns: 4,
+      effect: "aoeSleep",
+    },
+    bossGuaranteedDrop: "oomadoromiHoushi",
+  },
 
   // ---- plan/monster-compendium.md: 地方別の新種 ----
   // 新規3Dモデルは今回のスコープでは制作せず、既存モデルを色違いの発想で
@@ -405,11 +427,12 @@ export function speciesForDepth(depth: number): Species[] {
  * 地方ボス(plan/region-bosses.md)。表の寝穴(MAIN_CAVE_ID)で、その階の
  * 地方の最終階(6階目)にだけ専用に配置する種族id。design/regions.mdの
  * 8地方(6階ごと、48階)は`plan/region-expansion.md`で実装済み。
- * 残り6地方のボスは未実装のため、実装済みの2体ぶんだけを登録する
+ * 残り5地方のボスは未実装のため、実装済みの3体ぶんだけを登録する
  */
 export const REGION_BOSS_FLOORS: Readonly<Record<number, string>> = {
   6: "oonebosuke",
   12: "nushigaeru",
+  18: "oomadoromi",
 };
 
 /**
@@ -417,4 +440,4 @@ export const REGION_BOSS_FLOORS: Readonly<Record<number, string>> = {
  * 腕試しの間で使う)。REGION_BOSS_FLOORSの値と同じ集合だが、
  * 表の寝穴の具体的な階数とは切り離した「出現順」だけの一覧にする
  */
-export const REGION_BOSS_ORDER: readonly string[] = ["oonebosuke", "nushigaeru"];
+export const REGION_BOSS_ORDER: readonly string[] = ["oonebosuke", "nushigaeru", "oomadoromi"];

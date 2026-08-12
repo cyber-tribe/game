@@ -442,6 +442,17 @@ export const ITEMS: readonly ItemDef[] = [
     weight: 0,
     description: "忘れ潮の湿地の主を倒した証。水を弾く、分厚くしなやかなうろこ。",
   },
+  {
+    // 地方ボス(plan/region-boss-oomadoromi.md)を撃破した確定ドロップ専用。
+    // ランダムな床落ちには出さない(minFloor: Infinity・weight: 0で除外)
+    id: "oomadoromiHoushi",
+    name: "オオマドロミの胞子玉",
+    category: "material",
+    model: "herb",
+    minFloor: Number.POSITIVE_INFINITY,
+    weight: 0,
+    description: "まどろみの茸林の主を倒した証。触れるとかすかに眠気を誘う、丸い胞子の塊。",
+  },
 
   // ---- 頭防具(plan/protagonist-equipment.md) ----
   {

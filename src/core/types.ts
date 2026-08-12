@@ -166,6 +166,13 @@ export interface Species {
      * oonebosukeのような単一フェーズのボスと完全互換)
      */
     activateBelowHpRatio?: number;
+    /**
+     * 地方ボス(plan/region-boss-oomadoromi.md)。大技の効果種別。省略時は
+     * "targetedStrike"(既存の隣接攻撃強化、oonebosuke/nushigaeruと完全互換)。
+     * "aoeSleep"は隣接攻撃を伴わず、自分のいる部屋の全アクター(敵味方問わず)に
+     * 睡眠を付与する発動に変わる
+     */
+    effect?: "targetedStrike" | "aoeSleep";
   };
   /** 地方ボスを撃破すると確定ドロップする、その地方限定の素材のdefId */
   bossGuaranteedDrop?: string;
