@@ -43,9 +43,11 @@ export function pickFloorGimmick(
   rng: Rng,
   depth: number,
   previous?: FloorGimmickKind,
+  /** 難易度モード(plan/difficulty-modes.md)による出現率の倍率。省略時は1 */
+  chanceMultiplier = 1,
 ): FloorGimmickKind | undefined {
   if (depth <= 1) return undefined;
-  if (!rng.chance(GIMMICK_CHANCE)) return undefined;
+  if (!rng.chance(GIMMICK_CHANCE * chanceMultiplier)) return undefined;
   const options = ALL_GIMMICKS.filter((g) => g !== previous);
   return rng.pick(options);
 }

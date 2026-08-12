@@ -1,6 +1,7 @@
 import { TUTORIAL_TIP_IDS, type TutorialTipId } from "./core/tutorial";
 import type { Actor, Item, MarkId, SkillId } from "./core/types";
 import { ACHIEVEMENTS, achievementDef } from "./entities/achievements";
+import { DIFFICULTY_MODES, type DifficultyMode } from "./entities/difficulty";
 import { MARKS, MAX_PLUS } from "./entities/forging";
 import type { TrainingFocus } from "./entities/player";
 import { MAX_SKILLS, NATIVE_SKILL_BY_SPECIES, SKILLS, fullSkillSet } from "./entities/skills";
@@ -90,6 +91,11 @@ export interface SaveData {
   markCompendium: Record<string, "owned">;
   /** 装備図鑑: 一度でも入手したことのある素材(ほこら粉・刻印石) */
   materialCompendium: Record<string, "owned">;
+  /**
+   * 難易度モード(plan/difficulty-modes.md)。拠点でいつでも選び直せる。
+   * 次回ダイブから反映される(ダイブ中の切り替えは想定しない)
+   */
+  difficulty: DifficultyMode;
 }
 
 /** "seen": 遭遇した。"captured": タルで捕まえた、または夢あわせの糧にした */
@@ -132,6 +138,7 @@ export function initialSave(): SaveData {
     equipmentCompendium: {},
     markCompendium: {},
     materialCompendium: {},
+    difficulty: "normal",
   };
 }
 
@@ -158,6 +165,7 @@ export function loadSave(): SaveData {
       equipmentCompendium: sanitizeEquipmentCompendium(parsed.equipmentCompendium),
       markCompendium: sanitizeMarkCompendium(parsed.markCompendium),
       materialCompendium: sanitizeMaterialCompendium(parsed.materialCompendium),
+      difficulty: sanitizeDifficulty(parsed.difficulty),
     };
   } catch {
     // 壊れた保存データで起動できなくなるほうが困るので、黙って初期値に戻す
@@ -202,6 +210,17 @@ export function markTutorialTipSeen(current: SaveData, id: TutorialTipId): SaveD
 export function setTrainingFocus(current: SaveData, focus: TrainingFocus): SaveData {
   if (current.trainingFocus === focus) return current;
   const next: SaveData = { ...current, trainingFocus: focus };
+  saveData(next);
+  return next;
+}
+
+/**
+ * 難易度モード(plan/difficulty-modes.md)を保存する。あとから拠点でいつでも
+ * 変更でき、ペナルティは無い(次回ダイブから反映される)
+ */
+export function setDifficulty(current: SaveData, difficulty: DifficultyMode): SaveData {
+  if (current.difficulty === difficulty) return current;
+  const next: SaveData = { ...current, difficulty };
   saveData(next);
   return next;
 }
@@ -257,11 +276,16 @@ export function recordRun(
     equipmentCompendium: current.equipmentCompendium,
     markCompendium: current.markCompendium,
     materialCompendium: current.materialCompendium,
+    difficulty: current.difficulty,
   };
   // 装備図鑑(plan/equipment-compendium.md): 持ち帰った装備・素材を反映してから、
   // 実績帳(plan/achievements.md)の判定に渡す
   const withEquipmentCompendium = checkEquipmentCompendium(next);
-  const withAchievements = checkAchievements(withEquipmentCompendium);
+  let withAchievements = checkAchievements(withEquipmentCompendium);
+  // 難易度モード(plan/difficulty-modes.md): 「きびしい」専用の称号
+  if (result.cleared && current.difficulty === "hard") {
+    withAchievements = unlockAchievement(withAchievements, "hardModeClear");
+  }
   saveData(withAchievements);
   return withAchievements;
 }
@@ -727,4 +751,10 @@ function sanitizeTrainingFocus(value: unknown): TrainingFocus {
   return typeof value === "string" && (VALID_TRAINING_FOCI as readonly string[]).includes(value)
     ? (value as TrainingFocus)
     : "balance";
+}
+
+function sanitizeDifficulty(value: unknown): DifficultyMode {
+  return typeof value === "string" && (DIFFICULTY_MODES as readonly string[]).includes(value)
+    ? (value as DifficultyMode)
+    : "normal";
 }

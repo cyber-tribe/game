@@ -32,6 +32,7 @@ import {
   renameStoredMonster,
   saveData,
   saveRunSnapshot,
+  setDifficulty,
   setEquippedTitle,
   setTrainingFocus,
   takeFromHut,
@@ -39,6 +40,7 @@ import {
   type StoredItem,
   type StoredMonster,
 } from "./save";
+import type { DifficultyMode } from "./entities/difficulty";
 import { TUTORIAL_TIPS, type TutorialTipId } from "./core/tutorial";
 import type { Item } from "./core/types";
 import type { TrainingFocus } from "./entities/player";
@@ -117,9 +119,9 @@ class App {
     this.hud.hideOverlay();
     this.town.show(
       this.save,
-      (carry, storage, startDepth, trainingFocus, bringAllyUids) => {
+      (carry, storage, startDepth, trainingFocus, bringAllyUids, difficulty) => {
         const { save: afterTake, taken } = takeFromHut(
-          setTrainingFocus({ ...this.save, storage }, trainingFocus),
+          setDifficulty(setTrainingFocus({ ...this.save, storage }, trainingFocus), difficulty),
           bringAllyUids,
         );
         // 装備図鑑(plan/equipment-compendium.md): 出発時点で倉庫・持ち込み品を
@@ -127,7 +129,7 @@ class App {
         // 実績帳(plan/achievements.md): 続けて強化・刻印系の実績も確定させる
         this.save = checkAchievements(checkEquipmentCompendium(afterTake, carry), carry);
         saveData(this.save);
-        this.newRun(carry, startDepth, trainingFocus, taken);
+        this.newRun(carry, startDepth, trainingFocus, taken, difficulty);
       },
       (axisUid, foodUid) => {
         const fused = fuseMonsters(this.save, axisUid, foodUid);
@@ -155,6 +157,7 @@ class App {
     startDepth = 1,
     trainingFocus: TrainingFocus = "balance",
     bringAllies: readonly StoredMonster[] = [],
+    difficulty: DifficultyMode = "normal",
   ): void {
     this.diveDefeats = 0;
     this.diveCaptures = 0;
@@ -167,6 +170,7 @@ class App {
       trainingFocus,
       bringAllies: [...bringAllies],
       compendiumComplete: isCompendiumComplete(this.save),
+      difficulty,
     });
     this.presentFloor();
     this.hud.log(`地下${this.game.depth}階。最深記録は ${this.save.deepest} 階。`);

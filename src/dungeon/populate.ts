@@ -206,6 +206,10 @@ export function populateFloor(
   shopWary = false,
   /** 図鑑コンプリート済みなら、かがやきの夢のかけらの出現確率に掛ける倍率(plan/monster-compendium.md) */
   shiningChanceMultiplier = 1,
+  /** 難易度モード(plan/difficulty-modes.md)による、モンスターの攻撃力に掛ける倍率 */
+  monsterAtkMultiplier = 1,
+  /** 難易度モード(plan/difficulty-modes.md)による、金貨の山の量に掛ける倍率 */
+  goldRewardMultiplier = 1,
 ): void {
   const gimmick = floor.gimmick;
   const pool = speciesForDepth(floor.depth);
@@ -225,6 +229,7 @@ export function populateFloor(
     const species = rng.pickWeighted(pool, (s) => s.weight);
     const monster = createMonster(ids.nextActorId(), species, pos);
     if (gimmick === "alert") monster.aware = true;
+    monster.atk = Math.round(monster.atk * monsterAtkMultiplier);
     rollShining(rng, monster, shiningChanceMultiplier);
     floor.actors.push(monster);
 
@@ -242,6 +247,7 @@ export function populateFloor(
           placed.push(nearPos);
           const companion = createMonster(ids.nextActorId(), species, nearPos);
           if (gimmick === "alert") companion.aware = true;
+          companion.atk = Math.round(companion.atk * monsterAtkMultiplier);
           rollShining(rng, companion, shiningChanceMultiplier);
           floor.actors.push(companion);
         }
@@ -278,12 +284,12 @@ export function populateFloor(
   for (let i = 0; i < goldCount; i++) {
     const pos = findFreeTile(rng, floor, { roomsOnly: true, avoid: [playerStart] });
     if (!pos) break;
-    const amount = rng.int(5, 10 + floor.depth * 4);
+    const amount = Math.round(rng.int(5, 10 + floor.depth * 4) * goldRewardMultiplier);
     floor.goldPiles.push({ id: ids.nextItemUid(), pos, amount });
   }
 
   placeBarrels(rng, floor, ids, playerStart);
-  populateMonsterHouse(rng, floor, ids, shiningChanceMultiplier);
+  populateMonsterHouse(rng, floor, ids, shiningChanceMultiplier, monsterAtkMultiplier);
   populateShop(rng, floor, ids, shopWary);
 }
 
@@ -338,7 +344,13 @@ function populateShop(rng: Rng, floor: FloorState, ids: IdSource, wary: boolean)
  * 「しじまの階」ギミック中は野生モンスターが一切湧かないので、
  * モンスターハウスの中身も湧かせない(ご褒美だけは変わらず置く)。
  */
-function populateMonsterHouse(rng: Rng, floor: FloorState, ids: IdSource, shiningChanceMultiplier: number): void {
+function populateMonsterHouse(
+  rng: Rng,
+  floor: FloorState,
+  ids: IdSource,
+  shiningChanceMultiplier: number,
+  monsterAtkMultiplier = 1,
+): void {
   const room = floor.rooms.find((r) => r.kind === "monsterHouse");
   if (!room) return;
 
@@ -351,6 +363,7 @@ function populateMonsterHouse(rng: Rng, floor: FloorState, ids: IdSource, shinin
       const species = rng.pickWeighted(pool, (s) => s.weight);
       const monster = createMonster(ids.nextActorId(), species, pos);
       if (floor.gimmick === "alert") monster.aware = true;
+      monster.atk = Math.round(monster.atk * monsterAtkMultiplier);
       rollShining(rng, monster, shiningChanceMultiplier);
       floor.actors.push(monster);
     }
