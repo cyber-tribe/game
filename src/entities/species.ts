@@ -32,7 +32,9 @@ export const SPECIES: readonly Species[] = [
     def: 1,
     exp: 7,
     ai: "coward",
-    minFloor: 1,
+    // 最初の階をぷるんだけにする(plan/tutorial-floor-easing.md): 1階目は
+    // ぷるん1種だけと戦って操作に慣れる区間にするため、2階からに引き上げる
+    minFloor: 2,
     weight: 8,
     fieldSkill: "squeeze",
     // 小ネタ・遊び心(plan/flavor-and-dialogue.md): きょろきょろ、忙しない
