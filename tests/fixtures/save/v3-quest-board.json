@@ -1,0 +1,44 @@
+{
+  "deepest": 22,
+  "runs": 50,
+  "clears": 14,
+  "bestLevel": 15,
+  "storage": [
+    { "defId": "healLeaf" },
+    { "defId": "hatchet", "plus": 7, "markId": "gajiri" },
+    { "defId": "markStonePurun" }
+  ],
+  "knownCheckpoints": [1, 6, 11, 16, 21],
+  "seenTutorialTips": ["moveAndAttack", "pickup", "capture", "levelUp", "status"],
+  "trainingFocus": "balance",
+  "hut": [
+    {
+      "uid": 1,
+      "speciesId": "gajiri",
+      "level": 14,
+      "exp": 200,
+      "skills": ["softBody"],
+      "bondSuccessCount": 12,
+      "recentFusionMaterials": ["honegarami", "gajiri", "honegarami"]
+    }
+  ],
+  "nextHutUid": 4,
+  "records": { "totalDefeats": 180, "totalCaptures": 30 },
+  "compendium": { "gajiri": "captured", "purun": "captured", "tsubute": "captured", "madoromi": "captured" },
+  "achievements": {
+    "compendiumHalf": "2026-01-01T00:00:00.000Z",
+    "clear1": "2026-01-02T00:00:00.000Z",
+    "defeats50": "2026-01-05T00:00:00.000Z",
+    "maxPlusReached": "2026-01-10T00:00:00.000Z"
+  },
+  "equippedTitle": "clear1",
+  "equipmentCompendium": { "hatchet": "mastered", "barrelGuardHat": "mastered" },
+  "markCompendium": { "gajiri": "owned", "purun": "owned" },
+  "materialCompendium": { "hokoraDust": "owned", "markStonePurun": "owned" },
+  "difficulty": "hard",
+  "gold": 1250,
+  "boardDate": "2026-01-15",
+  "boardOffers": ["huntPurun", "gatherHealLeaf"],
+  "activeQuests": [{ "defId": "huntGajiri", "progress": 3 }],
+  "completedQuestIds": ["gatherHokoraDust"]
+}
