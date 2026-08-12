@@ -35,6 +35,7 @@ import {
   type Trap,
   type WeaponPattern,
   TILE_CORRIDOR,
+  TILE_ROOM,
   actorAt,
   barrelAt,
   hasStatus,
@@ -272,6 +273,9 @@ const HONEZUKA_SEAL_TURNS = 3;
 
 /** 第五地方(なみだの滝つぼ)固有ギミック(plan/waterfall-torrent.md): 奔流タイルの連鎖上限 */
 const TORRENT_PUSH_LIMIT = 4;
+
+/** 地方ボス(plan/region-boss-fuchinonushi.md): 大技(summonTorrent)で設置する奔流タイルの持続ターン */
+const SUMMON_TORRENT_DURATION = 3;
 
 /** タルの飛距離 */
 const BARREL_RANGE = 8;
@@ -2011,6 +2015,28 @@ export class Game {
           }
           break;
         }
+        case "summonTorrent": {
+          // 地方ボス(plan/region-boss-fuchinonushi.md): 予兆を消費した大技。
+          // 隣接攻撃ではなく、自分のいる部屋の外周タイルへ一時的に奔流を呼び込む
+          events.push({ type: "message", text: `${displayActorName(actor)}が奔流を呼び込んだ!` });
+          const room = this.floor.rooms.find((r) => roomContains(r, actor.pos));
+          if (room) {
+            actor.summonedTorrentTiles ??= [];
+            const cx = room.x + (room.w >> 1);
+            const cy = room.y + (room.h >> 1);
+            for (let x = room.x; x < room.x + room.w; x++) {
+              for (let y = room.y; y < room.y + room.h; y++) {
+                const onPerimeter = x === room.x || x === room.x + room.w - 1 || y === room.y || y === room.y + room.h - 1;
+                if (!onPerimeter) continue;
+                const tile = tileAt(this.floor, { x, y });
+                if (!tile || tile.kind !== TILE_ROOM) continue;
+                tile.torrent = dirFromDelta(cx - x, cy - y);
+                actor.summonedTorrentTiles.push({ pos: { x, y }, expiresIn: SUMMON_TORRENT_DURATION });
+              }
+            }
+          }
+          break;
+        }
       }
 
       // 地方ボス(plan/region-boss-nushigaeru.md): 深みタイルの上にいる間、
@@ -2078,6 +2104,7 @@ export class Game {
     this.tickArtCooldowns();
     this.tickRegen();
     this.tickSporeRooms(events);
+    this.tickSummonedTorrentTiles();
 
     if (this.status !== "playing") return;
 
@@ -2191,6 +2218,27 @@ export class Game {
       room.sporeTimer = 0;
       events.push({ type: "message", text: "むわっと、胞子が満ちた……" });
       this.applyRoomWideStatus(occupants, STATUS_SLEEP, SPORE_SLEEP_CHANCE, SPORE_SLEEP_TURNS, "眠ってしまった", events);
+    }
+  }
+
+  /**
+   * 地方ボス(plan/region-boss-fuchinonushi.md): 大技(summonTorrent)で一時的に
+   * 設置した奔流タイルを、毎ターンexpiresInぶん減らし、0になったら元に戻す
+   */
+  private tickSummonedTorrentTiles(): void {
+    for (const actor of this.floor.actors) {
+      if (!actor.summonedTorrentTiles || actor.summonedTorrentTiles.length === 0) continue;
+      const remaining: { pos: Vec2; expiresIn: number }[] = [];
+      for (const entry of actor.summonedTorrentTiles) {
+        entry.expiresIn--;
+        if (entry.expiresIn <= 0) {
+          const tile = tileAt(this.floor, entry.pos);
+          if (tile) tile.torrent = undefined;
+        } else {
+          remaining.push(entry);
+        }
+      }
+      actor.summonedTorrentTiles = remaining;
     }
   }
 

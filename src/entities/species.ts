@@ -224,6 +224,29 @@ export const SPECIES: readonly Species[] = [
     },
     bossGuaranteedDrop: "honezukaKotsuban",
   },
+  {
+    // 第五地方: なみだの滝つぼ(design/regions.md 25〜30階)。滝つぼの底に
+    // 長く沈んだ、古い悲しみが形を取った巨体。大技は隣接攻撃ではなく、
+    // 自分のいる部屋の外周へ一時的に奔流を呼び込む(plan/region-boss-fuchinonushi.md)
+    id: "fuchiNoNushi",
+    name: "淵の主",
+    model: "honegarami",
+    maxHp: 114,
+    atk: 29,
+    def: 23,
+    exp: 85,
+    ai: "melee",
+    minFloor: Number.POSITIVE_INFINITY,
+    weight: 0,
+    isRegionBoss: true,
+    bossTelegraph: {
+      message: "あたりの水面が渦を巻きはじめた",
+      multiplier: 1,
+      cooldownTurns: 4,
+      effect: "summonTorrent",
+    },
+    bossGuaranteedDrop: "fuchiNoNushiNoUroko",
+  },
 
   // ---- plan/monster-compendium.md: 地方別の新種 ----
   // 新規3Dモデルは今回のスコープでは制作せず、既存モデルを色違いの発想で
@@ -450,13 +473,14 @@ export function speciesForDepth(depth: number): Species[] {
  * 地方ボス(plan/region-bosses.md)。表の寝穴(MAIN_CAVE_ID)で、その階の
  * 地方の最終階(6階目)にだけ専用に配置する種族id。design/regions.mdの
  * 8地方(6階ごと、48階)は`plan/region-expansion.md`で実装済み。
- * 残り4地方のボスは未実装のため、実装済みの4体ぶんだけを登録する
+ * 残り3地方のボスは未実装のため、実装済みの5体ぶんだけを登録する
  */
 export const REGION_BOSS_FLOORS: Readonly<Record<number, string>> = {
   6: "oonebosuke",
   12: "nushigaeru",
   18: "oomadoromi",
   24: "honezukaNoNushi",
+  30: "fuchiNoNushi",
 };
 
 /**
@@ -469,4 +493,5 @@ export const REGION_BOSS_ORDER: readonly string[] = [
   "nushigaeru",
   "oomadoromi",
   "honezukaNoNushi",
+  "fuchiNoNushi",
 ];

@@ -175,9 +175,11 @@ export interface Species {
      * 地方ボス(plan/region-boss-oomadoromi.md)。大技の効果種別。省略時は
      * "targetedStrike"(既存の隣接攻撃強化、oonebosuke/nushigaeruと完全互換)。
      * "aoeSleep"/"aoeSeal"は隣接攻撃を伴わず、自分のいる部屋の全アクター
-     * (敵味方問わず)に睡眠/封じを付与する発動に変わる(plan/region-boss-honezuka.md)
+     * (敵味方問わず)に睡眠/封じを付与する発動に変わる(plan/region-boss-honezuka.md)。
+     * "summonTorrent"は状態異常ではなく、自分のいる部屋の外周タイルへ一時的に
+     * 奔流(plan/waterfall-torrent.md)を呼び込む(plan/region-boss-fuchinonushi.md)
      */
-    effect?: "targetedStrike" | "aoeSleep" | "aoeSeal";
+    effect?: "targetedStrike" | "aoeSleep" | "aoeSeal" | "summonTorrent";
   };
   /** 地方ボスを撃破すると確定ドロップする、その地方限定の素材のdefId */
   bossGuaranteedDrop?: string;
@@ -246,6 +248,11 @@ export interface Actor {
   telegraphCharge?: boolean;
   /** 地方ボス。次に予兆を出せるようになるまでの残りターン数 */
   telegraphCooldown?: number;
+  /**
+   * 地方ボス(plan/region-boss-fuchinonushi.md)。大技(summonTorrent)で
+   * 一時的に奔流タイルを設置した位置と、元に戻すまでの残りターン数
+   */
+  summonedTorrentTiles?: { pos: Vec2; expiresIn: number }[];
 
   // ---- 以下は ally のみ ----
   /** 構え。plan/companion-orders.md 参照。既定は "free" */
