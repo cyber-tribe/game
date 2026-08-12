@@ -188,6 +188,7 @@ function makeOpenFloor(size = 12): FloorState {
     traps: [],
     barrels: [],
     goldPiles: [],
+    fieldObstacles: [],
   };
 }
 

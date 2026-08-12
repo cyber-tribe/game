@@ -24,6 +24,7 @@ import {
   type AllyStance,
   type Barrel,
   type BarrelKind,
+  type FieldSkillId,
   type FloorGimmickKind,
   type FloorState,
   type Item,
@@ -253,6 +254,14 @@ const BOMB_DAMAGE = 22;
 /** スリガラス(plan/shops-and-thieves.md)が盗みを成功させる確率 */
 const THIEF_STEAL_CHANCE = 0.4;
 const BOMB_RADIUS = 1;
+
+/** あうんの呼吸(plan/ally-field-gimmicks.md)。障害物の前で表示するヒント文言 */
+const FIELD_SKILL_HINTS: Record<FieldSkillId, string> = {
+  break: "力持ちの",
+  squeeze: "すばしっこい",
+  leap: "跳べる",
+  dig: "掘れる",
+};
 
 /** 夢あわせ(plan/monster-fusion.md)で得た特技を持っているか */
 function hasSkill(actor: Actor, id: SkillId): boolean {
@@ -1034,6 +1043,30 @@ export class Game {
       events.push({ type: "bump", actorId: player.id, dir: delta });
       events.push({ type: "message", text: "タルが道をふさいでいる。" });
       return false;
+    }
+    // あうんの呼吸(plan/ally-field-gimmicks.md): 対応する性質を持つ仲間を
+    // 連れていなければ通れない。連れていれば自動的に道が開く
+    const obstacle = this.floor.fieldObstacles.find((o) => !o.opened && eq(o.pos, to));
+    if (obstacle) {
+      const helper = this.allies.find(
+        (a) => a.alive && a.speciesId !== undefined && speciesById(a.speciesId).fieldSkill === obstacle.requires,
+      );
+      if (!helper) {
+        events.push({ type: "bump", actorId: player.id, dir: delta });
+        events.push({
+          type: "message",
+          text: `${FIELD_SKILL_HINTS[obstacle.requires]}仲間となら、ここを越えられそうだ。`,
+        });
+        return false;
+      }
+      obstacle.opened = true;
+      const materialIds = [HOKORA_DUST_DEF_ID, ...MARKS.map((m) => MARK_STONE_DEF_ID[m.id])];
+      const defId = this.rng.pick(materialIds);
+      this.floor.items.push({ item: createItem(this.ids.nextItemUid(), defId), pos: { ...obstacle.pos } });
+      events.push({
+        type: "message",
+        text: `${displayActorName(helper)}の力を借りて、道を切り開いた!`,
+      });
     }
     // 斜めの角抜けは禁止
     if (isDiagonal(dir)) {

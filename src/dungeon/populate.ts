@@ -4,6 +4,7 @@ import {
   type Actor,
   type Barrel,
   type BarrelKind,
+  type FieldSkillId,
   type FloorState,
   type Item,
   type Room,
@@ -312,6 +313,23 @@ export function populateFloor(
   placeBarrels(rng, floor, ids, playerStart);
   populateMonsterHouse(rng, floor, ids, shiningChanceMultiplier, monsterAtkMultiplier, speciesDepthOffset);
   populateShop(rng, floor, ids, shopWary, speciesDepthOffset);
+  populateFieldObstacle(rng, floor, playerStart);
+}
+
+/** あうんの呼吸(plan/ally-field-gimmicks.md)。任意のショートカット・ボーナスとして出す確率 */
+const FIELD_OBSTACLE_CHANCE = 0.25;
+const FIELD_SKILLS: readonly FieldSkillId[] = ["break", "squeeze", "leap", "dig"];
+
+/**
+ * あうんの呼吸(plan/ally-field-gimmicks.md)の障害物を、フロアに0か1個だけ置く。
+ * 対応する性質を持つ仲間を連れていないと通れない、任意のショートカット・ボーナス
+ */
+function populateFieldObstacle(rng: Rng, floor: FloorState, playerStart: Vec2): void {
+  if (!rng.chance(FIELD_OBSTACLE_CHANCE)) return;
+  const pos = findFreeTile(rng, floor, { roomsOnly: true, avoid: [playerStart] });
+  if (!pos) return;
+  const requires = rng.pick(FIELD_SKILLS);
+  floor.fieldObstacles.push({ pos, requires, opened: false });
 }
 
 /**
