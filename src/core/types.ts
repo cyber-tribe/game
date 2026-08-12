@@ -468,6 +468,11 @@ export interface Barrel {
   pos: Vec2;
   /** caught のとき、中にいるモンスターの種族 */
   speciesId?: string;
+  /**
+   * 第七地方(わすれられた祭りの跡)固有ギミック(plan/festival-mirage.md)。
+   * 見た目は本物と同一だが、持ち上げようとすると幻だったと判明して消える
+   */
+  decoy?: boolean;
 }
 
 export const BARREL_NAMES: Record<BarrelKind, string> = {
@@ -518,6 +523,12 @@ export interface FloorState {
   fieldObstacles: FieldObstacle[];
   /** 忘れ物蔵(plan/lost-and-found-vault.md)の隠し通路。表の寝穴の地方の2階目にだけ生成される */
   secretPassages: SecretPassage[];
+  /**
+   * 第七地方(わすれられた祭りの跡)固有ギミック(plan/festival-mirage.md)。
+   * 見た目・タイル種別は本物の階段(stairs)と同一だが、降りようとしても
+   * 次の階へは進まず、幻だったと判明して消える
+   */
+  decoyStairsPositions?: Vec2[];
 }
 
 export function tileAt(floor: FloorState, p: Vec2): Tile | undefined {

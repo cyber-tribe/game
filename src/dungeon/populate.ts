@@ -588,3 +588,34 @@ export function placeTorrentTiles(rng: Rng, floor: FloorState): void {
     }
   }
 }
+
+/**
+ * 第七地方(わすれられた祭りの跡)固有ギミック(plan/festival-mirage.md)。
+ * 本物の階段部屋・出店・モンスターハウス以外の部屋のうち1〜2箇所に、
+ * 見た目が本物と同一の偽の階段位置を追加する
+ */
+export function placeDecoyStairs(rng: Rng, floor: FloorState): void {
+  const candidates = floor.rooms.filter((r) => r.kind === undefined && !roomContains(r, floor.stairs));
+  if (candidates.length === 0) return;
+  const count = Math.min(candidates.length, rng.int(1, 2));
+  floor.decoyStairsPositions = rng
+    .shuffled(candidates)
+    .slice(0, count)
+    .map((room) => randomTileInRoom(rng, room));
+}
+
+const DECOY_BARREL_KINDS: readonly BarrelKind[] = ["empty", "bomb", "caught"];
+
+/**
+ * 第七地方(わすれられた祭りの跡)固有ギミック(plan/festival-mirage.md)。
+ * 通常のタル生成に加え、見た目が本物と同一の偽のタルを1〜2個追加する
+ */
+export function placeDecoyBarrels(rng: Rng, floor: FloorState, ids: IdSource): void {
+  const count = rng.int(1, 2);
+  for (let i = 0; i < count; i++) {
+    const pos = findFreeTile(rng, floor, { roomsOnly: true });
+    if (!pos) break;
+    const kind = rng.pick(DECOY_BARREL_KINDS);
+    floor.barrels.push({ id: ids.nextBarrelId(), kind, pos, decoy: true });
+  }
+}
