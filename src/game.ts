@@ -1850,7 +1850,9 @@ export class Game {
           if (!ally.alive) continue;
           const spot = this.freeSpotNear(this.player.pos);
           if (!spot) continue;
+          const from = ally.pos;
           ally.pos = spot;
+          events.push({ type: "teleport", actorId: ally.id, from, to: spot });
           recalled++;
         }
         events.push({
@@ -2191,6 +2193,15 @@ export class Game {
             }
             actor.mirrorTurnsLeft = MIRROR_AUTO_DISPEL_TURNS;
           }
+          break;
+        }
+        case "burrowSurface": {
+          // burrow(plan/monster-compendium.md): 潜伏から地上へ現れる。teleportイベントを
+          // 出さずに座標だけ書き換えると、表示側(ActorView)が古い位置のまま取り残され、
+          // 次に動いたときに離れた本来の位置まで一気に「飛ぶ」ように見えてしまう(#180)
+          const from = actor.pos;
+          actor.pos = action.to;
+          events.push({ type: "teleport", actorId: actor.id, from, to: action.to });
           break;
         }
       }

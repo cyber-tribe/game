@@ -49,7 +49,9 @@ export type MonsterAction =
   /** 地方ボス(plan/region-boss-kodamanonushi.md)。予兆を消費し、HPを共有する分身を2体まで呼び出す */
   | { type: "summonEcho" }
   /** 地方ボス(plan/region-boss-misemonononushi.md)。予兆を消費し、本体そっくりの幻影を3体呼び出す */
-  | { type: "summonMirror" };
+  | { type: "summonMirror" }
+  /** burrow(plan/monster-compendium.md)。潜伏から地上へ現れる。呼び出し側で位置を動かし、teleportイベントを出す */
+  | { type: "burrowSurface"; to: Vec2 };
 
 /**
  * 指定した地点からの歩数を全マスぶん求めた距離場(いわゆるダイクストラマップ)。
@@ -250,15 +252,15 @@ export function decideMonsterAction(
     }
     const timer = monster.burrowTimer ?? BURROW_INTERVAL;
     if (timer <= 0) {
+      monster.burrowTimer = BURROW_INTERVAL;
       const spot = burrowSurfaceSpot(rng, floor, target.pos);
       if (spot) {
-        monster.pos = spot;
         monster.aware = true;
+        return { type: "burrowSurface", to: spot };
       }
-      monster.burrowTimer = BURROW_INTERVAL;
-    } else {
-      monster.burrowTimer = timer - 1;
+      return { type: "wait" };
     }
+    monster.burrowTimer = timer - 1;
     return { type: "wait" };
   }
 
