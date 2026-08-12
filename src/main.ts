@@ -66,6 +66,7 @@ import { MAIN_CAVE_ID } from "./entities/dungeons";
 import { todayKey } from "./entities/quests";
 import { STORY_CHAPTER_MESSAGES, storyChapter, storyChapterEventId } from "./entities/story";
 import { speciesById } from "./entities/species";
+import { buildBugReportUrl } from "./entities/bugReport";
 import { speciesLore } from "./entities/speciesLore";
 import { TUTORIAL_TIPS, type TutorialTipId } from "./core/tutorial";
 import type { Item } from "./core/types";
@@ -280,6 +281,17 @@ class App {
         if (!toggled) return;
         this.save = toggled;
         this.town.refreshSave(this.save);
+      },
+      () => {
+        const url = buildBugReportUrl({
+          depth: this.game.depth,
+          hp: this.game.player.hp,
+          maxHp: this.game.player.maxHp,
+          satiety: this.game.player.satiety,
+          recentLog: this.hud.recentLog,
+          userAgent: navigator.userAgent,
+        });
+        window.open(url, "_blank");
       },
     );
   }

@@ -151,6 +151,11 @@ export class Hud {
     }
   }
 
+  /** バグ報告ボタン(plan/bug-report-button.md)向け。直近のログをそのまま読む */
+  get recentLog(): readonly string[] {
+    return this.lines;
+  }
+
   log(text: string): void {
     this.lines.push(text);
     while (this.lines.length > MAX_LOG_LINES) this.lines.shift();

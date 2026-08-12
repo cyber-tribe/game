@@ -1,0 +1,27 @@
+name: プレイヤー報告への一次応答
+
+# plan/archive/bug-report-button.md: 拠点画面の「不具合を報告する」ボタンから
+# 事前入力されたIssue(player-reportラベル)が起票されたら、確認まで少し
+# 時間がかかる旨だけを短く自動返信する。それ以上の自動処理(クローズ・
+# アサイン等)は行わない(トリアージは人間が行う前提)。
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+
+jobs:
+  ack:
+    if: contains(github.event.issue.labels.*.name, 'player-report')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: "報告ありがとうございます。確認まで少しお時間をいただきます。",
+            });

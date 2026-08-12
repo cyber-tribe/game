@@ -1,3 +1,35 @@
+> **実装済み。**
+> `src/entities/bugReport.ts`(新規、`buildBugReportUrl`。純粋関数として
+> URL組み立てだけを行う)、`src/view/hud.ts`(`Hud.recentLog`ゲッターを
+> 追加し、直近ログを外部から読めるようにした)、`src/ui/town.ts`
+> (アクセシビリティ列(column 14)に`B`キーで`onReportBug`コールバックを
+> 呼ぶハンドラとヒント表示を追加。`show()`の最後の引数として追加した)、
+> `src/main.ts`(`showTown()`の`onReportBug`コールバックで`Game`/`Hud`
+> から状態を集めて`window.open(url, "_blank")`する)、
+> `.github/workflows/player-report-ack.yml`(新規。`player-report`
+> ラベルのIssueが開かれたら定型コメントを1件投稿するだけ)に実装した。
+> テストは `tests/bug-report-button.test.ts`(6件、`buildBugReportUrl`の
+> 純粋ロジック)。加えて、実機(Chromium)で拠点→アクセシビリティ列→
+> `B`キーの操作から`window.open`に渡るURLの中身(タイトル・本文・
+> ラベル)まで実際に確認した。
+>
+> 実装時の判断:
+> - プランの本文タイトル案「[プレイヤー報告] <直近のGameEvent種別>で
+>   不具合」は、直近のGameEventが必ずしも有益な情報(例:
+>   "message"・"move"等)とは限らず未決事項でもあったため、より
+>   分かりやすい「[プレイヤー報告] 地下{depth}階で不具合」に変更した。
+> - 「直近ログ(直近10件)」は、既存の`Hud`が保持するログ行数の上限
+>   (`MAX_LOG_LINES = 6`、画面表示用)をそのまま流用したため、実際には
+>   最大6件になる(UI表示用の上限を変更する理由が無いため、専用の
+>   バッファは新設しなかった)。
+> - ボタンの設置場所は、プランの「拠点画面の設定まわり」という指示を、
+>   `plan/settings-screen.md`(本文書とは別の、未実装の専用設定画面)
+>   ではなく、既存のアクセシビリティ列(実質的な設定コーナー)と解釈
+>   して実装した。
+> - `.github/workflows/player-report-ack.yml`は、既存の
+>   `auto-tester.yml`と同じく`actions/github-script@v7`を使い、
+>   `GITHUB_TOKEN`のデフォルト権限(`issues: write`)だけで完結させた。
+
 # バグ報告ボタン
 
 `design/server-architecture.md` が「検討した機能」として挙げつつ本文書
