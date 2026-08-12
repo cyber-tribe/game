@@ -162,6 +162,14 @@ export class DungeonView {
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     mesh.receiveShadow = true;
     mesh.castShadow = model === "wall";
+    // InstancedMeshのboundingSphereは初回描画時に一度だけ自動計算され、以後は
+    // setMatrixAtで個々のインスタンスを動かしても自動では更新されない。未探索
+    // タイルの多くがまだ原点に潰れている(HIDDEN_MATRIX)初回描画時にこれが
+    // 計算されると、その後どれだけ遠くの部屋を探索して床を実座標へ戻しても
+    // 古く狭いboundingSphereのままフラスタムカリング判定が行われ、視界内の
+    // はずのタイルがメッシュごと描画から丸ごと除外されて真っ暗になる(#181)。
+    // 盤面自体が広くないぶん、カリングによる恩恵より正しさを優先し無効化する
+    mesh.frustumCulled = false;
 
     const matrix = new THREE.Matrix4();
     for (let i = 0; i < count; i++) {
