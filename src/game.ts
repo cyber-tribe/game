@@ -30,7 +30,6 @@ import {
   type Item,
   type ItemDef,
   type Room,
-  type SkillId,
   type StatusKind,
   type Trap,
   type WeaponPattern,
@@ -46,6 +45,7 @@ import {
   walkableAt,
 } from "./core/types";
 import { type ArtId, artDef } from "./entities/arts";
+import { hasSkill } from "./entities/skills";
 import { generateFloor } from "./dungeon/generate";
 import { GIMMICK_MESSAGES, pickFloorGimmick } from "./dungeon/gimmicks";
 import {
@@ -405,11 +405,6 @@ const FIELD_SKILL_HINTS: Record<FieldSkillId, string> = {
   leap: "跳べる",
   dig: "掘れる",
 };
-
-/** 夢あわせ(plan/monster-fusion.md)で得た特技を持っているか */
-function hasSkill(actor: Actor, id: SkillId): boolean {
-  return actor.skills?.includes(id) ?? false;
-}
 
 /** posが、部屋の外縁からチェビシェフ距離rangeマス以内にあるか(部屋の中ならtrue) */
 function isNearRoom(room: Room, pos: Vec2, range: number): boolean {

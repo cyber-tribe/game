@@ -7,7 +7,6 @@ import {
   type Actor,
   type AllyStance,
   type FloorState,
-  type SkillId,
   actorAt,
   barrelAt,
   hasStatus,
@@ -16,12 +15,8 @@ import {
   walkableAt,
 } from "../core/types";
 import { canSee } from "../dungeon/visibility";
+import { hasSkill } from "./skills";
 import { speciesById } from "./species";
-
-/** 夢あわせ(plan/monster-fusion.md)で得た特技を持っているか */
-function hasSkill(actor: Actor, id: SkillId): boolean {
-  return actor.skills?.includes(id) ?? false;
-}
 
 /** burrow AI が潜ってから次に現れるまでのターン数(plan/monster-compendium.md) */
 const BURROW_INTERVAL = 3;

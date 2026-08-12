@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { Game, type Command, type RunSnapshot } from "./game";
 import type { GameEvent } from "./core/events";
 import { isFree, walkableAt } from "./core/types";
-import { chebyshev, eq } from "./core/grid";
+import { DIRS, chebyshev, eq } from "./core/grid";
 import { BARREL_MODELS, essentialModelNames, modelNames } from "./modelList";
 import { Assets } from "./view/assets";
 import { Hud } from "./view/hud";
@@ -972,18 +972,8 @@ class App {
 
   /** 正面が開けている方向を向く。タルの落下先を確保するために使う */
   debugFaceOpenSide(): number | null {
-    const deltas = [
-      { x: 0, y: -1 },
-      { x: 1, y: -1 },
-      { x: 1, y: 0 },
-      { x: 1, y: 1 },
-      { x: 0, y: 1 },
-      { x: -1, y: 1 },
-      { x: -1, y: 0 },
-      { x: -1, y: -1 },
-    ];
     for (let dir = 0; dir < 8; dir++) {
-      const d = deltas[dir]!;
+      const d = DIRS[dir]!;
       const spot = { x: this.game.player.pos.x + d.x, y: this.game.player.pos.y + d.y };
       if (isFree(this.game.floor, spot)) {
         this.submit({ type: "face", dir: dir as 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 });
@@ -1013,16 +1003,7 @@ class App {
       [4, "ArrowDown"],
       [0, "ArrowUp"],
     ] as const) {
-      const d = [
-        { x: 0, y: -1 },
-        { x: 1, y: -1 },
-        { x: 1, y: 0 },
-        { x: 1, y: 1 },
-        { x: 0, y: 1 },
-        { x: -1, y: 1 },
-        { x: -1, y: 0 },
-        { x: -1, y: -1 },
-      ][dir]!;
+      const d = DIRS[dir]!;
       const spot = { x: player.pos.x + d.x, y: player.pos.y + d.y };
       if (!walkableAt(this.game.floor, spot)) continue;
       monster.pos = spot;
