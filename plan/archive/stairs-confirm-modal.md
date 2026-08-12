@@ -1,3 +1,36 @@
+> **実装済み。** `src/ui/stairs-confirm.ts`(新規)に`StairsConfirmModal`を
+> 実装。既存の`StanceMenu`(`src/ui/stance.ts`)と同じ「open/hide/isOpen/
+> handleKey/render」の形に揃えた。`src/main.ts`の`handleAction`の
+> `"confirm"`ケースで、階段の上かつタルを抱えていない場合だけ
+> `stairsConfirm.show(...)`を呼び、それ以外(タルを抱えている場合)は
+> 従来どおり`submit({type:"descend"})`を直接呼んで
+> `plan/archive/barrel-stairs-safeguard.md`の既存の警告に委ねる
+> (計画書どおり、モーダルより前でガードした)。
+>
+> `input.onKey`のチェーンに`stairsConfirm.handleKey`を追加し、開いている
+> あいだは矢印キー・Space・Enter・Escapeをモーダルが横取りする(既存の
+> メニュー類と同じ、キューに積まれる前に潰す方式)。`step()`・`restart`
+> ハンドラ・`toggleHelp`・`togglePhotoMode`の「他のメニューが開いている
+> あいだは無効」というガード条件にも`stairsConfirm.isOpen`を追加した。
+>
+> 未決事項への回答: **既定の選択は「やめる」にした**(計画書が示した
+> 「誤操作防止を優先するなら『やめる』寄りにする案」を採用)。モーダルの
+> 文言は「この先へ降りますか?」「降りる」「やめる」とした(計画書の
+> 例示どおり)。
+>
+> `index.html`に`#stairsConfirm`のコンテナと、既存の`#menu`/`#stance`/
+> `#arts`と同じCSS(位置・文字サイズのアクセシビリティズーム含む)を追加。
+>
+> UI層(`src/ui/*.ts`)は既存の`StanceMenu`等と同様にvitestの対象外
+> (DOM前提でnode環境では動かせない)なので専用のunitテストは追加せず、
+> ブラウザでのスモークテストで検証した: 階段上でSpaceを押すとモーダルが
+> 開き既定選択が「やめる」であること、Escapeで降りずに閉じること、
+> ↑で選択を「降りる」に移してEnterで実際に降下(depthが進む)こと、を
+> 確認済み。`tools/playtest.mjs`・`tools/auto-tester.mjs`は階層送りに
+> `debugDescend()`(`submit`を直接呼ぶデバッグ専用経路)を使っており、
+> 本モーダルを経由しないため、CIの実機での通しプレイには影響しない
+> ことも確認した。
+
 # 階段を降りる前に確認モーダルを出す
 
 現状、階段の上で確定操作(Space)をすると、確認なしにその場で次の階へ

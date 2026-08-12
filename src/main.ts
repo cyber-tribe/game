@@ -15,6 +15,7 @@ import { AudioPlayer } from "./audio/player";
 import { ArtsMenu } from "./ui/arts";
 import { InventoryMenu } from "./ui/menu";
 import { NamingDialog } from "./ui/naming-dialog";
+import { StairsConfirmModal } from "./ui/stairs-confirm";
 import { StanceMenu } from "./ui/stance";
 import { TownScreen } from "./ui/town";
 import { SlotSelectScreen } from "./ui/slot-select";
@@ -110,6 +111,8 @@ class App {
   private readonly menu: InventoryMenu;
   private readonly stanceMenu: StanceMenu;
   private readonly artsMenu: ArtsMenu;
+  /** 階段を降りる前の確認モーダル(plan/stairs-confirm-modal.md) */
+  private readonly stairsConfirm: StairsConfirmModal;
   private readonly town: TownScreen;
   private readonly namingDialog: NamingDialog;
   /** セーブ枠選択(plan/save-slots.md) */
@@ -157,6 +160,7 @@ class App {
     this.menu = new InventoryMenu(document.querySelector<HTMLElement>("#menu")!);
     this.stanceMenu = new StanceMenu(document.querySelector<HTMLElement>("#stance")!);
     this.artsMenu = new ArtsMenu(document.querySelector<HTMLElement>("#arts")!);
+    this.stairsConfirm = new StairsConfirmModal(document.querySelector<HTMLElement>("#stairsConfirm")!);
     this.town = new TownScreen(document.querySelector<HTMLElement>("#town")!);
     this.namingDialog = new NamingDialog(document.querySelector<HTMLElement>("#naming")!);
     this.slotSelect = new SlotSelectScreen(document.querySelector<HTMLElement>("#slotSelect")!);
@@ -170,7 +174,8 @@ class App {
       this.town.handleKey(code) ||
       this.menu.handleKey(code) ||
       this.stanceMenu.handleKey(code) ||
-      this.artsMenu.handleKey(code);
+      this.artsMenu.handleKey(code) ||
+      this.stairsConfirm.handleKey(code);
 
     // サウンド再生(plan/audio-playback.md): ブラウザの自動再生制限を避けるため、
     // AudioContextは最初の入力(キー入力)のタイミングで初めて作る
@@ -580,6 +585,7 @@ class App {
         !this.menu.isOpen &&
         !this.stanceMenu.isOpen &&
         !this.artsMenu.isOpen &&
+        !this.stairsConfirm.isOpen &&
         !this.town.isOpen &&
         !this.photoMode &&
         !this.helpVisible &&
@@ -595,6 +601,7 @@ class App {
       this.menu.isOpen ||
       this.stanceMenu.isOpen ||
       this.artsMenu.isOpen ||
+      this.stairsConfirm.isOpen ||
       this.town.isOpen ||
       this.photoMode ||
       this.helpVisible ||
@@ -649,6 +656,7 @@ class App {
           !this.menu.isOpen &&
           !this.stanceMenu.isOpen &&
           !this.artsMenu.isOpen &&
+          !this.stairsConfirm.isOpen &&
           !this.town.isOpen &&
           !this.photoMode &&
           !this.helpVisible &&
@@ -677,6 +685,7 @@ class App {
       this.menu.isOpen ||
       this.stanceMenu.isOpen ||
       this.artsMenu.isOpen ||
+      this.stairsConfirm.isOpen ||
       this.town.isOpen ||
       this.photoMode ||
       this.ended
@@ -716,6 +725,7 @@ class App {
       this.menu.isOpen ||
       this.stanceMenu.isOpen ||
       this.artsMenu.isOpen ||
+      this.stairsConfirm.isOpen ||
       this.town.isOpen ||
       this.helpVisible ||
       this.ended
@@ -763,7 +773,13 @@ class App {
       case "confirm":
         // 足元の状況に応じて、階段を降りるか拾うかを選ぶ
         if (eq(this.game.player.pos, this.game.floor.stairs)) {
-          this.submit({ type: "descend" });
+          // タルを抱えている場合はモーダルを開かせず、既存の警告
+          // (plan/archive/barrel-stairs-safeguard.md)にそのまま委ねる
+          if (this.game.player.carrying) {
+            this.submit({ type: "descend" });
+          } else {
+            this.stairsConfirm.show(() => this.submit({ type: "descend" }));
+          }
         } else {
           this.submit({ type: "pickup" });
         }
