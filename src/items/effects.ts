@@ -18,6 +18,7 @@ import {
 } from "../core/types";
 import { buildDistanceField } from "../entities/ai";
 import { MAX_SATIETY, type PlayerState } from "../entities/player";
+import { speciesById } from "../entities/species";
 import { headDefId } from "./inventory";
 
 /** 樽守りの笠(plan/protagonist-equipment.md)の眠り耐性 */
@@ -253,6 +254,12 @@ export function addStatus(
   turns: number,
   verb: string,
 ): void {
+  // 地方ごとの成熟系統(plan/companion-evolution-expansion.md): まつりのぬしは
+  // あらゆる状態異常を受け付けない
+  if (target.speciesId && speciesById(target.speciesId).statusImmune) {
+    ctx.events.push({ type: "message", text: `${target.name}には効かなかった!` });
+    return;
+  }
   // 樽守りの笠(plan/protagonist-equipment.md): 眠りにかかりにくくなる
   if (
     kind === STATUS_SLEEP &&

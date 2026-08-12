@@ -35,6 +35,49 @@ export const EVOLUTION_RULES: readonly EvolutionRule[] = [
     triggerMaterial: "madoromi",
     lookbackFusions: 3,
   },
+  // ---- plan/companion-evolution-expansion.md: 地方ごとの成熟系統 ----
+  {
+    fromSpeciesId: "moyautsubo",
+    toSpeciesId: "kasumiutsubo",
+    requiredLevel: 10,
+    triggerMaterial: "wasuregani",
+    lookbackFusions: 3,
+  },
+  {
+    fromSpeciesId: "yumekuimogura",
+    toSpeciesId: "nemurimogura",
+    requiredLevel: 10,
+    triggerMaterial: "horoholocho",
+    lookbackFusions: 3,
+  },
+  {
+    fromSpeciesId: "yoroimukade",
+    toSpeciesId: "yoroioiteke",
+    requiredLevel: 10,
+    triggerMaterial: "oitekeboshi",
+    lookbackFusions: 3,
+  },
+  {
+    fromSpeciesId: "shizukuuo",
+    toSpeciesId: "namidaguma",
+    requiredLevel: 10,
+    triggerMaterial: "urumiguma",
+    lookbackFusions: 3,
+  },
+  {
+    fromSpeciesId: "yamabikogitsune",
+    toSpeciesId: "kodamagitsune",
+    requiredLevel: 10,
+    triggerMaterial: "kodamausagi",
+    lookbackFusions: 3,
+  },
+  {
+    fromSpeciesId: "menkaburikozo",
+    toSpeciesId: "matsurinonushi",
+    requiredLevel: 10,
+    triggerMaterial: "kazaridaruma",
+    lookbackFusions: 3,
+  },
 ];
 
 /** 直近の夢あわせ履歴(recentFusionMaterials)を1件分保持する上限。全ルールのlookbackFusionsの最大値でよい */
