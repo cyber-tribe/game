@@ -22,6 +22,12 @@ import { SPECIES, speciesById } from "../entities/species";
 import { isCompendiumComplete, isWeaponCompendiumComplete, type SaveData, type StoredItem, type StoredMonster } from "../save";
 import { ITEMS, itemDef } from "../items/catalog";
 import { MAX_ACTIVE_QUESTS, questDef } from "../entities/quests";
+import {
+  VILLAGE_STAGE_REQUIREMENTS,
+  canDevelopVillage,
+  hutCapacity,
+  nextVillageStageRequirement,
+} from "../entities/village";
 
 /** ダンジョンに持ち込める数。全部持って行けたら倉庫に預ける意味がない */
 export const CARRY_LIMIT = 8;
@@ -47,8 +53,8 @@ const TRAINING_FOCUS_DESCRIPTIONS: Record<TrainingFocus, string> = {
  */
 export class TownScreen {
   private open = false;
-  /** 0=倉庫 1=持ち込み 2=出発地点 3=鍛え方 4=つれていく仲間 5=ゲンドの工房 6=記録の間 7=モンスター図鑑 8=実績帳 9=装備図鑑 10=難易度 11=依頼板 12=潜るダンジョン */
-  private column: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 = 0;
+  /** 0=倉庫 1=持ち込み 2=出発地点 3=鍛え方 4=つれていく仲間 5=ゲンドの工房 6=記録の間 7=モンスター図鑑 8=実績帳 9=装備図鑑 10=難易度 11=依頼板 12=潜るダンジョン 13=村の発展 */
+  private column: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 = 0;
   private cursor: [number, number] = [0, 0];
   private storage: StoredItem[] = [];
   private carry: StoredItem[] = [];
@@ -93,6 +99,7 @@ export class TownScreen {
   private onAcceptQuest: ((defId: string) => void) | null = null;
   private onAbandonQuest: ((defId: string) => void) | null = null;
   private onReleaseCompanion: ((uid: number) => void) | null = null;
+  private onDevelopVillage: (() => void) | null = null;
   /** 実績帳(plan/achievements.md)の一覧上のカーソル位置 */
   private achievementCursor = 0;
   /** 依頼板(plan/quest-board.md)の一覧上のカーソル位置 */
@@ -123,6 +130,7 @@ export class TownScreen {
     onAcceptQuest: (defId: string) => void,
     onAbandonQuest: (defId: string) => void,
     onReleaseCompanion: (uid: number) => void,
+    onDevelopVillage: () => void,
   ): void {
     this.save = save;
     this.storage = save.storage.map((s) => ({ ...s }));
@@ -151,6 +159,7 @@ export class TownScreen {
     this.onAcceptQuest = onAcceptQuest;
     this.onAbandonQuest = onAbandonQuest;
     this.onReleaseCompanion = onReleaseCompanion;
+    this.onDevelopVillage = onDevelopVillage;
     this.achievementCursor = 0;
     this.questCursor = 0;
     this.open = true;
@@ -496,6 +505,30 @@ export class TownScreen {
         case "KeyA":
           this.column = 11;
           break;
+        case "ArrowRight":
+        case "KeyD":
+          this.column = 13;
+          break;
+        case "Space":
+          this.departNow();
+          return true;
+        default:
+          return true;
+      }
+      this.render();
+      return true;
+    }
+
+    if (this.column === 13) {
+      switch (code) {
+        case "ArrowLeft":
+        case "KeyA":
+          this.column = 12;
+          break;
+        case "Enter":
+        case "NumpadEnter":
+          this.onDevelopVillage?.();
+          break;
         case "Space":
           this.departNow();
           return true;
@@ -787,6 +820,7 @@ export class TownScreen {
       this.renderDifficulty(),
       this.renderQuestBoard(),
       this.renderDungeons(),
+      this.renderVillage(),
     );
     box.appendChild(columns);
 
@@ -852,6 +886,12 @@ export class TownScreen {
     } else if (this.column === 12) {
       const dungeon = this.unlockedDungeons()[this.dungeonIndex];
       desc.textContent = dungeon?.description ?? "";
+    } else if (this.column === 13) {
+      const stage = this.save?.villageStage ?? 1;
+      const requirement = nextVillageStageRequirement(stage);
+      desc.textContent = requirement
+        ? `Enterで発展させる: ${requirement.label}(最深${requirement.minDeepest}階到達・${requirement.cost}G必要)`
+        : "村はすでに最終段階まで発展している。";
     } else {
       const selected = (this.column === 0 ? this.storage : this.carry)[this.cursor[this.column]];
       desc.textContent = selected ? itemDef(selected.defId).description : "";
@@ -1302,6 +1342,46 @@ export class TownScreen {
       list.appendChild(li);
     });
     wrapper.appendChild(list);
+    return wrapper;
+  }
+
+  /**
+   * 村の発展(plan/village-development.md)。現在の段階と、次の段階の条件
+   * (最深到達記録・ゴールド)を表示する。Enterで条件を満たしていれば発展させる
+   */
+  private renderVillage(): HTMLElement {
+    const wrapper = document.createElement("div");
+    wrapper.className = "town-col";
+    if (this.column === 13) wrapper.classList.add("active");
+
+    const heading = document.createElement("div");
+    heading.className = "town-col-title";
+    heading.textContent = "村の発展";
+    wrapper.appendChild(heading);
+
+    const save = this.save;
+    const stage = save?.villageStage ?? 1;
+    const summary = document.createElement("p");
+    summary.textContent = `段階 ${stage} / 4 ・ ねむり小屋 最大${hutCapacity(stage)}体`;
+    wrapper.appendChild(summary);
+
+    const list = document.createElement("ul");
+    VILLAGE_STAGE_REQUIREMENTS.forEach((requirement) => {
+      const li = document.createElement("li");
+      const done = stage >= requirement.stage;
+      li.textContent = done
+        ? `${requirement.label}(達成)`
+        : `${requirement.label}: 最深${requirement.minDeepest}階到達・${requirement.cost}G`;
+      list.appendChild(li);
+    });
+    wrapper.appendChild(list);
+
+    if (save && canDevelopVillage(stage, save.deepest, save.gold)) {
+      const ready = document.createElement("p");
+      ready.className = "selected";
+      ready.textContent = "Enterで発展させられる!";
+      wrapper.appendChild(ready);
+    }
     return wrapper;
   }
 }
