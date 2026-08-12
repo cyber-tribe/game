@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { Rng } from "../src/core/rng";
 import type { Actor, FloorState } from "../src/core/types";
+import { roomContains } from "../src/core/types";
 import { decideMonsterAction } from "../src/entities/ai";
 import { REGION_BOSS_ORDER, speciesById } from "../src/entities/species";
 import { Game } from "../src/game";
-import { roomContains } from "../src/core/types";
 
 function bossActor(overrides: Partial<Actor> = {}): Actor {
-  const species = speciesById("oomadoromi");
+  const species = speciesById("honezukaNoNushi");
   return {
     id: 1,
     kind: "monster",
@@ -51,7 +51,7 @@ function emptyFloor(): FloorState {
   const width = 12;
   const height = 12;
   return {
-    depth: 18,
+    depth: 24,
     width,
     height,
     rooms: [{ id: 0, x: 0, y: 0, w: width, h: height }],
@@ -71,25 +71,31 @@ function emptyFloor(): FloorState {
   } as unknown as FloorState;
 }
 
-describe("entities/species.ts: オオマドロミ(第三地方ボス)", () => {
+describe("entities/species.ts: ホネヅカのぬし(第四地方ボス)", () => {
   it("野生出現テーブルには乗らない(minFloor: Infinity・weight: 0)", () => {
-    const species = speciesById("oomadoromi");
+    const species = speciesById("honezukaNoNushi");
     expect(species.minFloor).toBe(Number.POSITIVE_INFINITY);
     expect(species.weight).toBe(0);
   });
 
-  it("isRegionBossフラグを持ち、大技はaoeSleep", () => {
-    const species = speciesById("oomadoromi");
+  it("isRegionBossフラグを持ち、大技はaoeSeal", () => {
+    const species = speciesById("honezukaNoNushi");
     expect(species.isRegionBoss).toBe(true);
-    expect(species.bossTelegraph?.effect).toBe("aoeSleep");
+    expect(species.bossTelegraph?.effect).toBe("aoeSeal");
   });
 
-  it("REGION_BOSS_ORDERに、おおねぼすけ・ヌシガエルに続いて登録されている", () => {
-    expect(REGION_BOSS_ORDER.indexOf("oomadoromi")).toBe(REGION_BOSS_ORDER.indexOf("nushigaeru") + 1);
+  it("防御特化: 雑魚最上位種(honegarami def16)より防御力が高い", () => {
+    const species = speciesById("honezukaNoNushi");
+    const honegarami = speciesById("honegarami");
+    expect(species.def).toBeGreaterThan(honegarami.def);
+  });
+
+  it("REGION_BOSS_ORDERの最後に登録されている", () => {
+    expect(REGION_BOSS_ORDER[REGION_BOSS_ORDER.length - 1]).toBe("honezukaNoNushi");
   });
 });
 
-describe("entities/ai.ts: オオマドロミの大技(decideMonsterAction)", () => {
+describe("entities/ai.ts: ホネヅカのぬしの大技(decideMonsterAction)", () => {
   it("隣接した最初の手は攻撃せず、予兆(telegraph)を返す", () => {
     const rng = new Rng(1);
     const floor = emptyFloor();
@@ -103,36 +109,36 @@ describe("entities/ai.ts: オオマドロミの大技(decideMonsterAction)", () 
     expect(boss.telegraphCharge).toBe(true);
   });
 
-  it("予兆済みの次の隣接した手は、隣接攻撃ではなくboomAoeSleepになる", () => {
+  it("予兆済みの次の隣接した手は、隣接攻撃ではなくboomAoeSealになる", () => {
     const rng = new Rng(1);
     const floor = emptyFloor();
-    const boss = bossActor({ telegraphCharge: true, telegraphCooldown: 4 });
+    const boss = bossActor({ telegraphCharge: true, telegraphCooldown: 5 });
     const target = player({ x: 6, y: 5 });
     floor.actors = [boss, target];
     const field = new Int32Array(floor.width * floor.height).fill(0);
 
     const action = decideMonsterAction(rng, floor, boss, target, field);
-    expect(action).toEqual({ type: "boomAoeSleep" });
+    expect(action).toEqual({ type: "boomAoeSeal" });
     expect(boss.telegraphCharge).toBe(false);
   });
 });
 
-describe("game.ts: 地方ボスの階(depth 18、表の寝穴)", () => {
-  it("オオマドロミが1体だけ配置され、通常の野生モンスターは湧かない", () => {
-    const game = new Game({ seed: 1, startDepth: 18 });
+describe("game.ts: 地方ボスの階(depth 24、表の寝穴)", () => {
+  it("ホネヅカのぬしが1体だけ配置され、通常の野生モンスターは湧かない", () => {
+    const game = new Game({ seed: 1, startDepth: 24 });
     const monsters = game.floor.actors.filter((a) => a.kind === "monster");
     expect(monsters).toHaveLength(1);
-    expect(monsters[0]!.speciesId).toBe("oomadoromi");
+    expect(monsters[0]!.speciesId).toBe("honezukaNoNushi");
   });
 
   it("フロアギミックが乗らない", () => {
-    const game = new Game({ seed: 1, startDepth: 18 });
+    const game = new Game({ seed: 1, startDepth: 24 });
     expect(game.floor.gimmick).toBeUndefined();
   });
 
-  it("撃破すると地方限定素材(オオマドロミの胞子玉)を確定ドロップする", () => {
-    const game = new Game({ seed: 1, startDepth: 18 });
-    const boss = game.floor.actors.find((a) => a.speciesId === "oomadoromi")!;
+  it("撃破すると地方限定素材(ホネヅカの骨盤)を確定ドロップする", () => {
+    const game = new Game({ seed: 1, startDepth: 24 });
+    const boss = game.floor.actors.find((a) => a.speciesId === "honezukaNoNushi")!;
 
     const killActor = (
       game as unknown as { killActor: (target: Actor, events: unknown[]) => void }
@@ -140,18 +146,18 @@ describe("game.ts: 地方ボスの階(depth 18、表の寝穴)", () => {
     killActor(boss, []);
 
     const dropped = game.floor.items.some(
-      (gi) => gi.item.defId === "oomadoromiHoushi" && gi.pos.x === boss.pos.x && gi.pos.y === boss.pos.y,
+      (gi) => gi.item.defId === "honezukaKotsuban" && gi.pos.x === boss.pos.x && gi.pos.y === boss.pos.y,
     );
     expect(dropped).toBe(true);
   });
 });
 
-describe("game.ts: 大技(boomAoeSleep)が部屋全体を眠らせることがある", () => {
-  it("予兆済みのボスに隣接した状態で行動させると、プレイヤーが眠らされることがある", () => {
-    let slept = false;
-    for (let seed = 1; seed <= 30 && !slept; seed++) {
-      const game = new Game({ seed, startDepth: 18 });
-      const boss = game.floor.actors.find((a) => a.speciesId === "oomadoromi");
+describe("game.ts: 大技(boomAoeSeal)が部屋全体を封じることがある", () => {
+  it("予兆済みのボスに隣接した状態で行動させると、プレイヤーが封じられることがある", () => {
+    let sealed = false;
+    for (let seed = 1; seed <= 30 && !sealed; seed++) {
+      const game = new Game({ seed, startDepth: 24 });
+      const boss = game.floor.actors.find((a) => a.speciesId === "honezukaNoNushi");
       if (!boss) continue;
       const room = game.floor.rooms.find((r) => roomContains(r, boss.pos));
       if (!room) continue;
@@ -168,23 +174,23 @@ describe("game.ts: 大技(boomAoeSleep)が部屋全体を眠らせることが�
       if (!spot) continue;
 
       boss.telegraphCharge = true;
-      boss.telegraphCooldown = 4;
+      boss.telegraphCooldown = 5;
       game.player.pos = spot;
 
       const events = game.command({ type: "wait" });
-      expect(events.some((e) => e.type === "message" && e.text.includes("胞子をまき散らした"))).toBe(true);
-      slept = game.player.statuses.some((s) => s.kind === "sleep");
+      expect(events.some((e) => e.type === "message" && e.text.includes("骨が一斉に鳴り響いた"))).toBe(true);
+      sealed = game.player.statuses.some((s) => s.kind === "seal");
     }
-    expect(slept).toBe(true);
+    expect(sealed).toBe(true);
   });
 });
 
 describe("game.ts: ばくはつタルで大技(予兆)を解除する", () => {
   it("予兆中のボスと同じ部屋でタルを爆発させると、telegraphChargeがfalseに戻る", () => {
-    const game = new Game({ seed: 1, startDepth: 18 });
-    const boss = game.floor.actors.find((a) => a.speciesId === "oomadoromi")!;
+    const game = new Game({ seed: 1, startDepth: 24 });
+    const boss = game.floor.actors.find((a) => a.speciesId === "honezukaNoNushi")!;
     boss.telegraphCharge = true;
-    boss.telegraphCooldown = 4;
+    boss.telegraphCooldown = 5;
 
     const explode = (
       game as unknown as { explode: (pos: unknown, events: unknown[], throwerId?: number) => void }

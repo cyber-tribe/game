@@ -1,3 +1,33 @@
+> **実装済み。**
+> `src/core/types.ts`(`Species.bossTelegraph.effect` に `"aoeSeal"` を
+> 追加)、`src/entities/ai.ts`(`MonsterAction` に `{ type: "boomAoeSeal" }`
+> を追加。ボス分岐で `effect === "aoeSeal"` のときは `boomAoeSeal` を
+> 返す)、`src/entities/species.ts`(`honezukaNoNushi` を追加、
+> `REGION_BOSS_FLOORS[24]` / `REGION_BOSS_ORDER` に登録)、
+> `src/items/catalog.ts`(`honezukaKotsuban` を追加)、`src/game.ts`
+> (`"boomAoeSeal"` ケースを追加。本文書が提案したとおり、
+> `applySleepPulse` を `applyRoomWideStatus(occupants, kind, chance,
+> turns, verb, events)` に一般化し、`tickSporeRooms`・`"boomAoeSleep"`・
+> `"boomAoeSeal"` の3箇所で共有)に実装した。`explode()` の
+> 予兆解除処理(`plan/region-boss-oomadoromi.md`で追加済み)はボス種族を
+> 問わず`telegraphCharge`を見る作りだったため、変更なしでそのまま
+> このボスにも効く。テストは `tests/region-boss-honezuka.test.ts`
+> (11件)。
+>
+> 実装時の判断:
+> - **モデル**: 新規3Dモデルは作らず、`honegarami` をそのまま流用した
+>   (`oonebosuke`/`nushigaeru`/`oomadoromi`の前例に合わせた判断)。
+> - **共有関数のリネーム**: 本文書の提案どおり、既存の`applySleepPulse`を
+>   `applyRoomWideStatus`という汎用名に改名・一般化した(睡眠専用だった
+>   引数を`kind`/`chance`/`turns`/`verb`に開いた)。
+> - **HP・攻撃力・防御力**: 防御特化という位置づけを反映し、第四地方
+>   雑魚最上位種(`honegarami`: HP48・atk20・def16)を基準に、HPは
+>   共通仕様どおり2倍程度(96)、攻撃力は控えめに1.2倍(24)、防御力は
+>   共通仕様の目安を超えて2.5倍(40)に振った。
+> - **封じのchance/turns**: 未決事項どおり、`plan/spore-grove.md`/
+>   `plan/region-boss-oomadoromi.md`と同じ値(chance0.6・turns3)を
+>   そのまま使い、ボス戦専用に強めの値は設けなかった。
+
 # 第四地方ボス: ホネヅカのぬし
 
 `plan/archive/region-bosses.md` の共通仕様の上に、第四地方(骨積みの

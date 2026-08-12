@@ -201,6 +201,29 @@ export const SPECIES: readonly Species[] = [
     },
     bossGuaranteedDrop: "oomadoromiHoushi",
   },
+  {
+    // 第四地方: 骨積みの回廊(design/regions.md 19〜24階)。無数のホネガラミが
+    // 積み重なってできた巨体。防御特化。大技は隣接攻撃ではなく、自分のいる
+    // 部屋全体への封じ(seal)放出(plan/region-boss-honezuka.md)
+    id: "honezukaNoNushi",
+    name: "ホネヅカのぬし",
+    model: "honegarami",
+    maxHp: 96,
+    atk: 24,
+    def: 40,
+    exp: 75,
+    ai: "melee",
+    minFloor: Number.POSITIVE_INFINITY,
+    weight: 0,
+    isRegionBoss: true,
+    bossTelegraph: {
+      message: "古い骨がガタガタと震えはじめた",
+      multiplier: 1,
+      cooldownTurns: 5,
+      effect: "aoeSeal",
+    },
+    bossGuaranteedDrop: "honezukaKotsuban",
+  },
 
   // ---- plan/monster-compendium.md: 地方別の新種 ----
   // 新規3Dモデルは今回のスコープでは制作せず、既存モデルを色違いの発想で
@@ -427,12 +450,13 @@ export function speciesForDepth(depth: number): Species[] {
  * 地方ボス(plan/region-bosses.md)。表の寝穴(MAIN_CAVE_ID)で、その階の
  * 地方の最終階(6階目)にだけ専用に配置する種族id。design/regions.mdの
  * 8地方(6階ごと、48階)は`plan/region-expansion.md`で実装済み。
- * 残り5地方のボスは未実装のため、実装済みの3体ぶんだけを登録する
+ * 残り4地方のボスは未実装のため、実装済みの4体ぶんだけを登録する
  */
 export const REGION_BOSS_FLOORS: Readonly<Record<number, string>> = {
   6: "oonebosuke",
   12: "nushigaeru",
   18: "oomadoromi",
+  24: "honezukaNoNushi",
 };
 
 /**
@@ -440,4 +464,9 @@ export const REGION_BOSS_FLOORS: Readonly<Record<number, string>> = {
  * 腕試しの間で使う)。REGION_BOSS_FLOORSの値と同じ集合だが、
  * 表の寝穴の具体的な階数とは切り離した「出現順」だけの一覧にする
  */
-export const REGION_BOSS_ORDER: readonly string[] = ["oonebosuke", "nushigaeru", "oomadoromi"];
+export const REGION_BOSS_ORDER: readonly string[] = [
+  "oonebosuke",
+  "nushigaeru",
+  "oomadoromi",
+  "honezukaNoNushi",
+];

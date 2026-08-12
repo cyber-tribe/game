@@ -453,6 +453,17 @@ export const ITEMS: readonly ItemDef[] = [
     weight: 0,
     description: "まどろみの茸林の主を倒した証。触れるとかすかに眠気を誘う、丸い胞子の塊。",
   },
+  {
+    // 地方ボス(plan/region-boss-honezuka.md)を撃破した確定ドロップ専用。
+    // ランダムな床落ちには出さない(minFloor: Infinity・weight: 0で除外)
+    id: "honezukaKotsuban",
+    name: "ホネヅカの骨盤",
+    category: "material",
+    model: "herb",
+    minFloor: Number.POSITIVE_INFINITY,
+    weight: 0,
+    description: "骨積みの回廊の主を倒した証。無数の骨の重みを支え続けた、頑丈な骨盤。",
+  },
 
   // ---- 頭防具(plan/protagonist-equipment.md) ----
   {
