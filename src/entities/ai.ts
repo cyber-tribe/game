@@ -172,11 +172,27 @@ export function adjacentFoe(floor: FloorState, self: Actor, opts?: { avoidDisgui
  * 考慮した視認判定。まだ気づいていない相手には、周囲に「かく乱のこだま」を
  * 持つ仲間がいると一定確率で気づけない
  */
-function attemptSight(rng: Rng, floor: FloorState, monster: Actor, target: Actor): boolean {
+function attemptSight(
+  rng: Rng,
+  floor: FloorState,
+  monster: Actor,
+  target: Actor,
+  /** ヨリシロの気分(plan/yorishiro-moods.md)。省略時は1(無補正) */
+  awareDistanceMul = 1,
+): boolean {
   if (hasStatus(target, STATUS_INVISIBLE)) return false;
   if (!canSee(floor, monster.pos, target.pos) && nearestVisibleFoe(floor, monster) === null) return false;
   if (monster.aware) return true;
   if (nearbyWarnCallAlly(floor, monster) && rng.chance(WARN_CALL_SUPPRESS_CHANCE)) return false;
+  // ヨリシロの気分(plan/yorishiro-moods.md): 隣接時は奇襲を許さないため常に気づく。
+  // 隣接していない相手(同室内の遠い相手)にだけ、気づきやすさの係数を掛ける
+  if (
+    awareDistanceMul < 1 &&
+    chebyshev(monster.pos, target.pos) > 1 &&
+    !rng.chance(Math.max(0, awareDistanceMul))
+  ) {
+    return false;
+  }
   return true;
 }
 
@@ -214,6 +230,8 @@ export function decideMonsterAction(
   monster: Actor,
   target: Actor,
   distField: Int32Array,
+  /** ヨリシロの気分(plan/yorishiro-moods.md)。省略時は1(無補正) */
+  awareDistanceMul = 1,
 ): MonsterAction {
   // 地方ボス(plan/region-boss-misemonononushi.md): 幻影(mirrorOfを持つ)は
   // 自分からは一切行動しない。単純な待機状態のまま
@@ -278,7 +296,7 @@ export function decideMonsterAction(
 
   // とうめいの巻物・かく乱のこだまを考慮した視認
   const wasAware = monster.aware;
-  if (attemptSight(rng, floor, monster, target)) monster.aware = true;
+  if (attemptSight(rng, floor, monster, target, awareDistanceMul)) monster.aware = true;
 
   // やまびこぎつね(alertsFloorOnSight): 初めて視認した瞬間、フロア中の
   // 他のモンスターにも気づかせる(design/regions.md 第六地方)

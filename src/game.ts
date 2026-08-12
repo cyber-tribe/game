@@ -81,6 +81,7 @@ import {
   nightlyDreamStatMultiplier,
 } from "./entities/dungeons";
 import { storyChapter } from "./entities/story";
+import { DEFAULT_MOOD_ID, type MoodDef, type MoodId, moodDef } from "./entities/moods";
 import type { StoredMonster } from "./entities/storedMonster";
 import { isVisible, updateVisibility } from "./dungeon/visibility";
 import {
@@ -256,6 +257,14 @@ export interface RunOptions {
    * (compendiumCompleteの上乗せぶんとは別枠の恒久ボーナス)
    */
   trueAwakeningCleared?: boolean;
+  /**
+   * ヨリシロの気分(plan/yorishiro-moods.md)。実際の日付から今日の気分を
+   * 決める(moodForDate(todayKey()))のはmain.ts側の責務で、ここへ明示的に
+   * 渡す。省略時は補正なしの既定の気分(DEFAULT_MOOD_ID)になる――Gameが
+   * 自前で現実の日付を参照すると、既存のseedだけで決定的なテストの多くが
+   * 実行日によって結果が変わってしまうため、あえて呼び出し側に委ねている
+   */
+  moodOverride?: MoodId;
 }
 
 export type RunStatus = "playing" | "dead" | "cleared";
@@ -506,6 +515,9 @@ export class Game {
   /** 真の目覚め(plan/true-awakening.md)を達成済みか。かがやきの夢のかけら出現率の恒久ボーナスに使う */
   private trueAwakeningCleared = false;
 
+  /** ヨリシロの気分(plan/yorishiro-moods.md)。ダイブ開始時に1つ確定し、ダイブ中は変わらない */
+  private mood: MoodDef = moodDef(DEFAULT_MOOD_ID);
+
   /** 難易度モード(plan/difficulty-modes.md) */
   private difficulty: DifficultyMode = "normal";
 
@@ -521,6 +533,11 @@ export class Game {
   /** 潜っているダンジョンid(plan/multiple-dungeons.md)。記録の間の集計などに使う */
   get dungeonId(): string {
     return this.dungeon.id;
+  }
+
+  /** このダイブの気分(plan/yorishiro-moods.md)。ダイブ中は固定 */
+  get moodId(): MoodId {
+    return this.mood.id;
   }
 
   /** そのダイブ中に近道屋の出店が一度でも出たか。shopRateMulを指定したダンジョンで
@@ -578,6 +595,7 @@ export class Game {
     this.trainingFocus = opts.trainingFocus ?? "balance";
     this.compendiumComplete = opts.compendiumComplete ?? false;
     this.trueAwakeningCleared = opts.trueAwakeningCleared ?? false;
+    this.mood = moodDef(opts.moodOverride ?? DEFAULT_MOOD_ID);
     this.difficulty = opts.difficulty ?? "normal";
     this.player = createPlayer(1);
 
@@ -646,7 +664,7 @@ export class Game {
           this.rng,
           depth,
           this.previousGimmick,
-          GIMMICK_CHANCE_MULTIPLIER[this.difficulty],
+          GIMMICK_CHANCE_MULTIPLIER[this.difficulty] * (this.mood.floorGimmickRateMul ?? 1),
           this.dungeon.id === MAIN_CAVE_ID,
         );
     this.previousGimmick = gimmick;
@@ -657,11 +675,14 @@ export class Game {
         ? 0
         : MONSTER_HOUSE_CHANCE_MULTIPLIER[this.difficulty] *
           (this.dungeon.monsterHouseRateMul ?? 1) *
+          (this.mood.monsterHouseRateMul ?? 1) *
           // 第四地方(骨積みの回廊)固有ギミック(plan/bonepile-corridor.md): 19〜24階はモンスターハウスが出やすい
           (this.dungeon.id === MAIN_CAVE_ID && this.regionGimmickApplies(depth, 19, 24, 4)
             ? BONEPILE_MONSTER_HOUSE_MULTIPLIER
             : 1),
-      shopChanceMultiplier: bossSpeciesId ? 0 : (this.dungeon.shopRateMul ?? 1),
+      shopChanceMultiplier: bossSpeciesId
+        ? 0
+        : (this.dungeon.shopRateMul ?? 1) * (this.mood.shopRateMul ?? 1),
       forceShop:
         !bossSpeciesId &&
         this.dungeon.shopRateMul !== undefined &&
@@ -679,7 +700,9 @@ export class Game {
         ? TRUE_AWAKENING_SHINING_MULTIPLIER
         : this.compendiumComplete
           ? COMPENDIUM_COMPLETE_SHINING_MULTIPLIER
-          : 1) * SHINING_CHANCE_DIFFICULTY_MULTIPLIER[this.difficulty];
+          : 1) *
+      SHINING_CHANCE_DIFFICULTY_MULTIPLIER[this.difficulty] *
+      (this.mood.rareSpawnRateMul ?? 1);
     populateFloor(
       this.rng,
       this.floor,
@@ -688,13 +711,16 @@ export class Game {
       boostedItemDefId,
       this.shopWary,
       shiningChanceMultiplier,
-      MONSTER_ATK_MULTIPLIER[this.difficulty],
-      GOLD_REWARD_MULTIPLIER[this.difficulty],
+      MONSTER_ATK_MULTIPLIER[this.difficulty] * (this.mood.monsterAtkMulAfterAware ?? 1),
+      GOLD_REWARD_MULTIPLIER[this.difficulty] * (this.mood.goldRateMul ?? 1),
       this.dungeon.floorOffset ?? 0,
       bossSpeciesId,
       this.dungeon.monsterCountMul ?? 1,
       // 夜ごとの夢のモンスター強化カーブ(plan/nightly-dream-scaling.md)
       this.dungeon.id === NIGHTLY_DREAM_ID ? nightlyDreamStatMultiplier(depth) : 1,
+      // ヨリシロの気分(plan/yorishiro-moods.md)
+      this.mood.dropRateMul ?? 1,
+      this.mood.thiefRateMul ?? 1,
     );
 
     // 忘れ物蔵(plan/lost-and-found-vault.md): 表の寝穴の各地方の2階目
@@ -2447,7 +2473,14 @@ export class Game {
               towardsFoe ?? towardsLeader(),
               towardsLeader(),
             )
-          : decideMonsterAction(this.rng, this.floor, actor, this.player, towardsFriendly);
+          : decideMonsterAction(
+              this.rng,
+              this.floor,
+              actor,
+              this.player,
+              towardsFriendly,
+              this.mood.awareDistanceMul ?? 1,
+            );
 
       switch (action.type) {
         case "wait":
