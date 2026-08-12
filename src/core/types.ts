@@ -179,9 +179,18 @@ export interface Species {
      * "summonTorrent"は状態異常ではなく、自分のいる部屋の外周タイルへ一時的に
      * 奔流(plan/waterfall-torrent.md)を呼び込む(plan/region-boss-fuchinonushi.md)。
      * "summonEcho"は状態異常でも地形でもなく、HPを共有する分身を2体まで
-     * 召喚する(plan/region-boss-kodamanonushi.md、Actor.sharesHpWith参照)
+     * 召喚する(plan/region-boss-kodamanonushi.md、Actor.sharesHpWith参照)。
+     * "summonMirror"は本体そっくりの幻影を3体召喚する。当てると即消える
+     * 幻影で、本体を選び当てる駆け引きになる(plan/region-boss-
+     * misemonononushi.md、Actor.mirrorOf参照)
      */
-    effect?: "targetedStrike" | "aoeSleep" | "aoeSeal" | "summonTorrent" | "summonEcho";
+    effect?:
+      | "targetedStrike"
+      | "aoeSleep"
+      | "aoeSeal"
+      | "summonTorrent"
+      | "summonEcho"
+      | "summonMirror";
   };
   /** 地方ボスを撃破すると確定ドロップする、その地方限定の素材のdefId */
   bossGuaranteedDrop?: string;
@@ -262,6 +271,17 @@ export interface Actor {
    * ミラーに過ぎない
    */
   sharesHpWith?: number;
+  /**
+   * 地方ボス(plan/region-boss-misemonononushi.md)。設定されていれば、この
+   * アクターは幻影であり、本物のactor idを指す。幻影を攻撃してもダメージは
+   * 発生せず即座に消え、代わりに本体(mirrorOfが指すActor)が反撃する
+   */
+  mirrorOf?: number;
+  /**
+   * 地方ボス(plan/region-boss-misemonononushi.md)。本体側にだけ設定する。
+   * 幻影を呼び出してからの残りターン数。0になると幻影が自然に消える
+   */
+  mirrorTurnsLeft?: number;
 
   // ---- 以下は ally のみ ----
   /** 構え。plan/companion-orders.md 参照。既定は "free" */
@@ -468,6 +488,11 @@ export interface Barrel {
   pos: Vec2;
   /** caught のとき、中にいるモンスターの種族 */
   speciesId?: string;
+  /**
+   * 第七地方(わすれられた祭りの跡)固有ギミック(plan/festival-mirage.md)。
+   * 見た目は本物と同一だが、持ち上げようとすると幻だったと判明して消える
+   */
+  decoy?: boolean;
 }
 
 export const BARREL_NAMES: Record<BarrelKind, string> = {
@@ -518,6 +543,12 @@ export interface FloorState {
   fieldObstacles: FieldObstacle[];
   /** 忘れ物蔵(plan/lost-and-found-vault.md)の隠し通路。表の寝穴の地方の2階目にだけ生成される */
   secretPassages: SecretPassage[];
+  /**
+   * 第七地方(わすれられた祭りの跡)固有ギミック(plan/festival-mirage.md)。
+   * 見た目・タイル種別は本物の階段(stairs)と同一だが、降りようとしても
+   * 次の階へは進まず、幻だったと判明して消える
+   */
+  decoyStairsPositions?: Vec2[];
 }
 
 export function tileAt(floor: FloorState, p: Vec2): Tile | undefined {

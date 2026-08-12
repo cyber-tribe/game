@@ -486,6 +486,17 @@ export const ITEMS: readonly ItemDef[] = [
     weight: 0,
     description: "こだまの尾根の主を倒した証。耳を近づけると、かすかに声の反響が聞こえる。",
   },
+  {
+    // 地方ボス(plan/region-boss-misemonononushi.md)を撃破した確定ドロップ専用。
+    // ランダムな床落ちには出さない(minFloor: Infinity・weight: 0で除外)
+    id: "misemonoNoOmen",
+    name: "見世物の面",
+    category: "material",
+    model: "herb",
+    minFloor: Number.POSITIVE_INFINITY,
+    weight: 0,
+    description: "わすれられた祭りの跡の主を倒した証。ひび割れた、呼び込みの面。",
+  },
 
   // ---- 頭防具(plan/protagonist-equipment.md) ----
   {

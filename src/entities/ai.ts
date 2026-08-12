@@ -48,6 +48,8 @@ export type MonsterAction =
   | { type: "summonTorrent" }
   /** 地方ボス(plan/region-boss-kodamanonushi.md)。予兆を消費し、HPを共有する分身を2体まで呼び出す */
   | { type: "summonEcho" }
+  /** 地方ボス(plan/region-boss-misemonononushi.md)。予兆を消費し、本体そっくりの幻影を3体呼び出す */
+  | { type: "summonMirror" }
   /** burrow(plan/monster-compendium.md)。潜伏から地上へ現れる。呼び出し側で位置を動かし、teleportイベントを出す */
   | { type: "burrowSurface"; to: Vec2 };
 
@@ -201,6 +203,10 @@ export function decideMonsterAction(
   target: Actor,
   distField: Int32Array,
 ): MonsterAction {
+  // 地方ボス(plan/region-boss-misemonononushi.md): 幻影(mirrorOfを持つ)は
+  // 自分からは一切行動しない。単純な待機状態のまま
+  if (monster.mirrorOf !== undefined) return { type: "wait" };
+
   // 近道屋の出店の店主(plan/shops-and-thieves.md): 万引きされて豹変するまでは
   // 動かず攻撃もしない。豹変後も店を離れず、隣接した相手にだけ反撃する
   if (monster.aiKind === "shopkeeper") {
@@ -294,6 +300,7 @@ export function decideMonsterAction(
         if (telegraph.effect === "aoeSeal") return { type: "boomAoeSeal" };
         if (telegraph.effect === "summonTorrent") return { type: "summonTorrent" };
         if (telegraph.effect === "summonEcho") return { type: "summonEcho" };
+        if (telegraph.effect === "summonMirror") return { type: "summonMirror" };
         return { type: "attack", targetId: adjacent.id, empowered: true };
       }
       if (!monster.telegraphCooldown) {
