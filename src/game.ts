@@ -277,6 +277,9 @@ const TORRENT_PUSH_LIMIT = 4;
 /** 地方ボス(plan/region-boss-fuchinonushi.md): 大技(summonTorrent)で設置する奔流タイルの持続ターン */
 const SUMMON_TORRENT_DURATION = 3;
 
+/** 第六地方(こだまの尾根)固有ギミック(plan/echoing-ridge.md): 物音を立てる行動で気づかせる範囲 */
+const ECHO_ALERT_RANGE = 6;
+
 /** タルの飛距離 */
 const BARREL_RANGE = 8;
 /** タルをぶつけたときの基本ダメージ */
@@ -1351,6 +1354,7 @@ export class Game {
       forceCrit = false; // 強制会心はその手の最初の1体だけ
     }
     player.facing = dir;
+    this.alertNearbyMonsters(player.pos);
 
     if (hitAny && pattern === "quickSingle") this.firstStrikeAvailable = false;
     if (hitAny && pattern === "heavySingle") {
@@ -1845,7 +1849,22 @@ export class Game {
     if (!trap) return;
     trap.revealed = true;
     events.push({ type: "trap", pos, kind: trap.kind });
+    this.alertNearbyMonsters(pos);
     this.triggerTrap(trap, events);
+  }
+
+  /**
+   * 第六地方(こだまの尾根)固有ギミック(plan/echoing-ridge.md): プレイヤーが
+   * 攻撃する・罠を踏むなど物音を立てる行動を取るたびに、視界に関係なく
+   * 周囲(チェビシェフ距離6)のモンスターをawareにする。既存のalarm罠
+   * (階全体をawareにする)より弱い、範囲限定の効果として書き分ける
+   */
+  private alertNearbyMonsters(pos: Vec2): void {
+    if (!(this.dungeon.id === MAIN_CAVE_ID && this.depth >= 31 && this.depth <= 36)) return;
+    for (const actor of this.floor.actors) {
+      if (actor.kind !== "monster" || !actor.alive) continue;
+      if (chebyshev(actor.pos, pos) <= ECHO_ALERT_RANGE) actor.aware = true;
+    }
   }
 
   private triggerTrap(trap: Trap, events: GameEvent[]): void {
