@@ -331,8 +331,9 @@ export function fuseMonsters(
     [food.speciesId]: "captured",
   };
   const next: SaveData = { ...current, hut, compendium };
-  saveData(next);
-  return { save: next, result };
+  const withAchievements = checkAchievements(next);
+  saveData(withAchievements);
+  return { save: withAchievements, result };
 }
 
 export function toStored(item: Item): StoredItem {
@@ -420,8 +421,10 @@ export function markSpeciesSeen(current: SaveData, speciesId: string): SaveData 
 export function markSpeciesCaptured(current: SaveData, speciesId: string): SaveData {
   if (current.compendium[speciesId] === "captured") return current;
   const next: SaveData = { ...current, compendium: { ...current.compendium, [speciesId]: "captured" } };
-  saveData(next);
-  return next;
+  // 実績帳(plan/achievements.md): 図鑑を半分/全部埋めた実績をここで確定させる
+  const withAchievements = checkAchievements(next);
+  saveData(withAchievements);
+  return withAchievements;
 }
 
 /** 全種族を「捕まえた」まで埋めているか(かがやきの夢のかけらの出現率upの条件) */

@@ -31,6 +31,7 @@ import {
   renameStoredMonster,
   saveData,
   saveRunSnapshot,
+  setEquippedTitle,
   setTrainingFocus,
   takeFromHut,
   type SaveData,
@@ -139,6 +140,10 @@ class App {
           this.save = renamed;
           this.town.refreshSave(this.save);
         });
+      },
+      (id) => {
+        this.save = setEquippedTitle(this.save, id);
+        this.town.refreshSave(this.save);
       },
     );
   }

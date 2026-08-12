@@ -1,4 +1,5 @@
 import type { MarkId } from "../core/types";
+import { ACHIEVEMENTS, achievementDef } from "../entities/achievements";
 import {
   HOKORA_DUST_DEF_ID,
   MARKS,
@@ -37,8 +38,8 @@ const TRAINING_FOCUS_DESCRIPTIONS: Record<TrainingFocus, string> = {
  */
 export class TownScreen {
   private open = false;
-  /** 0=倉庫 1=持ち込み 2=出発地点 3=鍛え方 4=つれていく仲間 5=ゲンドの工房 6=記録の間 7=モンスター図鑑 */
-  private column: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 = 0;
+  /** 0=倉庫 1=持ち込み 2=出発地点 3=鍛え方 4=つれていく仲間 5=ゲンドの工房 6=記録の間 7=モンスター図鑑 8=実績帳 */
+  private column: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 = 0;
   private cursor: [number, number] = [0, 0];
   private storage: StoredItem[] = [];
   private carry: StoredItem[] = [];
@@ -71,6 +72,9 @@ export class TownScreen {
     | null = null;
   private onFuse: ((axisUid: number, foodUid: number) => void) | null = null;
   private onRename: ((uid: number, current: string | undefined) => void) | null = null;
+  private onEquipTitle: ((id: string | undefined) => void) | null = null;
+  /** 実績帳(plan/achievements.md)の一覧上のカーソル位置 */
+  private achievementCursor = 0;
 
   constructor(private readonly root: HTMLElement) {
     this.root.style.display = "none";
@@ -91,6 +95,7 @@ export class TownScreen {
     ) => void,
     onFuse: (axisUid: number, foodUid: number) => void,
     onRename: (uid: number, current: string | undefined) => void,
+    onEquipTitle: (id: string | undefined) => void,
   ): void {
     this.save = save;
     this.storage = save.storage.map((s) => ({ ...s }));
@@ -111,6 +116,8 @@ export class TownScreen {
     this.depart = onDepart;
     this.onFuse = onFuse;
     this.onRename = onRename;
+    this.onEquipTitle = onEquipTitle;
+    this.achievementCursor = 0;
     this.open = true;
     this.root.style.display = "flex";
     this.render();
@@ -274,6 +281,38 @@ export class TownScreen {
         case "KeyA":
           this.column = 6;
           break;
+        case "ArrowRight":
+        case "KeyD":
+          this.column = 8;
+          break;
+        case "Space":
+          this.departNow();
+          return true;
+        default:
+          return true;
+      }
+      this.render();
+      return true;
+    }
+
+    if (this.column === 8) {
+      switch (code) {
+        case "ArrowUp":
+        case "KeyW":
+          this.achievementCursor = wrap(this.achievementCursor - 1, ACHIEVEMENTS.length);
+          break;
+        case "ArrowDown":
+        case "KeyS":
+          this.achievementCursor = wrap(this.achievementCursor + 1, ACHIEVEMENTS.length);
+          break;
+        case "ArrowLeft":
+        case "KeyA":
+          this.column = 7;
+          break;
+        case "Enter":
+        case "NumpadEnter":
+          this.toggleEquippedTitle();
+          break;
         case "Space":
           this.departNow();
           return true;
@@ -341,6 +380,17 @@ export class TownScreen {
     }
     if (uid !== this.fusionAxisUid) this.onFuse?.(this.fusionAxisUid, uid);
     this.fusionAxisUid = null;
+  }
+
+  /**
+   * 実績帳(plan/achievements.md)。カーソル上の実績が称号を持ち、かつ
+   * 達成済みなら装備/解除する。それ以外の実績を選んでいるときは何もしない
+   */
+  private toggleEquippedTitle(): void {
+    const def = ACHIEVEMENTS[this.achievementCursor];
+    if (!def?.title || !this.save || this.save.achievements[def.id] === undefined) return;
+    const next = this.save.equippedTitle === def.id ? undefined : def.id;
+    this.onEquipTitle?.(next);
   }
 
   /** ゲンドの工房(plan/equipment-forging.md)の対象一覧。倉庫にある武器・盾だけ */
@@ -512,6 +562,16 @@ export class TownScreen {
     title.textContent = "洞窟のふもと";
     box.appendChild(title);
 
+    if (save.equippedTitle) {
+      const titleDef = achievementDef(save.equippedTitle);
+      if (titleDef?.title) {
+        const titleLine = document.createElement("p");
+        titleLine.className = "town-title";
+        titleLine.textContent = `『${titleDef.title}』ガルド`;
+        box.appendChild(titleLine);
+      }
+    }
+
     const stats = document.createElement("p");
     stats.className = "town-stats";
     stats.textContent =
@@ -536,6 +596,7 @@ export class TownScreen {
       this.renderWorkshop(),
       this.renderRecords(),
       this.renderCompendium(),
+      this.renderAchievements(),
     );
     box.appendChild(columns);
 
@@ -572,6 +633,13 @@ export class TownScreen {
       desc.textContent = complete
         ? "図鑑が全種「捕まえた」で埋まった! かがやきの夢のかけらに出会いやすくなる。"
         : "見た・捕まえた種族の記録。全種「捕まえた」で埋めると特典がある。";
+    } else if (this.column === 8) {
+      const def = ACHIEVEMENTS[this.achievementCursor];
+      if (def?.title && this.save?.achievements[def.id] !== undefined) {
+        desc.textContent = `Enterで称号『${def.title}』を${this.save.equippedTitle === def.id ? "外す" : "身につける"}。`;
+      } else {
+        desc.textContent = def?.description ?? "";
+      }
     } else {
       const selected = (this.column === 0 ? this.storage : this.carry)[this.cursor[this.column]];
       desc.textContent = selected ? itemDef(selected.defId).description : "";
@@ -812,6 +880,41 @@ export class TownScreen {
       li.textContent = status ? `${species.name}: ${label}` : `???: ${label}`;
       list.appendChild(li);
     }
+    wrapper.appendChild(list);
+    return wrapper;
+  }
+
+  /**
+   * 実績帳(plan/achievements.md)。未達成の実績も条件を伏せずに表示する
+   * (隠し実績は作らない方針)。称号を持つ達成済みの実績はEnterで着脱できる
+   */
+  private renderAchievements(): HTMLElement {
+    const wrapper = document.createElement("div");
+    wrapper.className = "town-col";
+    if (this.column === 8) wrapper.classList.add("active");
+
+    const heading = document.createElement("div");
+    heading.className = "town-col-title";
+    heading.textContent = "実績帳";
+    wrapper.appendChild(heading);
+
+    const achievements = this.save?.achievements ?? {};
+    const done = ACHIEVEMENTS.filter((a) => achievements[a.id] !== undefined).length;
+    const summary = document.createElement("p");
+    summary.textContent = `達成 ${done} / ${ACHIEVEMENTS.length} 件`;
+    wrapper.appendChild(summary);
+
+    const list = document.createElement("ul");
+    ACHIEVEMENTS.forEach((def, index) => {
+      const unlockedAt = achievements[def.id];
+      const li = document.createElement("li");
+      const equipped = this.save?.equippedTitle === def.id ? "★" : "";
+      li.textContent = unlockedAt
+        ? `${equipped}${def.name}: ${def.description}(達成)`
+        : `${def.name}: ${def.description}(未達成)`;
+      if (this.column === 8 && index === this.achievementCursor) li.classList.add("selected");
+      list.appendChild(li);
+    });
     wrapper.appendChild(list);
     return wrapper;
   }
