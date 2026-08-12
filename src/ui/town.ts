@@ -9,8 +9,8 @@ import {
   markDef,
 } from "../entities/forging";
 import { MAX_ALLIES, type TrainingFocus } from "../entities/player";
-import { speciesById } from "../entities/species";
-import type { SaveData, StoredItem, StoredMonster } from "../save";
+import { SPECIES, speciesById } from "../entities/species";
+import { isCompendiumComplete, type SaveData, type StoredItem, type StoredMonster } from "../save";
 import { itemDef } from "../items/catalog";
 
 /** ダンジョンに持ち込める数。全部持って行けたら倉庫に預ける意味がない */
@@ -37,8 +37,8 @@ const TRAINING_FOCUS_DESCRIPTIONS: Record<TrainingFocus, string> = {
  */
 export class TownScreen {
   private open = false;
-  /** 0=倉庫 1=持ち込み 2=出発地点 3=鍛え方 4=つれていく仲間 5=ゲンドの工房 6=記録の間 */
-  private column: 0 | 1 | 2 | 3 | 4 | 5 | 6 = 0;
+  /** 0=倉庫 1=持ち込み 2=出発地点 3=鍛え方 4=つれていく仲間 5=ゲンドの工房 6=記録の間 7=モンスター図鑑 */
+  private column: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 = 0;
   private cursor: [number, number] = [0, 0];
   private storage: StoredItem[] = [];
   private carry: StoredItem[] = [];
@@ -253,6 +253,26 @@ export class TownScreen {
         case "ArrowLeft":
         case "KeyA":
           this.column = 5;
+          break;
+        case "ArrowRight":
+        case "KeyD":
+          this.column = 7;
+          break;
+        case "Space":
+          this.departNow();
+          return true;
+        default:
+          return true;
+      }
+      this.render();
+      return true;
+    }
+
+    if (this.column === 7) {
+      switch (code) {
+        case "ArrowLeft":
+        case "KeyA":
+          this.column = 6;
           break;
         case "Space":
           this.departNow();
@@ -515,6 +535,7 @@ export class TownScreen {
       this.renderHut(),
       this.renderWorkshop(),
       this.renderRecords(),
+      this.renderCompendium(),
     );
     box.appendChild(columns);
 
@@ -546,6 +567,11 @@ export class TownScreen {
       }
     } else if (this.column === 6) {
       desc.textContent = "見て楽しむだけの記録帳。攻略には関わらない。";
+    } else if (this.column === 7) {
+      const complete = this.save ? isCompendiumComplete(this.save) : false;
+      desc.textContent = complete
+        ? "図鑑が全種「捕まえた」で埋まった! かがやきの夢のかけらに出会いやすくなる。"
+        : "見た・捕まえた種族の記録。全種「捕まえた」で埋めると特典がある。";
     } else {
       const selected = (this.column === 0 ? this.storage : this.carry)[this.cursor[this.column]];
       desc.textContent = selected ? itemDef(selected.defId).description : "";
@@ -752,6 +778,38 @@ export class TownScreen {
     for (const [label, value] of rows) {
       const li = document.createElement("li");
       li.textContent = `${label}: ${value}`;
+      list.appendChild(li);
+    }
+    wrapper.appendChild(list);
+    return wrapper;
+  }
+
+  /**
+   * モンスター図鑑(plan/monster-compendium.md)。種族ごとに「未確認」
+   * 「見た」「捕まえた」を表示するだけの画面(カーソル移動・選択は無い)。
+   */
+  private renderCompendium(): HTMLElement {
+    const wrapper = document.createElement("div");
+    wrapper.className = "town-col";
+    if (this.column === 7) wrapper.classList.add("active");
+
+    const heading = document.createElement("div");
+    heading.className = "town-col-title";
+    heading.textContent = "モンスター図鑑";
+    wrapper.appendChild(heading);
+
+    const compendium = this.save?.compendium ?? {};
+    const captured = SPECIES.filter((s) => compendium[s.id] === "captured").length;
+    const summary = document.createElement("p");
+    summary.textContent = `捕まえた ${captured} / ${SPECIES.length} 種`;
+    wrapper.appendChild(summary);
+
+    const list = document.createElement("ul");
+    for (const species of SPECIES) {
+      const status = compendium[species.id];
+      const label = status === "captured" ? "捕まえた" : status === "seen" ? "見た" : "未確認";
+      const li = document.createElement("li");
+      li.textContent = status ? `${species.name}: ${label}` : `???: ${label}`;
       list.appendChild(li);
     }
     wrapper.appendChild(list);

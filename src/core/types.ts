@@ -93,7 +93,17 @@ export type AiKind =
   /** 隣接した相手から盗みを試み、成功したら逃げる(plan/shops-and-thieves.md) */
   | "thief"
   /** 近道屋の出店の店主。万引きされるまでは動かず攻撃もしない */
-  | "shopkeeper";
+  | "shopkeeper"
+  /** 発見されるまでawareにならず、隣接されて初めて反応する。奇襲の初撃に補正が乗る(plan/monster-compendium.md) */
+  | "ambush"
+  /** 潜って移動し、一定間隔でプレイヤーの近くに不意に現れる(plan/monster-compendium.md) */
+  | "burrow"
+  /** 単体は非力だが、生成時に複数体まとまって配置される(plan/monster-compendium.md) */
+  | "swarm"
+  /** ほとんど自分から動かず、その場を固める。隣接されたときの反撃力が高い(plan/monster-compendium.md) */
+  | "guard"
+  /** 平常時は設置物(タル)として偽装している(plan/monster-compendium.md) */
+  | "mimic";
 
 export interface Species {
   id: string;
@@ -115,6 +125,16 @@ export interface Species {
   inflicts?: { kind: StatusKind; chance: number; turns: number };
   /** ranged 用の射程 */
   range?: number;
+  /** true なら、通常のHPダメージの代わりにプレイヤーの満腹度を削る(オイテケボシ。plan/monster-compendium.md) */
+  drainsSatiety?: boolean;
+  /** mimic AI が擬態する対象。今のところ "barrel" のみ */
+  mimicAs?: string;
+  /** swarm AI の同時出現数の範囲 [min, max] */
+  swarmSize?: [number, number];
+  /** true なら、被弾しなかったターンにわずかにHPが回復する(うるみぐま。plan/monster-compendium.md) */
+  regenIfUnhit?: boolean;
+  /** true なら、プレイヤーを初めて視認した瞬間、そのフロアの他のモンスターにも気づかせる(やまびこぎつね) */
+  alertsFloorOnSight?: boolean;
 }
 
 export interface Actor {
@@ -156,6 +176,18 @@ export interface Actor {
   stolenGold?: number;
   /** 近道屋の出店の店主(aiKind: "shopkeeper")。万引きされて豹変したか */
   angry?: boolean;
+  /**
+   * ambush AI が今ターン「初めて気づいて隣接した」直後で、次の1撃に奇襲補正が
+   * 乗る一時フラグ(plan/monster-compendium.md)。攻撃解決後すぐに消費される
+   */
+  ambushReady?: boolean;
+  /** 潜っている間の残りターン数(burrow AI。plan/monster-compendium.md) */
+  burrowTimer?: number;
+  /**
+   * かがやきの夢のかけら(plan/monster-compendium.md)。通常より一回り強く、
+   * 倒すと上質な素材を落とす低確率のレア個体
+   */
+  shining?: boolean;
 
   // ---- 以下は ally のみ ----
   /** 構え。plan/companion-orders.md 参照。既定は "free" */
@@ -195,7 +227,20 @@ export const ALLY_STANCE_NAMES: Record<AllyStance, string> = {
 };
 
 /** 夢あわせ(plan/monster-fusion.md)で引き継げる特技。定義は entities/skills.ts */
-export type SkillId = "quickStart" | "drowsyBreath" | "longThrow" | "stubborn" | "softBody";
+export type SkillId =
+  | "quickStart"
+  | "drowsyBreath"
+  | "longThrow"
+  | "stubborn"
+  | "softBody"
+  | "ambushStrike"
+  | "confusingClaw"
+  | "burrowEscape"
+  | "flutterDodge"
+  | "sealBite"
+  | "slowMend"
+  | "warnCall"
+  | "disguise";
 
 // ---------------------------------------------------------------- アイテム
 

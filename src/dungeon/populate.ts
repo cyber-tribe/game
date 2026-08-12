@@ -14,6 +14,7 @@ import {
   barrelAt,
   isWalkable,
   roomContains,
+  roomOf,
 } from "../core/types";
 import { shopPrice } from "../entities/shop";
 import { fullSkillSet } from "../entities/skills";
@@ -179,6 +180,21 @@ const PITFALL_GIMMICK_CHANCE = 0.5;
 /** ほこら粉寄せの匂い袋(plan/protagonist-equipment.md)を装備しているときの重み倍率 */
 const DUST_LURE_WEIGHT_MULTIPLIER = 3;
 
+/** かがやきの夢のかけら(plan/monster-compendium.md)の出現確率(通常の抽選への追加ロール) */
+const SHINING_CHANCE = 0.01;
+/** かがやきの夢のかけらのステータス倍率 */
+const SHINING_STAT_MULTIPLIER = 1.3;
+
+/** 生成した個体に、確率でかがやきの夢のかけらの補正をかける */
+function rollShining(rng: Rng, monster: Actor, shiningChanceMultiplier: number): void {
+  if (!rng.chance(SHINING_CHANCE * shiningChanceMultiplier)) return;
+  monster.shining = true;
+  monster.maxHp = Math.round(monster.maxHp * SHINING_STAT_MULTIPLIER);
+  monster.hp = monster.maxHp;
+  monster.atk = Math.round(monster.atk * SHINING_STAT_MULTIPLIER);
+  monster.def = Math.round(monster.def * SHINING_STAT_MULTIPLIER);
+}
+
 export function populateFloor(
   rng: Rng,
   floor: FloorState,
@@ -188,6 +204,8 @@ export function populateFloor(
   boostedItemDefId?: string,
   /** 万引き済みで警戒状態(plan/shops-and-thieves.md)なら true。売値が割高になる */
   shopWary = false,
+  /** 図鑑コンプリート済みなら、かがやきの夢のかけらの出現確率に掛ける倍率(plan/monster-compendium.md) */
+  shiningChanceMultiplier = 1,
 ): void {
   const gimmick = floor.gimmick;
   const pool = speciesForDepth(floor.depth);
@@ -207,7 +225,28 @@ export function populateFloor(
     const species = rng.pickWeighted(pool, (s) => s.weight);
     const monster = createMonster(ids.nextActorId(), species, pos);
     if (gimmick === "alert") monster.aware = true;
+    rollShining(rng, monster, shiningChanceMultiplier);
     floor.actors.push(monster);
+
+    // swarm(plan/monster-compendium.md): 生成時に複数体まとまって配置される。
+    // 群れの残りは、最初の1体と同じ部屋の空きマスを探して置く(部屋がなければ諦める)
+    if (species.ai === "swarm" && species.swarmSize) {
+      const room = roomOf(floor, pos);
+      if (room) {
+        const [min, max] = species.swarmSize;
+        const extra = rng.int(min, max) - 1;
+        const placed = [pos];
+        for (let j = 0; j < extra; j++) {
+          const nearPos = findFreeTile(rng, floor, { room, avoid: placed });
+          if (!nearPos) break;
+          placed.push(nearPos);
+          const companion = createMonster(ids.nextActorId(), species, nearPos);
+          if (gimmick === "alert") companion.aware = true;
+          rollShining(rng, companion, shiningChanceMultiplier);
+          floor.actors.push(companion);
+        }
+      }
+    }
   }
 
   const itemPool = itemsForDepth(floor.depth);
@@ -244,7 +283,7 @@ export function populateFloor(
   }
 
   placeBarrels(rng, floor, ids, playerStart);
-  populateMonsterHouse(rng, floor, ids);
+  populateMonsterHouse(rng, floor, ids, shiningChanceMultiplier);
   populateShop(rng, floor, ids, shopWary);
 }
 
@@ -299,7 +338,7 @@ function populateShop(rng: Rng, floor: FloorState, ids: IdSource, wary: boolean)
  * 「しじまの階」ギミック中は野生モンスターが一切湧かないので、
  * モンスターハウスの中身も湧かせない(ご褒美だけは変わらず置く)。
  */
-function populateMonsterHouse(rng: Rng, floor: FloorState, ids: IdSource): void {
+function populateMonsterHouse(rng: Rng, floor: FloorState, ids: IdSource, shiningChanceMultiplier: number): void {
   const room = floor.rooms.find((r) => r.kind === "monsterHouse");
   if (!room) return;
 
@@ -312,6 +351,7 @@ function populateMonsterHouse(rng: Rng, floor: FloorState, ids: IdSource): void 
       const species = rng.pickWeighted(pool, (s) => s.weight);
       const monster = createMonster(ids.nextActorId(), species, pos);
       if (floor.gimmick === "alert") monster.aware = true;
+      rollShining(rng, monster, shiningChanceMultiplier);
       floor.actors.push(monster);
     }
   }

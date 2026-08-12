@@ -65,7 +65,15 @@ export interface SaveData {
    * (clears)・最深記録(deepest)は既存フィールドをそのまま流用する
    */
   records: DiveRecords;
+  /**
+   * モンスター図鑑(plan/monster-compendium.md)。種族idごとに
+   * "seen"(見た)/"captured"(捕まえた)を記録する。未登録キーは「未確認」扱い
+   */
+  compendium: Record<string, CompendiumStatus>;
 }
+
+/** "seen": 遭遇した。"captured": タルで捕まえた、または夢あわせの糧にした */
+export type CompendiumStatus = "seen" | "captured";
 
 export interface DiveRecords {
   /** 倒したモンスターの累計数 */
@@ -97,6 +105,7 @@ export function initialSave(): SaveData {
     hut: [],
     nextHutUid: 1,
     records: { totalDefeats: 0, totalCaptures: 0 },
+    compendium: {},
   };
 }
 
@@ -117,6 +126,7 @@ export function loadSave(): SaveData {
       hut: sanitizeHut(parsed.hut),
       nextHutUid: numberOr(parsed.nextHutUid, nextHutUidFrom(sanitizeHut(parsed.hut))),
       records: sanitizeRecords(parsed.records),
+      compendium: sanitizeCompendium(parsed.compendium),
     };
   } catch {
     // 壊れた保存データで起動できなくなるほうが困るので、黙って初期値に戻す
@@ -206,6 +216,11 @@ export function recordRun(
       totalDefeats: current.records.totalDefeats + (result.defeats ?? 0),
       totalCaptures: current.records.totalCaptures + (result.captures ?? 0),
     },
+    // 図鑑(plan/monster-compendium.md): 生きて連れ帰った仲間の種族を「捕まえた」にする
+    compendium: newlyStored.reduce(
+      (acc, m) => (m.speciesId ? { ...acc, [m.speciesId]: "captured" as const } : acc),
+      current.compendium,
+    ),
   };
   saveData(next);
   return next;
@@ -294,7 +309,13 @@ export function fuseMonsters(
   const hut = current.hut
     .filter((m) => m.uid !== foodUid)
     .map((m) => (m.uid === axisUid ? result : m));
-  const next: SaveData = { ...current, hut };
+  // 図鑑(plan/monster-compendium.md): 夢あわせの糧にした種族も「捕まえた」扱いにする
+  const compendium: Record<string, CompendiumStatus> = {
+    ...current.compendium,
+    [axis.speciesId]: "captured",
+    [food.speciesId]: "captured",
+  };
+  const next: SaveData = { ...current, hut, compendium };
   saveData(next);
   return { save: next, result };
 }
@@ -351,6 +372,46 @@ function sanitizeRecords(value: unknown): DiveRecords {
     totalDefeats: numberOr(v.totalDefeats, 0),
     totalCaptures: numberOr(v.totalCaptures, 0),
   };
+}
+
+const VALID_COMPENDIUM_STATUSES: readonly CompendiumStatus[] = ["seen", "captured"];
+
+function sanitizeCompendium(value: unknown): Record<string, CompendiumStatus> {
+  const out: Record<string, CompendiumStatus> = {};
+  if (typeof value !== "object" || value === null) return out;
+  for (const [speciesId, status] of Object.entries(value as Record<string, unknown>)) {
+    if (!VALID_SPECIES_IDS.has(speciesId)) continue;
+    if (typeof status !== "string" || !(VALID_COMPENDIUM_STATUSES as readonly string[]).includes(status)) continue;
+    out[speciesId] = status as CompendiumStatus;
+  }
+  return out;
+}
+
+/**
+ * 図鑑(plan/monster-compendium.md)に「見た」を記録する。既に「見た」以上
+ * (見た・捕まえた)なら何もしない
+ */
+export function markSpeciesSeen(current: SaveData, speciesId: string): SaveData {
+  if (current.compendium[speciesId] !== undefined) return current;
+  const next: SaveData = { ...current, compendium: { ...current.compendium, [speciesId]: "seen" } };
+  saveData(next);
+  return next;
+}
+
+/**
+ * 図鑑に「捕まえた」を記録する。タルで仲間にした、または夢あわせの
+ * 糧にした種族のどちらもここを通る
+ */
+export function markSpeciesCaptured(current: SaveData, speciesId: string): SaveData {
+  if (current.compendium[speciesId] === "captured") return current;
+  const next: SaveData = { ...current, compendium: { ...current.compendium, [speciesId]: "captured" } };
+  saveData(next);
+  return next;
+}
+
+/** 全種族を「捕まえた」まで埋めているか(かがやきの夢のかけらの出現率upの条件) */
+export function isCompendiumComplete(current: SaveData): boolean {
+  return SPECIES.every((s) => current.compendium[s.id] === "captured");
 }
 
 /** 1階(入口)は常に知っている扱いにする */

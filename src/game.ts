@@ -59,11 +59,13 @@ import { displayActorName } from "./entities/naming";
 import type { StoredMonster } from "./entities/storedMonster";
 import { isVisible, updateVisibility } from "./dungeon/visibility";
 import {
+  GUARD_COUNTER_BONUS,
   buildDistanceField,
   canStep,
   decideAllyAction,
   decideMonsterAction,
 } from "./entities/ai";
+import { HOKORA_DUST_DEF_ID, MARK_STONE_DEF_ID, MARKS } from "./entities/forging";
 import {
   MAX_ALLIES,
   MAX_SATIETY,
@@ -115,6 +117,30 @@ const STATUS_END_MESSAGES: Record<StatusKind, string> = {
   [STATUS_FEAR]: "おびえがおさまった。",
 };
 
+/** attacker.inflicts で状態異常を付与したときのメッセージ */
+const STATUS_INFLICT_MESSAGES: Partial<Record<StatusKind, string>> = {
+  [STATUS_SLEEP]: "眠ってしまった",
+  [STATUS_CONFUSE]: "混乱した",
+  [STATUS_SEAL]: "封じられた",
+};
+
+// ---- plan/monster-compendium.md: 新しい特技・特性の各種係数 ----
+/** 特技「みだしのつめ」が混乱を付与する確率 */
+const CONFUSING_CLAW_CHANCE = 0.15;
+/** 特技「ふうじのキバ」が封じを付与する確率 */
+const SEAL_BITE_CHANCE = 0.15;
+/** 夢あわせで得た付与系特技(みだしのつめ・ふうじのキバ)が状態異常を持続させるターン数 */
+const INHERITED_INFLICT_TURNS = 3;
+/** 特技「はねひらり」が被弾を完全にかわす確率 */
+const FLUTTER_DODGE_CHANCE = 0.2;
+/** regenIfUnhit(うるみぐま)・特技「しずけさのいやし」が回復させるHP */
+const REGEN_IF_UNHIT_AMOUNT = 2;
+/**
+ * 図鑑コンプリート(plan/monster-compendium.md)時、かがやきの夢のかけらの
+ * 出現確率に掛かる倍率。基準の確率自体は dungeon/populate.ts 側で定義する
+ */
+const COMPENDIUM_COMPLETE_SHINING_MULTIPLIER = 1.5;
+
 export type Command =
   | { type: "move"; dir: Dir }
   /** 向きだけ変える。ターンを消費しない */
@@ -160,6 +186,11 @@ export interface RunOptions {
    * MAX_ALLIES を超える分は無視する。省略時は0体(手ぶらで出発)。
    */
   bringAllies?: StoredMonster[];
+  /**
+   * モンスター図鑑(plan/monster-compendium.md)を「捕まえた」まで全種埋めて
+   * いるか。true ならかがやきの夢のかけらの出現率がわずかに上がる
+   */
+  compendiumComplete?: boolean;
 }
 
 export type RunStatus = "playing" | "dead" | "cleared";
@@ -259,9 +290,20 @@ export class Game {
   private readonly usedQuickStart = new Set<number>();
   /** 特技「ふんばり」を、そのダイブで既に使った仲間のid */
   private readonly usedStubborn = new Set<number>();
+  /** 特技「ふいのいちげき」を、そのダイブで既に使った仲間のid(plan/monster-compendium.md) */
+  private readonly usedAmbushStrike = new Set<number>();
+  /** 特技「とんずら」を、そのダイブで既に使った仲間のid */
+  private readonly usedBurrowEscape = new Set<number>();
+  /** このターン被弾したアクターのid。regenIfUnhit・特技「しずけさのいやし」の判定に使う */
+  private hitThisTurn = new Set<number>();
+  /** 遭遇済み(図鑑「見た」)として、このダイブで既に通知した種族id(plan/monster-compendium.md) */
+  private readonly sightedSpecies = new Set<string>();
 
   /** このダイブの鍛え方(plan/protagonist-training.md)。レベルアップのたびに適用する */
   private trainingFocus: TrainingFocus = "balance";
+
+  /** 図鑑を全種「捕まえた」まで埋めているか(plan/monster-compendium.md) */
+  private compendiumComplete = false;
 
   private actorIdCounter = 1;
   private itemUidCounter = 1;
@@ -307,6 +349,7 @@ export class Game {
     this.rng = new Rng(opts.seed);
     this.maxDepth = opts.maxDepth ?? 10;
     this.trainingFocus = opts.trainingFocus ?? "balance";
+    this.compendiumComplete = opts.compendiumComplete ?? false;
     this.player = createPlayer(1);
 
     for (const item of opts.startingItems ?? []) {
@@ -357,7 +400,8 @@ export class Game {
     this.floor.actors.push(this.player);
     const boostedItemDefId =
       charmDefId(this.player.inventory) === "dustLureSachet" ? "hokoraDust" : undefined;
-    populateFloor(this.rng, this.floor, this.ids, start, boostedItemDefId, this.shopWary);
+    const shiningChanceMultiplier = this.compendiumComplete ? COMPENDIUM_COMPLETE_SHINING_MULTIPLIER : 1;
+    populateFloor(this.rng, this.floor, this.ids, start, boostedItemDefId, this.shopWary, shiningChanceMultiplier);
 
     // 仲間は階段について来る。プレイヤーの周りの空いたマスに並べる
     for (const ally of this.allies) {
@@ -426,6 +470,7 @@ export class Game {
     const events: GameEvent[] = [];
     if (this.status !== "playing") return events;
 
+    this.hitThisTurn = new Set();
     const consumedTurn = this.resolvePlayerCommand(cmd, events);
 
     if (consumedTurn && this.status === "playing") {
@@ -435,7 +480,23 @@ export class Game {
     }
 
     updateVisibility(this.floor, this.player.pos, this.visionExtraRange());
+    this.checkCompendiumSightings(events);
     return events;
+  }
+
+  /**
+   * 図鑑(plan/monster-compendium.md)の「見た」通知。プレイヤーの視界に
+   * 入った野生モンスターの種族を、そのダイブで初めて見た瞬間だけ通知する。
+   * 実際のセーブへの反映は呼び出し側(main.ts)が行う
+   */
+  private checkCompendiumSightings(events: GameEvent[]): void {
+    for (const actor of this.floor.actors) {
+      if (!actor.alive || actor.kind !== "monster" || !actor.speciesId) continue;
+      if (this.sightedSpecies.has(actor.speciesId)) continue;
+      if (!isVisible(this.floor, actor.pos)) continue;
+      this.sightedSpecies.add(actor.speciesId);
+      events.push({ type: "monsterSighted", speciesId: actor.speciesId });
+    }
   }
 
   /** 眠っていても使わせてよい行動か(眠りを治す道具の使用だけを許す) */
@@ -1093,16 +1154,38 @@ export class Game {
     const quickStart = hasQuickStartEffect && !this.usedQuickStart.has(attacker.id);
     if (hasQuickStartEffect) this.usedQuickStart.add(attacker.id);
 
+    // ambush・mimic AI(plan/monster-compendium.md): 隣接されるまで潜んでいた
+    // モンスターが、気づいた直後の1撃で会心になる
+    const ambushSurprise = attacker.ambushReady === true;
+    if (attacker.ambushReady) attacker.ambushReady = false;
+
+    // 特技「ふいのいちげき」(ambushStrike、plan/monster-compendium.md):
+    // そのランの最初の1撃のダメージ+50%
+    const hasAmbushStrikeEffect = attacker.kind === "ally" && hasSkill(attacker, "ambushStrike");
+    const ambushStrike = hasAmbushStrikeEffect && !this.usedAmbushStrike.has(attacker.id);
+    if (hasAmbushStrikeEffect) this.usedAmbushStrike.add(attacker.id);
+
     const defense = target.kind === "player" ? totalDefense(this.player) : target.def;
-    const { damage, critical } = computeDamage(this.rng, attackPower, defense, {
+    const effectivePower = ambushStrike ? Math.round(attackPower * 1.5) : attackPower;
+    const { damage, critical } = computeDamage(this.rng, effectivePower, defense, {
       ...combatOpts,
-      forceCrit: combatOpts?.forceCrit || sneakAttack || quickStart,
+      forceCrit: combatOpts?.forceCrit || sneakAttack || quickStart || ambushSurprise,
     });
     if (critical) events.push({ type: "message", text: "会心の一撃!" });
 
-    const finalDamage = this.mitigateIncomingDamage(target, damage, events);
-    events.push({ type: "message", text: `${displayActorName(target)}に${finalDamage}のダメージ!` });
-    this.damageActor(target, finalDamage, critical, events);
+    // オイテケボシ(drainsSatiety、plan/monster-compendium.md): HPではなく
+    // プレイヤーの満腹度を削る特殊効果。防御・軽減の計算はそのまま流用する
+    const drainsSatiety =
+      target.kind === "player" && attacker.speciesId !== undefined && speciesById(attacker.speciesId).drainsSatiety;
+    if (drainsSatiety) {
+      const drained = Math.max(1, Math.round(damage / 2));
+      this.player.satiety = Math.max(0, this.player.satiety - drained);
+      events.push({ type: "message", text: `満腹度が${drained}減った!` });
+    } else {
+      const finalDamage = this.mitigateIncomingDamage(target, damage, events);
+      events.push({ type: "message", text: `${displayActorName(target)}に${finalDamage}のダメージ!` });
+      this.damageActor(target, finalDamage, critical, events);
+    }
 
     // 攻撃してきた相手には気づく
     if (target.kind === "monster") target.aware = true;
@@ -1115,16 +1198,22 @@ export class Game {
     const drowsyBonus = hasDrowsyEffect ? 0.1 : 0;
     const inflictChance = (attacker.inflicts?.chance ?? 0) + drowsyBonus;
     // かなしばりの杖で封じられている間は、特技(状態異常の追加付与)が出せない
-    if (target.alive && inflictChance > 0 && !hasStatus(attacker, STATUS_SEAL) && this.rng.chance(inflictChance)) {
+    const sealed = hasStatus(attacker, STATUS_SEAL);
+    if (target.alive && inflictChance > 0 && !sealed && this.rng.chance(inflictChance)) {
       const kind = attacker.inflicts?.kind ?? STATUS_SLEEP;
       const turns = attacker.inflicts?.turns ?? 4;
-      addStatus(
-        this.effectContext(events),
-        target,
-        kind,
-        turns,
-        kind === STATUS_SLEEP ? "眠ってしまった" : "混乱した",
-      );
+      addStatus(this.effectContext(events), target, kind, turns, STATUS_INFLICT_MESSAGES[kind] ?? "様子がおかしくなった");
+    }
+
+    // 特技「みだしのつめ」「ふうじのキバ」(plan/monster-compendium.md): 種族の
+    // 素の inflicts を持たない個体でも、夢あわせで得た特技ぶんは独立して付与を狙える
+    if (target.alive && !sealed) {
+      if (hasSkill(attacker, "confusingClaw") && this.rng.chance(CONFUSING_CLAW_CHANCE)) {
+        addStatus(this.effectContext(events), target, STATUS_CONFUSE, INHERITED_INFLICT_TURNS, "混乱した");
+      }
+      if (target.alive && hasSkill(attacker, "sealBite") && this.rng.chance(SEAL_BITE_CHANCE)) {
+        addStatus(this.effectContext(events), target, STATUS_SEAL, INHERITED_INFLICT_TURNS, "封じられた");
+      }
     }
   }
 
@@ -1152,6 +1241,25 @@ export class Game {
       return damage;
     }
 
+    if (target.kind === "ally") {
+      // 特技「はねひらり」(flutterDodge、plan/monster-compendium.md): 確率で被弾を完全にかわす
+      if (hasSkill(target, "flutterDodge") && this.rng.chance(FLUTTER_DODGE_CHANCE)) {
+        events.push({ type: "message", text: `${displayActorName(target)}はひらりとかわした!` });
+        return 0;
+      }
+      // 特技「とんずら」(burrowEscape、plan/monster-compendium.md): 瀕死になる一撃を
+      // 1ラン1回だけ、とっさに離脱して避ける
+      if (
+        hasSkill(target, "burrowEscape") &&
+        !this.usedBurrowEscape.has(target.id) &&
+        target.hp - damage <= target.maxHp * 0.3
+      ) {
+        this.usedBurrowEscape.add(target.id);
+        events.push({ type: "message", text: `${displayActorName(target)}はとっさに離脱してダメージを避けた!` });
+        return 0;
+      }
+    }
+
     if (target.kind === "ally" && hasSkill(target, "softBody") && this.rng.chance(0.5)) {
       // 特技「みをまもる」: 確率5割で被弾ダメージを1割軽減する
       events.push({ type: "message", text: `${displayActorName(target)}は衝撃をやわらげた!` });
@@ -1167,6 +1275,7 @@ export class Game {
 
   private damageActor(target: Actor, damage: number, critical: boolean, events: GameEvent[]): void {
     target.hp -= damage;
+    this.hitThisTurn.add(target.id);
     events.push({
       type: "damage",
       actorId: target.id,
@@ -1229,6 +1338,13 @@ export class Game {
         amount: target.stolenGold,
       });
       events.push({ type: "message", text: "盗まれた金を取り戻した!" });
+    }
+    // かがやきの夢のかけら(plan/monster-compendium.md): 倒すと上質な素材を1つ落とす
+    if (target.shining) {
+      const materialIds = [HOKORA_DUST_DEF_ID, ...MARKS.map((m) => MARK_STONE_DEF_ID[m.id])];
+      const defId = this.rng.pick(materialIds);
+      this.floor.items.push({ item: createItem(this.ids.nextItemUid(), defId), pos: { ...target.pos } });
+      events.push({ type: "message", text: "かがやく残り香から、上質な素材が現れた!" });
     }
     const exp = target.exp ?? 0;
     if (exp > 0) {
@@ -1565,7 +1681,10 @@ export class Game {
           if (actor.aiKind === "thief" && actor.stolenGold === undefined) {
             this.attemptSteal(actor, target, events);
           } else {
-            this.attack(actor, target, actor.atk, events);
+            // guard(plan/monster-compendium.md): 隣接されたときの反撃力が高い
+            const attackPower =
+              actor.aiKind === "guard" ? Math.round(actor.atk * GUARD_COUNTER_BONUS) : actor.atk;
+            this.attack(actor, target, attackPower, events);
           }
           break;
         }
@@ -1603,6 +1722,7 @@ export class Game {
     this.tickStatuses(events);
     this.tickHunger(events);
     this.tickArtCooldowns();
+    this.tickRegen();
 
     if (this.status !== "playing") return;
 
@@ -1675,6 +1795,22 @@ export class Game {
       this.damageActor(player, 1, false, events);
     } else if (this.turnCount % REGEN_INTERVAL === 0 && player.hp < player.maxHp) {
       player.hp = Math.min(player.maxHp, player.hp + 1);
+    }
+  }
+
+  /**
+   * regenIfUnhit(うるみぐま)・特技「しずけさのいやし」(slowMend、
+   * plan/monster-compendium.md): このターン被弾しなかった対象を少しだけ回復する
+   */
+  private tickRegen(): void {
+    for (const actor of this.floor.actors) {
+      if (!actor.alive || actor.kind === "player") continue;
+      if (this.hitThisTurn.has(actor.id)) continue;
+      if (actor.hp >= actor.maxHp) continue;
+      const nativeRegen = actor.speciesId !== undefined && speciesById(actor.speciesId).regenIfUnhit === true;
+      const skillRegen = actor.kind === "ally" && hasSkill(actor, "slowMend");
+      if (!nativeRegen && !skillRegen) continue;
+      actor.hp = Math.min(actor.maxHp, actor.hp + REGEN_IF_UNHIT_AMOUNT);
     }
   }
 

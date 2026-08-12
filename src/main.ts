@@ -20,8 +20,11 @@ import {
   clearRunSnapshot,
   fromStored,
   fuseMonsters,
+  isCompendiumComplete,
   loadRunSnapshot,
   loadSave,
+  markSpeciesCaptured,
+  markSpeciesSeen,
   markTutorialTipSeen,
   recordRun,
   renameStoredMonster,
@@ -153,6 +156,7 @@ class App {
       startDepth,
       trainingFocus,
       bringAllies: [...bringAllies],
+      compendiumComplete: isCompendiumComplete(this.save),
     });
     this.presentFloor();
     this.hud.log(`地下${this.game.depth}階。最深記録は ${this.save.deepest} 階。`);
@@ -406,6 +410,13 @@ class App {
       // 記録の間(plan/records-hall.md): 倒した・捕まえた数を積み上げる
       if (event.type === "die" && event.kind === "monster") this.diveDefeats++;
       if (event.type === "capture") this.diveCaptures++;
+      // モンスター図鑑(plan/monster-compendium.md): 見た・捕まえたを記録する。
+      // 「知識は失われない」原則により、全滅した場合でも取り消さない
+      if (event.type === "monsterSighted") this.save = markSpeciesSeen(this.save, event.speciesId);
+      if (event.type === "recruit") {
+        const ally = this.game.allyList.find((a) => a.id === event.actorId);
+        if (ally?.speciesId) this.save = markSpeciesCaptured(this.save, ally.speciesId);
+      }
     }
 
     const changedFloor = this.game.depth !== beforeDepth;
