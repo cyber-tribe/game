@@ -26,7 +26,7 @@ export interface Room {
   w: number;
   h: number;
   /** 特殊な部屋の種別。無指定なら普通の部屋 */
-  kind?: "monsterHouse";
+  kind?: "monsterHouse" | "shop";
 }
 
 export function roomContains(room: Room, p: Vec2): boolean {
@@ -89,7 +89,11 @@ export type AiKind =
   /** 距離を取って遠隔攻撃してくる */
   | "ranged"
   /** 体力が減ると逃げる */
-  | "coward";
+  | "coward"
+  /** 隣接した相手から盗みを試み、成功したら逃げる(plan/shops-and-thieves.md) */
+  | "thief"
+  /** 近道屋の出店の店主。万引きされるまでは動かず攻撃もしない */
+  | "shopkeeper";
 
 export interface Species {
   id: string;
@@ -148,6 +152,10 @@ export interface Actor {
    * 実際のHPは減らさず、樽の捕獲判定にだけ加算される。捕獲を試みると消費される
    */
   captureBonus?: number;
+  /** スリガラス(plan/shops-and-thieves.md)が盗んだ金額。持っている間だけ逃走状態になる */
+  stolenGold?: number;
+  /** 近道屋の出店の店主(aiKind: "shopkeeper")。万引きされて豹変したか */
+  angry?: boolean;
 
   // ---- 以下は ally のみ ----
   /** 構え。plan/companion-orders.md 参照。既定は "free" */
@@ -256,11 +264,25 @@ export interface Item {
   plus?: number;
   /** 刻んだ印。武器・盾のみ、未刻印ならundefined */
   markId?: MarkId;
+  /**
+   * 近道屋の出店(plan/shops-and-thieves.md)で、お金が足りないまま
+   * 持ち出した品。持ったまま店の部屋を出ると万引き扱いになる
+   */
+  unpaid?: boolean;
 }
 
 export interface GroundItem {
   item: Item;
   pos: Vec2;
+  /** 近道屋の出店(plan/shops-and-thieves.md)の売り物。買うか、払わず持ち出すかを選べる */
+  forSale?: { price: number };
+}
+
+/** 床に落ちている金貨の山。plan/shops-and-thieves.md 参照。踏むと自動で拾う */
+export interface GoldPile {
+  id: number;
+  pos: Vec2;
+  amount: number;
 }
 
 // ---------------------------------------------------------------- 罠
@@ -332,6 +354,8 @@ export interface FloorState {
   items: GroundItem[];
   traps: Trap[];
   barrels: Barrel[];
+  /** 床に落ちている金貨の山。plan/shops-and-thieves.md 参照 */
+  goldPiles: GoldPile[];
   /** そのフロアに乗っているギミック。無ければ「いつも通りの階」 */
   gimmick?: FloorGimmickKind;
 }

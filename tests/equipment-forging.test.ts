@@ -241,6 +241,10 @@ describe("印の戦闘効果", () => {
   });
 
   it("ぷるんの印: 被弾時に確率5割で1割軽減のメッセージが出る", () => {
+    // "wait"コマンドは呼ぶたびにguarding(身構え)をtrueへ戻し、被弾時に
+    // ぷるんの印より常に優先されてしまう(身構えは被弾で消費されるまで
+    // 何度でも再武装されるため)。印の分岐を実際に届かせるため、
+    // モンスターのattackを直接呼び出してguardingを経由しない
     for (let seed = 1; seed <= 20; seed++) {
       const game = newGameWithMark(seed, "woodShield", "purun");
       game.floor.actors = game.floor.actors.filter((a) => a.kind === "player");
@@ -249,14 +253,19 @@ describe("印の戦闘効果", () => {
       const setup = faceOpenDirection(game);
       if (!setup) continue;
       const monster = putMonster(game, setup.front, { atk: 20, def: 0 });
+      const attack = (
+        game as unknown as {
+          attack: (attacker: Actor, target: Actor, attackPower: number, events: unknown[]) => void;
+        }
+      ).attack.bind(game);
       let reduced = false;
       for (let i = 0; i < 60 && !reduced; i++) {
-        const events = game.command({ type: "wait" });
+        const events: { type: string; text?: string }[] = [];
+        attack(monster, game.player, monster.atk, events);
         if (events.some((e) => e.type === "message" && e.text === "印の力で衝撃をやわらげた!")) {
           reduced = true;
         }
       }
-      void monster;
       if (!reduced) continue;
       expect(reduced).toBe(true);
       return;

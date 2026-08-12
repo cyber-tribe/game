@@ -15,6 +15,7 @@ import {
   isWalkable,
   roomContains,
 } from "../core/types";
+import { shopPrice } from "../entities/shop";
 import { fullSkillSet } from "../entities/skills";
 import { speciesById, speciesForDepth } from "../entities/species";
 import type { StoredMonster } from "../entities/storedMonster";
@@ -185,6 +186,8 @@ export function populateFloor(
   playerStart: Vec2,
   /** ほこら粉寄せの匂い袋を装備中なら "hokoraDust" を渡す。出現重みを底上げする */
   boostedItemDefId?: string,
+  /** 万引き済みで警戒状態(plan/shops-and-thieves.md)なら true。売値が割高になる */
+  shopWary = false,
 ): void {
   const gimmick = floor.gimmick;
   const pool = speciesForDepth(floor.depth);
@@ -232,8 +235,60 @@ export function populateFloor(
     floor.traps.push({ pos, kind, revealed: false });
   }
 
+  const goldCount = rng.int(2, 5);
+  for (let i = 0; i < goldCount; i++) {
+    const pos = findFreeTile(rng, floor, { roomsOnly: true, avoid: [playerStart] });
+    if (!pos) break;
+    const amount = rng.int(5, 10 + floor.depth * 4);
+    floor.goldPiles.push({ id: ids.nextItemUid(), pos, amount });
+  }
+
   placeBarrels(rng, floor, ids, playerStart);
   populateMonsterHouse(rng, floor, ids);
+  populateShop(rng, floor, ids, shopWary);
+}
+
+/**
+ * 近道屋の出店(plan/shops-and-thieves.md)の部屋があれば、店主と
+ * 売り物を置く。店主は万引きされるまで動かず攻撃もしない
+ */
+function populateShop(rng: Rng, floor: FloorState, ids: IdSource, wary: boolean): void {
+  const room = floor.rooms.find((r) => r.kind === "shop");
+  if (!room) return;
+
+  // 「しじまの階」ギミック中は野生モンスターが一切湧かない。店主は野生の
+  // モンスターではないが、既存のテスト前提(この階はkind:"monster"が0体)を
+  // 尊重し、売り物だけは変わらず置いたまま店主だけを省く
+  const keeperPos = floor.gimmick === "silence" ? null : findFreeTile(rng, floor, { room });
+  if (keeperPos) {
+    floor.actors.push({
+      id: ids.nextActorId(),
+      kind: "monster",
+      name: "近道屋の行商人",
+      model: "gajiri",
+      pos: keeperPos,
+      facing: 4,
+      hp: 999,
+      maxHp: 999,
+      atk: 30,
+      def: 10,
+      level: 1,
+      statuses: [],
+      alive: true,
+      aiKind: "shopkeeper",
+      aware: true,
+    });
+  }
+
+  const itemPool = itemsForDepth(floor.depth);
+  const goodsCount = rng.int(2, 4);
+  for (let i = 0; i < goodsCount; i++) {
+    const pos = findFreeTile(rng, floor, { room });
+    if (!pos) break;
+    const def = rng.pickWeighted(itemPool, (d) => d.weight);
+    const item = createItem(ids.nextItemUid(), def.id, def.charges);
+    floor.items.push({ item, pos, forSale: { price: shopPrice(def, item, wary) } });
+  }
 }
 
 /**

@@ -122,6 +122,20 @@ export function decideMonsterAction(
   target: Actor,
   distField: Int32Array,
 ): MonsterAction {
+  // 近道屋の出店の店主(plan/shops-and-thieves.md): 万引きされて豹変するまでは
+  // 動かず攻撃もしない。豹変後も店を離れず、隣接した相手にだけ反撃する
+  if (monster.aiKind === "shopkeeper") {
+    if (!monster.angry) return { type: "wait" };
+    const adjacent = adjacentFoe(floor, monster);
+    return adjacent ? { type: "attack", targetId: adjacent.id } : { type: "wait" };
+  }
+
+  // スリガラス(plan/shops-and-thieves.md): 盗んだあとは戦わず逃げるだけになる
+  if (monster.aiKind === "thief" && monster.stolenGold !== undefined) {
+    const away = fleeDirection(floor, monster, target.pos);
+    return away !== null ? { type: "move", dir: away } : wander(rng, floor, monster);
+  }
+
   // おびえの巻物: 戦わずに逃げ続ける。追跡・攻撃のどの判断よりも優先する
   if (hasStatus(monster, STATUS_FEAR)) {
     const away = fleeDirection(floor, monster, target.pos);
