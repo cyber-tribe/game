@@ -156,6 +156,37 @@ export interface Species {
   /** true なら、プレイヤーを初めて視認した瞬間、そのフロアの他のモンスターにも気づかせる(やまびこぎつね) */
   alertsFloorOnSight?: boolean;
   /**
+   * 地方ごとの成熟系統(plan/companion-evolution-expansion.md)。攻撃を
+   * 受けたとき、この確率で完全に回避する(かすみウツボ)
+   */
+  evadeChance?: number;
+  /**
+   * 地方ごとの成熟系統(plan/companion-evolution-expansion.md)。攻撃力に
+   * 掛ける倍率の上乗せぶんの最大値。HPが減るほど(0に近づくほど)満額に
+   * 近づく線形補間(なみだぐま。HP満タンなら+0%、HP0近くで+この値%)
+   */
+  lowHpAtkBonusMax?: number;
+  /**
+   * 地方ごとの成熟系統(plan/companion-evolution-expansion.md)。被弾した
+   * ダメージのこの割合を、攻撃者にそのまま返す(ヨロイオイテケ)。
+   * プランの原案は「被弾のたびに相手の満腹度を削り返す」だったが、
+   * 満腹度はプレイヤー専用のステータスで攻撃者(モンスター)には
+   * 存在しないため、同じ「返り討ち」の趣旨を保ったままダメージ反射に
+   * 差し替えた(実装時の判断)
+   */
+  counterDamageRatio?: number;
+  /**
+   * 地方ごとの成熟系統(plan/companion-evolution-expansion.md)。命中した
+   * あと、この確率で追加の1撃を同じ対象に放つ(最大2回まで反響、
+   * こだまぎつね)
+   */
+  echoAttackChance?: number;
+  /**
+   * 地方ごとの成熟系統(plan/companion-evolution-expansion.md)。true なら
+   * あらゆる状態異常を受け付けない(まつりのぬし)
+   */
+  statusImmune?: boolean;
+  /**
    * あうんの呼吸(plan/ally-field-gimmicks.md)。移動・探索専用のタグで、
    * 戦闘上の強さには一切関与しない
    */

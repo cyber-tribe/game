@@ -306,6 +306,9 @@ const MOSAIC_CANDIDATE_REGIONS = [2, 3, 4, 5, 6, 7];
 /** 地方ボス(plan/region-boss-horikuinonushi.md): 大技(groundSpikes)の威力 */
 const GROUND_SPIKES_DAMAGE = 26;
 
+/** 地方ごとの成熟系統(plan/companion-evolution-expansion.md): こだまぎつねの反響攻撃の最大追加回数 */
+const ECHO_ATTACK_MAX = 2;
+
 /** 松明(plan/region-darkness.md): 使うと持続する視界拡張の効果時間(ターン)。数値は初期案 */
 const TORCH_DURATION_TURNS = 20;
 /** 松明: 見晴らしのはちまき(+1)より強い光源として、くらやみの階の暗さを大きく緩和する */
@@ -1679,8 +1682,22 @@ export class Game {
     const ambushStrike = hasAmbushStrikeEffect && !this.usedAmbushStrike.has(attacker.id);
     if (hasAmbushStrikeEffect) this.usedAmbushStrike.add(attacker.id);
 
+    // 地方ごとの成熟系統(plan/companion-evolution-expansion.md): かすみウツボは
+    // 確率で攻撃をまるごと回避する
+    const evadeChance = target.speciesId ? speciesById(target.speciesId).evadeChance ?? 0 : 0;
+    if (evadeChance > 0 && this.rng.chance(evadeChance)) {
+      events.push({ type: "message", text: `${displayActorName(target)}はひらりと攻撃をかわした!` });
+      if (target.kind === "monster") target.aware = true;
+      return;
+    }
+
     const defense = target.kind === "player" ? totalDefense(this.player) : target.def;
-    const effectivePower = ambushStrike ? Math.round(attackPower * 1.5) : attackPower;
+    // 地方ごとの成熟系統(plan/companion-evolution-expansion.md): なみだぐまは
+    // HPが減るほど攻撃力が上がる(HP満タンで+0%、HP0近くで最大値に近づく)
+    const lowHpBonusMax = attacker.speciesId ? speciesById(attacker.speciesId).lowHpAtkBonusMax ?? 0 : 0;
+    const hpRatio = attacker.maxHp > 0 ? Math.max(0, attacker.hp) / attacker.maxHp : 1;
+    const lowHpMultiplier = 1 + lowHpBonusMax * (1 - hpRatio);
+    const effectivePower = Math.round((ambushStrike ? attackPower * 1.5 : attackPower) * lowHpMultiplier);
     const { damage, critical } = computeDamage(this.rng, effectivePower, defense, {
       ...combatOpts,
       forceCrit: combatOpts?.forceCrit || sneakAttack || quickStart || ambushSurprise,
@@ -1699,6 +1716,17 @@ export class Game {
       const finalDamage = this.mitigateIncomingDamage(target, damage, events);
       events.push({ type: "message", text: `${displayActorName(target)}に${finalDamage}のダメージ!` });
       this.damageActor(target, finalDamage, critical, events);
+
+      // 地方ごとの成熟系統(plan/companion-evolution-expansion.md): ヨロイオイテケは
+      // 被弾するたび、受けたダメージの一部を攻撃者に返す。プランの原案は
+      // 「相手の満腹度を削り返す」だったが、満腹度はプレイヤー専用のステータスで
+      // 攻撃者(モンスター)には存在しないため、ダメージ反射に差し替えた
+      const counterRatio = target.speciesId ? speciesById(target.speciesId).counterDamageRatio ?? 0 : 0;
+      if (counterRatio > 0 && attacker.alive) {
+        const counter = Math.max(1, Math.round(finalDamage * counterRatio));
+        events.push({ type: "message", text: `${displayActorName(target)}が身を固めて${counter}のダメージを返した!` });
+        this.damageActor(attacker, counter, false, events);
+      }
     }
 
     // 攻撃してきた相手には気づく
@@ -1727,6 +1755,20 @@ export class Game {
       }
       if (target.alive && hasSkill(attacker, "sealBite") && this.rng.chance(SEAL_BITE_CHANCE)) {
         addStatus(this.effectContext(events), target, STATUS_SEAL, INHERITED_INFLICT_TURNS, "封じられた");
+      }
+    }
+
+    // 地方ごとの成熟系統(plan/companion-evolution-expansion.md): こだまぎつねは
+    // 命中のたび確率で追加の1撃を同じ相手に放つ(最大2回まで反響)
+    const echoChance = attacker.speciesId ? speciesById(attacker.speciesId).echoAttackChance ?? 0 : 0;
+    if (echoChance > 0) {
+      for (let echo = 0; echo < ECHO_ATTACK_MAX && target.alive && this.rng.chance(echoChance); echo++) {
+        events.push({ type: "message", text: `${displayActorName(attacker)}のこうげきがこだました!` });
+        const echoDefense = target.kind === "player" ? totalDefense(this.player) : target.def;
+        const { damage: echoDamage, critical: echoCritical } = computeDamage(this.rng, effectivePower, echoDefense);
+        const finalEchoDamage = this.mitigateIncomingDamage(target, echoDamage, events);
+        events.push({ type: "message", text: `${displayActorName(target)}に${finalEchoDamage}のダメージ!` });
+        this.damageActor(target, finalEchoDamage, echoCritical, events);
       }
     }
   }

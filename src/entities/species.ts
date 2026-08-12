@@ -135,6 +135,106 @@ export const SPECIES: readonly Species[] = [
     inflicts: { kind: "sleep", chance: 0.2, turns: 3 },
   },
 
+  // ---- plan/companion-evolution-expansion.md: 地方ごとの成熟系統 ----
+  // 各地方の代表2種(片方を軸、もう片方を繰り返し糧に)から育つ、
+  // その地方だけの隠れた最終形態。新規3Dモデルは制作せず、進化前と
+  // 地続きの既存モデルを流用する(plan/companion-evolution.mdと同じ方針)
+  {
+    // モヤウツボ(霧)+ワスレガニ(忘れられた思い出)の夢あわせを重ねて
+    // 育った姿。姿がかすみ、相手の攻撃を避けやすくなる
+    id: "kasumiutsubo",
+    name: "かすみウツボ",
+    model: "tsubute",
+    maxHp: 42,
+    atk: 19,
+    def: 9,
+    exp: 32,
+    ai: "ambush",
+    minFloor: Number.POSITIVE_INFINITY,
+    weight: 0,
+    evadeChance: 0.15,
+  },
+  {
+    // ユメクイモグラ(眠気を食む)+ホロホロチョウ(まどろみの群れ)の
+    // 夢あわせを重ねて育った姿。攻撃に眠りが確定でまとわりつく
+    id: "nemurimogura",
+    name: "ねむりモグラ",
+    model: "gajiri",
+    maxHp: 52,
+    atk: 23,
+    def: 11,
+    exp: 42,
+    ai: "burrow",
+    minFloor: Number.POSITIVE_INFINITY,
+    weight: 0,
+    fieldSkill: "dig",
+    inflicts: { kind: "sleep", chance: 1, turns: 3 },
+  },
+  {
+    // ヨロイムカデ(古い記憶の重み)+オイテケボシ(置いていかれる恐れ)の
+    // 夢あわせを重ねて育った姿。防御が上がり、被弾のたびに攻撃者へ
+    // ダメージを返す。「置いていかれる」恐れを鎧に変える
+    id: "yoroioiteke",
+    name: "ヨロイオイテケ",
+    model: "honegarami",
+    maxHp: 72,
+    atk: 24,
+    def: 22,
+    exp: 54,
+    ai: "guard",
+    minFloor: Number.POSITIVE_INFINITY,
+    weight: 0,
+    counterDamageRatio: 0.25,
+  },
+  {
+    // しずくうお(こらえた涙)+うるみぐま(こらえ抜く力)の夢あわせを
+    // 重ねて育った姿。HPが減るほど攻撃力が上がる
+    id: "namidaguma",
+    name: "なみだぐま",
+    model: "tsubute",
+    maxHp: 36,
+    atk: 21,
+    def: 9,
+    exp: 32,
+    ai: "melee",
+    minFloor: Number.POSITIVE_INFINITY,
+    weight: 0,
+    lowHpAtkBonusMax: 0.5,
+  },
+  {
+    // やまびこぎつね(声の実体)+こだまうさぎ(響きを追う小さな生き物)の
+    // 夢あわせを重ねて育った姿。攻撃が2回まで反響するように連続発動する
+    id: "kodamagitsune",
+    name: "こだまぎつね",
+    model: "gajiri",
+    maxHp: 60,
+    atk: 29,
+    def: 13,
+    exp: 68,
+    ai: "ranged",
+    range: 5,
+    minFloor: Number.POSITIVE_INFINITY,
+    weight: 0,
+    alertsFloorOnSight: true,
+    echoAttackChance: 0.3,
+  },
+  {
+    // めんかぶりこぞう(祭りの影絵)+かざりだるま(祭りの高揚)の夢あわせを
+    // 重ねて育った姿。状態異常を受けなくなる。祭りの高揚が正気を保たせる
+    id: "matsurinonushi",
+    name: "まつりのぬし",
+    model: "tsubute",
+    maxHp: 63,
+    atk: 31,
+    def: 16,
+    exp: 78,
+    ai: "ambush",
+    minFloor: Number.POSITIVE_INFINITY,
+    weight: 0,
+    inflicts: { kind: "confuse", chance: 0.25, turns: 3 },
+    statusImmune: true,
+  },
+
   // ---- plan/region-bosses.md: 地方ボス ----
   // 野生出現テーブルには乗せず(minFloor: Infinity、weight: 0)、
   // REGION_BOSS_FLOORS の階でだけ専用に配置する
