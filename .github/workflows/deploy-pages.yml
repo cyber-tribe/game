@@ -1,0 +1,52 @@
+name: Deploy Pages
+
+# plan/archive/playtest-deployment.md: mainへのマージのたびに最新ビルドを
+# GitHub Pagesへ自動公開し、URLを開くだけで誰でも試遊できるようにする。
+# npm run playtest(決まった導線の機械的な確認、ci.yml)を置き換えるものではなく、
+# 人が自由に触って試すための入口を別途用意するもの。
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: 本番ビルド
+        run: npm run build
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

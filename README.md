@@ -16,6 +16,12 @@ TypeScript + Three.js。**3Dモデルはすべてこのリポジトリの中で 
 
 ## 遊びかた
 
+**[ブラウザで今すぐ試遊する](https://cyber-tribe.github.io/game/)**
+(mainブランチの最新ビルドを常時公開している。セーブデータはブラウザの
+`localStorage` にだけ残り、他の人と混ざったり共有されたりしない)
+
+ローカルで動かす場合:
+
 ```bash
 npm install
 npm run dev      # http://127.0.0.1:5173/
