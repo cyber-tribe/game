@@ -1,0 +1,48 @@
+{
+  "deepest": 30,
+  "runs": 80,
+  "clears": 25,
+  "bestLevel": 20,
+  "storage": [
+    { "defId": "healLeaf" },
+    { "defId": "hatchet", "plus": 9, "markId": "gajiri" },
+    { "defId": "ironHelm" }
+  ],
+  "knownCheckpoints": [1, 6, 11, 16, 21, 26],
+  "seenTutorialTips": ["moveAndAttack", "pickup", "capture", "levelUp", "status", "allyOrders"],
+  "trainingFocus": "balance",
+  "hut": [
+    {
+      "uid": 1,
+      "speciesId": "ishizuenezumi",
+      "level": 22,
+      "exp": 500,
+      "skills": ["softBody"],
+      "bondSuccessCount": 20,
+      "recentFusionMaterials": ["honegarami", "honegarami", "honegarami"]
+    }
+  ],
+  "nextHutUid": 4,
+  "records": { "totalDefeats": 320, "totalCaptures": 55 },
+  "compendium": { "gajiri": "captured", "purun": "captured", "tsubute": "captured", "madoromi": "captured", "honegarami": "captured" },
+  "achievements": {
+    "compendiumHalf": "2026-01-01T00:00:00.000Z",
+    "clear1": "2026-01-02T00:00:00.000Z",
+    "defeats50": "2026-01-05T00:00:00.000Z",
+    "maxPlusReached": "2026-01-10T00:00:00.000Z",
+    "level10": "2026-01-12T00:00:00.000Z"
+  },
+  "equippedTitle": "clear1",
+  "equipmentCompendium": { "hatchet": "mastered", "barrelGuardHat": "mastered", "ironHelm": "mastered" },
+  "markCompendium": { "gajiri": "owned", "purun": "owned" },
+  "materialCompendium": { "hokoraDust": "owned", "markStonePurun": "owned" },
+  "difficulty": "hard",
+  "gold": 4200,
+  "boardDate": "2026-02-01",
+  "boardOffers": ["huntPurun"],
+  "activeQuests": [{ "defId": "huntGajiri", "progress": 5 }],
+  "completedQuestIds": ["gatherHokoraDust", "gatherHealLeaf"],
+  "nightlyDreamBestDepth": 14,
+  "villageStage": 3,
+  "fontSize": "large"
+}

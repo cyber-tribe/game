@@ -1,0 +1,25 @@
+{
+  "deepest": 12,
+  "runs": 20,
+  "clears": 5,
+  "bestLevel": 8,
+  "storage": [
+    { "defId": "healLeaf" },
+    { "defId": "hatchet", "plus": 3 },
+    { "defId": "barrelGuardHat" }
+  ],
+  "knownCheckpoints": [1, 6, 11],
+  "seenTutorialTips": ["moveAndAttack", "pickup", "capture"],
+  "trainingFocus": "offense",
+  "hut": [
+    { "uid": 1, "speciesId": "gajiri", "level": 5, "exp": 40, "skills": ["softBody"] },
+    { "uid": 2, "speciesId": "purun", "level": 3, "exp": 10, "skills": [] }
+  ],
+  "nextHutUid": 3,
+  "records": { "totalDefeats": 60, "totalCaptures": 12 },
+  "compendium": { "gajiri": "captured", "purun": "captured", "tsubute": "seen" },
+  "achievements": { "compendiumHalf": "2026-01-01T00:00:00.000Z", "clear1": "2026-01-02T00:00:00.000Z" },
+  "equipmentCompendium": { "hatchet": "owned", "barrelGuardHat": "mastered" },
+  "markCompendium": { "gajiri": "owned" },
+  "materialCompendium": { "hokoraDust": "owned" }
+}
