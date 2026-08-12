@@ -28,7 +28,13 @@ export interface DungeonDef {
 import { REGION_BOSS_ORDER } from "./species";
 
 export const MAIN_CAVE_ID = "mainCave";
-export const MAIN_CAVE_MAX_DEPTH = 10;
+/**
+ * 表の寝穴の最大階数(plan/region-expansion.md)。8地方 × 6階 = 48階。
+ * design/regions.mdの8地方構成に合わせて10→48へ拡張した。
+ */
+export const MAIN_CAVE_MAX_DEPTH = 48;
+/** 1地方あたりの階数(plan/region-expansion.md)。地方境界は depth % REGION_SIZE === 0 */
+export const REGION_SIZE = 6;
 export const NIGHTLY_DREAM_ID = "nightlyDream";
 /** 腕試しの間(plan/hidden-dungeon.md)。地方ボスの再戦だけで構成するボスラッシュ */
 export const TRIAL_CHAMBER_ID = "trialChamber";

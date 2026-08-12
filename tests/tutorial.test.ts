@@ -126,7 +126,9 @@ describe("チュートリアルヒントのGameEvent", () => {
   });
 
   it("めざめの階段に到達すると checkpoint ヒントが流れる", () => {
-    const game = newGame(10);
+    // 表の寝穴では地方境界(6の倍数)の階だけがめざめの階段になる
+    // (plan/region-expansion.md)
+    const game = new Game({ seed: 10, startDepth: 6 });
     const candidates: Array<{ from: { x: number; y: number }; dir: 0 | 2 | 4 | 6 }> = [
       { from: { x: game.floor.stairs.x, y: game.floor.stairs.y - 1 }, dir: 4 },
       { from: { x: game.floor.stairs.x - 1, y: game.floor.stairs.y }, dir: 2 },
