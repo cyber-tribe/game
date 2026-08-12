@@ -1,4 +1,4 @@
-import { SPECIES } from "./entities/species";
+import { SPECIES, speciesForDepth } from "./entities/species";
 import { ITEMS } from "./items/catalog";
 
 /**
@@ -38,6 +38,24 @@ export function modelNames(): string[] {
   for (const item of ITEMS) names.add(item.model);
   for (const model of Object.values(TRAP_MODELS)) names.add(model);
   for (const model of Object.values(BARREL_MODELS)) names.add(model);
+  return [...names];
+}
+
+/**
+ * 起動時に、これだけは読み終えてから遊べる状態にするモデル。
+ *
+ * 全部(現在22個・約1.4MB)を待ってからタイトルを出すと、モンスターの
+ * 種類が増えるたびに起動が延びていく。地下1階へ降りた瞬間に実際に要るのは
+ * 主人公・地形・タルと、1階に出うる種族だけ。残りは背景で読み進める。
+ *
+ * アイテムと罠を外してあるのは、床に落ちているものが見えるのは部屋に
+ * 入ってからで、そのころには背景の読み込みが終わっているため。万一
+ * 間に合わなくても、フロアを組む手前で待ち合わせる作りにしてある。
+ */
+export function essentialModelNames(): string[] {
+  const names = new Set<string>(["garudo", ...TERRAIN_MODELS]);
+  for (const model of Object.values(BARREL_MODELS)) names.add(model);
+  for (const species of speciesForDepth(1)) names.add(species.model);
   return [...names];
 }
 

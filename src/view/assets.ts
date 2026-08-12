@@ -22,21 +22,54 @@ export interface Instance {
 export class Assets {
   private readonly loader = new GLTFLoader();
   private readonly cache = new Map<string, ModelAsset>();
+  /** 読み込み中のもの。同じモデルを二重に取りに行かないための控え */
+  private readonly inFlight = new Map<string, Promise<void>>();
 
   async loadAll(names: readonly string[], baseUrl = "models"): Promise<void> {
-    await Promise.all(
-      names.map(async (name) => {
-        if (this.cache.has(name)) return;
-        const gltf = await this.loader.loadAsync(`${baseUrl}/${name}.glb`);
-        gltf.scene.traverse((obj) => {
-          if ((obj as THREE.Mesh).isMesh) {
-            obj.castShadow = true;
-            obj.receiveShadow = true;
-          }
-        });
-        this.cache.set(name, { scene: gltf.scene, animations: gltf.animations });
-      }),
-    );
+    await Promise.all(names.map((name) => this.load(name, baseUrl)));
+  }
+
+  /**
+   * 背景で読み進める。待たない。
+   *
+   * 起動時は「地下1階に要るぶん」だけを待ってタイトルを出し、残りはこれで
+   * 追いかける(src/modelList.ts の essentialModelNames 参照)。取りこぼしが
+   * あってもフロアを組む手前で ready() が待ち合わせるので、ここでは待たない。
+   */
+  loadInBackground(names: readonly string[], baseUrl = "models"): void {
+    for (const name of names) {
+      // 失敗しても起動を止めない。実際に必要になった時点で ready() が
+      // もう一度取りに行き、そこで初めて表に出る
+      void this.load(name, baseUrl).catch(() => {});
+    }
+  }
+
+  /** 指定したモデルが使える状態になるまで待つ。読み終わっていれば即座に返る */
+  async ready(names: readonly string[], baseUrl = "models"): Promise<void> {
+    const pending = names.filter((name) => !this.cache.has(name));
+    if (pending.length > 0) await this.loadAll(pending, baseUrl);
+  }
+
+  /** 同じモデルを二重に取りに行かないよう、進行中の読み込みを共有する */
+  private load(name: string, baseUrl: string): Promise<void> {
+    if (this.cache.has(name)) return Promise.resolve();
+    const running = this.inFlight.get(name);
+    if (running) return running;
+
+    const task = (async () => {
+      const gltf = await this.loader.loadAsync(`${baseUrl}/${name}.glb`);
+      gltf.scene.traverse((obj) => {
+        if ((obj as THREE.Mesh).isMesh) {
+          obj.castShadow = true;
+          obj.receiveShadow = true;
+        }
+      });
+      this.cache.set(name, { scene: gltf.scene, animations: gltf.animations });
+    })().finally(() => {
+      this.inFlight.delete(name);
+    });
+    this.inFlight.set(name, task);
+    return task;
   }
 
   has(name: string): boolean {

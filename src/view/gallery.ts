@@ -34,6 +34,13 @@ export class GalleryView {
   /** 表示するモデルを切り替える。同じ内容ならやり直さない */
   show(model: string, silhouette: boolean): void {
     if (this.currentModel === model && this.currentSilhouette === silhouette) return;
+    // モデルは起動時に一部だけ読み、残りは背景で追いかけている。まだ届いて
+    // いなければ今回は何もしない。show は毎フレーム呼ばれるので、届いた
+    // ところで自然に表示される
+    if (!this.assets.has(model)) {
+      this.assets.loadInBackground([model]);
+      return;
+    }
     this.clear();
     this.currentModel = model;
     this.currentSilhouette = silhouette;

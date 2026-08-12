@@ -3,7 +3,7 @@ import { Game, type Command, type RunSnapshot } from "./game";
 import type { GameEvent } from "./core/events";
 import { isFree, walkableAt } from "./core/types";
 import { chebyshev, eq } from "./core/grid";
-import { BARREL_MODELS, modelNames } from "./modelList";
+import { BARREL_MODELS, essentialModelNames, modelNames } from "./modelList";
 import { Assets } from "./view/assets";
 import { Hud } from "./view/hud";
 import { Input } from "./view/input";
@@ -178,7 +178,12 @@ class App {
   }
 
   async start(): Promise<void> {
-    await this.assets.loadAll(modelNames());
+    // 全部(22個・約1.4MB)を待ってから始めると、モンスターの種類が増える
+    // たびに起動が延びる。地下1階に要るぶんだけ待って先に遊べる状態にし、
+    // 残りは背景で追いかける。まだ届いていないモデルは Stage/DungeonView 側が
+    // その回だけ飛ばし、届いた次のターンに拾うので、表示は破綻しない
+    await this.assets.loadAll(essentialModelNames());
+    this.assets.loadInBackground(modelNames());
     document.querySelector<HTMLElement>("#loading")!.style.display = "none";
 
     // セーブ枠(plan/save-slots.md)導入前の単一キーが残っていれば、slot0へ1回だけ移行する
