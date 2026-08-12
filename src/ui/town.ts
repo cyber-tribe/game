@@ -91,6 +91,11 @@ export class TownScreen {
   private fusionAxisUid: number | null = null;
   /** 夢に還す(plan/release-companion.md)の確認待ちの個体。確認中(サブメニュー表示中)のみ非null */
   private releaseConfirmUid: number | null = null;
+  /**
+   * お気に入りロック(plan/companion-favorite-lock.md)により直前の操作が
+   * 拒否されたときの理由メッセージ。次の操作で自動的にクリアされる
+   */
+  private favoriteNotice: string | null = null;
   /** ゲンドの工房(plan/equipment-forging.md)の一覧上のカーソル位置 */
   private workshopCursor = 0;
   /** 印を刻む対象として選んでいる装備。選択中(サブメニュー表示中)のみ非null */
@@ -122,6 +127,7 @@ export class TownScreen {
   private onAcceptQuest: ((defId: string) => void) | null = null;
   private onAbandonQuest: ((defId: string) => void) | null = null;
   private onReleaseCompanion: ((uid: number) => void) | null = null;
+  private onToggleFavorite: ((uid: number) => void) | null = null;
   private onDevelopVillage: (() => void) | null = null;
   private onSetFontSize: ((fontSize: FontSize) => void) | null = null;
   private onEquipCostume: ((costumeId: string) => void) | null = null;
@@ -164,6 +170,7 @@ export class TownScreen {
     onEquipCostume: (costumeId: string) => void,
     onTalkToNpc: (npcId: VillageNpcId, eventId: string) => void,
     onGiftMaterial: (npcId: VillageNpcId, defId: string) => void,
+    onToggleFavorite: (uid: number) => void,
   ): void {
     this.save = save;
     this.storage = save.storage.map((s) => ({ ...s }));
@@ -182,6 +189,7 @@ export class TownScreen {
     this.bringUids = [];
     this.fusionAxisUid = null;
     this.releaseConfirmUid = null;
+    this.favoriteNotice = null;
     this.workshopCursor = 0;
     this.workshopMarkTarget = null;
     this.workshopMarkChoices = null;
@@ -195,6 +203,7 @@ export class TownScreen {
     this.onAcceptQuest = onAcceptQuest;
     this.onAbandonQuest = onAbandonQuest;
     this.onReleaseCompanion = onReleaseCompanion;
+    this.onToggleFavorite = onToggleFavorite;
     this.onDevelopVillage = onDevelopVillage;
     this.onSetFontSize = onSetFontSize;
     this.onEquipCostume = onEquipCostume;
@@ -215,6 +224,7 @@ export class TownScreen {
     this.save = save;
     this.hutCursor = Math.min(this.hutCursor, Math.max(0, this.hut().length - 1));
     this.releaseConfirmUid = null;
+    this.favoriteNotice = null;
     this.render();
   }
 
@@ -361,19 +371,23 @@ export class TownScreen {
       switch (code) {
         case "ArrowUp":
         case "KeyW":
+          this.favoriteNotice = null;
           this.hutCursor = wrap(this.hutCursor - 1, hut.length);
           break;
         case "ArrowDown":
         case "KeyS":
+          this.favoriteNotice = null;
           this.hutCursor = wrap(this.hutCursor + 1, hut.length);
           break;
         case "ArrowLeft":
         case "KeyA":
           this.fusionAxisUid = null;
+          this.favoriteNotice = null;
           this.column = 3;
           break;
         case "ArrowRight":
         case "KeyD":
+          this.favoriteNotice = null;
           this.column = 5;
           break;
         case "Enter":
@@ -381,6 +395,7 @@ export class TownScreen {
           this.toggleBring(hut[this.hutCursor]?.uid);
           break;
         case "KeyM":
+          this.favoriteNotice = null;
           this.pickForFusion(hut[this.hutCursor]?.uid);
           break;
         case "KeyN": {
@@ -388,8 +403,19 @@ export class TownScreen {
           if (target) this.onRename?.(target.uid, target.nickname);
           return true;
         }
-        case "KeyX": {
+        case "KeyF": {
+          // お気に入りロック(plan/companion-favorite-lock.md)の切り替え
           const target = hut[this.hutCursor];
+          if (target) this.onToggleFavorite?.(target.uid);
+          return true;
+        }
+        case "KeyX": {
+          this.favoriteNotice = null;
+          const target = hut[this.hutCursor];
+          if (target?.favorite) {
+            this.favoriteNotice = "お気に入りに設定されているため、夢に還せない。先にお気に入りを外すこと。";
+            break;
+          }
           if (target) this.releaseConfirmUid = target.uid;
           break;
         }
@@ -798,7 +824,15 @@ export class TownScreen {
       this.fusionAxisUid = uid;
       return;
     }
-    if (uid !== this.fusionAxisUid) this.onFuse?.(this.fusionAxisUid, uid);
+    if (uid !== this.fusionAxisUid) {
+      // お気に入りロック(plan/companion-favorite-lock.md): 糧側だけを禁止する
+      const food = this.hut().find((m) => m.uid === uid);
+      if (food?.favorite) {
+        this.favoriteNotice = "お気に入りに設定されているため、糧にはできない。先にお気に入りを外すこと。";
+      } else {
+        this.onFuse?.(this.fusionAxisUid, uid);
+      }
+    }
     this.fusionAxisUid = null;
   }
 
@@ -1135,9 +1169,11 @@ export class TownScreen {
       desc.textContent =
         this.releaseConfirmUid !== null
           ? "この個体を夢に還す。取り消せない。よければEnter、やめるならEsc。"
-          : this.fusionAxisUid === null
-            ? `Enterで選択/解除(最大${MAX_ALLIES}体、0体なら手ぶらで出発)。Mで夢あわせの軸を選ぶ。Nで改名。Xで夢に還す。`
-            : "夢あわせ: 糧にする個体を選んでMで確定(軸は消えず、糧は消えて軸に溶け込む)。";
+          : this.favoriteNotice !== null
+            ? this.favoriteNotice
+            : this.fusionAxisUid === null
+              ? `Enterで選択/解除(最大${MAX_ALLIES}体、0体なら手ぶらで出発)。Mで夢あわせの軸を選ぶ。Nで改名。Fでお気に入り。Xで夢に還す。`
+              : "夢あわせ: 糧にする個体を選んでMで確定(軸は消えず、糧は消えて軸に溶け込む)。";
     } else if (this.column === 5) {
       const dust = this.countMaterial(HOKORA_DUST_DEF_ID);
       if (this.workshopMarkChoices) {
@@ -1227,7 +1263,7 @@ export class TownScreen {
     if (this.column === 4) {
       hint.textContent = this.releaseConfirmUid !== null
         ? "Enter 夢に還す(確定) / Esc やめる"
-        : "←→ 列を移る / ↑↓ 選ぶ / Enter 選択・解除 / M 夢あわせ / N 改名 / X 夢に還す / Space もぐる";
+        : "←→ 列を移る / ↑↓ 選ぶ / Enter 選択・解除 / M 夢あわせ / N 改名 / F お気に入り / X 夢に還す / Space もぐる";
     } else if (this.column === 5) {
       hint.textContent = this.workshopMarkChoices
         ? "↑↓ 印を選ぶ / Enter 刻む / Esc もどる"
@@ -1346,7 +1382,8 @@ export class TownScreen {
       const li = document.createElement("li");
       const name = displayStoredMonsterName(m);
       const bondLabel = bondStageLabel(bondStage(m.bondSuccessCount));
-      const base = bondLabel ? `${name} Lv${m.level}・${bondLabel}` : `${name} Lv${m.level}`;
+      const named = m.favorite ? `★${name}` : name;
+      const base = bondLabel ? `${named} Lv${m.level}・${bondLabel}` : `${named} Lv${m.level}`;
       li.textContent =
         m.uid === this.releaseConfirmUid
           ? `${base}(夢に還す?)`
