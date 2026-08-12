@@ -205,7 +205,8 @@ export class TownScreen {
   /** 複数のダンジョン(plan/multiple-dungeons.md)。解放済みのものだけを選択できる */
   private unlockedDungeons(): DungeonDef[] {
     const deepest = this.save?.deepest ?? 0;
-    return DUNGEONS.filter((d) => isDungeonUnlocked(d, deepest));
+    const villageStage = this.save?.villageStage ?? 1;
+    return DUNGEONS.filter((d) => isDungeonUnlocked(d, deepest, villageStage));
   }
 
   /**
@@ -1419,18 +1420,20 @@ export class TownScreen {
     wrapper.appendChild(heading);
 
     const deepest = this.save?.deepest ?? 0;
+    const villageStage = this.save?.villageStage ?? 1;
     const unlocked = this.unlockedDungeons();
     const list = document.createElement("ul");
     DUNGEONS.forEach((dungeon) => {
       const li = document.createElement("li");
-      if (isDungeonUnlocked(dungeon, deepest)) {
+      if (isDungeonUnlocked(dungeon, deepest, villageStage)) {
         li.textContent = dungeon.name;
         if (this.column === 12 && unlocked[this.dungeonIndex]?.id === dungeon.id) {
           li.classList.add("selected");
         }
-      } else {
-        const need = dungeon.unlock === "always" ? 0 : dungeon.unlock.minDeepest;
-        li.textContent = `${dungeon.name}(未解放: 最深${need}階到達で解放)`;
+      } else if (dungeon.unlock !== "always" && "minDeepest" in dungeon.unlock) {
+        li.textContent = `${dungeon.name}(未解放: 最深${dungeon.unlock.minDeepest}階到達で解放)`;
+      } else if (dungeon.unlock !== "always") {
+        li.textContent = `${dungeon.name}(未解放: 村の発展段階${dungeon.unlock.minVillageStage}で解放)`;
       }
       list.appendChild(li);
     });
