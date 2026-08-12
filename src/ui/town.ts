@@ -135,6 +135,8 @@ export class TownScreen {
   private onTalkToNpc: ((npcId: VillageNpcId, eventId: string) => void) | null = null;
   /** 村の暮らし(plan/village-life.md)。素材を献上して絆を上げる */
   private onGiftMaterial: ((npcId: VillageNpcId, defId: string) => void) | null = null;
+  /** バグ報告ボタン(plan/bug-report-button.md) */
+  private onReportBug: (() => void) | null = null;
   /** 実績帳(plan/achievements.md)の一覧上のカーソル位置 */
   private achievementCursor = 0;
   /** 依頼板(plan/quest-board.md)の一覧上のカーソル位置 */
@@ -171,6 +173,7 @@ export class TownScreen {
     onTalkToNpc: (npcId: VillageNpcId, eventId: string) => void,
     onGiftMaterial: (npcId: VillageNpcId, defId: string) => void,
     onToggleFavorite: (uid: number) => void,
+    onReportBug: () => void,
   ): void {
     this.save = save;
     this.storage = save.storage.map((s) => ({ ...s }));
@@ -209,6 +212,7 @@ export class TownScreen {
     this.onEquipCostume = onEquipCostume;
     this.onTalkToNpc = onTalkToNpc;
     this.onGiftMaterial = onGiftMaterial;
+    this.onReportBug = onReportBug;
     this.achievementCursor = 0;
     this.questCursor = 0;
     this.open = true;
@@ -676,6 +680,9 @@ export class TownScreen {
           this.onSetFontSize?.(next);
           break;
         }
+        case "KeyB":
+          this.onReportBug?.();
+          return true;
         case "Space":
           this.departNow();
           return true;
@@ -1799,6 +1806,12 @@ export class TownScreen {
     const note = document.createElement("p");
     note.textContent = "状態異常は色だけでなく記号(◐/✳/◆)でも区別して表示する。";
     wrapper.appendChild(note);
+
+    // バグ報告ボタン(plan/bug-report-button.md)
+    const report = document.createElement("p");
+    report.className = "town-hint";
+    report.textContent = "B キー: 不具合を報告する(GitHubのIssue作成画面が開きます)";
+    wrapper.appendChild(report);
     return wrapper;
   }
 
