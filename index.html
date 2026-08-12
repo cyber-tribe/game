@@ -134,6 +134,7 @@
       .ally-bar > i[data-level="warn"] { background: linear-gradient(90deg, #e0b755, #f2d27a); }
       .ally-bar > i[data-level="danger"] { background: linear-gradient(90deg, #e05f6b, #f38b93); }
       .ally-stance { font-size: 10.5px; color: #7fd6ff; margin-top: 2px; }
+      .ally-status { font-size: 10.5px; color: #f2d27a; margin-top: 2px; }
 
       /* ------------------------------------------------ ミニマップ */
       #minimap-wrap { position: absolute; top: 14px; right: 14px; padding: 8px; }
@@ -160,6 +161,19 @@
         text-align: right;
       }
       #help b { color: var(--ink); font-weight: 600; }
+
+      /* ------------------------------------------------ アクセシビリティ */
+      /* plan/difficulty-modes.md: メッセージログ・メニューの文字サイズを2段階から選べる */
+      body[data-font-size="large"] #log,
+      body[data-font-size="large"] #help,
+      body[data-font-size="large"] #menu,
+      body[data-font-size="large"] #stance,
+      body[data-font-size="large"] #arts,
+      body[data-font-size="large"] #town,
+      body[data-font-size="large"] #naming,
+      body[data-font-size="large"] .overlay-box {
+        zoom: 1.25;
+      }
 
       /* ------------------------------------------------ ダメージ表示 */
       #fx { position: absolute; inset: 0; overflow: hidden; }
@@ -366,7 +380,8 @@
           <b>I</b> もちもの &nbsp; <b>T</b> 仲間に指示<br />
           <b>C</b> 技を繰り出す<br />
           <b>R</b> 階段の上で区切って持ち帰る<br />
-          <b>Q / E</b> 視点回転 &nbsp; <b>± </b>ズーム
+          <b>Q / E</b> 視点回転 &nbsp; <b>± </b>ズーム<br />
+          <b>P</b> フォトモード &nbsp; <b>H</b> 操作説明
         </div>
 
         <div id="fx"></div>

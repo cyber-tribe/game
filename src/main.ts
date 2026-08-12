@@ -39,6 +39,7 @@ import {
   saveRunSnapshot,
   setDifficulty,
   setEquippedTitle,
+  setFontSize,
   setTrainingFocus,
   takeFromHut,
   type SaveData,
@@ -51,6 +52,23 @@ import { todayKey } from "./entities/quests";
 import { TUTORIAL_TIPS, type TutorialTipId } from "./core/tutorial";
 import type { Item } from "./core/types";
 import type { TrainingFocus } from "./entities/player";
+
+/** 操作の一括確認(plan/difficulty-modes.md アクセシビリティ節)。README操作表と揃える */
+const KEY_HELP_LINES: readonly string[] = [
+  "矢印/WASD/テンキー: 8方向に移動。モンスターがいる方向へ進むと攻撃",
+  "Shift+方向: その場で向きだけ変える(ターンを消費しない)",
+  "Space: 足元のものを拾う。階段の上なら次の階へ降りる",
+  ". / テンキー5: 足踏み(1ターンやり過ごす)",
+  "F: 正面か足元のタルを持ち上げる。抱えていれば下ろす",
+  "G: 抱えているタルを向いている方向へ投げる",
+  "I: もちものを開く",
+  "T: 仲間への指示(構え)を開く",
+  "C: 樽守りの技を繰り出す",
+  "Q / E: 視点を90度回す",
+  "+ / -: ズーム",
+  "R: めざめの階段の上で区切って持ち帰る。倒れたあとは拠点に戻る",
+  "P: フォトモードの切り替え",
+];
 
 class App {
   private readonly renderer: Renderer;
@@ -83,6 +101,8 @@ class App {
   private diveReachedDepths: number[] = [];
   /** フォトモード(plan/gallery-mode.md)。HUDを隠し、移動・行動を止めて画角だけ動かせる */
   private photoMode = false;
+  /** 操作説明(plan/difficulty-modes.md アクセシビリティ節)。表示中は行動を止める */
+  private helpVisible = false;
 
   constructor() {
     this.canvas = document.querySelector<HTMLCanvasElement>("#scene")!;
@@ -97,6 +117,7 @@ class App {
     this.town = new TownScreen(document.querySelector<HTMLElement>("#town")!);
     this.namingDialog = new NamingDialog(document.querySelector<HTMLElement>("#naming")!);
     this.save = loadSave();
+    this.applyFontSize();
 
     this.input.onKey = (code) =>
       this.town.handleKey(code) ||
@@ -174,6 +195,11 @@ class App {
       },
       () => {
         this.save = developVillage(this.save);
+        this.town.refreshSave(this.save);
+      },
+      (fontSize) => {
+        this.save = setFontSize(this.save, fontSize);
+        this.applyFontSize();
         this.town.refreshSave(this.save);
       },
     );
@@ -302,6 +328,7 @@ class App {
         !this.artsMenu.isOpen &&
         !this.town.isOpen &&
         !this.photoMode &&
+        !this.helpVisible &&
         this.lock <= 0
       ) {
         this.handleAction(action);
@@ -316,6 +343,7 @@ class App {
       this.artsMenu.isOpen ||
       this.town.isOpen ||
       this.photoMode ||
+      this.helpVisible ||
       this.lock > 0
     ) {
       return;
@@ -348,6 +376,9 @@ class App {
       case "photoMode":
         this.togglePhotoMode();
         return true;
+      case "help":
+        this.toggleHelp();
+        return true;
       case "confirm":
         if (this.photoMode) {
           this.takePhoto();
@@ -366,6 +397,7 @@ class App {
           !this.artsMenu.isOpen &&
           !this.town.isOpen &&
           !this.photoMode &&
+          !this.helpVisible &&
           eq(this.game.player.pos, this.game.floor.stairs)
         ) {
           this.submit({ type: "bank" });
@@ -375,6 +407,38 @@ class App {
       default:
         return false;
     }
+  }
+
+  /**
+   * 操作の一括確認(plan/difficulty-modes.md アクセシビリティ節)。
+   * 現在使っているキー配置をいつでも呼び出せる
+   */
+  private toggleHelp(): void {
+    if (this.helpVisible) {
+      this.helpVisible = false;
+      this.hud.hideOverlay();
+      return;
+    }
+    if (
+      this.menu.isOpen ||
+      this.stanceMenu.isOpen ||
+      this.artsMenu.isOpen ||
+      this.town.isOpen ||
+      this.photoMode ||
+      this.ended
+    ) {
+      return;
+    }
+    this.helpVisible = true;
+    this.hud.showKeyHelp(KEY_HELP_LINES);
+  }
+
+  /**
+   * アクセシビリティ(plan/difficulty-modes.md)。メッセージログ・メニューの
+   * 文字サイズを`document.body`のdata属性に反映する(CSS側で拾う)
+   */
+  private applyFontSize(): void {
+    document.body.dataset.fontSize = this.save.fontSize;
   }
 
   /**
@@ -388,7 +452,14 @@ class App {
       this.uiRoot.style.display = "";
       return;
     }
-    if (this.menu.isOpen || this.stanceMenu.isOpen || this.artsMenu.isOpen || this.town.isOpen || this.ended) {
+    if (
+      this.menu.isOpen ||
+      this.stanceMenu.isOpen ||
+      this.artsMenu.isOpen ||
+      this.town.isOpen ||
+      this.helpVisible ||
+      this.ended
+    ) {
       return;
     }
     this.photoMode = true;

@@ -130,7 +130,15 @@ export interface SaveData {
    * ねむり小屋の収容数上限(hutCapacity)はここから算出する
    */
   villageStage: VillageStage;
+  /**
+   * アクセシビリティ(plan/difficulty-modes.md)。メッセージログ・メニューの
+   * 文字サイズ。既定は"normal"
+   */
+  fontSize: FontSize;
 }
+
+/** アクセシビリティ(plan/difficulty-modes.md)。メッセージログ・メニューの文字サイズ */
+export type FontSize = "normal" | "large";
 
 /** "seen": 遭遇した。"captured": タルで捕まえた、または夢あわせの糧にした */
 export type CompendiumStatus = "seen" | "captured";
@@ -180,6 +188,7 @@ export function initialSave(): SaveData {
     completedQuestIds: [],
     nightlyDreamBestDepth: 0,
     villageStage: 1,
+    fontSize: "normal",
   };
 }
 
@@ -214,6 +223,7 @@ export function loadSave(): SaveData {
       completedQuestIds: sanitizeQuestIdList(parsed.completedQuestIds),
       nightlyDreamBestDepth: Math.max(0, numberOr(parsed.nightlyDreamBestDepth, 0)),
       villageStage: sanitizeVillageStage(parsed.villageStage),
+      fontSize: parsed.fontSize === "large" ? "large" : "normal",
     };
   } catch {
     // 壊れた保存データで起動できなくなるほうが困るので、黙って初期値に戻す
@@ -269,6 +279,14 @@ export function setTrainingFocus(current: SaveData, focus: TrainingFocus): SaveD
 export function setDifficulty(current: SaveData, difficulty: DifficultyMode): SaveData {
   if (current.difficulty === difficulty) return current;
   const next: SaveData = { ...current, difficulty };
+  saveData(next);
+  return next;
+}
+
+/** アクセシビリティ(plan/difficulty-modes.md)。メッセージログ・メニューの文字サイズを切り替える */
+export function setFontSize(current: SaveData, fontSize: FontSize): SaveData {
+  if (current.fontSize === fontSize) return current;
+  const next: SaveData = { ...current, fontSize };
   saveData(next);
   return next;
 }
@@ -367,6 +385,7 @@ export function recordRun(
         ? Math.max(current.nightlyDreamBestDepth, result.depth)
         : current.nightlyDreamBestDepth,
     villageStage: current.villageStage,
+    fontSize: current.fontSize,
   };
   // 依頼板(plan/quest-board.md): 受注中の依頼を判定し、達成していれば報酬を渡して外す
   const withQuests = resolveQuests(next, result);

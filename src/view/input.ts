@@ -17,7 +17,9 @@ export type ActionKey =
   /** 樽守りの技メニューを開く */
   | "arts"
   /** フォトモード(plan/gallery-mode.md)の切り替え */
-  | "photoMode";
+  | "photoMode"
+  /** 操作説明の表示切り替え(plan/difficulty-modes.md アクセシビリティ節) */
+  | "help";
 
 /** テンキーはそのまま8方向に対応する。5は足踏み */
 const NUMPAD_DIRS: Record<string, Dir> = {
@@ -56,6 +58,7 @@ const ACTION_KEYS: Record<string, ActionKey> = {
   KeyT: "orders",
   KeyC: "arts",
   KeyP: "photoMode",
+  KeyH: "help",
 };
 
 /**
