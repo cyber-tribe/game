@@ -155,6 +155,30 @@ export const SPECIES: readonly Species[] = [
     bossTelegraph: { message: "大きく身をかがめた", multiplier: 2, cooldownTurns: 3 },
     bossGuaranteedDrop: "oonebosukeDust",
   },
+  {
+    // 第二地方: 忘れ潮の湿地(design/regions.md 7〜12階)。巨大なツブテガエル。
+    // HPが半分を切ると深みタイルに身を潜める2フェーズ制(plan/region-boss-nushigaeru.md)
+    id: "nushigaeru",
+    name: "ヌシガエル",
+    model: "tsubute",
+    maxHp: 68,
+    atk: 20,
+    def: 8,
+    exp: 55,
+    ai: "ranged",
+    range: 4,
+    minFloor: Number.POSITIVE_INFINITY,
+    weight: 0,
+    isRegionBoss: true,
+    bossTelegraph: {
+      message: "水面が大きく揺れた",
+      multiplier: 2,
+      cooldownTurns: 3,
+      activateBelowHpRatio: 0.5,
+    },
+    bossGuaranteedDrop: "nushigaeruUroko",
+    hidesInQuagmire: true,
+  },
 
   // ---- plan/monster-compendium.md: 地方別の新種 ----
   // 新規3Dモデルは今回のスコープでは制作せず、既存モデルを色違いの発想で
@@ -379,12 +403,13 @@ export function speciesForDepth(depth: number): Species[] {
 
 /**
  * 地方ボス(plan/region-bosses.md)。表の寝穴(MAIN_CAVE_ID)で、その階の
- * 地方の最終階(6階目)にだけ専用に配置する種族id。design/regions.mdは
- * 8地方(6階ごと、48階)を想定するが、8地方の床構造自体は未実装のため、
- * 現行の表の寝穴(10階)にそのまま収まる第一地方の6階だけを実装する
+ * 地方の最終階(6階目)にだけ専用に配置する種族id。design/regions.mdの
+ * 8地方(6階ごと、48階)は`plan/region-expansion.md`で実装済み。
+ * 残り6地方のボスは未実装のため、実装済みの2体ぶんだけを登録する
  */
 export const REGION_BOSS_FLOORS: Readonly<Record<number, string>> = {
   6: "oonebosuke",
+  12: "nushigaeru",
 };
 
 /**
@@ -392,4 +417,4 @@ export const REGION_BOSS_FLOORS: Readonly<Record<number, string>> = {
  * 腕試しの間で使う)。REGION_BOSS_FLOORSの値と同じ集合だが、
  * 表の寝穴の具体的な階数とは切り離した「出現順」だけの一覧にする
  */
-export const REGION_BOSS_ORDER: readonly string[] = ["oonebosuke"];
+export const REGION_BOSS_ORDER: readonly string[] = ["oonebosuke", "nushigaeru"];

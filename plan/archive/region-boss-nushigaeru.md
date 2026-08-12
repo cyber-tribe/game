@@ -1,3 +1,33 @@
+> **実装済み。**
+> `src/core/types.ts`(`Species.bossTelegraph.activateBelowHpRatio` /
+> `Species.hidesInQuagmire` を追加)、`src/entities/ai.ts`
+> (`decideMonsterAction` のボス分岐に `activateBelowHpRatio` 判定を追加)、
+> `src/entities/species.ts`(`nushigaeru` を追加、`REGION_BOSS_FLOORS[12]` /
+> `REGION_BOSS_ORDER` に登録)、`src/items/catalog.ts`
+> (`nushigaeruUroko` を追加)、`src/game.ts` に実装した。
+> テストは `tests/region-boss-nushigaeru.test.ts`(12件)。
+>
+> 実装時の判断:
+> - **モデル**: 新規3Dモデルは作らず、本文書が許容していた妥協案どおり
+>   `tsubute` をそのまま(色調変更もせず)流用した。`oonebosuke` が
+>   `purun` を丸ごと流用した前例に合わせた判断。
+> - **STATUS_INVISIBLEの実際の効果範囲**: 本文書は「既存の判定
+>   `hasStatus(target, STATUS_INVISIBLE)` がそのまま効く」と想定していたが、
+>   実装時に調査したところ既存の `STATUS_INVISIBLE` は
+>   `src/entities/ai.ts` の `attemptSight`(モンスターがプレイヤーを
+>   発見できるかの判定)にしか効いておらず、プレイヤーからモンスターへの
+>   近接攻撃を防ぐ効果は存在しなかった。そのため `resolvePlayerAttack`
+>   (`src/game.ts`)に、対象が `STATUS_INVISIBLE` を持つ場合は攻撃が
+>   空振りする分岐を新規に追加した。
+> - **Statusのturnsの寿命**: 深みタイルの上で毎ターン `turns` を
+>   上書きする際、本文書どおり `1` にすると、同じ `command()` 呼び出し内で
+>   直後に走る `upkeep()` の `tickStatuses()` が即座に0まで減らして
+>   ステータスを消してしまい、次のプレイヤーターン開始時点(その日の
+>   `resolvePlayerCommand` が自分の `runActors` より前に判定するタイミング)
+>   では既に効果が切れているというバグがあった。`turns: 2` を設定する
+>   ことで、1回の `tickStatuses()` を挟んでも `turns > 0` を維持し、
+>   次ターン開始時点でも有効な状態を保てるようにした。
+
 # 第二地方ボス: ヌシガエル
 
 `plan/archive/region-bosses.md` が定義した地方ボスの共通仕様

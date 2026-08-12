@@ -1284,6 +1284,12 @@ export class Game {
       const target = actorAt(this.floor, pos);
       if (!target || target.id === player.id || seen.has(target.id)) continue;
       if (!isHostile(player, target)) continue;
+      // 地方ボス(plan/region-boss-nushigaeru.md): 深みに隠れている間は
+      // 姿を晦ませていて、近接攻撃が空振りする
+      if (hasStatus(target, STATUS_INVISIBLE)) {
+        events.push({ type: "message", text: `${displayActorName(target)}の姿が見えず、攻撃が空を切った。` });
+        continue;
+      }
       seen.add(target.id);
       hitAny = true;
       this.attack(player, target, totalAttack(player), events, { critBonus, forceCrit });
@@ -1919,6 +1925,22 @@ export class Game {
           this.damageActor(target, finalDamage, critical, events);
           break;
         }
+      }
+
+      // 地方ボス(plan/region-boss-nushigaeru.md): 深みタイルの上にいる間、
+      // 毎ターンSTATUS_INVISIBLEを付与し直す。深みタイルを離れれば次の
+      // upkeepで自然にturnsが尽きて解ける
+      if (
+        actor.alive &&
+        actor.speciesId &&
+        speciesById(actor.speciesId).hidesInQuagmire &&
+        tileAt(this.floor, actor.pos)?.quagmire
+      ) {
+        // upkeepのtickStatusesが同じcommand内で直後に走りturnsを1減らすため、
+        // 2を設定して次ターン開始時点でも生存させる(1だとその場で0になり消える)
+        const existing = actor.statuses.find((s) => s.kind === STATUS_INVISIBLE);
+        if (existing) existing.turns = 2;
+        else actor.statuses.push({ kind: STATUS_INVISIBLE, turns: 2 });
       }
     }
   }

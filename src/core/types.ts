@@ -152,9 +152,24 @@ export interface Species {
    */
   isRegionBoss?: boolean;
   /** 地方ボスの予兆つきの大技。隣接して初めて発動条件を見るため、発動条件そのものはActor側で管理する */
-  bossTelegraph?: { message: string; multiplier: number; cooldownTurns: number };
+  bossTelegraph?: {
+    message: string;
+    multiplier: number;
+    cooldownTurns: number;
+    /**
+     * 地方ボス(plan/region-boss-nushigaeru.md)。maxHpに対するこの割合まで
+     * HPが減るまでは予兆→大技のサイクルに入らない。省略時は1(常に有効。
+     * oonebosukeのような単一フェーズのボスと完全互換)
+     */
+    activateBelowHpRatio?: number;
+  };
   /** 地方ボスを撃破すると確定ドロップする、その地方限定の素材のdefId */
   bossGuaranteedDrop?: string;
+  /**
+   * 地方ボス(plan/region-boss-nushigaeru.md)。深みタイル(plan/wetland-
+   * quagmire.md)の上にいる間、毎ターンSTATUS_INVISIBLEを自身に付与する
+   */
+  hidesInQuagmire?: boolean;
 }
 
 /** あうんの呼吸(plan/ally-field-gimmicks.md)。障害物が要求する仲間の性質 */

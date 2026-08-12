@@ -431,6 +431,17 @@ export const ITEMS: readonly ItemDef[] = [
     weight: 0,
     description: "うたたねの参道の主を倒した証。ゲンドの工房でも珍しがられる、上質な粉。",
   },
+  {
+    // 地方ボス(plan/region-boss-nushigaeru.md)を撃破した確定ドロップ専用。
+    // ランダムな床落ちには出さない(minFloor: Infinity・weight: 0で除外)
+    id: "nushigaeruUroko",
+    name: "ヌシガエルのうろこ",
+    category: "material",
+    model: "herb",
+    minFloor: Number.POSITIVE_INFINITY,
+    weight: 0,
+    description: "忘れ潮の湿地の主を倒した証。水を弾く、分厚くしなやかなうろこ。",
+  },
 
   // ---- 頭防具(plan/protagonist-equipment.md) ----
   {
