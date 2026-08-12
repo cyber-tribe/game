@@ -22,6 +22,7 @@ import {
   checkAchievements,
   checkEquipmentCompendium,
   clearRunSnapshot,
+  developVillage,
   fromStored,
   fuseMonsters,
   isCompendiumComplete,
@@ -169,6 +170,10 @@ class App {
       },
       (uid) => {
         this.save = releaseCompanion(this.save, uid);
+        this.town.refreshSave(this.save);
+      },
+      () => {
+        this.save = developVillage(this.save);
         this.town.refreshSave(this.save);
       },
     );

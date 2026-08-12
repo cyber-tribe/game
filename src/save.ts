@@ -7,6 +7,12 @@ import { MAX_RECENT_FUSION_MATERIALS, tryEvolve } from "./entities/evolution";
 import { HOKORA_DUST_DEF_ID, MARKS, MAX_PLUS } from "./entities/forging";
 import { MAX_ACTIVE_QUESTS, QUESTS, questDef, questsForDate } from "./entities/quests";
 import type { TrainingFocus } from "./entities/player";
+import {
+  canDevelopVillage,
+  hutCapacity,
+  nextVillageStageRequirement,
+  type VillageStage,
+} from "./entities/village";
 import { MAX_SKILLS, NATIVE_SKILL_BY_SPECIES, SKILLS, fullSkillSet } from "./entities/skills";
 import { SPECIES } from "./entities/species";
 import type { StoredMonster } from "./entities/storedMonster";
@@ -119,6 +125,11 @@ export interface SaveData {
    * (上限のあるダンジョンと単純比較できないため)
    */
   nightlyDreamBestDepth: number;
+  /**
+   * 村の発展(plan/village-development.md)。既定は1(始まりの村)。
+   * ねむり小屋の収容数上限(hutCapacity)はここから算出する
+   */
+  villageStage: VillageStage;
 }
 
 /** "seen": 遭遇した。"captured": タルで捕まえた、または夢あわせの糧にした */
@@ -168,6 +179,7 @@ export function initialSave(): SaveData {
     activeQuests: [],
     completedQuestIds: [],
     nightlyDreamBestDepth: 0,
+    villageStage: 1,
   };
 }
 
@@ -201,6 +213,7 @@ export function loadSave(): SaveData {
       activeQuests: sanitizeActiveQuests(parsed.activeQuests),
       completedQuestIds: sanitizeQuestIdList(parsed.completedQuestIds),
       nightlyDreamBestDepth: Math.max(0, numberOr(parsed.nightlyDreamBestDepth, 0)),
+      villageStage: sanitizeVillageStage(parsed.villageStage),
     };
   } catch {
     // 壊れた保存データで起動できなくなるほうが困るので、黙って初期値に戻す
@@ -260,6 +273,23 @@ export function setDifficulty(current: SaveData, difficulty: DifficultyMode): Sa
   return next;
 }
 
+/**
+ * 村の発展(plan/village-development.md)。次の段階の条件(最深到達記録・
+ * ゴールド)を満たしていなければ何もしない
+ */
+export function developVillage(current: SaveData): SaveData {
+  if (!canDevelopVillage(current.villageStage, current.deepest, current.gold)) return current;
+  const requirement = nextVillageStageRequirement(current.villageStage);
+  if (!requirement) return current;
+  const next: SaveData = {
+    ...current,
+    villageStage: requirement.stage,
+    gold: current.gold - requirement.cost,
+  };
+  saveData(next);
+  return next;
+}
+
 export function recordRun(
   current: SaveData,
   result: {
@@ -288,11 +318,16 @@ export function recordRun(
   },
 ): SaveData {
   let nextHutUid = current.nextHutUid;
-  const newlyStored: StoredMonster[] = (result.broughtBackAllies ?? []).map((actor) => {
-    const stored = actorToStoredMonster(nextHutUid, actor);
-    nextHutUid++;
-    return stored;
-  });
+  // 村の発展(plan/village-development.md): ねむり小屋の収容数上限を超える分は
+  // 連れ帰れない(小屋がいっぱいならそのぶんは夢の中に置いてくる)
+  const remainingHutCapacity = Math.max(0, hutCapacity(current.villageStage) - current.hut.length);
+  const newlyStored: StoredMonster[] = (result.broughtBackAllies ?? [])
+    .slice(0, remainingHutCapacity)
+    .map((actor) => {
+      const stored = actorToStoredMonster(nextHutUid, actor);
+      nextHutUid++;
+      return stored;
+    });
 
   const next: SaveData = {
     deepest: Math.max(current.deepest, result.depth),
@@ -331,6 +366,7 @@ export function recordRun(
       result.dungeonId === NIGHTLY_DREAM_ID
         ? Math.max(current.nightlyDreamBestDepth, result.depth)
         : current.nightlyDreamBestDepth,
+    villageStage: current.villageStage,
   };
   // 依頼板(plan/quest-board.md): 受注中の依頼を判定し、達成していれば報酬を渡して外す
   const withQuests = resolveQuests(next, result);
@@ -981,4 +1017,8 @@ function sanitizeDifficulty(value: unknown): DifficultyMode {
   return typeof value === "string" && (DIFFICULTY_MODES as readonly string[]).includes(value)
     ? (value as DifficultyMode)
     : "normal";
+}
+
+function sanitizeVillageStage(value: unknown): VillageStage {
+  return value === 1 || value === 2 || value === 3 || value === 4 ? value : 1;
 }
