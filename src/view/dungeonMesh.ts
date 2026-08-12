@@ -264,7 +264,13 @@ export class DungeonView {
       alive.add(ground.item.uid);
       let view = this.itemViews.get(ground.item.uid);
       if (!view) {
-        view = this.assets.instantiate(itemDef(ground.item.defId).model).root;
+        // 背景で読み込み中のモデルは、届いた次のターンに拾う(syncItems は毎ターン走る)
+        const model = itemDef(ground.item.defId).model;
+        if (!this.assets.has(model)) {
+          this.assets.loadInBackground([model]);
+          continue;
+        }
+        view = this.assets.instantiate(model).root;
         this.itemViews.set(ground.item.uid, view);
         this.itemGroup.add(view);
       }
@@ -286,7 +292,12 @@ export class DungeonView {
       const shouldShow = trap.revealed && (tile?.explored ?? false);
       let view = this.trapViews.get(key);
       if (shouldShow && !view) {
-        view = this.assets.instantiate(TRAP_MODELS[trap.kind]).root;
+        const model = TRAP_MODELS[trap.kind];
+        if (!this.assets.has(model)) {
+          this.assets.loadInBackground([model]);
+          continue;
+        }
+        view = this.assets.instantiate(model).root;
         view.position.copy(toWorld(trap.pos));
         this.trapViews.set(key, view);
         this.trapGroup.add(view);

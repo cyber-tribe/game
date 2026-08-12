@@ -90,6 +90,14 @@ export class Stage {
       if (!actor.alive) continue;
       present.add(actor.id);
       if (!this.views.has(actor.id)) {
+        // モデルは起動時に一部だけ読み、残りは背景で追いかけている
+        // (src/modelList.ts の essentialModelNames 参照)。まだ届いていない
+        // ものはこの回を飛ばす。syncActors は毎ターン呼ばれるので、届いた
+        // 次のターンにここで拾われる
+        if (!this.assets.has(actor.model)) {
+          this.assets.loadInBackground([actor.model]);
+          continue;
+        }
         // 小ネタ・遊び心(plan/flavor-and-dialogue.md): 種族ごとの待機仕草の再生速度
         const idleSpeedMul = actor.speciesId ? (speciesById(actor.speciesId).idleSpeedMul ?? 1) : 1;
         const view = new ActorView(this.assets.instantiate(actor.model), actor.pos, actor.facing, idleSpeedMul);
