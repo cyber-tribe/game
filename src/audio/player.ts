@@ -28,12 +28,14 @@ async function defaultFetchAudio(url: string): Promise<ArrayBuffer> {
   return res.arrayBuffer();
 }
 
+// 手続き的な音声合成(plan/audio-synthesis.md): 実行環境にffmpeg/sox等の
+// エンコードツールが無いため、外部ツール無しで書き出せる.wavを使う
 export function bgmUrl(id: string, baseUrl = "audio/bgm"): string {
-  return `${baseUrl}/${id}.ogg`;
+  return `${baseUrl}/${id}.wav`;
 }
 
 export function sfxUrl(id: string, baseUrl = "audio/sfx"): string {
-  return `${baseUrl}/${id}.ogg`;
+  return `${baseUrl}/${id}.wav`;
 }
 
 export class AudioPlayer {

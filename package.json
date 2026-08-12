@@ -12,6 +12,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "models": "tools/venv/bin/python tools/build_models.py",
+    "audio": "node tools/audio/build.ts",
     "playtest": "node tools/playtest.mjs",
     "auto-tester": "node tools/auto-tester.mjs",
     "cap:sync": "npm run build && cap sync",
