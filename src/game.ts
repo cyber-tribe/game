@@ -57,6 +57,8 @@ import {
   createItem,
   createMonster,
   findFreeTile,
+  placeDecoyBarrels,
+  placeDecoyStairs,
   placeQuagmireTiles,
   placeSecretPassage,
   placeSporeRooms,
@@ -557,6 +559,12 @@ export class Game {
       placeTorrentTiles(this.rng, this.floor);
     }
 
+    // 第七地方(わすれられた祭りの跡)固有ギミック(plan/festival-mirage.md): 37〜42階に偽の階段・偽のタルを配置する
+    if (this.dungeon.id === MAIN_CAVE_ID && depth >= 37 && depth <= 42) {
+      placeDecoyStairs(this.rng, this.floor);
+      placeDecoyBarrels(this.rng, this.floor, this.ids);
+    }
+
     // 仲間は階段について来る。プレイヤーの周りの空いたマスに並べる
     for (const ally of this.allies) {
       const spot = this.freeSpotNear(start);
@@ -708,6 +716,13 @@ export class Game {
         return this.pickUp(events);
 
       case "descend": {
+        // 第七地方(わすれられた祭りの跡)固有ギミック(plan/festival-mirage.md): 偽の階段
+        const decoyIdx = this.floor.decoyStairsPositions?.findIndex((p) => eq(p, player.pos)) ?? -1;
+        if (decoyIdx >= 0) {
+          this.floor.decoyStairsPositions!.splice(decoyIdx, 1);
+          events.push({ type: "message", text: "――幻だったらしい。" });
+          return true;
+        }
         if (!eq(player.pos, this.floor.stairs)) {
           events.push({ type: "message", text: "ここには階段がない。" });
           return false;
@@ -862,6 +877,13 @@ export class Game {
     if (!barrel) {
       events.push({ type: "message", text: "持ち上げられるタルがない。" });
       return false;
+    }
+
+    // 第七地方(わすれられた祭りの跡)固有ギミック(plan/festival-mirage.md): 偽のタル
+    if (barrel.decoy) {
+      this.floor.barrels = this.floor.barrels.filter((b) => b.id !== barrel.id);
+      events.push({ type: "message", text: "――タルだと思ったが、幻だった。" });
+      return true;
     }
 
     this.floor.barrels = this.floor.barrels.filter((b) => b.id !== barrel.id);
