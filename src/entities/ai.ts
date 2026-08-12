@@ -45,7 +45,9 @@ export type MonsterAction =
   /** 地方ボス(plan/region-boss-honezuka.md)。予兆を消費し、隣接を問わず自分の部屋全体に封じを放つ */
   | { type: "boomAoeSeal" }
   /** 地方ボス(plan/region-boss-fuchinonushi.md)。予兆を消費し、自分の部屋の外周へ一時的に奔流を呼び込む */
-  | { type: "summonTorrent" };
+  | { type: "summonTorrent" }
+  /** 地方ボス(plan/region-boss-kodamanonushi.md)。予兆を消費し、HPを共有する分身を2体まで呼び出す */
+  | { type: "summonEcho" };
 
 /**
  * 指定した地点からの歩数を全マスぶん求めた距離場(いわゆるダイクストラマップ)。
@@ -274,7 +276,12 @@ export function decideMonsterAction(
     // 地方ボス(plan/region-bosses.md): 予兆つきの大技。1ターン警告してから、
     // 次に隣接して攻撃する手が必ず大技になる。既存のattack/telegraphの枠組みに
     // 乗せるだけで、専用の移動AIやUIは増やさない
-    const telegraph = monster.speciesId ? speciesById(monster.speciesId).bossTelegraph : undefined;
+    // 地方ボス(plan/region-boss-kodamanonushi.md): 分身(sharesHpWithを持つ)は
+    // 同じspeciesIdのbossTelegraphを継承してしまうため、予兆サイクルには入らせない
+    const telegraph =
+      monster.speciesId && monster.sharesHpWith === undefined
+        ? speciesById(monster.speciesId).bossTelegraph
+        : undefined;
     // 地方ボス(plan/region-boss-nushigaeru.md): HPがactivateBelowHpRatioを
     // 上回っている間はまだ予兆のサイクルに入らず、通常の攻撃で戦う
     if (telegraph && monster.hp <= monster.maxHp * (telegraph.activateBelowHpRatio ?? 1)) {
@@ -284,6 +291,7 @@ export function decideMonsterAction(
         if (telegraph.effect === "aoeSleep") return { type: "boomAoeSleep" };
         if (telegraph.effect === "aoeSeal") return { type: "boomAoeSeal" };
         if (telegraph.effect === "summonTorrent") return { type: "summonTorrent" };
+        if (telegraph.effect === "summonEcho") return { type: "summonEcho" };
         return { type: "attack", targetId: adjacent.id, empowered: true };
       }
       if (!monster.telegraphCooldown) {

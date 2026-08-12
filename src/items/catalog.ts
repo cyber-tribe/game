@@ -475,6 +475,17 @@ export const ITEMS: readonly ItemDef[] = [
     weight: 0,
     description: "なみだの滝つぼの主を倒した証。冷たく重い、水底の記憶を宿すうろこ。",
   },
+  {
+    // 地方ボス(plan/region-boss-kodamanonushi.md)を撃破した確定ドロップ専用。
+    // ランダムな床落ちには出さない(minFloor: Infinity・weight: 0で除外)
+    id: "kodamaNoKakera",
+    name: "こだまのかけら",
+    category: "material",
+    model: "herb",
+    minFloor: Number.POSITIVE_INFINITY,
+    weight: 0,
+    description: "こだまの尾根の主を倒した証。耳を近づけると、かすかに声の反響が聞こえる。",
+  },
 
   // ---- 頭防具(plan/protagonist-equipment.md) ----
   {

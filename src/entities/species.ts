@@ -247,6 +247,29 @@ export const SPECIES: readonly Species[] = [
     },
     bossGuaranteedDrop: "fuchiNoNushiNoUroko",
   },
+  {
+    // 第六地方: こだまの尾根(design/regions.md 31〜36階)。物音がよく響く
+    // 尾根に棲み着いた、繰り返す記憶そのもの。大技は状態異常でも地形でも
+    // なく、HPを共有する分身を2体まで呼び出す(plan/region-boss-kodamanonushi.md)
+    id: "kodamaNoNushi",
+    name: "こだまの主",
+    model: "gajiri",
+    maxHp: 76,
+    atk: 31,
+    def: 13,
+    exp: 95,
+    ai: "melee",
+    minFloor: Number.POSITIVE_INFINITY,
+    weight: 0,
+    isRegionBoss: true,
+    bossTelegraph: {
+      message: "声がいくつにも重なって聞こえはじめた",
+      multiplier: 1,
+      cooldownTurns: 4,
+      effect: "summonEcho",
+    },
+    bossGuaranteedDrop: "kodamaNoKakera",
+  },
 
   // ---- plan/monster-compendium.md: 地方別の新種 ----
   // 新規3Dモデルは今回のスコープでは制作せず、既存モデルを色違いの発想で
@@ -473,7 +496,7 @@ export function speciesForDepth(depth: number): Species[] {
  * 地方ボス(plan/region-bosses.md)。表の寝穴(MAIN_CAVE_ID)で、その階の
  * 地方の最終階(6階目)にだけ専用に配置する種族id。design/regions.mdの
  * 8地方(6階ごと、48階)は`plan/region-expansion.md`で実装済み。
- * 残り3地方のボスは未実装のため、実装済みの5体ぶんだけを登録する
+ * 残り2地方のボスは未実装のため、実装済みの6体ぶんだけを登録する
  */
 export const REGION_BOSS_FLOORS: Readonly<Record<number, string>> = {
   6: "oonebosuke",
@@ -481,6 +504,7 @@ export const REGION_BOSS_FLOORS: Readonly<Record<number, string>> = {
   18: "oomadoromi",
   24: "honezukaNoNushi",
   30: "fuchiNoNushi",
+  36: "kodamaNoNushi",
 };
 
 /**
@@ -494,4 +518,5 @@ export const REGION_BOSS_ORDER: readonly string[] = [
   "oomadoromi",
   "honezukaNoNushi",
   "fuchiNoNushi",
+  "kodamaNoNushi",
 ];

@@ -1,3 +1,45 @@
+> **実装済み。**
+> `src/core/types.ts`(`Actor.sharesHpWith?: number` を追加。
+> `Species.bossTelegraph.effect` に `"summonEcho"` を追加)、
+> `src/entities/ai.ts`(`MonsterAction` に `{ type: "summonEcho" }` を
+> 追加。ボス分岐で `effect === "summonEcho"` のときは `summonEcho` を
+> 返す。分身自身は `bossTelegraph` を継承してしまうため、
+> `monster.sharesHpWith === undefined` のときだけ予兆サイクルに入る
+> よう明示的にガードした)、`src/entities/species.ts`
+> (`kodamaNoNushi` を追加、`REGION_BOSS_FLOORS[36]` /
+> `REGION_BOSS_ORDER` に登録)、`src/items/catalog.ts`
+> (`kodamaNoKakera` を追加)、`src/game.ts` に実装した。
+> テストは `tests/region-boss-kodamanonushi.test.ts`(13件)。
+>
+> `src/game.ts` の実装詳細:
+> - `hpOwnerOf(actor)`: `sharesHpWith` があれば紐づく本体の `Actor` を
+>   返す(未設定ならそのまま)。
+> - `damageActor` の冒頭で `hpOwnerOf` を通し、以降の増減・ふんばり判定・
+>   `killActor` 呼び出しはすべて本体側の `Actor` に対して行う(本文書の
+>   指示どおり)。ダメージイベント自体は実際に殴られた対象(分身の可能性
+>   あり)の `actorId` で発行し、`hpAfter` には共有HPの新しい値を積む。
+> - `mirrorSharedHp(owner)`: 本体のhpを、紐づく分身全員の `hp`
+>   フィールドへコピーする(表示用。増減判定には使わない、という
+>   本文書の方針どおり)。
+> - `killActor` の末尾に、本体が倒れたときに紐づく分身も同時に
+>   `alive: false` にする処理を追加(通常の `killActor` 処理は分身側に
+>   通さず、経験値・ドロップの重複を避ける)。
+> - `"summonEcho"` ケース: 生存中の分身数を数え、2体に満たなければ
+>   `freeSpotNear`(既存の仲間追従などで使われている、周囲の空きマス
+>   探索ヘルパー)で本体の隣接マスに補充する。攻撃力は本体の50%
+>   (`Math.round(actor.atk * 0.5)`)。
+>
+> 実装時に見つけた注意点(本文書に明記はなかったが対処が必要だった箇所):
+> 分身は本体と`speciesId`が同じため、`bossTelegraph`をそのまま参照すると
+> 分身自身も独立して予兆→大技のサイクルに入ってしまう(分身がさらに
+> 分身を呼ぼうとする、など)。`decideMonsterAction`側で
+> `monster.sharesHpWith === undefined`のときだけ`bossTelegraph`を有効に
+> する条件を追加し、分身は常に素の近接攻撃だけを行うようにした。
+>
+> モデルは新規制作せず、第六地方雑魚最上位種`yamabikogitsune`と同じ
+> `gajiri`を流用した。HP・攻撃力・防御力は`yamabikogitsune`
+> (HP40・atk24・def10)を基準に共通仕様で算出した(HP76・atk31・def13)。
+
 # 第六地方ボス: こだまの主
 
 `plan/archive/region-bosses.md` の共通仕様の上に、第六地方(こだまの
