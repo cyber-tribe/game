@@ -91,6 +91,7 @@ function setupOpenFloor(game: Game, size = 16): void {
     items: [],
     traps: [],
     barrels: [],
+    goldPiles: [],
   };
   game.floor = floor;
   game.player.pos = { x: size >> 1, y: size >> 1 };

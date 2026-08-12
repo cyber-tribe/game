@@ -68,6 +68,21 @@ export const SPECIES: readonly Species[] = [
     minFloor: 6,
     weight: 4,
   },
+  {
+    // plan/shops-and-thieves.md: 近道屋の強欲さが夢に映り込んでできた、
+    // 寄生的な夢のかけら。新規モデルは未制作のため、既存のgajiriモデルを
+    // 流用する(毒罠がtrap_damageモデルを流用しているのと同じ考え方)
+    id: "surigarasu",
+    name: "スリガラス",
+    model: "gajiri",
+    maxHp: 8,
+    atk: 4,
+    def: 1,
+    exp: 10,
+    ai: "thief",
+    minFloor: 5,
+    weight: 4,
+  },
 ];
 
 const BY_ID = new Map(SPECIES.map((s) => [s.id, s]));

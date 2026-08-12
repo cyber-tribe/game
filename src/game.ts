@@ -200,6 +200,8 @@ const BARREL_RANGE = 8;
 const BARREL_DAMAGE = 8;
 /** 爆発タルの威力と巻き込む範囲 */
 const BOMB_DAMAGE = 22;
+/** スリガラス(plan/shops-and-thieves.md)が盗みを成功させる確率 */
+const THIEF_STEAL_CHANCE = 0.4;
 const BOMB_RADIUS = 1;
 
 /** 夢あわせ(plan/monster-fusion.md)で得た特技を持っているか */
@@ -243,6 +245,12 @@ export class Game {
 
   /** そのフロアのモンスターハウスについて、もう警告を出したか */
   private monsterHouseWarned = false;
+
+  /**
+   * 近道屋の出店で万引きしたことがあるか(plan/shops-and-thieves.md)。
+   * 一度でもすると、そのラン中ずっと以後の出店の売値が割高になる
+   */
+  private shopWary = false;
 
   /** 双樽鉤の「そのラン最初の1手は必ず会心」がまだ使われていないか */
   private firstStrikeAvailable = true;
@@ -349,7 +357,7 @@ export class Game {
     this.floor.actors.push(this.player);
     const boostedItemDefId =
       charmDefId(this.player.inventory) === "dustLureSachet" ? "hokoraDust" : undefined;
-    populateFloor(this.rng, this.floor, this.ids, start, boostedItemDefId);
+    populateFloor(this.rng, this.floor, this.ids, start, boostedItemDefId, this.shopWary);
 
     // 仲間は階段について来る。プレイヤーの周りの空いたマスに並べる
     for (const ally of this.allies) {
@@ -923,17 +931,49 @@ export class Game {
     events.push({ type: "move", actorId: player.id, from, to });
 
     this.checkTrap(to, events);
+    this.collectGold(to, events);
+    this.checkShoplifting(from, to, events);
     this.announceGround(to, events);
     this.checkMonsterHouseWarning(to, events);
     return true;
   }
 
+  /** 床に落ちている金貨(plan/shops-and-thieves.md)を、踏んだ瞬間に自動で拾う */
+  private collectGold(pos: Vec2, events: GameEvent[]): void {
+    const idx = this.floor.goldPiles.findIndex((g) => eq(g.pos, pos));
+    if (idx < 0) return;
+    const [pile] = this.floor.goldPiles.splice(idx, 1);
+    this.player.gold += pile!.amount;
+    events.push({ type: "message", text: `${pile!.amount}ゴールドを拾った。` });
+  }
+
+  /**
+   * 近道屋の出店(plan/shops-and-thieves.md)。未払いのまま持ち出した品を
+   * 持ったまま部屋の外へ出ると万引き扱いになり、店主が豹変する。
+   * 以後そのラン中は、新しく出会う出店すべてが最初から警戒状態(割高)になる
+   */
+  private checkShoplifting(from: Vec2, to: Vec2, events: GameEvent[]): void {
+    const shopRoom = this.floor.rooms.find((r) => r.kind === "shop");
+    if (!shopRoom || !roomContains(shopRoom, from) || roomContains(shopRoom, to)) return;
+    const hasUnpaid = this.player.inventory.items.some((i) => i.unpaid);
+    if (!hasUnpaid) return;
+
+    for (const item of this.player.inventory.items) item.unpaid = false;
+    this.shopWary = true;
+    const keeper = this.floor.actors.find(
+      (a) => a.alive && a.aiKind === "shopkeeper" && roomContains(shopRoom, a.pos),
+    );
+    if (keeper) keeper.angry = true;
+    events.push({ type: "message", text: "万引きだ! 店主が豹変した!" });
+  }
+
   private announceGround(pos: Vec2, events: GameEvent[]): void {
     const ground = this.floor.items.find((gi) => eq(gi.pos, pos));
     if (ground) {
+      const price = ground.forSale ? `(${ground.forSale.price}ゴールド)` : "";
       events.push({
         type: "message",
-        text: `${itemDef(ground.item.defId).name}が落ちている。`,
+        text: `${itemDef(ground.item.defId).name}${price}が落ちている。`,
       });
     }
     if (eq(pos, this.floor.stairs)) {
@@ -1010,6 +1050,21 @@ export class Game {
     if (hitAny && pattern === "heavySingle") {
       addStatus(this.effectContext(events), player, STATUS_RECOVER, HEAVY_RECOVER_TURNS, "隙ができた");
     }
+  }
+
+  /** スリガラス(plan/shops-and-thieves.md)の盗み。成功率は控えめにし、盗む額もほどほどに留める */
+  private attemptSteal(thief: Actor, target: Actor, events: GameEvent[]): void {
+    thief.facing = dirFromDelta(target.pos.x - thief.pos.x, target.pos.y - thief.pos.y);
+    events.push({ type: "attack", attackerId: thief.id, targetId: target.id });
+    const gold = this.player.gold;
+    if (gold <= 0 || !this.rng.chance(THIEF_STEAL_CHANCE)) {
+      events.push({ type: "message", text: `${displayActorName(thief)}は何も盗めなかった。` });
+      return;
+    }
+    const stolen = Math.max(1, Math.round(gold * this.rng.float(0.2, 0.5)));
+    this.player.gold -= stolen;
+    thief.stolenGold = stolen;
+    events.push({ type: "message", text: `${displayActorName(thief)}に${stolen}ゴールド盗まれた!` });
   }
 
   private attack(
@@ -1166,6 +1221,15 @@ export class Game {
     }
 
     events.push({ type: "message", text: `${displayActorName(target)}をたおした!` });
+    // スリガラス(plan/shops-and-thieves.md): 盗品を持ったまま倒すと、その場に落とす
+    if (target.aiKind === "thief" && target.stolenGold !== undefined) {
+      this.floor.goldPiles.push({
+        id: this.ids.nextItemUid(),
+        pos: { ...target.pos },
+        amount: target.stolenGold,
+      });
+      events.push({ type: "message", text: "盗まれた金を取り戻した!" });
+    }
     const exp = target.exp ?? 0;
     if (exp > 0) {
       const levels = gainExp(this.player, exp, this.trainingFocus);
@@ -1196,8 +1260,25 @@ export class Game {
     }
     const [ground] = this.floor.items.splice(idx, 1);
     const item = ground!.item;
-    addItem(this.player.inventory, item);
     const name = itemDef(item.defId).name;
+    // 近道屋の出店(plan/shops-and-thieves.md)の売り物: 払えれば自動で購入する。
+    // 足りなければ、未払いのまま持ち出したことになる(店の外へ出ると万引き扱い)
+    if (ground!.forSale) {
+      const price = ground!.forSale.price;
+      if (this.player.gold >= price) {
+        this.player.gold -= price;
+        addItem(this.player.inventory, item);
+        events.push({ type: "pickup", actorId: this.player.id, itemUid: item.uid, name });
+        events.push({ type: "message", text: `${name}を${price}ゴールドで買った。` });
+      } else {
+        item.unpaid = true;
+        addItem(this.player.inventory, item);
+        events.push({ type: "pickup", actorId: this.player.id, itemUid: item.uid, name });
+        events.push({ type: "message", text: `お金が足りない……${name}をだまって持ち出した。` });
+      }
+      return true;
+    }
+    addItem(this.player.inventory, item);
     events.push({ type: "pickup", actorId: this.player.id, itemUid: item.uid, name });
     events.push({ type: "message", text: `${name}をひろった。` });
     events.push({ type: "tutorialTip", id: "pickup" });
@@ -1466,10 +1547,26 @@ export class Game {
           break;
         case "move":
           this.moveActor(actor, action.dir, events);
+          // スリガラス(plan/shops-and-thieves.md): 盗んだあと、プレイヤーの
+          // 視界から外れると、盗んだ金ごと消える
+          if (
+            actor.alive &&
+            actor.aiKind === "thief" &&
+            actor.stolenGold !== undefined &&
+            !isVisible(this.floor, actor.pos)
+          ) {
+            actor.alive = false;
+            this.floor.actors = this.floor.actors.filter((a) => a.id !== actor.id);
+          }
           break;
         case "attack": {
           const target = this.floor.actors.find((a) => a.id === action.targetId && a.alive);
-          if (target) this.attack(actor, target, actor.atk, events);
+          if (!target) break;
+          if (actor.aiKind === "thief" && actor.stolenGold === undefined) {
+            this.attemptSteal(actor, target, events);
+          } else {
+            this.attack(actor, target, actor.atk, events);
+          }
           break;
         }
         case "ranged": {
