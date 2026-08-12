@@ -11,11 +11,13 @@ import {
   type SkillId,
   type Species,
   type TrapKind,
+  TILE_WALL,
   actorAt,
   barrelAt,
   isWalkable,
   roomContains,
   roomOf,
+  tileAt,
 } from "../core/types";
 import { bondBonus } from "../entities/companionBond";
 import { shopPrice } from "../entities/shop";
@@ -236,6 +238,8 @@ export function populateFloor(
    * 一切行わず、この種族を1体だけ配置する(ボス部屋には道中の雑魚を混ぜない)
    */
   bossSpeciesId?: string,
+  /** 忘れ物蔵(plan/lost-and-found-vault.md)。野生モンスターの湧き数に掛ける倍率 */
+  monsterCountMultiplier = 1,
 ): void {
   const gimmick = floor.gimmick;
   const tableDepth = Math.max(1, floor.depth + speciesDepthOffset);
@@ -255,7 +259,7 @@ export function populateFloor(
     }
   } else {
     const pool = speciesForDepth(tableDepth);
-    const baseMonsterCount = Math.min(12, 4 + Math.floor(floor.depth / 2));
+    const baseMonsterCount = Math.round(Math.min(12, 4 + Math.floor(floor.depth / 2)) * monsterCountMultiplier);
     const monsterCount =
       gimmick === "silence"
         ? 0
@@ -494,4 +498,32 @@ export function spawnWanderingMonster(
   if (floor.gimmick === "alert") monster.aware = true;
   floor.actors.push(monster);
   return monster;
+}
+
+/**
+ * 忘れ物蔵(plan/lost-and-found-vault.md)の隠し通路。通常の部屋(店・
+ * モンスターハウスは除く)の壁に1本だけ、隠し通路の候補を配置する。
+ * 適切な壁が見つからなければ何もしない(そのダイブではその地方の
+ * 隠し通路が出現しない、という程度の軽い失敗を許容する)。
+ */
+export function placeSecretPassage(rng: Rng, floor: FloorState, regionId: string): void {
+  const rooms = floor.rooms.filter((r) => r.kind === undefined);
+  for (let attempt = 0; attempt < 40 && rooms.length > 0; attempt++) {
+    const room = rng.pick(rooms);
+    const x = rng.int(room.x, room.x + room.w - 1);
+    const y = rng.int(room.y, room.y + room.h - 1);
+    const candidates: Vec2[] = [
+      { x: x - 1, y },
+      { x: x + 1, y },
+      { x, y: y - 1 },
+      { x, y: y + 1 },
+    ];
+    for (const pos of candidates) {
+      const tile = tileAt(floor, pos);
+      if (tile && tile.kind === TILE_WALL) {
+        floor.secretPassages.push({ pos, regionId, hinted: false });
+        return;
+      }
+    }
+  }
 }

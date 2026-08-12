@@ -86,6 +86,7 @@ describe("dungeon/visibility.ts: updateVisibility", () => {
       barrels: [],
       goldPiles: [],
       fieldObstacles: [],
+      secretPassages: [],
     };
     const viewer = { x: 10, y: 10 };
     updateVisibility(floor, viewer, 0);
@@ -174,6 +175,7 @@ describe("dungeon/populate.ts: ほこら粉寄せの匂い袋(populateFloorのbo
         barrels: [],
         goldPiles: [],
         fieldObstacles: [],
+        secretPassages: [],
       };
       populateFloor(new Rng(seed), floorPlain, makeIds(), { x: 0, y: 0 });
       plainCount += floorPlain.items.filter((gi) => gi.item.defId === "healLeaf").length;

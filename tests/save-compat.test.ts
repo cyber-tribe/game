@@ -7,6 +7,7 @@ import v4 from "./fixtures/save/v4-multi-dungeon-and-village.json";
 import v5 from "./fixtures/save/v5-costumes.json";
 import v6 from "./fixtures/save/v6-hidden-dungeon.json";
 import v7 from "./fixtures/save/v7-village-life.json";
+import v8 from "./fixtures/save/v8-lost-and-found-vault.json";
 
 /**
  * セーブデータの後方互換チェック(plan/save-compat-testing.md)。
@@ -205,7 +206,7 @@ describe("save-compat: v6-hidden-dungeon(腕試しの間導入後、村の暮ら
   });
 });
 
-describe("save-compat: v7-village-life(村の暮らし導入後、現行の全フィールド)", () => {
+describe("save-compat: v7-village-life(村の暮らし導入後、忘れ物蔵導入以前)", () => {
   it("すべてのフィールドが保持される", () => {
     withMockedLocalStorage(v7, () => {
       const loaded = loadSave();
@@ -218,6 +219,31 @@ describe("save-compat: v7-village-life(村の暮らし導入後、現行の全�
       expect(loaded.hut).toEqual(v7.hut);
       expect(loaded.compendium).toEqual(v7.compendium);
       expect(loaded.achievements).toEqual(v7.achievements);
+    });
+  });
+
+  it("忘れ物蔵(lost-and-found-vault.md)導入以前は既定値のまま", () => {
+    withMockedLocalStorage(v7, () => {
+      const loaded = loadSave();
+      expect(loaded.foundVaultPassages).toEqual(DEFAULTS.foundVaultPassages);
+    });
+  });
+});
+
+describe("save-compat: v8-lost-and-found-vault(忘れ物蔵導入後、現行の全フィールド)", () => {
+  it("すべてのフィールドが保持される", () => {
+    withMockedLocalStorage(v8, () => {
+      const loaded = loadSave();
+      expect(loaded.foundVaultPassages).toEqual(v8.foundVaultPassages);
+      expect(loaded.bonds).toEqual(v8.bonds);
+      expect(loaded.seenVillageEvents).toEqual(v8.seenVillageEvents);
+      expect(loaded.lastGiftDates).toEqual(v8.lastGiftDates);
+      expect(loaded.arenaRecords).toEqual(v8.arenaRecords);
+      expect(loaded.unlockedCostumes).toEqual(v8.unlockedCostumes);
+      expect(loaded.villageStage).toBe(v8.villageStage);
+      expect(loaded.hut).toEqual(v8.hut);
+      expect(loaded.compendium).toEqual(v8.compendium);
+      expect(loaded.achievements).toEqual(v8.achievements);
     });
   });
 });

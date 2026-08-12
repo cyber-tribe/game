@@ -1,5 +1,41 @@
 # 忘れ物蔵(わすれものぐら)
 
+> **実装済み。** `src/core/types.ts`(`SecretPassage`型、
+> `FloorState.secretPassages`)・`src/dungeon/populate.ts`
+> (`placeSecretPassage`、`populateFloor`に`monsterCountMultiplier`引数を
+> 追加)・`src/game.ts`(`enterFloor`で表の寝穴の地方2階目に隠し通路を
+> 配置、`movePlayer`にバンプ判定・崩壊処理、`checkSecretPassageHint`で
+> 隣接時の一言、`tickHunger`に`satietyDrainMul`適用)・`src/core/
+> events.ts`(`secretPassageFound`イベント新設)・`src/entities/
+> dungeons.ts`(`LOST_AND_FOUND_VAULT_ID`・`unlock`型への
+> `{ allPassagesFound: true }`追加・`DungeonDef.monsterCountMul`/
+> `satietyDrainMul`・`isDungeonUnlocked`に`foundPassageCount`引数追加)・
+> `src/save.ts`(`SaveData.foundVaultPassages`・`addFoundVaultPassage`)・
+> `src/ui/town.ts`(ダンジョン一覧の未解放表示に忘れ物蔵の進捗を追加)・
+> `src/main.ts`(`secretPassageFound`イベントの配線)。
+>
+> テストは `tests/lost-and-found-vault.test.ts`(新規12件)。既存の
+> `tests/ally-field-gimmicks.test.ts`等、`FloorState`を手組みしていた
+> 複数のテストに`secretPassages: []`を追加した。`npx tsc --noEmit`・
+> `npx vitest run`(570件全て通過)・`npm run build`を確認済み。
+>
+> 実装にあたって次の判断をした。
+>
+> - **`Tile.secretPassage`ではなく、既存の`FieldObstacle`
+>   (`plan/archive/ally-field-gimmicks.md`)と同じ「フロア単位の配列
+>   (`FloorState.secretPassages`)+`pos`」というパターンを採用した。**
+>   本文が例示した`Tile`拡張よりも、実際にこのコードベースで既に
+>   使われている特殊地形の実装パターンに揃えた。
+>   `isCheckpointFloor`と同様、`plan/region-expansion.md`の
+>   `REGION_SIZE`を使って地方境界を判定している。
+> - **崩壊確率25%はそのまま採用**、忘れ物蔵自体(モンスター数半減・
+>   満腹度1.5倍)の具体的な地形生成(部屋割り等)は既存の
+>   `generateFloor`をそのまま流用し、専用の固定間取りは作らなかった
+>   (`monsterCountMul`/`satietyDrainMul`という汎用の倍率だけで表現)。
+> - **忘れ物蔵内部の報酬(刻印石・ほこら粉)専用のドロップテーブルは
+>   追加しなかった。** 既存の`itemsForDepth`のテーブルがそのまま
+>   使われる(本文の未決事項どおり、実装後の調整余地として残す)。
+
 `plan/archive/hidden-dungeon.md` が「①忘れ物蔵は実装しなかった」として
 見送っていた宿題に着手する。見送り理由(「8地方すべての隠し通路を
 1回ずつ見つける」という解放条件が前提とする8地方の床構造が未実装

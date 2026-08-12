@@ -19,6 +19,7 @@ import { TownScreen } from "./ui/town";
 import {
   abandonQuest,
   acceptQuest,
+  addFoundVaultPassage,
   addKnownCheckpoint,
   checkAchievements,
   checkEquipmentCompendium,
@@ -632,6 +633,9 @@ class App {
         this.diveHuntKills[event.speciesId] = (this.diveHuntKills[event.speciesId] ?? 0) + 1;
       }
       if (event.type === "checkpoint") this.diveReachedDepths.push(event.depth);
+      // 忘れ物蔵(plan/lost-and-found-vault.md): 隠し通路を見つけた瞬間に記録する。
+      // ダイブの結果によらず記録されるべき事実なので、checkpointと同じ扱いにする
+      if (event.type === "secretPassageFound") this.save = addFoundVaultPassage(this.save, event.regionId);
     }
 
     const changedFloor = this.game.depth !== beforeDepth;

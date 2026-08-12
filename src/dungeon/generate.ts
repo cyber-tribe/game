@@ -150,6 +150,7 @@ function tryGenerate(
     goldPiles: [],
     gimmick,
     fieldObstacles: [],
+    secretPassages: [],
   };
 }
 

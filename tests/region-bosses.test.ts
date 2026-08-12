@@ -75,6 +75,7 @@ function emptyFloor(): FloorState {
     barrels: [],
     goldPiles: [],
     fieldObstacles: [],
+    secretPassages: [],
     tiles: Array.from({ length: width * height }, () => ({
       kind: "floor",
       explored: true,
