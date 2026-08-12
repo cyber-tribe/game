@@ -1,3 +1,28 @@
+> **実装済み。**
+> `src/entities/dungeons.ts`(`NIGHTLY_DREAM_OVERFLOW_LAP`・
+> `NIGHTLY_DREAM_LAP_MULTIPLIER`・`nightlyDreamStatMultiplier`を追加)、
+> `src/dungeon/populate.ts`(`populateFloor`に`statMultiplier`引数を追加し、
+> ボス・野生モンスター・群れ(swarm)の全生成箇所でmaxHp/atk/defに掛ける)、
+> `src/game.ts`(`this.dungeon.id === NIGHTLY_DREAM_ID`のときだけ
+> `nightlyDreamStatMultiplier(depth)`を計算して渡す)に実装した。
+> テストは `tests/nightly-dream-scaling.test.ts`(6件)。
+>
+> プランからの調整点:
+> - プラン本文が示したコード例(`laps = Math.floor((depth -
+>   MAIN_CAVE_MAX_DEPTH) / NIGHTLY_DREAM_OVERFLOW_LAP)`)は、同じ文書内の
+>   具体例表(「49〜60階: 倍率1.0」「61〜72階: 倍率1.15」)と食い違って
+>   いた(コード例だと60階の時点で既に1.15になってしまう)。具体例表を
+>   仕様として採用し、`laps = Math.floor((depth - MAIN_CAVE_MAX_DEPTH - 1)
+>   / NIGHTLY_DREAM_OVERFLOW_LAP)`に直して表どおりの境界にした。
+> - `difficultyMultiplier`(既存の難易度倍率)は`atk`にしか掛かって
+>   いなかったが、`statMultiplier`はプランの指示どおりmaxHp/atk/defの
+>   3値すべてに掛ける。両者は掛け算で併存する。
+> - `expには掛けない`はプランどおり厳守(`monster.exp`は種族値のまま)。
+> - `NIGHTLY_DREAM_OVERFLOW_LAP`(12)・`NIGHTLY_DREAM_LAP_MULTIPLIER`
+>   (0.15)の数値はプランの初期案をそのまま採用した(未決事項として
+>   明記されていたとおり、実測分布を見ての調整は今後の課題)。
+> - ドロップ率・金貨の深さ応じた増加はプランどおりスコープ外(未実装)。
+
 # 夜ごとの夢のモンスター強化カーブ
 
 `plan/archive/multiple-dungeons.md`が未決事項として残していた「夜ごとの

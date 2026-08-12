@@ -97,6 +97,30 @@ export function dungeonById(id: string): DungeonDef {
   return found;
 }
 
+/**
+ * 夜ごとの夢のモンスター強化カーブ(plan/nightly-dream-scaling.md)。
+ * 表の寝穴の最大深さ(MAIN_CAVE_MAX_DEPTH)を1周(12階=地方2つぶん)超える
+ * ごとに、モンスターのステータスに+15%ずつ乗数を掛ける。上限は設けない
+ * (「潜れるだけ潜って自己ベストを更新する」無限モードの性質上、意図的に
+ * 頭打ちにしない)。数値は初期案で、実測分布を見て調整する前提
+ */
+export const NIGHTLY_DREAM_OVERFLOW_LAP = 12;
+export const NIGHTLY_DREAM_LAP_MULTIPLIER = 0.15;
+
+/**
+ * maxHp/atk/defの3値に共通で掛ける倍率を返す。expには掛けない
+ * (design/balance-philosophy.mdのパワーバジェット方針――全滅時のロストが
+ * 唯一のブレーキ――を、経験値効率まで強化すると崩してしまうため)。
+ *
+ * 49〜60階(1周目)はまだ倍率1.0の猶予とし、61階目から+15%が乗る
+ * (depth - MAIN_CAVE_MAX_DEPTH - 1 を12で割った切り捨てが周回数になる)
+ */
+export function nightlyDreamStatMultiplier(depth: number): number {
+  if (depth <= MAIN_CAVE_MAX_DEPTH) return 1;
+  const laps = Math.floor((depth - MAIN_CAVE_MAX_DEPTH - 1) / NIGHTLY_DREAM_OVERFLOW_LAP);
+  return 1 + laps * NIGHTLY_DREAM_LAP_MULTIPLIER;
+}
+
 export function isDungeonUnlocked(
   dungeon: DungeonDef,
   deepest: number,

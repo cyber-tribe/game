@@ -241,6 +241,12 @@ export function populateFloor(
   bossSpeciesId?: string,
   /** 忘れ物蔵(plan/lost-and-found-vault.md)。野生モンスターの湧き数に掛ける倍率 */
   monsterCountMultiplier = 1,
+  /**
+   * 夜ごとの夢のモンスター強化カーブ(plan/nightly-dream-scaling.md)。
+   * maxHp/atk/defに掛ける倍率(nightlyDreamStatMultiplier)。難易度モードの
+   * monsterAtkMultiplierとは掛け算で併存する。expには掛けない
+   */
+  statMultiplier = 1,
 ): void {
   const gimmick = floor.gimmick;
   const tableDepth = Math.max(1, floor.depth + speciesDepthOffset);
@@ -255,7 +261,10 @@ export function populateFloor(
     });
     if (pos) {
       const boss = createMonster(ids.nextActorId(), species, pos);
-      boss.atk = Math.round(boss.atk * monsterAtkMultiplier);
+      boss.atk = Math.round(boss.atk * monsterAtkMultiplier * statMultiplier);
+      boss.maxHp = Math.round(boss.maxHp * statMultiplier);
+      boss.hp = boss.maxHp;
+      boss.def = Math.round(boss.def * statMultiplier);
       floor.actors.push(boss);
     }
   } else {
@@ -276,7 +285,10 @@ export function populateFloor(
       const species = rng.pickWeighted(pool, (s) => s.weight);
       const monster = createMonster(ids.nextActorId(), species, pos);
       if (gimmick === "alert") monster.aware = true;
-      monster.atk = Math.round(monster.atk * monsterAtkMultiplier);
+      monster.atk = Math.round(monster.atk * monsterAtkMultiplier * statMultiplier);
+      monster.maxHp = Math.round(monster.maxHp * statMultiplier);
+      monster.hp = monster.maxHp;
+      monster.def = Math.round(monster.def * statMultiplier);
       rollShining(rng, monster, shiningChanceMultiplier);
       floor.actors.push(monster);
 
@@ -294,7 +306,10 @@ export function populateFloor(
             placed.push(nearPos);
             const companion = createMonster(ids.nextActorId(), species, nearPos);
             if (gimmick === "alert") companion.aware = true;
-            companion.atk = Math.round(companion.atk * monsterAtkMultiplier);
+            companion.atk = Math.round(companion.atk * monsterAtkMultiplier * statMultiplier);
+            companion.maxHp = Math.round(companion.maxHp * statMultiplier);
+            companion.hp = companion.maxHp;
+            companion.def = Math.round(companion.def * statMultiplier);
             rollShining(rng, companion, shiningChanceMultiplier);
             floor.actors.push(companion);
           }
