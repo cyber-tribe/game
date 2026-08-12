@@ -153,6 +153,12 @@ describe("ゲーム進行", () => {
     expect(game.turnCount).toBe(before);
   });
 
+  it("#189: 向きを変えるだけでもfaceイベントを出す(表示側のモデル回転に使う)", () => {
+    const game = newGame();
+    const events = game.command({ type: "face", dir: 6 });
+    expect(events.some((e) => e.type === "face" && e.actorId === game.player.id && e.dir === 6)).toBe(true);
+  });
+
   it("階段の上でなければ降りられない", () => {
     const game = newGame();
     const depthBefore = game.depth;

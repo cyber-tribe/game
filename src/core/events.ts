@@ -1,4 +1,4 @@
-import type { Vec2 } from "./grid";
+import type { Dir, Vec2 } from "./grid";
 import type { TutorialTipId } from "./tutorial";
 import type { ActorKind, BarrelKind, StatusKind, TrapKind } from "./types";
 
@@ -9,6 +9,8 @@ import type { ActorKind, BarrelKind, StatusKind, TrapKind } from "./types";
 export type GameEvent =
   | { type: "move"; actorId: number; from: Vec2; to: Vec2 }
   | { type: "bump"; actorId: number; dir: Vec2 }
+  /** 移動を伴わずに向きだけ変える(Shift+方向) */
+  | { type: "face"; actorId: number; dir: Dir }
   | { type: "attack"; attackerId: number; targetId: number }
   | { type: "damage"; actorId: number; amount: number; hpAfter: number; critical: boolean }
   | { type: "heal"; actorId: number; amount: number; hpAfter: number }

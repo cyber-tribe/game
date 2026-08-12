@@ -138,6 +138,11 @@ export class Stage {
           view?.faceTowards(event.dir.x, event.dir.y);
           break;
         }
+        case "face": {
+          const view = this.views.get(event.actorId);
+          view?.face(event.dir);
+          break;
+        }
         case "attack": {
           const attacker = this.views.get(event.attackerId);
           const target = floor.actors.find((a) => a.id === event.targetId);

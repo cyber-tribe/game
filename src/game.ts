@@ -724,6 +724,7 @@ export class Game {
     switch (cmd.type) {
       case "face":
         player.facing = cmd.dir;
+        events.push({ type: "face", actorId: player.id, dir: cmd.dir });
         return false;
 
       case "wait":
