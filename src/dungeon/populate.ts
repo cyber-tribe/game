@@ -1,5 +1,5 @@
 import type { Rng } from "../core/rng";
-import { type Vec2, chebyshev, eq } from "../core/grid";
+import { type Dir, type Vec2, chebyshev, eq } from "../core/grid";
 import {
   type Actor,
   type Barrel,
@@ -555,5 +555,36 @@ export function placeSporeRooms(rng: Rng, floor: FloorState): void {
     if (room.kind !== undefined) continue;
     if (roomContains(room, floor.stairs)) continue;
     if (rng.chance(SPORE_ROOM_CHANCE)) room.spored = true;
+  }
+}
+
+/**
+ * 第五地方(なみだの滝つぼ)固有ギミック(plan/waterfall-torrent.md)。部屋の
+ * 一部に、長辺方向へ揃えた奔流タイルの筋を1本通す。複雑な流路パズルは作らない
+ */
+const TORRENT_ROOM_CHANCE = 0.2;
+
+export function placeTorrentTiles(rng: Rng, floor: FloorState): void {
+  for (const room of floor.rooms) {
+    // 階段の部屋・出店・モンスターハウスには付与しない
+    if (room.kind !== undefined) continue;
+    if (roomContains(room, floor.stairs)) continue;
+    if (!rng.chance(TORRENT_ROOM_CHANCE)) continue;
+
+    const horizontal = room.w >= room.h;
+    const dir: Dir = horizontal ? (rng.chance(0.5) ? 2 : 6) : rng.chance(0.5) ? 4 : 0;
+    if (horizontal) {
+      const y = rng.int(room.y, room.y + room.h - 1);
+      for (let x = room.x; x < room.x + room.w; x++) {
+        const tile = tileAt(floor, { x, y });
+        if (tile && tile.kind === TILE_ROOM) tile.torrent = dir;
+      }
+    } else {
+      const x = rng.int(room.x, room.x + room.w - 1);
+      for (let y = room.y; y < room.y + room.h; y++) {
+        const tile = tileAt(floor, { x, y });
+        if (tile && tile.kind === TILE_ROOM) tile.torrent = dir;
+      }
+    }
   }
 }
