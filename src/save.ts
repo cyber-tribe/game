@@ -8,7 +8,9 @@ import { MAX_RECENT_FUSION_MATERIALS, tryEvolve } from "./entities/evolution";
 import { HOKORA_DUST_DEF_ID, MARKS, MAX_MARK_SLOTS, MAX_PLUS } from "./entities/forging";
 import { MAX_ACTIVE_QUESTS, QUESTS, questDef, questsForDate, todayKey } from "./entities/quests";
 import type { TrainingFocus } from "./entities/player";
-import { bondStage } from "./entities/companionBond";
+import { type BondStage, bondStage } from "./entities/companionBond";
+import { OTAMA_VISIT_STORY, type SideStoryDef, sideStoryFor } from "./entities/sideStories";
+import { storyChapter } from "./entities/story";
 import {
   VILLAGE_NPCS,
   canDevelopVillage,
@@ -1638,6 +1640,73 @@ export function giftMaterial(current: SaveData, npcId: VillageNpcId, defId: stri
 /** 村の暮らし(plan/village-life.md): NPCの絆段階が今の記録で新たに跨いだか確認するための補助 */
 export function villageNpcBondStage(current: SaveData, npcId: VillageNpcId): ReturnType<typeof bondStage> {
   return bondStage(current.bonds[npcId] ?? 0);
+}
+
+const BOND_STAGE_RANK: readonly BondStage[] = ["none", "familiar", "close", "irreplaceable"];
+
+/**
+ * NPCサイドストーリー第1弾(plan/side-stories-part1.md)。話しかけた結果、
+ * 新たに解放された一言があれば`message`を返す(無ければ従来どおり沈黙する)。
+ * モグラ婆・ゲンドは絆段階(+追加条件)、目覚めたおたまは訪問回数
+ * (seenVillageEventsの件数)で段が進む。それ以外のNPC(オトネ・おキヨ・
+ * ポチ、plan/side-stories-part2.md未実装)は従来どおり沈黙のまま
+ */
+export function talkToNpc(current: SaveData, npcId: VillageNpcId): { save: SaveData; message?: string } {
+  const story = sideStoryFor(npcId);
+  if (story) return talkSideStoryNpc(current, npcId, story);
+  if (npcId === "otama") return talkToOtama(current);
+  return { save: current };
+}
+
+function talkSideStoryNpc(
+  current: SaveData,
+  npcId: VillageNpcId,
+  story: SideStoryDef,
+): { save: SaveData; message?: string } {
+  const stage = bondStage(current.bonds[npcId] ?? 0);
+  let resolvedIndex = -1;
+  story.stages.forEach((s, i) => {
+    if (BOND_STAGE_RANK.indexOf(stage) < BOND_STAGE_RANK.indexOf(s.minBondStage)) return;
+    if (s.minDeepest !== undefined && current.deepest < s.minDeepest) return;
+    if (
+      s.requiredMaterialDefIds &&
+      !s.requiredMaterialDefIds.every((defId) => current.storage.some((item) => item.defId === defId))
+    ) {
+      return;
+    }
+    resolvedIndex = i;
+  });
+  if (resolvedIndex < 0) return { save: current };
+
+  const eventId = `sideStory:${npcId}:${resolvedIndex}`;
+  if (current.seenVillageEvents.includes(eventId)) return { save: current };
+
+  const resolvedStage = story.stages[resolvedIndex]!;
+  let next = markVillageEventSeen(current, eventId);
+  if (resolvedStage.rewardItemDefId) {
+    let storage = [...next.storage];
+    for (const defId of resolvedStage.requiredMaterialDefIds ?? []) {
+      const idx = storage.findIndex((item) => item.defId === defId);
+      if (idx >= 0) storage.splice(idx, 1);
+    }
+    storage = [...storage, { defId: resolvedStage.rewardItemDefId }];
+    next = { ...next, storage };
+  }
+  saveData(next);
+  return { save: next, message: resolvedStage.text };
+}
+
+function talkToOtama(current: SaveData): { save: SaveData; message?: string } {
+  const seenCount = current.seenVillageEvents.filter((id) => id.startsWith("sideStory:otama:")).length;
+  if (seenCount >= OTAMA_VISIT_STORY.length) return { save: current };
+  const stage = OTAMA_VISIT_STORY[seenCount]!;
+  if (stage.requiresStoryChapter3 && storyChapter(current.deepest, current.storyCleared) !== 3) {
+    return { save: current };
+  }
+  const eventId = `sideStory:otama:${seenCount}`;
+  const next = markVillageEventSeen(current, eventId);
+  saveData(next);
+  return { save: next, message: stage.text };
 }
 
 const VALID_REGION_IDS = new Set(Array.from({ length: 8 }, (_, i) => `region${i + 1}`));

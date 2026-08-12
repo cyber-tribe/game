@@ -343,6 +343,31 @@ export const ITEMS: readonly ItemDef[] = [
     description: "attack+12。振るった反動で、次の1手ぶん行動が遅れる。",
   },
 
+  // ---- NPCサイドストーリー(plan/side-stories-part1.md)の専用武器 ----
+  // ダンジョンでは拾えない(minFloor: Infinity・weight: 0)。性能は元の系統と同格で、
+  // 譲り受けるNPC・逸話が違うだけの専用個体
+  {
+    id: "mogurababaKeepsakeHatchet",
+    name: "モグラ婆の形見のなた",
+    category: "weapon",
+    model: "hatchet",
+    bonus: 4,
+    minFloor: Number.POSITIVE_INFINITY,
+    weight: 0,
+    description: "attack+4。隣接1マスを攻撃する。モグラ婆が若い頃に使っていたという、なたの形見。",
+  },
+  {
+    id: "gendoPhantomBillhook",
+    name: "まぼろしの大鉈",
+    category: "weapon",
+    model: "hatchet",
+    bonus: 3,
+    attackPattern: "arc3",
+    minFloor: Number.POSITIVE_INFINITY,
+    weight: 0,
+    description: "attack+3。向いている方向を中心に正面と斜め前2方向、計3マスを攻撃する。ゲンドが語っていた会心の一振りを再現したもの。",
+  },
+
   // ---- 盾 ----
   {
     id: "woodShield",
