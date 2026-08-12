@@ -11,6 +11,7 @@ import {
   type SkillId,
   type Species,
   type TrapKind,
+  TILE_ROOM,
   TILE_WALL,
   actorAt,
   barrelAt,
@@ -523,6 +524,23 @@ export function placeSecretPassage(rng: Rng, floor: FloorState, regionId: string
       if (tile && tile.kind === TILE_WALL) {
         floor.secretPassages.push({ pos, regionId, hinted: false });
         return;
+      }
+    }
+  }
+}
+
+/** 第二地方(忘れ潮の湿地)固有ギミック(plan/wetland-quagmire.md)。部屋タイルの一部を深みタイルにする */
+const QUAGMIRE_TILE_CHANCE = 0.25;
+
+export function placeQuagmireTiles(rng: Rng, floor: FloorState): void {
+  for (const room of floor.rooms) {
+    // 店・モンスターハウスの部屋には付与しない(安全地帯・商売の場を荒らさない)
+    if (room.kind !== undefined) continue;
+    for (let y = room.y; y < room.y + room.h; y++) {
+      for (let x = room.x; x < room.x + room.w; x++) {
+        if (!rng.chance(QUAGMIRE_TILE_CHANCE)) continue;
+        const tile = tileAt(floor, { x, y });
+        if (tile && tile.kind === TILE_ROOM) tile.quagmire = true;
       }
     }
   }

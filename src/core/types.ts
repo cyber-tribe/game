@@ -13,6 +13,12 @@ export interface Tile {
   explored: boolean;
   /** 今この瞬間に見えているか */
   visible: boolean;
+  /**
+   * 深みタイル(plan/wetland-quagmire.md)。第二地方(7〜12階)の部屋タイルの
+   * 一部に付与される。壁/部屋/通路の区別とは独立した属性なので、TileKind
+   * 自体は増やさない
+   */
+  quagmire?: boolean;
 }
 
 export function isWalkable(kind: TileKind): boolean {
