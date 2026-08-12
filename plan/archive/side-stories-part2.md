@@ -1,3 +1,43 @@
+> **実装済み。** `plan/side-stories-part1.md`が確立した`SideStoryDef`/
+> `talkToNpc`の枠組み(`src/entities/sideStories.ts`・`src/save.ts`)を
+> そのまま拡張し、オトネ・おキヨ・ポチの3人ぶんを追加した。
+> `SideStoryStage`に`minCompletedQuests`(オトネ第2段: 依頼板の累計
+> 達成件数`completedQuestIds.length`)・`minVillageStage`(オトネ第3段・
+> ポチ第3段)・`requiresCompendiumHalf`/`requiresCompendiumComplete`
+> (おキヨ第2・3段)・`minStoryChapter`(ポチ第2段)・`requiresStoryCleared`
+> (ポチ第4段)という条件フィールドを追加しただけで、判定ロジック本体
+> (`talkSideStoryNpc`)には手を加えていない(既存の「絆段階+複数条件の
+> AND」という枠組みがそのまま流用できた)。
+>
+> **未決事項だった各段の具体的なしきい値**は、実装時の判断で以下とした:
+> オトネ第2段=依頼達成10件・第3段=村段階3、おキヨ第2段=図鑑半分・
+> 第3段=図鑑コンプリート(`isCompendiumComplete`。`plan/true-awakening.md`
+> の実装で「はじめの夢」を判定対象から除く仕様になっているものをそのまま
+> 使う)、ポチ第2段=章立て(`storyChapter`)2以上・第3段=村段階2・
+> 第4段=`SaveData.storyCleared`。
+>
+> 専用道具2点(オトネの覚え帳・おキヨの見取り図)は、`src/game.ts`の
+> `useTool`に既存defId(`homesickRope`・`barrelAppraisal`)と同じcase
+> ブロックへのフォールスルーを足すだけで実装した(新規の効果ロジックは
+> 一切書いていない、文字どおり「効果は既存品と同格」)。
+>
+> ポチ第4段の報酬「ポチのおさがり半纏」は、既存の`CostumeUnlock`
+> (`compendiumComplete`・`villageStage`・`nightlyDreamDepth`のいずれも
+> 自動判定の汎用しきい値)には馴染まなかったため、新バリアント
+> `{ kind: "npcSideStory" }`を追加した。これは`isCostumeUnlocked`では
+> 常にfalseを返し(=`refreshUnlockedCostumes`による自動解放の対象外)、
+> `talkSideStoryNpc`が段の解放時に`SaveData.unlockedCostumes`へ直接
+> 追加する、という専用の付与経路にした。
+>
+> `flavorText`は`plan/side-stories-part1.md`と同じ理由(`plan/flavor-
+> and-dialogue.md`未実装)で見送り、`description`のみとした。
+>
+> テストは`tests/side-stories-part2.test.ts`(3人ぶんの段の解放条件・
+> 専用道具のuseTool動作・専用衣装の付与と自動解放されないことの確認)で
+> 検証。第1弾のテスト(`tests/side-stories-part1.test.ts`)にあった
+> 「第2弾未実装なので沈黙する」という2件のテストは、実装により前提が
+> 変わったため削除した。
+
 # NPCサイドストーリー深掘り(第2弾)
 
 `design/side-stories.md` が「今後の課題」として残していた、

@@ -1,9 +1,10 @@
 /**
- * NPCサイドストーリー 第1弾(plan/side-stories-part1.md)。
- * モグラ婆・ゲンドは絆段階(+一部は追加条件)で段が進む静的なカタログ。
- * 目覚めたおたまは絆と無関係に「会うたびに」進むため、別枠(OTAMA_VISIT_STORY)
- * で扱う。判定ロジック(SaveDataを見る部分)はsave.tsに置き、ここはデータのみ
- * (achievements.tsと同じ、循環importを避ける切り分け)
+ * NPCサイドストーリー 第1弾(plan/side-stories-part1.md)・第2弾(plan/
+ * side-stories-part2.md)。モグラ婆・ゲンド・オトネ・おキヨ・ポチは絆段階
+ * (+一部は追加条件)で段が進む静的なカタログ。目覚めたおたまは絆と無関係に
+ * 「会うたびに」進むため、別枠(OTAMA_VISIT_STORY)で扱う。判定ロジック
+ * (SaveDataを見る部分)はsave.tsに置き、ここはデータのみ(achievements.ts
+ * と同じ、循環importを避ける切り分け)
  */
 import type { BondStage } from "./companionBond";
 import type { VillageNpcId } from "./village";
@@ -12,11 +13,25 @@ export interface SideStoryStage {
   minBondStage: BondStage;
   /** 絆段階に加えて必要な最深到達記録。省略時は絆段階のみが条件 */
   minDeepest?: number;
+  /** オトネ第2段専用: 依頼板の累計達成件数(completedQuestIds.length) */
+  minCompletedQuests?: number;
+  /** オトネ第3段・ポチ第3段専用: 村の発展段階 */
+  minVillageStage?: number;
+  /** おキヨ第2段専用: 図鑑を半分以上「捕まえた」で埋めていること */
+  requiresCompendiumHalf?: boolean;
+  /** おキヨ第3段専用: 図鑑コンプリート(isCompendiumComplete)していること */
+  requiresCompendiumComplete?: boolean;
+  /** ポチ第2段専用: 到達済みの章立て(storyChapter)の下限 */
+  minStoryChapter?: number;
+  /** ポチ第4段専用: 物語クリア(SaveData.storyCleared)していること */
+  requiresStoryCleared?: boolean;
   /** ゲンドの最終段専用: 全部storageにあることが必要な素材defId(消費される) */
   requiredMaterialDefIds?: readonly string[];
   text: string;
-  /** この段で新たに譲り受ける専用武器のdefId(あれば) */
+  /** この段で新たに譲り受ける専用武器・道具のdefId(あれば) */
   rewardItemDefId?: string;
+  /** ポチ第4段専用: この段で新たに解放される衣装id(あれば) */
+  rewardCostumeId?: string;
 }
 
 export interface SideStoryDef {
@@ -65,6 +80,74 @@ export const SIDE_STORIES: readonly SideStoryDef[] = [
         requiredMaterialDefIds: ["hokoraDust", "markStoneGajiri"],
         text: "ゲンド「……よし、揃った。打ってやる、まぼろしの一振りを」",
         rewardItemDefId: "gendoPhantomBillhook",
+      },
+    ],
+  },
+  {
+    npcId: "otone",
+    title: "若い衆に譲れなかったもの",
+    stages: [
+      {
+        minBondStage: "familiar",
+        text: "オトネ「本当はもっと早く、顔役なんて退くつもりだったんだけどねえ」",
+      },
+      {
+        minBondStage: "close",
+        minCompletedQuests: 10,
+        text: "オトネ「以前、顔役を継がせようとした若いのがいてね……近道屋の噂を怖がって、村を出て行っちまった。それきり、次の担い手を探せずにいるのさ」",
+      },
+      {
+        minBondStage: "irreplaceable",
+        minVillageStage: 3,
+        text: "オトネ「……お前さんならって思ったこともあったんだけどね。でも今のお前は、樽守りの方が向いてるよ」",
+        rewardItemDefId: "otoneMemoBook",
+      },
+    ],
+  },
+  {
+    npcId: "okiyo",
+    title: "見失った尾っぽ",
+    stages: [
+      {
+        minBondStage: "familiar",
+        text: "おキヨ「昔、旅先で一度だけ見た夢のかけらがいてねえ。あれだけは、とうとう記録できなかった」",
+      },
+      {
+        minBondStage: "close",
+        requiresCompendiumHalf: true,
+        text: "おキヨ「あの子には、名前すらつけてやれなかった。それを探して各地を回った末に、ここネンネ村へ流れ着いたんだよ」",
+      },
+      {
+        minBondStage: "irreplaceable",
+        requiresCompendiumComplete: true,
+        text: "おキヨ「……これで、あの子もどこかに載っているはずだ。よかった」",
+        rewardItemDefId: "okiyoSketchMap",
+      },
+    ],
+  },
+  {
+    npcId: "pochi",
+    title: "見習いの見習い",
+    stages: [
+      {
+        minBondStage: "familiar",
+        text: "ポチ「おれもいつか、樽守りになりたいんだ!」",
+      },
+      {
+        minBondStage: "close",
+        minStoryChapter: 2,
+        text: "ポチ「見て見て、ガルドの真似!」――空のタルを抱えて洞窟の入り口をうろつくポチを、危ないからと窘める。",
+      },
+      {
+        minBondStage: "close",
+        minVillageStage: 2,
+        text: "ポチ「オトネさんに、お使いを任されたんだ!」――少し誇らしげな顔で報告してくる。",
+      },
+      {
+        minBondStage: "irreplaceable",
+        requiresStoryCleared: true,
+        text: "ポチ「今度は俺が、見習いになる番だ」――少し背が伸びたポチが、まっすぐな顔でそう宣言した。",
+        rewardCostumeId: "pochiHandMeDownHappi",
       },
     ],
   },

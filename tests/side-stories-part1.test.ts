@@ -14,10 +14,6 @@ describe("entities/sideStories.ts", () => {
     expect(sideStoryFor("gendo")).toBeDefined();
   });
 
-  it("第2弾のNPC(オトネ)はまだ登録されていない", () => {
-    expect(sideStoryFor("otone")).toBeUndefined();
-  });
-
   it("各段は絆段階の厳しさの昇順で並んでいる", () => {
     const rank = ["none", "familiar", "close", "irreplaceable"];
     for (const story of SIDE_STORIES) {
@@ -104,11 +100,6 @@ describe("save.ts: talkToNpc(plan/side-stories-part1.md)", () => {
     expect(next.storage.some((i) => i.defId === "healLeaf")).toBe(true);
   });
 
-  it("第2弾未実装のNPC(オトネ)は絆が高くても沈黙のまま", () => {
-    const save = withBond(initialSave(), "otone", 30);
-    const { message } = talkToNpc(save, "otone");
-    expect(message).toBeUndefined();
-  });
 });
 
 describe("save.ts: talkToNpc(目覚めたおたま、会うたびに進む)", () => {

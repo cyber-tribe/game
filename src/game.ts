@@ -2219,7 +2219,9 @@ export class Game {
         events.push({ type: "gameOver", reason: this.endReason });
         return true;
       }
-      case "barrelAppraisal": {
+      // おキヨの見取り図(plan/side-stories-part2.md): 効果は樽の目利きと同等
+      case "barrelAppraisal":
+      case "okiyoSketchMap": {
         const found = this.floor.barrels
           .filter((b) => b.kind === "caught" && b.speciesId && isVisible(this.floor, b.pos))
           .map((b) => speciesById(b.speciesId!).name);
@@ -2232,7 +2234,9 @@ export class Game {
         });
         return true;
       }
-      case "homesickRope": {
+      // オトネの覚え帳(plan/side-stories-part2.md): 効果は望郷の綱と同等
+      case "homesickRope":
+      case "otoneMemoBook": {
         let recalled = 0;
         for (const ally of this.allies) {
           if (!ally.alive) continue;

@@ -8,7 +8,13 @@ export type CostumeUnlock =
   | "always"
   | { kind: "compendiumComplete" }
   | { kind: "villageStage"; stage: number }
-  | { kind: "nightlyDreamDepth"; depth: number };
+  | { kind: "nightlyDreamDepth"; depth: number }
+  /**
+   * NPCサイドストーリー(plan/side-stories-part2.md)。汎用の自動判定
+   * (refreshUnlockedCostumes)には乗せず、対応するNPCと話した時点で
+   * src/save.tsのtalkToNpcが直接SaveData.unlockedCostumesへ追加する
+   */
+  | { kind: "npcSideStory" };
 
 export interface CostumeDef {
   id: string;
@@ -43,6 +49,13 @@ export const COSTUMES: readonly CostumeDef[] = [
     description: "夜ごとの夢を深くまで潜り抜けた者だけが纏える、紫にほのかに光る衣。",
     tint: [1.35, 0.5, 1.55],
     unlock: { kind: "nightlyDreamDepth", depth: 20 },
+  },
+  {
+    id: "pochiHandMeDownHappi",
+    name: "ポチのおさがり半纏",
+    description: "物語を歩んだ末、見習いになったポチから譲り受けた、少し丈の合わない半纏。",
+    tint: [1.4, 1.1, 0.4],
+    unlock: { kind: "npcSideStory" },
   },
 ];
 

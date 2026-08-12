@@ -662,6 +662,28 @@ export const ITEMS: readonly ItemDef[] = [
     weight: 3,
     description: "しばらくのあいだ、視界がぐっと広がる。くらやみの階でとくに頼りになる。",
   },
+
+  // ---- NPCサイドストーリー第2弾(plan/side-stories-part2.md)の専用道具 ----
+  // ダンジョンでは拾えない(minFloor: Infinity・weight: 0)。効果は既存品と同等で、
+  // 譲り受けるNPC・逸話が違うだけの専用個体(src/game.tsのuseToolで既存品と同じ処理に乗る)
+  {
+    id: "otoneMemoBook",
+    name: "オトネの覚え帳",
+    category: "tool",
+    model: "herb",
+    minFloor: Number.POSITIVE_INFINITY,
+    weight: 0,
+    description: "はぐれた仲間を、その場に強制的に呼び寄せる。オトネが村の者たちを見守ってきた覚え帳。",
+  },
+  {
+    id: "okiyoSketchMap",
+    name: "おキヨの見取り図",
+    category: "tool",
+    model: "herb",
+    minFloor: Number.POSITIVE_INFINITY,
+    weight: 0,
+    description: "視界内のモンスター入りのタルの中身を見分ける。おキヨが各地を巡って描き溜めた見取り図。",
+  },
 ];
 
 const BY_ID = new Map(ITEMS.map((i) => [i.id, i]));
