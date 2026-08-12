@@ -34,12 +34,14 @@ import {
   type StatusKind,
   type Trap,
   type WeaponPattern,
+  TILE_CORRIDOR,
   actorAt,
   barrelAt,
   hasStatus,
   isFree,
   isHostile,
   roomContains,
+  tileAt,
   walkableAt,
 } from "./core/types";
 import { type ArtId, artDef } from "./entities/arts";
@@ -53,6 +55,7 @@ import {
   createBarrel,
   createItem,
   findFreeTile,
+  placeSecretPassage,
   populateFloor,
   spawnWanderingMonster,
 } from "./dungeon/populate";
@@ -260,6 +263,9 @@ const BOMB_DAMAGE = 22;
 /** スリガラス(plan/shops-and-thieves.md)が盗みを成功させる確率 */
 const THIEF_STEAL_CHANCE = 0.4;
 const BOMB_RADIUS = 1;
+
+/** 忘れ物蔵(plan/lost-and-found-vault.md)。隠し壁へバンプするたびに崩れる確率 */
+const SECRET_PASSAGE_REVEAL_CHANCE = 0.25;
 
 /** あうんの呼吸(plan/ally-field-gimmicks.md)。障害物の前で表示するヒント文言 */
 const FIELD_SKILL_HINTS: Record<FieldSkillId, string> = {
@@ -494,7 +500,15 @@ export class Game {
       GOLD_REWARD_MULTIPLIER[this.difficulty],
       this.dungeon.floorOffset ?? 0,
       bossSpeciesId,
+      this.dungeon.monsterCountMul ?? 1,
     );
+
+    // 忘れ物蔵(plan/lost-and-found-vault.md): 表の寝穴の各地方の2階目
+    // (depth % REGION_SIZE === 2)にだけ、隠し通路の候補を1本配置する
+    if (this.dungeon.id === MAIN_CAVE_ID && depth % REGION_SIZE === 2) {
+      const regionIndex = Math.floor((depth - 1) / REGION_SIZE);
+      placeSecretPassage(this.rng, this.floor, `region${regionIndex + 1}`);
+    }
 
     // 仲間は階段について来る。プレイヤーの周りの空いたマスに並べる
     for (const ally of this.allies) {
@@ -1057,6 +1071,22 @@ export class Game {
       return true;
     }
 
+    // 忘れ物蔵(plan/lost-and-found-vault.md)の隠し通路。壁の姿のまま
+    // バンプするたびに確率で崩れて通路になる。無関係な壁は素通り扱い
+    const secretPassage = this.floor.secretPassages.find((s) => eq(s.pos, to));
+    if (secretPassage && !walkableAt(this.floor, to)) {
+      events.push({ type: "bump", actorId: player.id, dir: delta });
+      if (this.rng.chance(SECRET_PASSAGE_REVEAL_CHANCE)) {
+        const tile = tileAt(this.floor, to);
+        if (tile) tile.kind = TILE_CORRIDOR;
+        events.push({ type: "message", text: "壁が崩れ、道ができた!" });
+        events.push({ type: "secretPassageFound", regionId: secretPassage.regionId });
+      } else {
+        events.push({ type: "message", text: "壁を崩せそうな手ごたえがあった……" });
+      }
+      return false;
+    }
+
     if (!walkableAt(this.floor, to)) {
       events.push({ type: "bump", actorId: player.id, dir: delta });
       return false;
@@ -1113,7 +1143,22 @@ export class Game {
     this.checkShoplifting(from, to, events);
     this.announceGround(to, events);
     this.checkMonsterHouseWarning(to, events);
+    this.checkSecretPassageHint(to, events);
     return true;
+  }
+
+  /**
+   * 忘れ物蔵(plan/lost-and-found-vault.md)。隠し通路に初めて隣接した
+   * ターンにだけ、気配のヒントを1回出す。
+   */
+  private checkSecretPassageHint(pos: Vec2, events: GameEvent[]): void {
+    for (const secret of this.floor.secretPassages) {
+      if (secret.hinted) continue;
+      if (chebyshev(pos, secret.pos) <= 1) {
+        secret.hinted = true;
+        events.push({ type: "message", text: "――かすかに隙間の風を感じる。" });
+      }
+    }
   }
 
   /** 床に落ちている金貨(plan/shops-and-thieves.md)を、踏んだ瞬間に自動で拾う */
@@ -1935,7 +1980,14 @@ export class Game {
     const feastMultiplier = this.floor.gimmick === "feast" ? 0.5 : 1;
     // 満たされ石(plan/protagonist-equipment.md): 満腹度の減りが2割ゆるやかになる
     const charmMultiplier = charmDefId(player.inventory) === "fulfillingStone" ? 0.8 : 1;
-    const rate = SATIETY_PER_TURN * feastMultiplier * charmMultiplier * SATIETY_RATE_MULTIPLIER[this.difficulty];
+    // 忘れ物蔵(plan/lost-and-found-vault.md): 満腹度の減りがやや早い(長居できない蔵)
+    const dungeonMultiplier = this.dungeon.satietyDrainMul ?? 1;
+    const rate =
+      SATIETY_PER_TURN *
+      feastMultiplier *
+      charmMultiplier *
+      dungeonMultiplier *
+      SATIETY_RATE_MULTIPLIER[this.difficulty];
     player.satiety = Math.max(0, player.satiety - rate);
 
     if (before > 20 && player.satiety <= 20) {

@@ -53,6 +53,7 @@ function makeOpenFloor(): FloorState {
     barrels: [],
     goldPiles: [],
     fieldObstacles: [],
+    secretPassages: [],
   };
 }
 

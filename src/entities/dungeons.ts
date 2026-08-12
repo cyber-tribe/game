@@ -15,7 +15,11 @@ export interface DungeonDef {
    * 最深到達記録(SaveData.deepest)を進行度の代替指標として使う。
    * 腕試しの間(plan/hidden-dungeon.md)は、本文どおり村の発展段階を条件にする
    */
-  unlock: "always" | { minDeepest: number } | { minVillageStage: number };
+  unlock:
+    | "always"
+    | { minDeepest: number }
+    | { minVillageStage: number }
+    | { allPassagesFound: true };
   /** 出現モンスター・アイテムの抽選テーブルに足す深さのずれ */
   floorOffset?: number;
   /** モンスターハウス出現率に掛ける倍率 */
@@ -23,6 +27,10 @@ export interface DungeonDef {
   /** 近道屋の出店の出現率に掛ける倍率。指定した場合、ダンジョンの
    * 最終階に到達するまでに一度も出店が出ていなければ、最終階で必ず出す */
   shopRateMul?: number;
+  /** 忘れ物蔵(plan/lost-and-found-vault.md)。野生モンスターの湧き数に掛ける倍率 */
+  monsterCountMul?: number;
+  /** 忘れ物蔵(plan/lost-and-found-vault.md)。満腹度の減りに掛ける倍率 */
+  satietyDrainMul?: number;
 }
 
 import { REGION_BOSS_ORDER } from "./species";
@@ -38,6 +46,8 @@ export const REGION_SIZE = 6;
 export const NIGHTLY_DREAM_ID = "nightlyDream";
 /** 腕試しの間(plan/hidden-dungeon.md)。地方ボスの再戦だけで構成するボスラッシュ */
 export const TRIAL_CHAMBER_ID = "trialChamber";
+/** 忘れ物蔵(plan/lost-and-found-vault.md)。8地方の隠し通路をすべて見つけると解放される */
+export const LOST_AND_FOUND_VAULT_ID = "lostAndFoundVault";
 
 export const DUNGEONS: readonly DungeonDef[] = [
   {
@@ -70,6 +80,15 @@ export const DUNGEONS: readonly DungeonDef[] = [
     maxDepth: REGION_BOSS_ORDER.length,
     unlock: { minVillageStage: 4 },
   },
+  {
+    id: LOST_AND_FOUND_VAULT_ID,
+    name: "忘れ物蔵",
+    description: "誰の記憶とも紐づかない半端な品々が眠る、小さな蔵。",
+    maxDepth: 5,
+    unlock: { allPassagesFound: true },
+    monsterCountMul: 0.5,
+    satietyDrainMul: 1.5,
+  },
 ];
 
 export function dungeonById(id: string): DungeonDef {
@@ -78,8 +97,14 @@ export function dungeonById(id: string): DungeonDef {
   return found;
 }
 
-export function isDungeonUnlocked(dungeon: DungeonDef, deepest: number, villageStage: number): boolean {
+export function isDungeonUnlocked(
+  dungeon: DungeonDef,
+  deepest: number,
+  villageStage: number,
+  foundPassageCount = 0,
+): boolean {
   if (dungeon.unlock === "always") return true;
   if ("minDeepest" in dungeon.unlock) return deepest >= dungeon.unlock.minDeepest;
-  return villageStage >= dungeon.unlock.minVillageStage;
+  if ("minVillageStage" in dungeon.unlock) return villageStage >= dungeon.unlock.minVillageStage;
+  return foundPassageCount >= 8;
 }

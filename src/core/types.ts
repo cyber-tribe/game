@@ -376,6 +376,18 @@ export interface FieldObstacle {
   opened: boolean;
 }
 
+/**
+ * 忘れ物蔵(plan/lost-and-found-vault.md)の隠し通路。表の寝穴の各地方の
+ * 2階目に1本だけ配置される、壁の姿をした通路。隣接すると一度だけ気配の
+ * ヒントが出て(hinted)、その壁へ向かって移動しようとする(バンプする)
+ * たびに確率で崩れて通路になる
+ */
+export interface SecretPassage {
+  pos: Vec2;
+  regionId: string;
+  hinted: boolean;
+}
+
 // ---------------------------------------------------------------- 罠
 
 export type TrapKind = "damage" | "sleep" | "alarm" | "pitfall" | "poison";
@@ -451,6 +463,8 @@ export interface FloorState {
   gimmick?: FloorGimmickKind;
   /** あうんの呼吸(plan/ally-field-gimmicks.md)の障害物 */
   fieldObstacles: FieldObstacle[];
+  /** 忘れ物蔵(plan/lost-and-found-vault.md)の隠し通路。表の寝穴の地方の2階目にだけ生成される */
+  secretPassages: SecretPassage[];
 }
 
 export function tileAt(floor: FloorState, p: Vec2): Tile | undefined {

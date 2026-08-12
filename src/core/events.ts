@@ -51,7 +51,12 @@ export type GameEvent =
    * 初めて視界に入った種族について1回だけ発生する。セーブへの反映は
    * 呼び出し側(main.ts)が行う
    */
-  | { type: "monsterSighted"; speciesId: string };
+  | { type: "monsterSighted"; speciesId: string }
+  /**
+   * 忘れ物蔵(plan/lost-and-found-vault.md)の隠し通路を見つけた。
+   * セーブへの反映(SaveData.foundVaultPassages)は呼び出し側(main.ts)が行う
+   */
+  | { type: "secretPassageFound"; regionId: string };
 
 /** メッセージイベントを作るだけの短縮。呼び出し側の見通しのため */
 export function msg(text: string): GameEvent {

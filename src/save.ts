@@ -151,6 +151,8 @@ export interface SaveData {
   seenVillageEvents: string[];
   /** 村の暮らし: NPCのid → 最後に素材を渡した日付キー(YYYY-MM-DD)。1日1回の献上制限に使う */
   lastGiftDates: Record<string, string>;
+  /** 忘れ物蔵(plan/lost-and-found-vault.md)。見つけた隠し通路の地方id("region1"〜"region8")。削除されない */
+  foundVaultPassages: string[];
 }
 
 /** 腕試しの間(plan/hidden-dungeon.md)。踏破1回ぶんの記録 */
@@ -218,6 +220,7 @@ export function initialSave(): SaveData {
     bonds: {},
     seenVillageEvents: [],
     lastGiftDates: {},
+    foundVaultPassages: [],
   };
 }
 
@@ -262,6 +265,7 @@ export function loadSave(): SaveData {
       bonds: sanitizeBonds(parsed.bonds),
       seenVillageEvents: sanitizeStringList(parsed.seenVillageEvents),
       lastGiftDates: sanitizeLastGiftDates(parsed.lastGiftDates),
+      foundVaultPassages: sanitizeFoundVaultPassages(parsed.foundVaultPassages),
     };
   } catch {
     // 壊れた保存データで起動できなくなるほうが困るので、黙って初期値に戻す
@@ -479,6 +483,7 @@ export function recordRun(
     bonds: current.bonds,
     seenVillageEvents: current.seenVillageEvents,
     lastGiftDates: current.lastGiftDates,
+    foundVaultPassages: current.foundVaultPassages,
   };
   // 依頼板(plan/quest-board.md): 受注中の依頼を判定し、達成していれば報酬を渡して外す
   const withQuests = resolveQuests(next, result);
@@ -1236,4 +1241,21 @@ export function giftMaterial(current: SaveData, npcId: VillageNpcId, defId: stri
 /** 村の暮らし(plan/village-life.md): NPCの絆段階が今の記録で新たに跨いだか確認するための補助 */
 export function villageNpcBondStage(current: SaveData, npcId: VillageNpcId): ReturnType<typeof bondStage> {
   return bondStage(current.bonds[npcId] ?? 0);
+}
+
+const VALID_REGION_IDS = new Set(Array.from({ length: 8 }, (_, i) => `region${i + 1}`));
+
+/** 忘れ物蔵(plan/lost-and-found-vault.md): 既知の地方idだけを残す */
+function sanitizeFoundVaultPassages(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const found = new Set(value.filter((v): v is string => typeof v === "string" && VALID_REGION_IDS.has(v)));
+  return [...found];
+}
+
+/** 忘れ物蔵(plan/lost-and-found-vault.md): 隠し通路を見つけた記録を追加する。重複しない */
+export function addFoundVaultPassage(current: SaveData, regionId: string): SaveData {
+  if (!VALID_REGION_IDS.has(regionId) || current.foundVaultPassages.includes(regionId)) return current;
+  const next = { ...current, foundVaultPassages: [...current.foundVaultPassages, regionId] };
+  saveData(next);
+  return next;
 }
