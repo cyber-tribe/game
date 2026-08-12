@@ -17,6 +17,11 @@ const LIT = new THREE.Color(1.0, 1.0, 1.0);
 const REMEMBERED = new THREE.Color(0.40, 0.43, 0.56);
 const HIDDEN_MATRIX = new THREE.Matrix4().makeScale(0, 0, 0);
 
+/** applyVisibility が覚えておく状態。まだ一度も反映していないことを表す値と、その内訳 */
+const UNSEEN = 255;
+const EXPLORED_BIT = 1;
+const VISIBLE_BIT = 2;
+
 /**
  * フロアの地形と、床に置かれているものの表示。
  *
@@ -31,6 +36,12 @@ export class DungeonView {
   /** インスタンス番号 → そのマスのタイル配列上の添字 */
   private wallIndex: number[] = [];
   private floorIndex: number[] = [];
+  /**
+   * 前回反映したときの explored / visible。変わったマスだけ書き直すために持つ。
+   * bit0 = explored、bit1 = visible。UNSEEN は「まだ一度も反映していない」
+   */
+  private wallState = new Uint8Array(0);
+  private floorState = new Uint8Array(0);
 
   private readonly stairsGroup = new THREE.Group();
   private readonly itemGroup = new THREE.Group();
@@ -69,6 +80,8 @@ export class DungeonView {
     this.floors = this.makeInstanced("floor", floorCells.length, floor, floorCells, 0);
     this.wallIndex = wallCells;
     this.floorIndex = floorCells;
+    this.wallState = new Uint8Array(wallCells.length).fill(UNSEEN);
+    this.floorState = new Uint8Array(floorCells.length).fill(UNSEEN);
 
     const stairs = this.assets.instantiate("stairs").root;
     stairs.position.copy(toWorld(floor.stairs));
@@ -79,8 +92,8 @@ export class DungeonView {
 
   /** 毎ターン呼ぶ。視界に応じた明るさと、落ちているものの増減を反映する */
   refresh(floor: FloorState): void {
-    this.applyVisibility(this.walls, this.wallIndex, floor);
-    this.applyVisibility(this.floors, this.floorIndex, floor);
+    this.applyVisibility(this.walls, this.wallIndex, floor, this.wallState);
+    this.applyVisibility(this.floors, this.floorIndex, floor, this.floorState);
 
     const stairsTile = tileAt(floor, floor.stairs);
     this.stairsGroup.visible = stairsTile?.explored ?? false;
@@ -160,28 +173,54 @@ export class DungeonView {
     return mesh;
   }
 
+  /**
+   * 視界に応じて、各マスの位置と明るさを反映する。
+   *
+   * 毎ターン全インスタンスを書き直して両方のバッファを送り直すと、
+   * 通路を1マス歩いただけでも行列(1728×16 float ≒ 110KB)と色を丸ごと
+   * GPU に再アップロードすることになる。実際に変わるのは数マスなので、
+   * 前回との差分だけを書き、変化が無ければ送信自体を省く。
+   *
+   * 行列が変わるのは explored が反転したときだけ(隠す ⇔ 出す)で、
+   * 色は visible が変わるたびに要る。分けて管理する。
+   */
   private applyVisibility(
     mesh: THREE.InstancedMesh | null,
     cells: readonly number[],
     floor: FloorState,
+    previous: Uint8Array,
   ): void {
     if (!mesh) return;
     const matrix = new THREE.Matrix4();
+    let matrixChanged = false;
+    let colorChanged = false;
     for (let i = 0; i < cells.length; i++) {
       const cell = cells[i]!;
       const tile = floor.tiles[cell]!;
-      if (!tile.explored) {
-        mesh.setMatrixAt(i, HIDDEN_MATRIX);
-        continue;
+      const state = (tile.explored ? EXPLORED_BIT : 0) | (tile.visible ? VISIBLE_BIT : 0);
+      const before = previous[i]!;
+      if (before === state) continue;
+      previous[i] = state;
+
+      // 隠す・出すが切り替わったときだけ行列を書く
+      if ((before & EXPLORED_BIT) !== (state & EXPLORED_BIT) || before === UNSEEN) {
+        if (tile.explored) {
+          const x = cell % floor.width;
+          const y = (cell - x) / floor.width;
+          matrix.makeTranslation(x * TILE, 0, y * TILE);
+          mesh.setMatrixAt(i, matrix);
+        } else {
+          mesh.setMatrixAt(i, HIDDEN_MATRIX);
+        }
+        matrixChanged = true;
       }
-      const x = cell % floor.width;
-      const y = (cell - x) / floor.width;
-      matrix.makeTranslation(x * TILE, 0, y * TILE);
-      mesh.setMatrixAt(i, matrix);
-      mesh.setColorAt(i, tile.visible ? LIT : REMEMBERED);
+      if (tile.explored) {
+        mesh.setColorAt(i, tile.visible ? LIT : REMEMBERED);
+        colorChanged = true;
+      }
     }
-    mesh.instanceMatrix.needsUpdate = true;
-    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    if (matrixChanged) mesh.instanceMatrix.needsUpdate = true;
+    if (colorChanged && mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
   }
 
   /** 4近傍のどれかが歩けるマスなら、その壁は視界に入りうる */

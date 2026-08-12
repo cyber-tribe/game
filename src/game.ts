@@ -749,7 +749,12 @@ export class Game {
       if (this.status === "playing") this.resolveActorOverlaps(events, posBeforeCommand);
     }
 
-    updateVisibility(this.floor, this.player.pos, this.visionExtraRange());
+    // 視界の計算は全マス(48×36)を一度なめる。ターンが進まず、しかも
+    // プレイヤーが動いてもいないなら見え方は変わらないので、その場合は省く
+    // (向きだけ変える・壁に向かって歩こうとした、など)
+    if (consumedTurn || !eq(posBeforeCommand, this.player.pos)) {
+      updateVisibility(this.floor, this.player.pos, this.visionExtraRange());
+    }
     this.checkCompendiumSightings(events);
     return events;
   }
@@ -2098,7 +2103,11 @@ export class Game {
     const towardsFriendly = buildDistanceField(this.floor, friendlyPositions);
     const towardsFoe =
       foePositions.length > 0 ? buildDistanceField(this.floor, foePositions) : null;
-    const towardsLeader = buildDistanceField(this.floor, this.player.pos);
+    // プレイヤーへ向かう距離場は仲間だけが使う。仲間は最大2体で、連れていない
+    // ことのほうが多いので、実際に必要になるまで作らない
+    let leaderField: Int32Array | null = null;
+    const towardsLeader = (): Int32Array =>
+      (leaderField ??= buildDistanceField(this.floor, this.player.pos));
 
     // 行動中に配列が変化しても安全なようにコピーしてから回す
     const movers = this.floor.actors.filter((a) => alive(a) && a.kind !== "player");
@@ -2120,8 +2129,8 @@ export class Game {
               this.floor,
               actor,
               this.player,
-              towardsFoe ?? towardsLeader,
-              towardsLeader,
+              towardsFoe ?? towardsLeader(),
+              towardsLeader(),
             )
           : decideMonsterAction(this.rng, this.floor, actor, this.player, towardsFriendly);
 

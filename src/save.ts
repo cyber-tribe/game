@@ -1,5 +1,5 @@
 import { TUTORIAL_TIP_IDS, type TutorialTipId } from "./core/tutorial";
-import type { Actor, Item, MarkId, SkillId } from "./core/types";
+import type { Actor, FloorState, Item, MarkId, SkillId, Tile } from "./core/types";
 import { ACHIEVEMENTS, achievementDef } from "./entities/achievements";
 import { COSTUMES, DEFAULT_COSTUME_ID, type CostumeDef } from "./entities/costumes";
 import { DIFFICULTY_MODES, type DifficultyMode } from "./entities/difficulty";
@@ -274,10 +274,48 @@ export function loadSave(): SaveData {
 }
 
 export function saveData(data: SaveData): void {
+  if (batchDepth > 0) {
+    // まとめ書きの最中。最後の1つだけが本物なので、上書きしていく
+    pendingSave = data;
+    return;
+  }
+  writeSave(data);
+}
+
+function writeSave(data: SaveData): void {
   try {
     localStorage.setItem(KEY, JSON.stringify(data));
   } catch {
     // 保存できなくても遊べはするので、失敗は握りつぶす
+  }
+}
+
+let batchDepth = 0;
+let pendingSave: SaveData | null = null;
+
+/**
+ * 中で何度 saveData() が呼ばれても、書き込みは最後の1回にまとめる。
+ *
+ * 記録まわりの関数(addKnownCheckpoint / markSpeciesSeen / …)はどれも
+ * 「新しい SaveData を返しつつ自分で保存する」作りになっている。1ターンの
+ * イベントを処理すると、新しい部屋に入って未見の敵を何体か見た、といった
+ * 場合にこれらが立て続けに走り、そのたびにセーブ全体を JSON 化して
+ * localStorage へ同期書き込みしてしまう。呼び出し側でまとめられるように、
+ * ここで一段挟んでおく。
+ *
+ * 途中で例外が出ても、それまでの変更は書き出す(finally)。
+ */
+export function batchSaves<T>(run: () => T): T {
+  batchDepth++;
+  try {
+    return run();
+  } finally {
+    batchDepth--;
+    if (batchDepth === 0 && pendingSave !== null) {
+      const data = pendingSave;
+      pendingSave = null;
+      writeSave(data);
+    }
   }
 }
 
@@ -1074,7 +1112,7 @@ function sanitizeTutorialTips(value: unknown): TutorialTipId[] {
  */
 export function saveRunSnapshot(snapshot: RunSnapshot): void {
   try {
-    localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(snapshot));
+    localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(packSnapshot(snapshot)));
   } catch {
     // オートセーブが書き込めなくても遊べはするので、失敗は握りつぶす
   }
@@ -1084,16 +1122,144 @@ export function saveRunSnapshot(snapshot: RunSnapshot): void {
  * 残っているスナップショットを読む。壊れている・形が合わない場合は
  * 復帰できるものが無かったものとして null を返す(1回限りの保証なので、
  * 中途半端な状態を無理に復元するより諦めた方が安全)。
+ *
+ * 保存形式が変わったあとに残っていた古いスナップショットも、ここで
+ * 「形が合わないもの」として捨てられる。ダイブ中の一時状態なので、
+ * 移行を書くより拠点から始め直してもらう方が安全で単純。
  */
 export function loadRunSnapshot(): RunSnapshot | null {
   try {
     const raw = localStorage.getItem(SNAPSHOT_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<RunSnapshot>;
-    return isValidSnapshot(parsed) ? parsed : null;
+    const unpacked = unpackSnapshot(JSON.parse(raw) as PackedSnapshot);
+    if (!unpacked) return null;
+    return isValidSnapshot(unpacked) ? unpacked : null;
   } catch {
     return null;
   }
+}
+
+// ---- スナップショットの保存形式 ----
+//
+// タイル格子をそのまま JSON にすると、1マスあたり
+// {"kind":0,"roomId":-1,"explored":false,"visible":false} で55バイト、
+// 48×36=1728マスで94KBになる。実際に持っている情報は1マス数ビットで、
+// これを毎ターン同期で localStorage に書くのは割に合わない
+// (実測: スナップショット全体100KBのうち94%がタイル)。
+//
+// そこで地形は1マス1文字の文字列、探索済みフラグはビット列に畳む。
+// visible と roomId は保存しない。
+//   visible … プレイヤー位置から決まる導出値。復帰時に再計算する
+//   roomId  … 部屋の矩形から決まる。paintRoom が矩形内を必ず塗り、
+//             digCorridor は壁しか書き換えないので、矩形から厳密に復元できる
+// 深みタイルと奔流タイルは数が少ないので、位置の一覧で持つ。
+
+/** 6ビットを1文字に詰めるときの並び。URLに出しても安全な字だけを使う */
+const BIT_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+
+function packBits(flags: readonly boolean[]): string {
+  let out = "";
+  for (let i = 0; i < flags.length; i += 6) {
+    let six = 0;
+    for (let b = 0; b < 6; b++) if (flags[i + b]) six |= 1 << b;
+    out += BIT_CHARS[six];
+  }
+  return out;
+}
+
+function unpackBits(packed: string, count: number): boolean[] {
+  const flags: boolean[] = new Array(count).fill(false);
+  for (let i = 0; i < packed.length; i++) {
+    const six = BIT_CHARS.indexOf(packed[i]!);
+    if (six < 0) continue;
+    for (let b = 0; b < 6; b++) {
+      const at = i * 6 + b;
+      if (at < count) flags[at] = (six & (1 << b)) !== 0;
+    }
+  }
+  return flags;
+}
+
+interface PackedTiles {
+  /** 1マス1文字。TileKind をそのまま10進1桁で並べる */
+  kind: string;
+  /** 一度でも見えたマスのビット列 */
+  explored: string;
+  /** いま見えているマスのビット列 */
+  visible: string;
+  /** 深みタイルの位置。無ければ省く */
+  quagmire?: number[];
+  /** 奔流タイルの位置と向きの組。無ければ省く */
+  torrent?: [number, number][];
+}
+
+type PackedFloor = Omit<FloorState, "tiles"> & { tiles: PackedTiles };
+type PackedSnapshot = Omit<RunSnapshot, "floor"> & { floor: PackedFloor };
+
+function packSnapshot(snapshot: RunSnapshot): PackedSnapshot {
+  const tiles = snapshot.floor.tiles;
+  let kind = "";
+  const explored: boolean[] = new Array(tiles.length);
+  const visible: boolean[] = new Array(tiles.length);
+  const quagmire: number[] = [];
+  const torrent: [number, number][] = [];
+  for (let i = 0; i < tiles.length; i++) {
+    const t = tiles[i]!;
+    kind += String(t.kind);
+    explored[i] = t.explored;
+    visible[i] = t.visible;
+    if (t.quagmire) quagmire.push(i);
+    if (t.torrent !== undefined) torrent.push([i, t.torrent]);
+  }
+  const packed: PackedTiles = {
+    kind,
+    explored: packBits(explored),
+    visible: packBits(visible),
+  };
+  if (quagmire.length > 0) packed.quagmire = quagmire;
+  if (torrent.length > 0) packed.torrent = torrent;
+  // tiles を上書きする形にすることで、フロアの他のフィールドの並びを崩さない
+  return { ...snapshot, floor: { ...snapshot.floor, tiles: packed } };
+}
+
+/** 畳んだ形を元に戻す。形が合わなければ null(古い保存や壊れた保存) */
+function unpackSnapshot(packed: PackedSnapshot | null): RunSnapshot | null {
+  const floor = packed?.floor;
+  const packedTiles = floor?.tiles as PackedTiles | undefined;
+  if (!floor || !packedTiles || typeof packedTiles.kind !== "string") return null;
+
+  const count = floor.width * floor.height;
+  if (packedTiles.kind.length !== count) return null;
+
+  const explored = unpackBits(packedTiles.explored ?? "", count);
+  const visible = unpackBits(packedTiles.visible ?? "", count);
+  const tiles: Tile[] = new Array(count);
+  for (let i = 0; i < count; i++) {
+    tiles[i] = {
+      kind: Number(packedTiles.kind[i]) as Tile["kind"],
+      roomId: -1,
+      explored: explored[i] ?? false,
+      visible: visible[i] ?? false,
+    };
+  }
+  for (const i of packedTiles.quagmire ?? []) {
+    const t = tiles[i];
+    if (t) t.quagmire = true;
+  }
+  for (const [i, dir] of packedTiles.torrent ?? []) {
+    const t = tiles[i];
+    if (t) t.torrent = dir as NonNullable<Tile["torrent"]>;
+  }
+  // roomId は部屋の矩形から引き直す
+  for (const room of floor.rooms ?? []) {
+    for (let y = room.y; y < room.y + room.h; y++) {
+      for (let x = room.x; x < room.x + room.w; x++) {
+        const t = tiles[y * floor.width + x];
+        if (t) t.roomId = room.id;
+      }
+    }
+  }
+  return { ...packed, floor: { ...floor, tiles } } as RunSnapshot;
 }
 
 /** 復帰した瞬間、または通常の終了(全滅・踏破・区切り)で消費する */

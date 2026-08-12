@@ -12,6 +12,7 @@ import {
   barrelAt,
   hasStatus,
   isHostile,
+  isWalkable,
   walkableAt,
 } from "../core/types";
 import { canSee } from "../dungeon/visibility";
@@ -78,6 +79,15 @@ export function buildDistanceField(floor: FloorState, from: Vec2 | readonly Vec2
     queue.push(idx);
   }
 
+  // 近傍の判定は walkableAt(floor, { x, y }) ではなく添字で行う。
+  // ここは1回の探索で数千回まわるため、そのたびに座標オブジェクトを作ると
+  // 使い捨てが1ターンあたり万単位になり、GC を無駄に働かせることになる
+  const tiles = floor.tiles;
+  const walkableIdx = (i: number): boolean => {
+    const t = tiles[i];
+    return t !== undefined && isWalkable(t.kind);
+  };
+
   let head = 0;
   while (head < queue.length) {
     const idx = queue[head++]!;
@@ -91,11 +101,11 @@ export function buildDistanceField(floor: FloorState, from: Vec2 | readonly Vec2
       if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
       const nIdx = ny * width + nx;
       if (dist[nIdx] !== -1) continue;
-      if (!walkableAt(floor, { x: nx, y: ny })) continue;
+      if (!walkableIdx(nIdx)) continue;
       // 斜めは角抜けを禁止するので、両隣が空いている場合のみ通れる
       if (isDiagonal(dir)) {
-        if (!walkableAt(floor, { x, y: ny })) continue;
-        if (!walkableAt(floor, { x: nx, y })) continue;
+        if (!walkableIdx(ny * width + x)) continue;
+        if (!walkableIdx(y * width + nx)) continue;
       }
       dist[nIdx] = d + 1;
       queue.push(nIdx);
