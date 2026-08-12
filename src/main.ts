@@ -16,6 +16,7 @@ import { InventoryMenu } from "./ui/menu";
 import { NamingDialog } from "./ui/naming-dialog";
 import { StanceMenu } from "./ui/stance";
 import { TownScreen } from "./ui/town";
+import { SlotSelectScreen } from "./ui/slot-select";
 import {
   abandonQuest,
   acceptQuest,
@@ -25,18 +26,22 @@ import {
   checkAchievements,
   checkEquipmentCompendium,
   clearRunSnapshot,
+  deleteSaveSlot,
   developVillage,
   equipCostume,
   fromStored,
   fuseMonsters,
   giftMaterial,
+  initialSave,
   isCompendiumComplete,
+  listSaveSlotSummaries,
   loadRunSnapshot,
   loadSave,
   markSpeciesCaptured,
   markSpeciesSeen,
   markTutorialTipSeen,
   markVillageEventSeen,
+  migrateLegacySaveIfNeeded,
   recordRun,
   refreshBoard,
   refreshUnlockedCostumes,
@@ -44,6 +49,7 @@ import {
   renameStoredMonster,
   saveData,
   saveRunSnapshot,
+  setActiveSlot,
   setDifficulty,
   setEquippedTitle,
   setFontSize,
@@ -97,6 +103,8 @@ class App {
   private readonly artsMenu: ArtsMenu;
   private readonly town: TownScreen;
   private readonly namingDialog: NamingDialog;
+  /** セーブ枠選択(plan/save-slots.md) */
+  private readonly slotSelect: SlotSelectScreen;
   private readonly canvas: HTMLCanvasElement;
   private readonly uiRoot: HTMLElement;
   /** 図鑑ギャラリー(plan/gallery-mode.md)。3Dモデルを眺める、ダンジョンとは別の小さな場面 */
@@ -138,12 +146,14 @@ class App {
     this.artsMenu = new ArtsMenu(document.querySelector<HTMLElement>("#arts")!);
     this.town = new TownScreen(document.querySelector<HTMLElement>("#town")!);
     this.namingDialog = new NamingDialog(document.querySelector<HTMLElement>("#naming")!);
+    this.slotSelect = new SlotSelectScreen(document.querySelector<HTMLElement>("#slotSelect")!);
     this.gallery = new GalleryView(this.assets);
     this.galleryInfoEl = document.querySelector<HTMLElement>("#gallery-info")!;
-    this.save = loadSave();
-    this.applyFontSize();
+    // スロット選択(start()内)が終わるまでの仮値。beginWithSlot()で選んだ枠に差し替わる
+    this.save = initialSave();
 
     this.input.onKey = (code) =>
+      this.slotSelect.handleKey(code) ||
       this.town.handleKey(code) ||
       this.menu.handleKey(code) ||
       this.stanceMenu.handleKey(code) ||
@@ -153,6 +163,25 @@ class App {
   async start(): Promise<void> {
     await this.assets.loadAll(modelNames());
     document.querySelector<HTMLElement>("#loading")!.style.display = "none";
+
+    // セーブ枠(plan/save-slots.md)導入前の単一キーが残っていれば、slot0へ1回だけ移行する
+    migrateLegacySaveIfNeeded();
+    this.slotSelect.show(
+      listSaveSlotSummaries(),
+      (slot) => this.beginWithSlot(slot),
+      (slot) => {
+        deleteSaveSlot(slot);
+        this.slotSelect.refresh(listSaveSlotSummaries());
+      },
+    );
+  }
+
+  /** セーブ枠を選び終えたら、その枠のデータで拠点/ダイブ再開を組み立てる */
+  private beginWithSlot(slot: number): void {
+    setActiveSlot(slot);
+    this.slotSelect.hide();
+    this.save = loadSave();
+    this.applyFontSize();
 
     // ダイブ中オートセーブ(plan/mid-dive-autosave.md)が残っていれば、
     // 拠点画面を経由せずそのままダイブの続きから再開する

@@ -144,7 +144,7 @@ describe("save.ts のダイブ中オートセーブ管理", () => {
 
   it("壊れたデータが入っていてもnullを返す(例外を投げない)", () => {
     withMockedLocalStorage(() => {
-      localStorage.setItem("garudo-dungeon/v1/run-snapshot", "{not valid json");
+      localStorage.setItem("garudo-dungeon/v1/slot0/run-snapshot", "{not valid json");
       expect(loadRunSnapshot()).toBeNull();
     });
   });
@@ -152,7 +152,7 @@ describe("save.ts のダイブ中オートセーブ管理", () => {
   it("形が合わないデータが入っていてもnullを返す", () => {
     withMockedLocalStorage(() => {
       localStorage.setItem(
-        "garudo-dungeon/v1/run-snapshot",
+        "garudo-dungeon/v1/slot0/run-snapshot",
         JSON.stringify({ depth: 3 /* 他のフィールドが欠けている */ }),
       );
       expect(loadRunSnapshot()).toBeNull();
@@ -224,7 +224,7 @@ describe("タイル格子の畳み込み", () => {
     let written = 0;
     withMockedLocalStorage(() => {
       saveRunSnapshot(snapshot);
-      written = (localStorage.getItem("garudo-dungeon/v1/run-snapshot") ?? "").length;
+      written = (localStorage.getItem("garudo-dungeon/v1/slot0/run-snapshot") ?? "").length;
     });
     expect(written).toBeGreaterThan(0);
     expect(written).toBeLessThan(raw * 0.3);
@@ -234,7 +234,7 @@ describe("タイル格子の畳み込み", () => {
     withMockedLocalStorage(() => {
       const game = new Game({ seed: 3 });
       // 畳む前の形をそのまま置く
-      localStorage.setItem("garudo-dungeon/v1/run-snapshot", JSON.stringify(game.toSnapshot()));
+      localStorage.setItem("garudo-dungeon/v1/slot0/run-snapshot", JSON.stringify(game.toSnapshot()));
       expect(loadRunSnapshot()).toBeNull();
     });
   });
@@ -295,7 +295,7 @@ describe("セーブのまとめ書き", () => {
         saveData({ ...base, deepest: 1 });
         saveData({ ...base, deepest: 42 });
       });
-      stored = store.get("garudo-dungeon/v1") ?? "";
+      stored = store.get("garudo-dungeon/v1/slot0") ?? "";
     } finally {
       (globalThis as { localStorage?: unknown }).localStorage = original;
     }

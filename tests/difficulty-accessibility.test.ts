@@ -89,9 +89,9 @@ describe("save.ts: fontSize(アクセシビリティ)", () => {
 
   it("壊れたセーブデータのfontSizeはnormalに丸められる", () => {
     withMockedLocalStorage(() => {
-      localStorage.setItem("garudo-dungeon/v1", JSON.stringify({ fontSize: "huge" }));
+      localStorage.setItem("garudo-dungeon/v1/slot0", JSON.stringify({ fontSize: "huge" }));
       expect(loadSave().fontSize).toBe("normal");
-      localStorage.setItem("garudo-dungeon/v1", JSON.stringify({ fontSize: "large" }));
+      localStorage.setItem("garudo-dungeon/v1/slot0", JSON.stringify({ fontSize: "large" }));
       expect(loadSave().fontSize).toBe("large");
     });
   });

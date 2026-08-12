@@ -25,13 +25,89 @@ import { ITEMS } from "./items/catalog";
 
 export type { StoredMonster };
 
-const KEY = "garudo-dungeon/v1";
+const LEGACY_KEY = "garudo-dungeon/v1";
+const LEGACY_SNAPSHOT_KEY = "garudo-dungeon/v1/run-snapshot";
+
+/** セーブ枠(plan/save-slots.md)。当面3枠固定 */
+export const SAVE_SLOT_COUNT = 3;
+
+function slotKey(slot: number): string {
+  return `garudo-dungeon/v1/slot${slot}`;
+}
+
+/** ダイブ中オートセーブ(plan/mid-dive-autosave.md)。セーブ枠ごとに1つだけ持つ */
+function slotSnapshotKey(slot: number): string {
+  return `garudo-dungeon/v1/slot${slot}/run-snapshot`;
+}
+
 /**
- * ダイブ中オートセーブ(plan/mid-dive-autosave.md)。拠点の SaveData とは
- * 別キーに、セーブ枠に紐づく形で1つだけ持つ想定だが、セーブ枠そのもの
- * (design/ui-flow.md)が未実装のため、現状は単一キーで近似している。
+ * セーブ枠(plan/save-slots.md)導入前の単一キーにデータが残っていれば、
+ * slot0として1回だけコピーし、旧キーは削除する。ゲーム起動時に1回だけ呼ぶ。
  */
-const SNAPSHOT_KEY = "garudo-dungeon/v1/run-snapshot";
+export function migrateLegacySaveIfNeeded(): void {
+  try {
+    const legacy = localStorage.getItem(LEGACY_KEY);
+    if (legacy !== null && localStorage.getItem(slotKey(0)) === null) {
+      localStorage.setItem(slotKey(0), legacy);
+      localStorage.removeItem(LEGACY_KEY);
+      const legacySnapshot = localStorage.getItem(LEGACY_SNAPSHOT_KEY);
+      if (legacySnapshot !== null) {
+        localStorage.setItem(slotSnapshotKey(0), legacySnapshot);
+        localStorage.removeItem(LEGACY_SNAPSHOT_KEY);
+      }
+    }
+  } catch {
+    // 移行できなくても、以後は空のslot0として遊べるので握りつぶす
+  }
+}
+
+/** スロット選択画面の一覧表示用の要約 */
+export interface SaveSlotSummary {
+  slot: number;
+  /** そのスロットにセーブデータが存在するか。falseなら「はじめる」表記にする */
+  exists: boolean;
+  deepest: number;
+  villageStage: VillageStage;
+  /** ISO8601。existsがfalseならundefined */
+  lastPlayedAt?: string;
+}
+
+/** スロット選択画面に並べる、全スロットぶんの要約を返す */
+export function listSaveSlotSummaries(): SaveSlotSummary[] {
+  const summaries: SaveSlotSummary[] = [];
+  for (let slot = 0; slot < SAVE_SLOT_COUNT; slot++) {
+    const raw = (() => {
+      try {
+        return localStorage.getItem(slotKey(slot));
+      } catch {
+        return null;
+      }
+    })();
+    if (raw === null) {
+      summaries.push({ slot, exists: false, deepest: 0, villageStage: 1 });
+      continue;
+    }
+    const data = loadSave(slot);
+    summaries.push({
+      slot,
+      exists: true,
+      deepest: data.deepest,
+      villageStage: data.villageStage,
+      lastPlayedAt: data.lastPlayedAt,
+    });
+  }
+  return summaries;
+}
+
+/** スロットの削除(やり直し)。本編セーブ・ダイブ中スナップショットの両方を消す */
+export function deleteSaveSlot(slot: number): void {
+  try {
+    localStorage.removeItem(slotKey(slot));
+    localStorage.removeItem(slotSnapshotKey(slot));
+  } catch {
+    // 消せなくても遊べはするので握りつぶす
+  }
+}
 
 /** 倉庫に預けてあるアイテム。uid は挑戦ごとに振り直すので保存しない */
 export interface StoredItem {
@@ -153,6 +229,11 @@ export interface SaveData {
   lastGiftDates: Record<string, string>;
   /** 忘れ物蔵(plan/lost-and-found-vault.md)。見つけた隠し通路の地方id("region1"〜"region8")。削除されない */
   foundVaultPassages: string[];
+  /**
+   * セーブ枠(plan/save-slots.md)。ISO8601、最後にこのスロットへ書き込んだ日時。
+   * スロット選択画面の一覧表示用。saveDataが呼ばれるたびに更新される
+   */
+  lastPlayedAt: string;
 }
 
 /** 腕試しの間(plan/hidden-dungeon.md)。踏破1回ぶんの記録 */
@@ -221,12 +302,14 @@ export function initialSave(): SaveData {
     seenVillageEvents: [],
     lastGiftDates: {},
     foundVaultPassages: [],
+    lastPlayedAt: new Date().toISOString(),
   };
 }
 
-export function loadSave(): SaveData {
+/** @param slot セーブ枠(plan/save-slots.md)。省略時は現在のアクティブ枠 */
+export function loadSave(slot: number = activeSlot): SaveData {
   try {
-    const raw = localStorage.getItem(KEY);
+    const raw = localStorage.getItem(slotKey(slot));
     if (!raw) return initialSave();
     const parsed = JSON.parse(raw) as Partial<SaveData>;
     return {
@@ -266,6 +349,7 @@ export function loadSave(): SaveData {
       seenVillageEvents: sanitizeStringList(parsed.seenVillageEvents),
       lastGiftDates: sanitizeLastGiftDates(parsed.lastGiftDates),
       foundVaultPassages: sanitizeFoundVaultPassages(parsed.foundVaultPassages),
+      lastPlayedAt: typeof parsed.lastPlayedAt === "string" ? parsed.lastPlayedAt : new Date(0).toISOString(),
     };
   } catch {
     // 壊れた保存データで起動できなくなるほうが困るので、黙って初期値に戻す
@@ -273,18 +357,35 @@ export function loadSave(): SaveData {
   }
 }
 
-export function saveData(data: SaveData): void {
+/**
+ * セーブ枠(plan/save-slots.md)。現在アクティブな枠番号。既存の
+ * loadSave()/saveData()/saveRunSnapshot()/loadRunSnapshot()/clearRunSnapshot()の
+ * 呼び出し側(記録まわりの各関数・main.ts・既存テスト)は、枠を意識せずに
+ * 呼べば自動的にこの枠を読み書きする。main.tsはスロット選択直後に
+ * setActiveSlot()を1回呼ぶだけでよい
+ */
+let activeSlot = 0;
+
+export function setActiveSlot(slot: number): void {
+  activeSlot = slot;
+}
+
+/** @param slot セーブ枠(plan/save-slots.md)。省略時は現在のアクティブ枠 */
+export function saveData(data: SaveData, slot: number = activeSlot): void {
   if (batchDepth > 0) {
     // まとめ書きの最中。最後の1つだけが本物なので、上書きしていく
     pendingSave = data;
+    pendingSlot = slot;
     return;
   }
-  writeSave(data);
+  writeSave(data, slot);
 }
 
-function writeSave(data: SaveData): void {
+function writeSave(data: SaveData, slot: number): void {
   try {
-    localStorage.setItem(KEY, JSON.stringify(data));
+    // lastPlayedAtはsaveDataが呼ばれるたびに現在時刻で更新する(plan/save-slots.md)
+    const withTimestamp: SaveData = { ...data, lastPlayedAt: new Date().toISOString() };
+    localStorage.setItem(slotKey(slot), JSON.stringify(withTimestamp));
   } catch {
     // 保存できなくても遊べはするので、失敗は握りつぶす
   }
@@ -292,6 +393,7 @@ function writeSave(data: SaveData): void {
 
 let batchDepth = 0;
 let pendingSave: SaveData | null = null;
+let pendingSlot = 0;
 
 /**
  * 中で何度 saveData() が呼ばれても、書き込みは最後の1回にまとめる。
@@ -313,8 +415,9 @@ export function batchSaves<T>(run: () => T): T {
     batchDepth--;
     if (batchDepth === 0 && pendingSave !== null) {
       const data = pendingSave;
+      const slot = pendingSlot;
       pendingSave = null;
-      writeSave(data);
+      writeSave(data, slot);
     }
   }
 }
@@ -522,6 +625,7 @@ export function recordRun(
     seenVillageEvents: current.seenVillageEvents,
     lastGiftDates: current.lastGiftDates,
     foundVaultPassages: current.foundVaultPassages,
+    lastPlayedAt: current.lastPlayedAt,
   };
   // 依頼板(plan/quest-board.md): 受注中の依頼を判定し、達成していれば報酬を渡して外す
   const withQuests = resolveQuests(next, result);
@@ -1139,9 +1243,9 @@ function sanitizeTutorialTips(value: unknown): TutorialTipId[] {
  * ダイブ中の状態をまるごと書き出す。プレイヤーの入力で1ターンが解決する
  * たびに呼ぶ想定(README「core が1ターン分を即座に解決する」の直後)。
  */
-export function saveRunSnapshot(snapshot: RunSnapshot): void {
+export function saveRunSnapshot(snapshot: RunSnapshot, slot: number = activeSlot): void {
   try {
-    localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(packSnapshot(snapshot)));
+    localStorage.setItem(slotSnapshotKey(slot), JSON.stringify(packSnapshot(snapshot)));
   } catch {
     // オートセーブが書き込めなくても遊べはするので、失敗は握りつぶす
   }
@@ -1156,9 +1260,9 @@ export function saveRunSnapshot(snapshot: RunSnapshot): void {
  * 「形が合わないもの」として捨てられる。ダイブ中の一時状態なので、
  * 移行を書くより拠点から始め直してもらう方が安全で単純。
  */
-export function loadRunSnapshot(): RunSnapshot | null {
+export function loadRunSnapshot(slot: number = activeSlot): RunSnapshot | null {
   try {
-    const raw = localStorage.getItem(SNAPSHOT_KEY);
+    const raw = localStorage.getItem(slotSnapshotKey(slot));
     if (!raw) return null;
     const unpacked = unpackSnapshot(JSON.parse(raw) as PackedSnapshot);
     if (!unpacked) return null;
@@ -1292,9 +1396,9 @@ function unpackSnapshot(packed: PackedSnapshot | null): RunSnapshot | null {
 }
 
 /** 復帰した瞬間、または通常の終了(全滅・踏破・区切り)で消費する */
-export function clearRunSnapshot(): void {
+export function clearRunSnapshot(slot: number = activeSlot): void {
   try {
-    localStorage.removeItem(SNAPSHOT_KEY);
+    localStorage.removeItem(slotSnapshotKey(slot));
   } catch {
     // 消せなくても致命的ではない
   }

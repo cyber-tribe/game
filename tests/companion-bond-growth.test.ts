@@ -159,7 +159,7 @@ describe("save.ts: 壊れたセーブデータのbondSuccessCount", () => {
   it("欠けていても0で初期化される", () => {
     withMockedLocalStorage(() => {
       localStorage.setItem(
-        "garudo-dungeon/v1",
+        "garudo-dungeon/v1/slot0",
         JSON.stringify({ hut: [{ uid: 1, speciesId: "gajiri", level: 1, exp: 0, skills: [] }] }),
       );
       const loaded = loadSave();
@@ -170,14 +170,14 @@ describe("save.ts: 壊れたセーブデータのbondSuccessCount", () => {
   it("負値・不正値は0に丸められる", () => {
     withMockedLocalStorage(() => {
       localStorage.setItem(
-        "garudo-dungeon/v1",
+        "garudo-dungeon/v1/slot0",
         JSON.stringify({
           hut: [{ uid: 1, speciesId: "gajiri", level: 1, exp: 0, skills: [], bondSuccessCount: -5 }],
         }),
       );
       expect(loadSave().hut[0]?.bondSuccessCount).toBe(0);
       localStorage.setItem(
-        "garudo-dungeon/v1",
+        "garudo-dungeon/v1/slot0",
         JSON.stringify({
           hut: [{ uid: 1, speciesId: "gajiri", level: 1, exp: 0, skills: [], bondSuccessCount: "abc" }],
         }),

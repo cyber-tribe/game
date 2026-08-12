@@ -149,7 +149,7 @@ describe("save.ts: 壊れたセーブデータのachievements/equippedTitle", ()
   it("未知のid・不正な形式は捨てる", () => {
     withMockedLocalStorage(() => {
       localStorage.setItem(
-        "garudo-dungeon/v1",
+        "garudo-dungeon/v1/slot0",
         JSON.stringify({
           achievements: { clear1: "2026-01-01T00:00:00.000Z", みしらぬ実績: "2026-01-01T00:00:00.000Z" },
           equippedTitle: "みしらぬ実績",
@@ -165,7 +165,7 @@ describe("save.ts: 壊れたセーブデータのachievements/equippedTitle", ()
   it("称号を持たない実績をequippedTitleに指定していた場合は捨てる", () => {
     withMockedLocalStorage(() => {
       localStorage.setItem(
-        "garudo-dungeon/v1",
+        "garudo-dungeon/v1/slot0",
         JSON.stringify({
           achievements: { defeats50: "2026-01-01T00:00:00.000Z" },
           equippedTitle: "defeats50",

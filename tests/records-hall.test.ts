@@ -58,7 +58,7 @@ function withMockedLocalStorage(run: () => void): void {
 describe("save.ts: 壊れたセーブデータのrecords", () => {
   it("recordsが無い・壊れていても0で初期化される", () => {
     withMockedLocalStorage(() => {
-      localStorage.setItem("garudo-dungeon/v1", JSON.stringify({ records: { totalDefeats: "abc" } }));
+      localStorage.setItem("garudo-dungeon/v1/slot0", JSON.stringify({ records: { totalDefeats: "abc" } }));
       const loaded = loadSave();
       expect(loaded.records).toEqual({ totalDefeats: 0, totalCaptures: 0 });
     });
@@ -66,7 +66,7 @@ describe("save.ts: 壊れたセーブデータのrecords", () => {
 
   it("recordsフィールド自体が無くても初期化される", () => {
     withMockedLocalStorage(() => {
-      localStorage.setItem("garudo-dungeon/v1", JSON.stringify({}));
+      localStorage.setItem("garudo-dungeon/v1/slot0", JSON.stringify({}));
       const loaded = loadSave();
       expect(loaded.records).toEqual({ totalDefeats: 0, totalCaptures: 0 });
     });

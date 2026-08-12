@@ -102,7 +102,7 @@ describe("save.ts: equipCostume", () => {
 describe("save.ts: 壊れたセーブデータのcostumes", () => {
   it("欠けていても既定値に初期化される", () => {
     withMockedLocalStorage(() => {
-      localStorage.setItem("garudo-dungeon/v1", JSON.stringify({}));
+      localStorage.setItem("garudo-dungeon/v1/slot0", JSON.stringify({}));
       const loaded = loadSave();
       expect(loaded.unlockedCostumes).toEqual([DEFAULT_COSTUME_ID]);
       expect(loaded.equippedCostume).toBe(DEFAULT_COSTUME_ID);
@@ -112,7 +112,7 @@ describe("save.ts: 壊れたセーブデータのcostumes", () => {
   it("未知の衣装idは取り除かれ、装備中が未解放を指していればdefaultに戻る", () => {
     withMockedLocalStorage(() => {
       localStorage.setItem(
-        "garudo-dungeon/v1",
+        "garudo-dungeon/v1/slot0",
         JSON.stringify({ unlockedCostumes: ["みしらぬころも", "okiyoHappi"], equippedCostume: "みしらぬころも" }),
       );
       const loaded = loadSave();

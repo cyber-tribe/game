@@ -193,7 +193,7 @@ describe("save.ts のチュートリアル既読管理", () => {
     };
     try {
       store.set(
-        "garudo-dungeon/v1",
+        "garudo-dungeon/v1/slot0",
         JSON.stringify({ seenTutorialTips: ["pickup", "not-a-real-id", 42, "pickup"] }),
       );
       const loaded = loadSave();

@@ -193,7 +193,7 @@ describe("save.ts: 壊れたセーブデータの復元", () => {
   it("hutが壊れていても初期化され、既知のspeciesId・skillIdだけが残る", () => {
     withMockedLocalStorage(() => {
       localStorage.setItem(
-        "garudo-dungeon/v1",
+        "garudo-dungeon/v1/slot0",
         JSON.stringify({
           hut: [
             { uid: 1, speciesId: "gajiri", level: 2, exp: 0, skills: ["quickStart", "げきから"] },
