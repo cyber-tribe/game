@@ -19,6 +19,7 @@ import { MAX_ALLIES, type TrainingFocus } from "../entities/player";
 import { SPECIES, speciesById } from "../entities/species";
 import { isCompendiumComplete, isWeaponCompendiumComplete, type SaveData, type StoredItem, type StoredMonster } from "../save";
 import { ITEMS, itemDef } from "../items/catalog";
+import { MAX_ACTIVE_QUESTS, questDef } from "../entities/quests";
 
 /** ダンジョンに持ち込める数。全部持って行けたら倉庫に預ける意味がない */
 export const CARRY_LIMIT = 8;
@@ -44,8 +45,8 @@ const TRAINING_FOCUS_DESCRIPTIONS: Record<TrainingFocus, string> = {
  */
 export class TownScreen {
   private open = false;
-  /** 0=倉庫 1=持ち込み 2=出発地点 3=鍛え方 4=つれていく仲間 5=ゲンドの工房 6=記録の間 7=モンスター図鑑 8=実績帳 9=装備図鑑 10=難易度 */
-  private column: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 = 0;
+  /** 0=倉庫 1=持ち込み 2=出発地点 3=鍛え方 4=つれていく仲間 5=ゲンドの工房 6=記録の間 7=モンスター図鑑 8=実績帳 9=装備図鑑 10=難易度 11=依頼板 */
+  private column: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 = 0;
   private cursor: [number, number] = [0, 0];
   private storage: StoredItem[] = [];
   private carry: StoredItem[] = [];
@@ -82,8 +83,12 @@ export class TownScreen {
   private onFuse: ((axisUid: number, foodUid: number) => void) | null = null;
   private onRename: ((uid: number, current: string | undefined) => void) | null = null;
   private onEquipTitle: ((id: string | undefined) => void) | null = null;
+  private onAcceptQuest: ((defId: string) => void) | null = null;
+  private onAbandonQuest: ((defId: string) => void) | null = null;
   /** 実績帳(plan/achievements.md)の一覧上のカーソル位置 */
   private achievementCursor = 0;
+  /** 依頼板(plan/quest-board.md)の一覧上のカーソル位置 */
+  private questCursor = 0;
 
   constructor(private readonly root: HTMLElement) {
     this.root.style.display = "none";
@@ -106,6 +111,8 @@ export class TownScreen {
     onFuse: (axisUid: number, foodUid: number) => void,
     onRename: (uid: number, current: string | undefined) => void,
     onEquipTitle: (id: string | undefined) => void,
+    onAcceptQuest: (defId: string) => void,
+    onAbandonQuest: (defId: string) => void,
   ): void {
     this.save = save;
     this.storage = save.storage.map((s) => ({ ...s }));
@@ -129,7 +136,10 @@ export class TownScreen {
     this.onFuse = onFuse;
     this.onRename = onRename;
     this.onEquipTitle = onEquipTitle;
+    this.onAcceptQuest = onAcceptQuest;
+    this.onAbandonQuest = onAbandonQuest;
     this.achievementCursor = 0;
+    this.questCursor = 0;
     this.open = true;
     this.root.style.display = "flex";
     this.render();
@@ -373,6 +383,42 @@ export class TownScreen {
         case "KeyA":
           this.column = 9;
           break;
+        case "ArrowRight":
+        case "KeyD":
+          this.column = 11;
+          break;
+        case "Space":
+          this.departNow();
+          return true;
+        default:
+          return true;
+      }
+      this.render();
+      return true;
+    }
+
+    if (this.column === 11) {
+      const rows = this.questBoardRows();
+      switch (code) {
+        case "ArrowUp":
+        case "KeyW":
+          this.questCursor = wrap(this.questCursor - 1, rows.length);
+          break;
+        case "ArrowDown":
+        case "KeyS":
+          this.questCursor = wrap(this.questCursor + 1, rows.length);
+          break;
+        case "ArrowLeft":
+        case "KeyA":
+          this.column = 10;
+          break;
+        case "Enter":
+        case "NumpadEnter": {
+          const row = rows[this.questCursor];
+          if (row?.status === "offer") this.onAcceptQuest?.(row.defId);
+          else if (row?.status === "active") this.onAbandonQuest?.(row.defId);
+          break;
+        }
         case "Space":
           this.departNow();
           return true;
@@ -636,7 +682,7 @@ export class TownScreen {
     const stats = document.createElement("p");
     stats.className = "town-stats";
     stats.textContent =
-      `最深記録 ${save.deepest} 階 ・ 挑戦 ${save.runs} 回 ・ 踏破 ${save.clears} 回`;
+      `最深記録 ${save.deepest} 階 ・ 挑戦 ${save.runs} 回 ・ 踏破 ${save.clears} 回 ・ 所持金 ${save.gold} G`;
     box.appendChild(stats);
 
     const lead = document.createElement("p");
@@ -660,6 +706,7 @@ export class TownScreen {
       this.renderAchievements(),
       this.renderEquipmentCompendium(),
       this.renderDifficulty(),
+      this.renderQuestBoard(),
     );
     box.appendChild(columns);
 
@@ -711,6 +758,15 @@ export class TownScreen {
     } else if (this.column === 10) {
       const mode = DIFFICULTY_MODES[this.difficultyIndex] ?? "normal";
       desc.textContent = DIFFICULTY_DESCRIPTIONS[mode];
+    } else if (this.column === 11) {
+      const row = this.questBoardRows()[this.questCursor];
+      const def = row ? questDef(row.defId) : undefined;
+      desc.textContent =
+        row && def
+          ? row.status === "offer"
+            ? `Enterで受注する(最大${MAX_ACTIVE_QUESTS}件まで)。${def.description}`
+            : `Enterで受注を取り下げる(達成報酬は失われる)。${def.description}`
+          : "貼り出されている依頼が無い。日をまたぐと新しい依頼が貼り出される。";
     } else {
       const selected = (this.column === 0 ? this.storage : this.carry)[this.cursor[this.column]];
       desc.textContent = selected ? itemDef(selected.defId).description : "";
@@ -1054,6 +1110,59 @@ export class TownScreen {
       const li = document.createElement("li");
       li.textContent = DIFFICULTY_NAMES[mode];
       if (this.column === 10 && index === this.difficultyIndex) li.classList.add("selected");
+      list.appendChild(li);
+    });
+    wrapper.appendChild(list);
+    return wrapper;
+  }
+
+  /** 依頼板(plan/quest-board.md)の一覧行。貼り出し中(offer)→受注中(active)の順に並ぶ */
+  private questBoardRows(): { defId: string; status: "offer" | "active" }[] {
+    const save = this.save;
+    if (!save) return [];
+    return [
+      ...save.boardOffers.map((defId) => ({ defId, status: "offer" as const })),
+      ...save.activeQuests.map((q) => ({ defId: q.defId, status: "active" as const })),
+    ];
+  }
+
+  /**
+   * 依頼板(plan/quest-board.md)。貼り出されている依頼と受注中の依頼を一覧表示する。
+   * Enterで受注/取り下げ。護送(護衛対象を連れて帰る)系の依頼は、非戦闘の仲間演出が
+   * 無いため未実装(design/plan双方に記載)。
+   */
+  private renderQuestBoard(): HTMLElement {
+    const wrapper = document.createElement("div");
+    wrapper.className = "town-col";
+    if (this.column === 11) wrapper.classList.add("active");
+
+    const heading = document.createElement("div");
+    heading.className = "town-col-title";
+    heading.textContent = "依頼板";
+    wrapper.appendChild(heading);
+
+    const rows = this.questBoardRows();
+    const summary = document.createElement("p");
+    summary.textContent = `受注中 ${this.save?.activeQuests.length ?? 0} / ${MAX_ACTIVE_QUESTS} 件`;
+    wrapper.appendChild(summary);
+
+    const list = document.createElement("ul");
+    if (rows.length === 0) {
+      const li = document.createElement("li");
+      li.className = "empty";
+      li.textContent = "貼り出されている依頼が無い";
+      list.appendChild(li);
+    }
+    rows.forEach((row, index) => {
+      const def = questDef(row.defId);
+      if (!def) return;
+      const reward = def.reward.gold ? `報酬${def.reward.gold}G` : "報酬あり";
+      const li = document.createElement("li");
+      li.textContent =
+        row.status === "active"
+          ? `[受注中] ${def.name}(${reward})`
+          : `${def.name}(${reward})`;
+      if (this.column === 11 && index === this.questCursor) li.classList.add("selected");
       list.appendChild(li);
     });
     wrapper.appendChild(list);

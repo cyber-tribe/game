@@ -3,6 +3,7 @@ import type { Actor, Item, MarkId, SkillId } from "./core/types";
 import { ACHIEVEMENTS, achievementDef } from "./entities/achievements";
 import { DIFFICULTY_MODES, type DifficultyMode } from "./entities/difficulty";
 import { MARKS, MAX_PLUS } from "./entities/forging";
+import { MAX_ACTIVE_QUESTS, QUESTS, questDef, questsForDate } from "./entities/quests";
 import type { TrainingFocus } from "./entities/player";
 import { MAX_SKILLS, NATIVE_SKILL_BY_SPECIES, SKILLS, fullSkillSet } from "./entities/skills";
 import { SPECIES } from "./entities/species";
@@ -96,6 +97,20 @@ export interface SaveData {
    * 次回ダイブから反映される(ダイブ中の切り替えは想定しない)
    */
   difficulty: DifficultyMode;
+  /**
+   * 持ち帰った所持金(plan/shops-and-thieves.md)。ダイブ中の`PlayerState.gold`
+   * は毎回0から始まり、踏破・区切りで帰還した分だけここに積み上がる
+   * (道具・仲間と同じロスト規則)
+   */
+  gold: number;
+  /** 依頼板(plan/quest-board.md)。最後に依頼板を更新した日付キー(YYYY-MM-DD) */
+  boardDate: string;
+  /** 依頼板に並んでいる、まだ受注していない依頼id(最大 MAX_ACTIVE_QUESTS 件からactiveQuestsの分を引いた数) */
+  boardOffers: string[];
+  /** 受注中の依頼。最大 MAX_ACTIVE_QUESTS 件 */
+  activeQuests: { defId: string; progress: number }[];
+  /** 達成した依頼idの履歴。ロストしない */
+  completedQuestIds: string[];
 }
 
 /** "seen": 遭遇した。"captured": タルで捕まえた、または夢あわせの糧にした */
@@ -139,6 +154,11 @@ export function initialSave(): SaveData {
     markCompendium: {},
     materialCompendium: {},
     difficulty: "normal",
+    gold: 0,
+    boardDate: "",
+    boardOffers: [],
+    activeQuests: [],
+    completedQuestIds: [],
   };
 }
 
@@ -166,6 +186,11 @@ export function loadSave(): SaveData {
       markCompendium: sanitizeMarkCompendium(parsed.markCompendium),
       materialCompendium: sanitizeMaterialCompendium(parsed.materialCompendium),
       difficulty: sanitizeDifficulty(parsed.difficulty),
+      gold: Math.max(0, numberOr(parsed.gold, 0)),
+      boardDate: typeof parsed.boardDate === "string" ? parsed.boardDate : "",
+      boardOffers: sanitizeQuestIdList(parsed.boardOffers),
+      activeQuests: sanitizeActiveQuests(parsed.activeQuests),
+      completedQuestIds: sanitizeQuestIdList(parsed.completedQuestIds),
     };
   } catch {
     // 壊れた保存データで起動できなくなるほうが困るので、黙って初期値に戻す
@@ -240,6 +265,14 @@ export function recordRun(
     /** 記録の間(plan/records-hall.md)。このダイブ中に倒した・捕まえた数 */
     defeats?: number;
     captures?: number;
+    /** 踏破・区切りで持ち帰った所持金(plan/shops-and-thieves.md)。全滅時は0(持ち物と同じロスト規則) */
+    goldBroughtBack?: number;
+    /** 依頼板(plan/quest-board.md): このダイブ中に種族ごとに倒した数(討伐依頼の判定用) */
+    huntKills?: Record<string, number>;
+    /** 依頼板: このダイブ中に新たに図鑑「見た」にした種族数(図鑑依頼の判定用) */
+    newlySeenCount?: number;
+    /** 依頼板: このダイブ中に到達しためざめの階段の階(探索依頼の判定用) */
+    reachedDepths?: number[];
   },
 ): SaveData {
   let nextHutUid = current.nextHutUid;
@@ -277,10 +310,17 @@ export function recordRun(
     markCompendium: current.markCompendium,
     materialCompendium: current.materialCompendium,
     difficulty: current.difficulty,
+    gold: current.gold + (result.goldBroughtBack ?? 0),
+    boardDate: current.boardDate,
+    boardOffers: current.boardOffers,
+    activeQuests: current.activeQuests,
+    completedQuestIds: current.completedQuestIds,
   };
+  // 依頼板(plan/quest-board.md): 受注中の依頼を判定し、達成していれば報酬を渡して外す
+  const withQuests = resolveQuests(next, result);
   // 装備図鑑(plan/equipment-compendium.md): 持ち帰った装備・素材を反映してから、
   // 実績帳(plan/achievements.md)の判定に渡す
-  const withEquipmentCompendium = checkEquipmentCompendium(next);
+  const withEquipmentCompendium = checkEquipmentCompendium(withQuests);
   let withAchievements = checkAchievements(withEquipmentCompendium);
   // 難易度モード(plan/difficulty-modes.md): 「きびしい」専用の称号
   if (result.cleared && current.difficulty === "hard") {
@@ -288,6 +328,65 @@ export function recordRun(
   }
   saveData(withAchievements);
   return withAchievements;
+}
+
+/**
+ * 依頼板(plan/quest-board.md)。受注中の依頼それぞれについて、このダイブの
+ * 成果から達成条件を満たしたかを判定する。全滅時(result.broughtBack が
+ * 空)は採取依頼が判定材料を失うため自然に不達成のままになる
+ * (`design/balance-philosophy.md`の「その場の持ち物はロストする」原則どおり)。
+ */
+function resolveQuests(
+  current: SaveData,
+  result: {
+    broughtBack: Item[];
+    huntKills?: Record<string, number>;
+    newlySeenCount?: number;
+    reachedDepths?: number[];
+  },
+): SaveData {
+  let gold = current.gold;
+  let storage = current.storage;
+  const remaining: { defId: string; progress: number }[] = [];
+  const completed: string[] = [];
+
+  for (const active of current.activeQuests) {
+    const def = questDef(active.defId);
+    if (!def) continue;
+    const achieved = (() => {
+      switch (def.kind) {
+        case "hunt":
+          return (result.huntKills?.[def.target.speciesId ?? ""] ?? 0) >= def.target.count;
+        case "gather":
+          return (
+            result.broughtBack.filter((i) => i.defId === def.target.itemDefId).length >= def.target.count
+          );
+        case "explore":
+          return (result.reachedDepths ?? []).includes(def.target.depth ?? -1);
+        case "compendium":
+          return (result.newlySeenCount ?? 0) >= def.target.count;
+      }
+    })();
+
+    if (!achieved) {
+      remaining.push(active);
+      continue;
+    }
+    completed.push(def.id);
+    gold += def.reward.gold ?? 0;
+    for (const material of def.reward.materials ?? []) {
+      storage = [...storage, ...Array.from({ length: material.count }, () => ({ defId: material.defId }))];
+    }
+  }
+
+  if (completed.length === 0) return current;
+  return {
+    ...current,
+    gold,
+    storage,
+    activeQuests: remaining,
+    completedQuestIds: [...current.completedQuestIds, ...completed],
+  };
 }
 
 /** ダイブ中のAllyアクターを、ねむり小屋に保存する形へ変換する */
@@ -450,6 +549,71 @@ function sanitizeCompendium(value: unknown): Record<string, CompendiumStatus> {
     out[speciesId] = status as CompendiumStatus;
   }
   return out;
+}
+
+const VALID_QUEST_IDS = new Set(QUESTS.map((q) => q.id));
+
+function sanitizeQuestIdList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((v): v is string => typeof v === "string" && VALID_QUEST_IDS.has(v));
+}
+
+function sanitizeActiveQuests(value: unknown): { defId: string; progress: number }[] {
+  if (!Array.isArray(value)) return [];
+  const out: { defId: string; progress: number }[] = [];
+  for (const entry of value) {
+    if (typeof entry !== "object" || entry === null) continue;
+    const defId = (entry as { defId?: unknown }).defId;
+    const progress = (entry as { progress?: unknown }).progress;
+    if (typeof defId !== "string" || !VALID_QUEST_IDS.has(defId)) continue;
+    out.push({ defId, progress: typeof progress === "number" && Number.isFinite(progress) ? progress : 0 });
+  }
+  return out.slice(0, MAX_ACTIVE_QUESTS);
+}
+
+/**
+ * 依頼板(plan/quest-board.md)。日付が変わっていれば、受注していない
+ * 残り枠だけを新しいオファーで補充する。受注済みの依頼(activeQuests)は
+ * 日付が変わっても消えない
+ */
+export function refreshBoard(current: SaveData, dateKey: string): SaveData {
+  if (current.boardDate === dateKey) return current;
+  const activeIds = new Set(current.activeQuests.map((q) => q.defId));
+  const excluded = new Set([...activeIds, ...current.completedQuestIds]);
+  const openSlots = Math.max(0, MAX_ACTIVE_QUESTS - current.activeQuests.length);
+  const offers = questsForDate(dateKey)
+    .filter((q) => !excluded.has(q.id))
+    .slice(0, openSlots)
+    .map((q) => q.id);
+  const next: SaveData = { ...current, boardDate: dateKey, boardOffers: offers };
+  saveData(next);
+  return next;
+}
+
+/** 依頼を受注する。既に3件受注済み、または既に受注中/達成済みなら何もしない */
+export function acceptQuest(current: SaveData, defId: string): SaveData {
+  if (current.activeQuests.length >= MAX_ACTIVE_QUESTS) return current;
+  if (current.activeQuests.some((q) => q.defId === defId)) return current;
+  if (current.completedQuestIds.includes(defId)) return current;
+  if (!questDef(defId)) return current;
+  const next: SaveData = {
+    ...current,
+    activeQuests: [...current.activeQuests, { defId, progress: 0 }],
+    boardOffers: current.boardOffers.filter((id) => id !== defId),
+  };
+  saveData(next);
+  return next;
+}
+
+/** 受注中の依頼を明示的に破棄する(達成扱いにはならない) */
+export function abandonQuest(current: SaveData, defId: string): SaveData {
+  if (!current.activeQuests.some((q) => q.defId === defId)) return current;
+  const next: SaveData = {
+    ...current,
+    activeQuests: current.activeQuests.filter((q) => q.defId !== defId),
+  };
+  saveData(next);
+  return next;
 }
 
 /**

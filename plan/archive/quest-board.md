@@ -1,5 +1,52 @@
 # 依頼板
 
+> **実装済み(護送を除く)。** `src/entities/quests.ts`(新規。依頼カタログ
+> `QuestDef`/`QUESTS`、`questsForDate`、`todayKey`)・`src/save.ts`
+> (`SaveData.gold`・`boardDate`・`boardOffers`・`activeQuests`・
+> `completedQuestIds`、`refreshBoard`、`acceptQuest`、`abandonQuest`、
+> `recordRun`内の`resolveQuests`、壊れたセーブデータのサニタイズ)・
+> `src/core/events.ts`(`die`イベントに`speciesId`を追加)・`src/game.ts`
+> (`die`イベント発火時に`speciesId`を乗せる)・`src/main.ts`(拠点を開く
+> たびに`refreshBoard`を呼ぶ配線、ダイブ中の討伐種族・新規図鑑登録数・
+> 到達階の集計、受注/取り下げを`TownScreen`から受け取る配線)・
+> `src/ui/town.ts`(拠点に「依頼板」カラムを追加。貼り出し中/受注中の
+> 依頼を一覧表示し、Enterで受注・取り下げできる。所持金を画面上部の
+> 記録行に表示)。テストは `tests/quest-board.test.ts`(25件)。
+>
+> 実装にあたって次の判断をした。
+>
+> - **護送(escort)は今回のスコープから外した。** 対象NPCを非戦闘のまま
+>   同伴させる新しい仕組み(`plan/companion-orders.md`の戦う仲間とは別枠)
+>   と、`design/story.md`の章の進行(未実装)の両方が前提になっており、
+>   本文の未決事項が挙げていたとおり実装コストが大きいため見送った。
+>   `QuestKind`から`"escort"`を外し、`QuestDef`から`requiresChapter`・
+>   `reward.bondNpc`/`bondAmount`も削っている。対応する仕組みが揃った
+>   時点で追加できる。
+> - **`SaveData.gold`(所持金の永続化)を今回新設した。** 依頼の金銭報酬を
+>   実装するには前提になる項目だが、`plan/shops-and-thieves.md`実装時には
+>   ダイブ中の`player.gold`しかなく、拠点帰還時にセーブへ持ち帰る配線が
+>   無かった(踏破しても所持金が毎回失われていた、既存の抜け)。今回
+>   `recordRun`に`goldBroughtBack`を渡すことで、依頼と無関係に踏破報酬の
+>   所持金も正しく積み上がるようになった。
+> - **日替わりの依頼板は「受注していない残り枠だけを補充する」簡略化を
+>   採用した。** 本文が示す「固定3枠」のような厳密なスロット位置の管理は
+>   せず、`boardOffers`を「未受注の貼り出し一覧」というだけの配列にして
+>   いる。受注済みの依頼は日付が変わっても消えず、達成済みidは二度と
+>   貼り出されない。
+> - **依頼カタログは8件の例示的な集合にとどめた。** 討伐2件・採取2件・
+>   探索2件・図鑑2件で、各種類の判定ロジックを最低限検証できる数に
+>   絞っている。本文が挙げる「地方限定素材」「指定地方以深」のような、
+>   まだ実装されていない地方システム(`plan/multiple-dungeons.md`等)に
+>   依存する条件は使っていない。
+> - **報酬は素材付与の型(`reward.materials`)を用意したが、現在のカタログ
+>   は全件が所持金のみの報酬になっている。** `resolveQuests`側は素材報酬に
+>   対応済みなので、素材を使った依頼を追加する際にコード変更は不要。
+> - **`activeQuests`の`progress`フィールドは、ダイブ中の途中経過は
+>   追跡していない。** ダイブの成果(`recordRun`の`result`)から一括で
+>   達成/未達成を判定するため、常に`0`のまま保存され、達成した瞬間に
+>   `completedQuestIds`へ移る。途中経過を拠点で確認したいニーズが出た
+>   場合は別途対応する。
+
 `design/village-life.md` の**肝いりのオトネ**が窓口となる、村の依頼板を
 仕様化する。「深く潜って踏破する」以外の目的をダイブのたびに用意し、
 反復プレイに具体的な目標のバリエーションを持たせる

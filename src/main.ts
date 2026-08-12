@@ -16,6 +16,8 @@ import { NamingDialog } from "./ui/naming-dialog";
 import { StanceMenu } from "./ui/stance";
 import { TownScreen } from "./ui/town";
 import {
+  abandonQuest,
+  acceptQuest,
   addKnownCheckpoint,
   checkAchievements,
   checkEquipmentCompendium,
@@ -29,6 +31,7 @@ import {
   markSpeciesSeen,
   markTutorialTipSeen,
   recordRun,
+  refreshBoard,
   renameStoredMonster,
   saveData,
   saveRunSnapshot,
@@ -41,6 +44,7 @@ import {
   type StoredMonster,
 } from "./save";
 import type { DifficultyMode } from "./entities/difficulty";
+import { todayKey } from "./entities/quests";
 import { TUTORIAL_TIPS, type TutorialTipId } from "./core/tutorial";
 import type { Item } from "./core/types";
 import type { TrainingFocus } from "./entities/player";
@@ -72,6 +76,10 @@ class App {
   /** 記録の間(plan/records-hall.md)。このダイブ中に倒した・捕まえた数 */
   private diveDefeats = 0;
   private diveCaptures = 0;
+  /** 依頼板(plan/quest-board.md)。このダイブ中の討伐・図鑑・到達の集計 */
+  private diveHuntKills: Record<string, number> = {};
+  private diveNewlySeenCount = 0;
+  private diveReachedDepths: number[] = [];
   /** フォトモード(plan/gallery-mode.md)。HUDを隠し、移動・行動を止めて画角だけ動かせる */
   private photoMode = false;
 
@@ -117,6 +125,8 @@ class App {
   /** 潜る前の拠点。倉庫から持ち込む道具・出発地点・鍛え方・仲間を選ぶ */
   private showTown(): void {
     this.hud.hideOverlay();
+    // 依頼板(plan/quest-board.md): 日付が変わっていれば、受注していない残り枠を補充する
+    this.save = refreshBoard(this.save, todayKey());
     this.town.show(
       this.save,
       (carry, storage, startDepth, trainingFocus, bringAllyUids, difficulty) => {
@@ -149,6 +159,14 @@ class App {
         this.save = setEquippedTitle(this.save, id);
         this.town.refreshSave(this.save);
       },
+      (defId) => {
+        this.save = acceptQuest(this.save, defId);
+        this.town.refreshSave(this.save);
+      },
+      (defId) => {
+        this.save = abandonQuest(this.save, defId);
+        this.town.refreshSave(this.save);
+      },
     );
   }
 
@@ -161,6 +179,9 @@ class App {
   ): void {
     this.diveDefeats = 0;
     this.diveCaptures = 0;
+    this.diveHuntKills = {};
+    this.diveNewlySeenCount = 0;
+    this.diveReachedDepths = [];
     const startingItems: Item[] = carry.map((stored, index) => fromStored(stored, index + 1));
     this.game = new Game({
       seed: (Math.random() * 0xffffffff) >>> 0,
@@ -190,6 +211,9 @@ class App {
     // 復帰後ぶんだけを数える(クラッシュ前の分は失われるが、致命的ではない)
     this.diveDefeats = 0;
     this.diveCaptures = 0;
+    this.diveHuntKills = {};
+    this.diveNewlySeenCount = 0;
+    this.diveReachedDepths = [];
     this.game = new Game({ seed: 0, resume: snapshot });
     clearRunSnapshot();
     this.presentFloor();
@@ -426,11 +450,21 @@ class App {
       if (event.type === "capture") this.diveCaptures++;
       // モンスター図鑑(plan/monster-compendium.md): 見た・捕まえたを記録する。
       // 「知識は失われない」原則により、全滅した場合でも取り消さない
-      if (event.type === "monsterSighted") this.save = markSpeciesSeen(this.save, event.speciesId);
+      if (event.type === "monsterSighted") {
+        // 依頼板(plan/quest-board.md): 図鑑依頼は「セーブ上まだ未確認だった」種族だけを数える
+        // (このダイブで初めて見た、ではなく、これまでの記録として初めて見た、という判定)
+        if (this.save.compendium[event.speciesId] === undefined) this.diveNewlySeenCount++;
+        this.save = markSpeciesSeen(this.save, event.speciesId);
+      }
       if (event.type === "recruit") {
         const ally = this.game.allyList.find((a) => a.id === event.actorId);
         if (ally?.speciesId) this.save = markSpeciesCaptured(this.save, ally.speciesId);
       }
+      // 依頼板: 討伐・探索依頼の判定材料をこのダイブぶん集計する
+      if (event.type === "die" && event.kind === "monster" && event.speciesId) {
+        this.diveHuntKills[event.speciesId] = (this.diveHuntKills[event.speciesId] ?? 0) + 1;
+      }
+      if (event.type === "checkpoint") this.diveReachedDepths.push(event.depth);
     }
 
     const changedFloor = this.game.depth !== beforeDepth;
@@ -481,6 +515,12 @@ class App {
       // (design/balance-philosophy.mdの「知識・記録はロストしない」原則)
       defeats: this.diveDefeats,
       captures: this.diveCaptures,
+      // 依頼板(plan/quest-board.md): 所持金は踏破・区切りでのみ持ち帰る。
+      // 討伐・図鑑・探索の判定材料は全滅時でも記録として残す(こちらもロストしない)
+      goldBroughtBack: cleared ? this.game.player.gold : 0,
+      huntKills: this.diveHuntKills,
+      newlySeenCount: this.diveNewlySeenCount,
+      reachedDepths: this.diveReachedDepths,
     });
     this.hud.showOverlay(
       cleared ? "だっしゅつ成功!" : "ちからつきた……",
