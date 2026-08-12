@@ -55,6 +55,7 @@ import {
   createBarrel,
   createItem,
   findFreeTile,
+  placeQuagmireTiles,
   placeSecretPassage,
   populateFloor,
   spawnWanderingMonster,
@@ -510,6 +511,11 @@ export class Game {
       placeSecretPassage(this.rng, this.floor, `region${regionIndex + 1}`);
     }
 
+    // 第二地方(忘れ潮の湿地)固有ギミック(plan/wetland-quagmire.md): 7〜12階に深みタイルを配置する
+    if (this.dungeon.id === MAIN_CAVE_ID && depth >= 7 && depth <= 12) {
+      placeQuagmireTiles(this.rng, this.floor);
+    }
+
     // 仲間は階段について来る。プレイヤーの周りの空いたマスに並べる
     for (const ally of this.allies) {
       const spot = this.freeSpotNear(start);
@@ -578,10 +584,19 @@ export class Game {
     if (this.status !== "playing") return events;
 
     this.hitThisTurn = new Set();
+    const posBeforeCommand = { ...this.player.pos };
     const consumedTurn = this.resolvePlayerCommand(cmd, events);
 
     if (consumedTurn && this.status === "playing") {
       this.runActors(events);
+      // 第二地方(忘れ潮の湿地)固有ギミック(plan/wetland-quagmire.md): 実際に
+      // 移動して深みタイルへ足を踏み入れた直後だけ、モンスター行動をもう1手
+      // ぶん先に進める(「足を取られてワンテンポ遅れる」)。攻撃・アイテム
+      // 使用のような移動を伴わない行動には適用しない
+      const moved = !eq(posBeforeCommand, this.player.pos);
+      if (moved && tileAt(this.floor, this.player.pos)?.quagmire) {
+        this.runActors(events);
+      }
       this.upkeep(events);
       this.turnCount++;
     }
