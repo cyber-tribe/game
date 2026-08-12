@@ -27,6 +27,7 @@ import {
   dungeonById,
   isDungeonUnlocked,
 } from "../entities/dungeons";
+import { FESTIVAL_SHOP_OFFERS, YOIMATSURI_NPC_LINES, isYoimatsuri } from "../entities/festivals";
 import { moodForDate } from "../entities/moods";
 import { MAX_ALLIES, type TrainingFocus } from "../entities/player";
 import { todayKey } from "../entities/quests";
@@ -68,8 +69,8 @@ const TRAINING_FOCUS_DESCRIPTIONS: Record<TrainingFocus, string> = {
  */
 export class TownScreen {
   private open = false;
-  /** 0=倉庫 1=持ち込み 2=出発地点 3=鍛え方 4=つれていく仲間 5=ゲンドの工房 6=記録の間 7=モンスター図鑑 8=実績帳 9=装備図鑑 10=難易度 11=依頼板 12=潜るダンジョン 13=村の発展 14=アクセシビリティ 15=身支度 16=NPCと話す(plan/village-life.md) */
-  private column: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 = 0;
+  /** 0=倉庫 1=持ち込み 2=出発地点 3=鍛え方 4=つれていく仲間 5=ゲンドの工房 6=記録の間 7=モンスター図鑑 8=実績帳 9=装備図鑑 10=難易度 11=依頼板 12=潜るダンジョン 13=村の発展 14=アクセシビリティ 15=身支度 16=NPCと話す(plan/village-life.md) 17=宵祭りの出店(plan/yoimatsuri-festival.md) */
+  private column: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 = 0;
   private cursor: [number, number] = [0, 0];
   private storage: StoredItem[] = [];
   private carry: StoredItem[] = [];
@@ -123,6 +124,8 @@ export class TownScreen {
    * 新たに解放された一言。次に別のNPCを選ぶ・列を離れるとクリアされる
    */
   private npcTalkMessage: string | null = null;
+  /** 宵祭りの出店(plan/yoimatsuri-festival.md)。品揃え一覧上のカーソル位置 */
+  private festivalShopCursor = 0;
   private depart:
     | ((
         carry: StoredItem[],
@@ -150,6 +153,8 @@ export class TownScreen {
   private onGiftMaterial: ((npcId: VillageNpcId, defId: string) => void) | null = null;
   /** バグ報告ボタン(plan/bug-report-button.md) */
   private onReportBug: (() => void) | null = null;
+  /** 宵祭りの出店(plan/yoimatsuri-festival.md) */
+  private onBuyFestivalItem: ((defId: string) => void) | null = null;
   /** 実績帳(plan/achievements.md)の一覧上のカーソル位置 */
   private achievementCursor = 0;
   /** 依頼板(plan/quest-board.md)の一覧上のカーソル位置 */
@@ -187,6 +192,7 @@ export class TownScreen {
     onGiftMaterial: (npcId: VillageNpcId, defId: string) => void,
     onToggleFavorite: (uid: number) => void,
     onReportBug: () => void,
+    onBuyFestivalItem: (defId: string) => void,
   ): void {
     this.save = save;
     this.storage = save.storage.map((s) => ({ ...s }));
@@ -227,6 +233,8 @@ export class TownScreen {
     this.onTalkToNpc = onTalkToNpc;
     this.onGiftMaterial = onGiftMaterial;
     this.onReportBug = onReportBug;
+    this.onBuyFestivalItem = onBuyFestivalItem;
+    this.festivalShopCursor = 0;
     this.achievementCursor = 0;
     this.questCursor = 0;
     this.open = true;
@@ -780,6 +788,11 @@ export class TownScreen {
           this.column = 15;
           this.npcTalkMessage = null;
           break;
+        case "ArrowRight":
+        case "KeyD":
+          this.column = 17;
+          this.npcTalkMessage = null;
+          break;
         case "Enter":
         case "NumpadEnter": {
           // NPCサイドストーリー第1弾(plan/side-stories-part1.md)。新たに解放
@@ -796,6 +809,36 @@ export class TownScreen {
             (item) => item.defId === HOKORA_DUST_DEF_ID || markStoneDefIds.has(item.defId),
           );
           if (npc && giftable) this.onGiftMaterial?.(npc.id, giftable.defId);
+          break;
+        }
+        case "Space":
+          this.departNow();
+          return true;
+        default:
+          return true;
+      }
+      this.render();
+      return true;
+    }
+
+    if (this.column === 17) {
+      switch (code) {
+        case "ArrowUp":
+        case "KeyW":
+          this.festivalShopCursor = wrap(this.festivalShopCursor - 1, FESTIVAL_SHOP_OFFERS.length);
+          break;
+        case "ArrowDown":
+        case "KeyS":
+          this.festivalShopCursor = wrap(this.festivalShopCursor + 1, FESTIVAL_SHOP_OFFERS.length);
+          break;
+        case "ArrowLeft":
+        case "KeyA":
+          this.column = 16;
+          break;
+        case "Enter":
+        case "NumpadEnter": {
+          const offer = FESTIVAL_SHOP_OFFERS[this.festivalShopCursor];
+          if (offer) this.onBuyFestivalItem?.(offer.defId);
           break;
         }
         case "Space":
@@ -1194,6 +1237,7 @@ export class TownScreen {
       this.renderAccessibility(),
       this.renderCostumes(),
       this.renderVillageLife(),
+      this.renderYoimatsuriShop(),
     );
     box.appendChild(columns);
 
@@ -1290,7 +1334,12 @@ export class TownScreen {
         : "";
     } else if (this.column === 16) {
       const npc = visibleVillageNpcs(this.currentStoryChapter())[this.npcIndex];
-      desc.textContent = this.npcTalkMessage ?? (npc ? npc.role : "");
+      // 宵祭り(plan/yoimatsuri-festival.md): 通常の役職の一言を、宵祭りの日だけ専用の一言に差し替える
+      const festivalLine = npc && isYoimatsuri(todayKey()) ? YOIMATSURI_NPC_LINES[npc.id] : undefined;
+      desc.textContent = this.npcTalkMessage ?? festivalLine ?? (npc ? npc.role : "");
+    } else if (this.column === 17) {
+      const offer = FESTIVAL_SHOP_OFFERS[this.festivalShopCursor];
+      desc.textContent = offer ? itemDef(offer.defId).description : "";
     } else {
       const selected = (this.column === 0 ? this.storage : this.carry)[this.cursor[this.column]];
       desc.textContent = selected ? itemDef(selected.defId).description : "";
@@ -1312,7 +1361,9 @@ export class TownScreen {
     } else if (this.column === 6) {
       hint.textContent = "← 列を移る / Space もぐる";
     } else if (this.column === 16) {
-      hint.textContent = "← 列を移る / ↑↓ 選ぶ / Enter 話す / G 素材を渡す(1日1回) / Space もぐる";
+      hint.textContent = "←→ 列を移る / ↑↓ 選ぶ / Enter 話す / G 素材を渡す(1日1回) / Space もぐる";
+    } else if (this.column === 17) {
+      hint.textContent = "← 列を移る / ↑↓ 選ぶ / Enter 買う / Space もぐる";
     } else {
       hint.textContent = "←→ 列を移る / ↑↓ 選ぶ / Enter 移す / Space もぐる";
     }
@@ -1699,6 +1750,14 @@ export class TownScreen {
     moodLine.textContent = `今日の気分: ${todaysMood.name} — ${todaysMood.flavorText}`;
     wrapper.appendChild(moodLine);
 
+    // 宵祭り(plan/yoimatsuri-festival.md): 開催有無をすぐ下に1行添える
+    if (isYoimatsuri(todayKey())) {
+      const festivalLine = document.createElement("p");
+      festivalLine.className = "town-mood";
+      festivalLine.textContent = "今夜は宵祭り。提灯が灯っている。";
+      wrapper.appendChild(festivalLine);
+    }
+
     const deepest = this.save?.deepest ?? 0;
     const villageStage = this.save?.villageStage ?? 1;
     const foundPassageCount = this.save?.foundVaultPassages.length ?? 0;
@@ -1922,6 +1981,37 @@ export class TownScreen {
       if (this.column === 16 && index === this.npcIndex) li.classList.add("selected");
       list.appendChild(li);
     });
+    wrapper.appendChild(list);
+    return wrapper;
+  }
+
+  /**
+   * 宵祭りの出店(plan/yoimatsuri-festival.md)。宵祭りの日だけ品揃えを表示し、
+   * 選んで買える。品揃え・価格は固定(補充・売り切れの概念は持たない)
+   */
+  private renderYoimatsuriShop(): HTMLElement {
+    const wrapper = document.createElement("div");
+    wrapper.className = "town-col";
+    if (this.column === 17) wrapper.classList.add("active");
+
+    const heading = document.createElement("div");
+    heading.className = "town-col-title";
+    heading.textContent = "宵祭りの出店";
+    wrapper.appendChild(heading);
+
+    const list = document.createElement("ul");
+    if (isYoimatsuri(todayKey())) {
+      FESTIVAL_SHOP_OFFERS.forEach((offer, index) => {
+        const li = document.createElement("li");
+        li.textContent = `${itemDef(offer.defId).name} — ${offer.price}G`;
+        if (this.column === 17 && index === this.festivalShopCursor) li.classList.add("selected");
+        list.appendChild(li);
+      });
+    } else {
+      const li = document.createElement("li");
+      li.textContent = "今日は宵祭りの日ではない。";
+      list.appendChild(li);
+    }
     wrapper.appendChild(list);
     return wrapper;
   }

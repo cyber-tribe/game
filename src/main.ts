@@ -23,6 +23,7 @@ import {
   addFoundVaultPassage,
   addKnownCheckpoint,
   batchSaves,
+  buyFestivalItem,
   checkAchievements,
   checkEquipmentCompendium,
   clearRunSnapshot,
@@ -300,6 +301,11 @@ class App {
           userAgent: navigator.userAgent,
         });
         window.open(url, "_blank");
+      },
+      (defId) => {
+        this.save = buyFestivalItem(this.save, defId);
+        saveData(this.save);
+        this.town.refreshSave(this.save);
       },
     );
   }
