@@ -15,7 +15,10 @@
     "verbatimModuleSyntax": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
-    "noEmit": true
+    "noEmit": true,
+    // tools/audio/*.tsはnode組み込みの型剥がし実行(`node tools/audio/build.ts`)を
+    // 前提にしており、相対importに明示的な.ts拡張子が要る(plan/audio-synthesis.md)
+    "allowImportingTsExtensions": true
   },
-  "include": ["src", "tests", "vite.config.ts", "capacitor.config.ts"]
+  "include": ["src", "tests", "tools/audio", "vite.config.ts", "capacitor.config.ts"]
 }
