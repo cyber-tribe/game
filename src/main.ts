@@ -68,7 +68,7 @@ import {
 import type { DifficultyMode } from "./entities/difficulty";
 import { costumeById } from "./entities/costumes";
 import { MAIN_CAVE_ID, REGION_SIZE, TRUE_AWAKENING_ID } from "./entities/dungeons";
-import { moodForDate } from "./entities/moods";
+import { DEFAULT_MOOD_ID, MOOD_VISUALS, moodForDate } from "./entities/moods";
 import { todayKey } from "./entities/quests";
 import { STORY_CHAPTER_MESSAGES, storyChapter, storyChapterEventId } from "./entities/story";
 import { REGION_BOSS_FLOORS, speciesById } from "./entities/species";
@@ -219,6 +219,10 @@ class App {
   private showTown(): void {
     this.hud.hideOverlay();
     this.audio.setBgm("village");
+    // 気分の視覚演出(plan/mood-visual-effects.md): design/world.mdの
+    // 「麓は現実側」という方針どおり、拠点では常に既定の見た目に戻す
+    // (拠点の裏に見えている洞窟がダンジョン中の気分の色調を引きずらないように)
+    this.renderer.setMoodVisual(MOOD_VISUALS[DEFAULT_MOOD_ID]);
     // 依頼板(plan/quest-board.md): 日付が変わっていれば、受注していない残り枠を補充する
     this.save = refreshBoard(this.save, todayKey());
     // 衣装(plan/costumes.md): 拠点に戻るたびに、新たに満たした解放条件が無いか確認する
@@ -425,6 +429,9 @@ class App {
     this.hud.update(this.game.player, this.game.depth, this.game.allyList);
     this.minimap.draw(this.game.floor, this.game.player);
     this.updateDiveBgm();
+    // 気分の視覚演出(plan/mood-visual-effects.md): ダイブ中に気分が変わることは
+    // ないので、ダイブ開始・オートセーブ復帰のこの1回だけで確定させる
+    this.renderer.setMoodVisual(MOOD_VISUALS[this.game.moodId]);
   }
 
   /**

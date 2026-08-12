@@ -1,3 +1,39 @@
+> **実装済み。** `src/entities/moods.ts`に`MoodVisual`・`MOOD_VISUALS`
+> (`MoodId`ごとの`fogColor`/`fogNear`/`fogFar`/`ambientColor`/
+> `ambientIntensity`)を追加。`src/view/renderer.ts`は元々コンストラクタ内
+> 固定値で作っていた`Fog`・`AmbientLight`をフィールドとして保持するよう
+> 変更し、新しい`setMoodVisual(visual: MoodVisual)`メソッドで色・強度を
+> 差し替えられるようにした。
+>
+> **計画書の仮id(`calm`/`shallow`/`deep`/`restless`/`omen`/
+> `chikamichi`)は、実際に`plan/yorishiro-moods.md`で確定した`MoodId`
+> (`calmSleep`/`lightSleep`/`deepSleep`/`restless`/`premonition`/
+> `shortcutPresence`)とは名前が異なっていた**ため、気分の性質が対応する
+> ものへ読み替えた: calm→calmSleep(既定値そのまま)・shallow→
+> lightSleep・deep→deepSleep・restless→restless(同名)・omen→
+> premonition(「虫の知らせ」=予兆)・chikamichi→shortcutPresence
+> (「近道屋の気配」)。数値自体は計画書の確定案をそのまま使用した。
+>
+> **呼び出しタイミング**は`src/main.ts`の`presentFloor()`
+> (ダイブ開始・オートセーブ復帰の共通経路)で`this.game.moodId`から
+> 一度だけ`setMoodVisual`する。計画書どおりダイブ中に気分が変わることは
+> ないため、フェード等のアニメーションは実装していない。
+>
+> **拠点には適用しない**という計画書の方針は、`showTown()`の冒頭で
+> 常に`MOOD_VISUALS[DEFAULT_MOOD_ID]`(既定値)へ戻すことで実現した。
+> 拠点画面はDOMオーバーレイの裏で実際のダンジョン3D表示が透けて見える
+> 作りになっている(`design/world.md`の「拠点の裏で洞窟が見えている
+> ほうが雰囲気が出る」)ため、これをしないとダイブ中の気分の色調が
+> 拠点の背景にまで引き継がれてしまう。ブラウザでのスモークテストで、
+> 拠点では常に既定値(fogColor 0x070912等)、ダイブ中は当日の気分
+> (確認時は「寝苦しい夜」=restless)どおりの色に切り替わることを確認した。
+>
+> テストは`tests/mood-visual-effects.test.ts`(`MOOD_VISUALS`が全`MoodId`
+> をカバーしていること・既定気分が`renderer.ts`の元の固定値と一致する
+> こと・全気分の値が有限であること)で検証。`Renderer`クラス自体は
+> 既存の他の3D表示コードと同様にWebGL/DOM依存のためユニットテスト対象
+> 外とし、ブラウザでの目視・値の直接読み出しで確認した。
+
 # ヨリシロの気分の視覚演出
 
 `plan/yorishiro-moods.md`(数値面の補正)・`plan/audio-playback.md`
