@@ -3,7 +3,7 @@ import type { Actor, FloorState, Item, MarkId, SkillId, Tile } from "./core/type
 import { ACHIEVEMENTS, achievementDef } from "./entities/achievements";
 import { COSTUMES, DEFAULT_COSTUME_ID, type CostumeDef } from "./entities/costumes";
 import { DIFFICULTY_MODES, type DifficultyMode } from "./entities/difficulty";
-import { NIGHTLY_DREAM_ID, TRIAL_CHAMBER_ID } from "./entities/dungeons";
+import { MAIN_CAVE_ID, MAIN_CAVE_MAX_DEPTH, NIGHTLY_DREAM_ID, REGION_SIZE, TRIAL_CHAMBER_ID } from "./entities/dungeons";
 import { MAX_RECENT_FUSION_MATERIALS, tryEvolve } from "./entities/evolution";
 import { HOKORA_DUST_DEF_ID, MARKS, MAX_MARK_SLOTS, MAX_PLUS } from "./entities/forging";
 import { MAX_ACTIVE_QUESTS, QUESTS, questDef, questsForDate, todayKey } from "./entities/quests";
@@ -554,6 +554,10 @@ export function recordRun(
     /** 腕試しの間(plan/hidden-dungeon.md): このダイブの経過ターン数・被ダメージ累計 */
     turns?: number;
     damageTaken?: number;
+    /** 実績帳「挑戦」カテゴリ(plan/challenge-achievements.md): このダイブ中に道具(杖・巻物・食料等)を使ったか */
+    usedItem?: boolean;
+    /** 実績帳「挑戦」カテゴリ: このダイブ中に武器を持ち替えたか(素手・未装備からの初回装備は数えない) */
+    usedMultipleWeapons?: boolean;
   },
 ): SaveData {
   let nextHutUid = current.nextHutUid;
@@ -637,8 +641,41 @@ export function recordRun(
   if (result.cleared && current.difficulty === "hard") {
     withAchievements = unlockAchievement(withAchievements, "hardModeClear");
   }
+  withAchievements = checkChallengeAchievements(withAchievements, result);
   saveData(withAchievements);
   return withAchievements;
+}
+
+/**
+ * 実績帳「挑戦」カテゴリ(plan/challenge-achievements.md、縛りプレイ実績)。
+ * ダイブ結果に応じた即時判定。討伐累計等の「積み上がる系」の実績
+ * (checkAchievements)とは別枠で扱う(性質が違うため無理に同じ関数にまとめない)。
+ */
+function checkChallengeAchievements(
+  current: SaveData,
+  result: { depth: number; cleared: boolean; dungeonId?: string; usedItem?: boolean; usedMultipleWeapons?: boolean },
+): SaveData {
+  if (!result.cleared) return current;
+  // 「地方」は表の寝穴(plan/region-expansion.md)だけの概念。他のダンジョンは
+  // 全階がチェックポイントになる(design/multiple-dungeons.mdどおり地方の
+  // 区切りを持たない)ため、挑戦実績の対象も表の寝穴に限る
+  const isMainCave = result.dungeonId === undefined || result.dungeonId === MAIN_CAVE_ID;
+  if (!isMainCave) return current;
+  let next = current;
+  // 「1地方踏破」の判定は地方境界(plan/checkpoint-select.mdが
+  // チェックポイントにする、深さがREGION_SIZEの倍数)を使う。区切って
+  // 持ち帰ったタイミングと自然に一致する
+  if (!result.usedItem && result.depth % REGION_SIZE === 0) {
+    next = unlockAchievement(next, "noItemRegion");
+  }
+  const isMainCaveFullClear = result.depth >= MAIN_CAVE_MAX_DEPTH;
+  if (!isMainCaveFullClear) return next;
+  if (!result.usedItem) next = unlockAchievement(next, "noItemFullClear");
+  if (!result.usedMultipleWeapons) next = unlockAchievement(next, "singleWeapon");
+  if (!result.usedItem && !result.usedMultipleWeapons) {
+    next = unlockAchievement(next, "noItemSingleWeapon");
+  }
+  return next;
 }
 
 /**

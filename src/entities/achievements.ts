@@ -2,13 +2,14 @@
  * 実績・称号(plan/achievements.md)。達成した記録そのものを可視化する
  * カタログ。判定ロジックは save.ts の checkAchievements が持つ(達成条件は
  * 既存のセーブフィールドから毎回再評価するだけで、専用の監視処理は無い)。
+ * 「挑戦」カテゴリ(縛りプレイ系、plan/challenge-achievements.md)だけは
+ * ダイブ結果に応じた即時判定(save.tsのcheckChallengeAchievements)を使う。
  *
  * 依頼板(plan/quest-board.md)・地方ボス(plan/region-bosses.md)・
  * 仲間の成熟(plan/companion-evolution.md)・絆(design/village-life.md)は
  * まだ実装されていないため、それらを条件にする実績は未収録。
  * 「網羅的な一覧は実装時に広げる」という本文の方針どおり、対応する機能が
- * 実装され次第この一覧に追加する。「挑戦」カテゴリ(縛りプレイ系)は
- * 本文が実装コストの判断を保留しているため、今回は見送る。
+ * 実装され次第この一覧に追加する。
  */
 export interface AchievementDef {
   id: string;
@@ -79,6 +80,30 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
     name: "きびしいを踏破する",
     description: "難易度「きびしい」で表の寝穴を踏破する。",
     title: "屈強な踏破者",
+  },
+  // 「挑戦」カテゴリ(縛りプレイ実績、plan/challenge-achievements.md)
+  {
+    id: "noItemRegion",
+    name: "道具知らず",
+    description: "道具を1つも使わずに1地方(6階分)を踏破する。",
+  },
+  {
+    id: "noItemFullClear",
+    name: "無道具踏破",
+    description: "道具を1つも使わずに表の寝穴を完全踏破する。",
+    title: "素手の樽守り",
+  },
+  {
+    id: "singleWeapon",
+    name: "一本気な踏破",
+    description: "武器を持ち替えずに表の寝穴を完全踏破する。",
+    title: "一本気",
+  },
+  {
+    id: "noItemSingleWeapon",
+    name: "求道の踏破",
+    description: "道具を使わず、武器も持ち替えずに表の寝穴を完全踏破する。",
+    title: "求道者",
   },
 ];
 

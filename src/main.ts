@@ -784,6 +784,9 @@ class App {
       // 腕試しの間(plan/hidden-dungeon.md)の記録用
       turns: this.game.turnCount,
       damageTaken: this.game.damageTakenThisRun,
+      // 実績帳「挑戦」カテゴリ(plan/challenge-achievements.md)
+      usedItem: this.game.usedItemThisRun,
+      usedMultipleWeapons: this.game.usedMultipleWeaponsThisRun,
     });
     this.hud.showOverlay(
       cleared ? "だっしゅつ成功!" : "ちからつきた……",
