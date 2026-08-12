@@ -1,5 +1,6 @@
 import { TUTORIAL_TIP_IDS, type TutorialTipId } from "./core/tutorial";
 import type { Actor, Item, MarkId, SkillId } from "./core/types";
+import { ACHIEVEMENTS, achievementDef } from "./entities/achievements";
 import { MARKS, MAX_PLUS } from "./entities/forging";
 import type { TrainingFocus } from "./entities/player";
 import { MAX_SKILLS, NATIVE_SKILL_BY_SPECIES, SKILLS, fullSkillSet } from "./entities/skills";
@@ -70,6 +71,14 @@ export interface SaveData {
    * "seen"(見た)/"captured"(捕まえた)を記録する。未登録キーは「未確認」扱い
    */
   compendium: Record<string, CompendiumStatus>;
+  /**
+   * 実績帳(plan/achievements.md)。実績id → 達成日時(ISO文字列)。
+   * 一度記録した実績は、条件を後から満たさなくなっても取り消さない
+   * (design/balance-philosophy.md の「知識・記録はロストしない」原則)
+   */
+  achievements: Record<string, string>;
+  /** 現在身につけている称号の実績id。未選択ならundefined */
+  equippedTitle?: string;
 }
 
 /** "seen": 遭遇した。"captured": タルで捕まえた、または夢あわせの糧にした */
@@ -106,6 +115,7 @@ export function initialSave(): SaveData {
     nextHutUid: 1,
     records: { totalDefeats: 0, totalCaptures: 0 },
     compendium: {},
+    achievements: {},
   };
 }
 
@@ -127,6 +137,8 @@ export function loadSave(): SaveData {
       nextHutUid: numberOr(parsed.nextHutUid, nextHutUidFrom(sanitizeHut(parsed.hut))),
       records: sanitizeRecords(parsed.records),
       compendium: sanitizeCompendium(parsed.compendium),
+      achievements: sanitizeAchievements(parsed.achievements),
+      equippedTitle: sanitizeEquippedTitle(parsed.equippedTitle, sanitizeAchievements(parsed.achievements)),
     };
   } catch {
     // 壊れた保存データで起動できなくなるほうが困るので、黙って初期値に戻す
@@ -221,9 +233,12 @@ export function recordRun(
       (acc, m) => (m.speciesId ? { ...acc, [m.speciesId]: "captured" as const } : acc),
       current.compendium,
     ),
+    achievements: current.achievements,
+    equippedTitle: current.equippedTitle,
   };
-  saveData(next);
-  return next;
+  const withAchievements = checkAchievements(next);
+  saveData(withAchievements);
+  return withAchievements;
 }
 
 /** ダイブ中のAllyアクターを、ねむり小屋に保存する形へ変換する */
@@ -414,6 +429,74 @@ export function isCompendiumComplete(current: SaveData): boolean {
   return SPECIES.every((s) => current.compendium[s.id] === "captured");
 }
 
+function sanitizeAchievements(value: unknown): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (typeof value !== "object" || value === null) return out;
+  for (const [id, date] of Object.entries(value as Record<string, unknown>)) {
+    if (!VALID_ACHIEVEMENT_IDS.has(id)) continue;
+    if (typeof date !== "string") continue;
+    out[id] = date;
+  }
+  return out;
+}
+
+function sanitizeEquippedTitle(value: unknown, achievements: Record<string, string>): string | undefined {
+  if (typeof value !== "string") return undefined;
+  if (achievements[value] === undefined) return undefined;
+  if (!achievementDef(value)?.title) return undefined;
+  return value;
+}
+
+/**
+ * 実績帳(plan/achievements.md)。指定した実績idを、まだ未達成なら現在日時で
+ * 記録する。一度記録した実績は取り消さない(既に達成済みなら何もしない)
+ */
+export function unlockAchievement(current: SaveData, id: string): SaveData {
+  if (current.achievements[id] !== undefined) return current;
+  if (!achievementDef(id)) return current;
+  const next: SaveData = {
+    ...current,
+    achievements: { ...current.achievements, [id]: new Date().toISOString() },
+  };
+  saveData(next);
+  return next;
+}
+
+/**
+ * 実績帳。既存のセーブフィールドから、しきい値ベースの実績をまとめて
+ * 再評価する。達成イベント専用の監視処理を新設せず、記録の変わる箇所
+ * (ダイブの成果反映・図鑑更新・拠点からの出発時など)で呼べばよい設計。
+ * `extraItems` は、まだ倉庫に戻っていない持ち込み品(強化・刻印の実績判定に
+ * 必要)を追加で走査したいときに渡す
+ */
+export function checkAchievements(current: SaveData, extraItems: readonly StoredItem[] = []): SaveData {
+  let next = current;
+  const captured = SPECIES.filter((s) => next.compendium[s.id] === "captured").length;
+  if (captured * 2 >= SPECIES.length) next = unlockAchievement(next, "compendiumHalf");
+  if (isCompendiumComplete(next)) next = unlockAchievement(next, "compendiumFull");
+  if (next.records.totalDefeats >= 50) next = unlockAchievement(next, "defeats50");
+  if (next.records.totalCaptures >= 10) next = unlockAchievement(next, "captures10");
+  if (next.clears >= 1) next = unlockAchievement(next, "clear1");
+  if (next.bestLevel >= 10) next = unlockAchievement(next, "level10");
+
+  const items = [...next.storage, ...extraItems];
+  if (items.some((i) => (i.plus ?? 0) >= MAX_PLUS)) next = unlockAchievement(next, "maxPlusReached");
+  const forgedMarkIds = new Set(items.map((i) => i.markId).filter((m): m is MarkId => m !== undefined));
+  if (MARKS.every((m) => forgedMarkIds.has(m.id))) next = unlockAchievement(next, "allMarksForged");
+
+  return next;
+}
+
+/** 称号を身につける/外す。titleを持たない実績・未達成の実績は無視する */
+export function setEquippedTitle(current: SaveData, id: string | undefined): SaveData {
+  if (id !== undefined && (current.achievements[id] === undefined || !achievementDef(id)?.title)) {
+    return current;
+  }
+  const next: SaveData = { ...current, equippedTitle: id };
+  saveData(next);
+  return next;
+}
+
 /** 1階(入口)は常に知っている扱いにする */
 function sanitizeCheckpoints(value: unknown): number[] {
   const known = new Set<number>([1]);
@@ -427,6 +510,7 @@ function sanitizeCheckpoints(value: unknown): number[] {
 
 const VALID_SPECIES_IDS = new Set(SPECIES.map((s) => s.id));
 const VALID_SKILL_IDS = new Set(SKILLS.map((s) => s.id));
+const VALID_ACHIEVEMENT_IDS = new Set(ACHIEVEMENTS.map((a) => a.id));
 
 function sanitizeHut(value: unknown): StoredMonster[] {
   if (!Array.isArray(value)) return [];
