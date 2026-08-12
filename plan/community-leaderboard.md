@@ -13,8 +13,9 @@
 - 「みんなの記録に載せる」は、各画面に**追加のボタンを1つ足すだけ**の
   任意機能にする。押さなければ何も送信されない
   (`design/server-architecture.md` の原則2を踏襲)。
-- `plan/bug-report.md` と同じ「プレイヤー自身のブラウザがGitHub Issueを
-  作る → ワークフローが処理する」という流れをそのまま流用する。
+- `design/server-architecture.md` の基本パターン(プレイヤー自身の
+  ブラウザがGitHub Issueを作る → ワークフローが処理する)をそのまま
+  流用する。
 
 ## 対象にする記録
 
@@ -30,8 +31,7 @@
 2. `https://github.com/cyber-tribe/game/issues/new` に、記録の種類・
    数値・(任意で)名乗りたい名前を事前入力した状態で新しいタブを開く
    (`labels=leaderboard-submission` を付与)。プレイヤーが実際に投稿
-   ボタンを押すかはプレイヤー次第(`plan/bug-report.md` と同じ、
-   ゲームは開くところまで)。
+   ボタンを押すかはプレイヤー次第(ゲームは開くところまでで完結する)。
 3. `leaderboard-ingest.yml`(新規ワークフロー)が起動し、Issue本文の
    JSONを読み取って `leaderboard/*.json`(記録種別ごとのファイル)に
    追記コミットし、Issueには結果(何位相当か等)をコメントして自動で
@@ -42,8 +42,6 @@
 ## サーバー側の処理(GitHub Actions)
 
 ### 起動条件
-
-`plan/bug-report.md` の `bug-report-triage.yml` と同じ形にする。
 
 ```yaml
 # .github/workflows/leaderboard-ingest.yml (新規)
@@ -112,8 +110,7 @@ jobs:
   存在しない地方名)は弾いて `needs-info` ラベルを付ける程度の
   簡易検証に留める。
 - 名乗る名前は任意の自由入力とし、実名・連絡先の入力は求めない。
-  投稿すれば公開されることは、`plan/bug-report.md` と同じくボタンの
-  文言・遷移先で隠さず示す。
+  投稿すれば公開されることは、ボタンの文言・遷移先で隠さず示す。
 
 ## データ構造
 
