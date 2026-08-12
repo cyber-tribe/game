@@ -58,6 +58,7 @@ import {
   placeQuagmireTiles,
   placeSecretPassage,
   placeSporeRooms,
+  placeTorrentTiles,
   populateFloor,
   spawnWanderingMonster,
 } from "./dungeon/populate";
@@ -268,6 +269,9 @@ const BONEPILE_MONSTER_HOUSE_MULTIPLIER = 1.5;
 /** 地方ボス(plan/region-boss-honezuka.md): 大技(aoeSeal)の封じ確率・持続ターン */
 const HONEZUKA_SEAL_CHANCE = 0.6;
 const HONEZUKA_SEAL_TURNS = 3;
+
+/** 第五地方(なみだの滝つぼ)固有ギミック(plan/waterfall-torrent.md): 奔流タイルの連鎖上限 */
+const TORRENT_PUSH_LIMIT = 4;
 
 /** タルの飛距離 */
 const BARREL_RANGE = 8;
@@ -538,6 +542,11 @@ export class Game {
     // 第三地方(まどろみの茸林)固有ギミック(plan/spore-grove.md): 13〜18階に胞子部屋を配置する
     if (this.dungeon.id === MAIN_CAVE_ID && depth >= 13 && depth <= 18) {
       placeSporeRooms(this.rng, this.floor);
+    }
+
+    // 第五地方(なみだの滝つぼ)固有ギミック(plan/waterfall-torrent.md): 25〜30階に奔流タイルを配置する
+    if (this.dungeon.id === MAIN_CAVE_ID && depth >= 25 && depth <= 30) {
+      placeTorrentTiles(this.rng, this.floor);
     }
 
     // 仲間は階段について来る。プレイヤーの周りの空いたマスに並べる
@@ -1193,13 +1202,14 @@ export class Game {
     const from = player.pos;
     player.pos = to;
     events.push({ type: "move", actorId: player.id, from, to });
+    const landed = this.applyTorrentPush(player, events);
 
-    this.checkTrap(to, events);
-    this.collectGold(to, events);
-    this.checkShoplifting(from, to, events);
-    this.announceGround(to, events);
-    this.checkMonsterHouseWarning(to, events);
-    this.checkSecretPassageHint(to, events);
+    this.checkTrap(landed, events);
+    this.collectGold(landed, events);
+    this.checkShoplifting(from, landed, events);
+    this.announceGround(landed, events);
+    this.checkMonsterHouseWarning(landed, events);
+    this.checkSecretPassageHint(landed, events);
     return true;
   }
 
@@ -2029,6 +2039,35 @@ export class Game {
     actor.pos = to;
     actor.facing = dir;
     events.push({ type: "move", actorId: actor.id, from, to });
+    this.applyTorrentPush(actor, events);
+  }
+
+  /**
+   * 第五地方(なみだの滝つぼ)固有ギミック(plan/waterfall-torrent.md): 奔流タイルへ
+   * 移動すると、その向きへ連鎖的に押し流される(最大4マス)。壁・他アクター・タルが
+   * あれば手前で止まる。プレイヤー・仲間・モンスターの移動処理の末尾で共通に呼ぶ
+   */
+  private applyTorrentPush(actor: Actor, events: GameEvent[]): Vec2 {
+    const start = actor.pos;
+    let current = start;
+    for (let i = 0; i < TORRENT_PUSH_LIMIT; i++) {
+      const tile = tileAt(this.floor, current);
+      if (!tile?.torrent) break;
+      const delta = dirDelta(tile.torrent);
+      const next = { x: current.x + delta.x, y: current.y + delta.y };
+      if (!walkableAt(this.floor, next) || barrelAt(this.floor, next)) break;
+      const occupant = actorAt(this.floor, next);
+      if (occupant && occupant.id !== actor.id) break;
+      current = next;
+    }
+    if (!eq(current, start)) {
+      actor.pos = current;
+      events.push({ type: "move", actorId: actor.id, from: start, to: current });
+      if (actor.kind === "player") {
+        events.push({ type: "message", text: "奔流に押し流された!" });
+      }
+    }
+    return current;
   }
 
   // ------------------------------------------------------------ 毎ターンの処理

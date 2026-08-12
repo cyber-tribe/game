@@ -19,6 +19,11 @@ export interface Tile {
    * 自体は増やさない
    */
   quagmire?: boolean;
+  /**
+   * 奔流タイル(plan/waterfall-torrent.md)。第五地方(25〜30階)の部屋
+   * タイルの一部に付与される。この向きへ強制的に押し流す
+   */
+  torrent?: Dir;
 }
 
 export function isWalkable(kind: TileKind): boolean {
