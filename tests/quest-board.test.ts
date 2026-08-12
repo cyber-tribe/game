@@ -257,7 +257,7 @@ function withMockedLocalStorage(run: () => void): void {
 describe("save.ts: 壊れたセーブデータの依頼板・所持金", () => {
   it("フィールド自体が無くても初期値で読み込める", () => {
     withMockedLocalStorage(() => {
-      localStorage.setItem("garudo-dungeon/v1", JSON.stringify({}));
+      localStorage.setItem("garudo-dungeon/v1/slot0", JSON.stringify({}));
       const loaded = loadSave();
       expect(loaded.gold).toBe(0);
       expect(loaded.boardDate).toBe("");
@@ -269,9 +269,9 @@ describe("save.ts: 壊れたセーブデータの依頼板・所持金", () => {
 
   it("goldが負値・不正値でも0以上に丸められる", () => {
     withMockedLocalStorage(() => {
-      localStorage.setItem("garudo-dungeon/v1", JSON.stringify({ gold: -50 }));
+      localStorage.setItem("garudo-dungeon/v1/slot0", JSON.stringify({ gold: -50 }));
       expect(loadSave().gold).toBe(0);
-      localStorage.setItem("garudo-dungeon/v1", JSON.stringify({ gold: "abc" }));
+      localStorage.setItem("garudo-dungeon/v1/slot0", JSON.stringify({ gold: "abc" }));
       expect(loadSave().gold).toBe(0);
     });
   });
@@ -279,7 +279,7 @@ describe("save.ts: 壊れたセーブデータの依頼板・所持金", () => {
   it("存在しない依頼idや壊れた形は、貼り出し・受注一覧から取り除かれる", () => {
     withMockedLocalStorage(() => {
       localStorage.setItem(
-        "garudo-dungeon/v1",
+        "garudo-dungeon/v1/slot0",
         JSON.stringify({
           boardOffers: ["huntGajiri", "存在しないid", 42],
           activeQuests: [{ defId: "huntPurun", progress: 0 }, { defId: "存在しないid" }, "壊れた形"],

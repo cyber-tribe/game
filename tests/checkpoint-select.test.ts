@@ -151,7 +151,7 @@ describe("save.ts のチェックポイント管理", () => {
       },
     };
     try {
-      store.set("garudo-dungeon/v1", JSON.stringify({ knownCheckpoints: ["not-a-number", 5, -3, 6] }));
+      store.set("garudo-dungeon/v1/slot0", JSON.stringify({ knownCheckpoints: ["not-a-number", 5, -3, 6] }));
       const loaded = loadSave();
       expect(loaded.knownCheckpoints).toEqual([1, 5, 6]);
     } finally {

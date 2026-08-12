@@ -19,7 +19,7 @@ import v8 from "./fixtures/save/v8-lost-and-found-vault.json";
 function withMockedLocalStorage(raw: unknown, run: () => void): void {
   const original = globalThis.localStorage;
   const store = new Map<string, string>();
-  store.set("garudo-dungeon/v1", JSON.stringify(raw));
+  store.set("garudo-dungeon/v1/slot0", JSON.stringify(raw));
   (globalThis as { localStorage?: unknown }).localStorage = {
     getItem: (k: string) => store.get(k) ?? null,
     setItem: (k: string, v: string) => {

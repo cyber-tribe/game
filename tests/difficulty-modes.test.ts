@@ -81,7 +81,7 @@ describe("save.ts: 難易度モード", () => {
 
   it("壊れたセーブデータの難易度は未知の値なら「ふつう」に戻す", () => {
     withMockedLocalStorage(() => {
-      localStorage.setItem("garudo-dungeon/v1", JSON.stringify({ difficulty: "こわれた難易度" }));
+      localStorage.setItem("garudo-dungeon/v1/slot0", JSON.stringify({ difficulty: "こわれた難易度" }));
       const loaded = loadSave();
       expect(loaded.difficulty).toBe("normal");
     });

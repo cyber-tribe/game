@@ -134,7 +134,7 @@ describe("save.ts: 壊れたセーブデータの装備図鑑", () => {
   it("未知のdefId・不正な段階・未知のmarkIdは捨てる", () => {
     withMockedLocalStorage(() => {
       localStorage.setItem(
-        "garudo-dungeon/v1",
+        "garudo-dungeon/v1/slot0",
         JSON.stringify({
           equipmentCompendium: { hatchet: "mastered", みしらぬ装備: "mastered", ironHelm: "こわれた段階" },
           markCompendium: { gajiri: "owned", みしらぬ印: "owned" },

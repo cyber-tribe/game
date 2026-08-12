@@ -159,7 +159,7 @@ describe("save.ts の鍛え方の保存", () => {
       },
     };
     try {
-      store.set("garudo-dungeon/v1", JSON.stringify({ trainingFocus: "げきから" }));
+      store.set("garudo-dungeon/v1/slot0", JSON.stringify({ trainingFocus: "げきから" }));
       const loaded = loadSave();
       expect(loaded.trainingFocus).toBe("balance");
     } finally {

@@ -1,3 +1,45 @@
+> **実装済み。**
+> `src/save.ts`(`slotKey`/`slotSnapshotKey`・`migrateLegacySaveIfNeeded`・
+> `SaveData.lastPlayedAt`・`SAVE_SLOT_COUNT`・`listSaveSlotSummaries`・
+> `deleteSaveSlot`を追加)、`src/ui/slot-select.ts`(新規、`SlotSelectScreen`)、
+> `src/main.ts`(起動直後にスロット選択画面を表示し、選んだ枠で
+> 拠点/ダイブ再開を組み立てる)、`index.html`(`#slotSelect`のマークアップ・
+> スタイル追加)に実装した。テストは `tests/save-slots.test.ts`(9件)、
+> 既存の17テストファイルが直接触っていた旧キー("garudo-dungeon/v1"等)の
+> フィクスチャも新しいslot0キーへ更新した。
+>
+> `src/save.ts` の実装詳細(プランからの主な調整):
+> - プランは`loadSave`/`saveSave`という関数名を前提にしていたが、実際の
+>   関数名は`loadSave`/`saveData`(save-compat-testing.mdの既存API)
+>   だったため、そちらに`slot`引数を追加する形にした。
+> - 呼び出し側(main.tsの9箇所・save.ts内の記録まわり約30関数)すべてに
+>   `slot`を引き回すのは影響範囲が大きすぎるため、プランには無い設計判断
+>   として**モジュール内に「現在アクティブな枠」を1つ持つ**方式にした
+>   (`setActiveSlot(slot)`)。`loadSave`/`saveData`/`saveRunSnapshot`/
+>   `loadRunSnapshot`/`clearRunSnapshot`はいずれも`slot`引数省略時に
+>   アクティブ枠を使う。既存の記録まわり関数(`addKnownCheckpoint`等)は
+>   引数無しの`saveData(next)`呼び出しのままで自動的にアクティブ枠へ書かれる
+>   ため、無改修で済んだ。既存テスト(17ファイル)も`loadSave()`/
+>   `saveData(x)`の無引数呼び出しのまま(既定のアクティブ枠=0)で動く。
+> - `lastPlayedAt`は`saveData`(旧`saveSave`)が呼ばれるたびに、書き込み
+>   直前に現在時刻へ更新する(渡された`SaveData`オブジェクト自体は
+>   変更せず、`localStorage`へ書く直前にコピーへ反映する)。
+>
+> `src/ui/slot-select.ts` の実装詳細:
+> - `town.ts`のような列・カーソルを持つ複雑なメニューではなく、
+>   `naming-dialog.ts`に近い軽量な単一リスト画面にした(3行の上下選択+
+>   Enter決定)。データの無い枠は「はじめる」表記。
+> - 削除(やり直し)は`Delete`/`Backspace`キーで確認状態に入り、
+>   `Enter`で確定・`Escape`でキャンセルする1段階の確認ダイアログにした。
+> - タイトル画面そのもの(ロゴ・背景演出等)は本文書のスコープ外のため
+>   作らず、起動直後に直接この選択画面を表示する形にした
+>   (「未決事項: タイトル画面自体のビジュアル」として明記されていた
+>   範囲)。
+>
+> 動作確認: `npm run dev`させてChromiumで実際に起動し、起動直後に
+> 3枠とも「はじめる」で表示されること、Enterで選ぶと`#slotSelect`が
+> 隠れて拠点画面(初期の倉庫アイテム込み)が表示されることを確認した。
+
 # セーブ枠(3スロット化)
 
 `design/ui-flow.md` が「セーブ枠の具体的なUI」を未決事項として残していた

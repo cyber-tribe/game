@@ -487,7 +487,7 @@ describe("save.ts: モンスター図鑑", () => {
   it("壊れたセーブデータのcompendiumは未知の種族id・不正なstatusを捨てる", () => {
     withMockedLocalStorage(() => {
       localStorage.setItem(
-        "garudo-dungeon/v1",
+        "garudo-dungeon/v1/slot0",
         JSON.stringify({
           compendium: { purun: "captured", みしらぬ種族: "captured", gajiri: "こわれたstatus" },
         }),

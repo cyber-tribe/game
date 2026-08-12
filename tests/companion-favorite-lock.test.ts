@@ -136,7 +136,7 @@ describe("save.ts: 壊れたセーブデータのfavorite", () => {
   it("favorite: falseは保存されず、キー自体を持たない(既定のundefined相当)", () => {
     withMockedLocalStorage(() => {
       localStorage.setItem(
-        "garudo-dungeon/v1",
+        "garudo-dungeon/v1/slot0",
         JSON.stringify({
           hut: [
             { uid: 1, speciesId: "gajiri", level: 1, skills: [], favorite: false },
@@ -153,7 +153,7 @@ describe("save.ts: 壊れたセーブデータのfavorite", () => {
   it("favorite: trueは保持される", () => {
     withMockedLocalStorage(() => {
       localStorage.setItem(
-        "garudo-dungeon/v1",
+        "garudo-dungeon/v1/slot0",
         JSON.stringify({
           hut: [{ uid: 1, speciesId: "gajiri", level: 1, skills: [], favorite: true }],
         }),

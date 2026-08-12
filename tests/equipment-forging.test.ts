@@ -90,7 +90,7 @@ describe("save.ts: 壊れたセーブデータのplus・markIds", () => {
   it("範囲外のplus・未知のmarkIdは捨てる", () => {
     withMockedLocalStorage(() => {
       localStorage.setItem(
-        "garudo-dungeon/v1",
+        "garudo-dungeon/v1/slot0",
         JSON.stringify({
           storage: [
             { defId: "hatchet", plus: 3, markIds: ["gajiri"] }, // 正常
@@ -113,7 +113,7 @@ describe("save.ts: 壊れたセーブデータのplus・markIds", () => {
   it("2つを超えるmarkIdsは先頭2件までに切り詰める", () => {
     withMockedLocalStorage(() => {
       localStorage.setItem(
-        "garudo-dungeon/v1",
+        "garudo-dungeon/v1/slot0",
         JSON.stringify({
           storage: [{ defId: "hatchet", markIds: ["gajiri", "tsubute", "madoromi"] }],
         }),
@@ -127,7 +127,7 @@ describe("save.ts: 壊れたセーブデータのplus・markIds", () => {
   it("plan/dual-mark-equipment.md以前の単数形markIdは、markIds: [markId]へ読み替える", () => {
     withMockedLocalStorage(() => {
       localStorage.setItem(
-        "garudo-dungeon/v1",
+        "garudo-dungeon/v1/slot0",
         JSON.stringify({
           storage: [
             { defId: "hatchet", plus: 9, markId: "gajiri" }, // 旧形式
