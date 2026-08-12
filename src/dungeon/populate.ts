@@ -248,6 +248,10 @@ export function populateFloor(
    * monsterAtkMultiplierとは掛け算で併存する。expには掛けない
    */
   statMultiplier = 1,
+  /** ヨリシロの気分(plan/yorishiro-moods.md)。フロアに落ちているアイテムの個数に掛ける倍率 */
+  itemCountMultiplier = 1,
+  /** ヨリシロの気分(plan/yorishiro-moods.md)。野生湧きでスリガラス(ai: "thief")が選ばれる重みに掛ける倍率 */
+  thiefWeightMultiplier = 1,
 ): void {
   const gimmick = floor.gimmick;
   const tableDepth = Math.max(1, floor.depth + speciesDepthOffset);
@@ -283,7 +287,11 @@ export function populateFloor(
         minDistanceFrom: { pos: playerStart, distance: 6 },
       });
       if (!pos) break;
-      const species = rng.pickWeighted(pool, (s) => s.weight);
+      // ヨリシロの気分(plan/yorishiro-moods.md)「近道屋の気配」: スリガラス(ai: "thief")の
+      // 野生湧きの重みだけを底上げする
+      const species = rng.pickWeighted(pool, (s) =>
+        s.ai === "thief" ? s.weight * thiefWeightMultiplier : s.weight,
+      );
       const monster = createMonster(ids.nextActorId(), species, pos);
       if (gimmick === "alert") monster.aware = true;
       monster.atk = Math.round(monster.atk * monsterAtkMultiplier * statMultiplier);
@@ -321,8 +329,9 @@ export function populateFloor(
 
   const itemPool = itemsForDepth(tableDepth);
   const baseItemCount = rng.int(3, 6);
-  const itemCount =
-    gimmick === "windfall" ? Math.round(baseItemCount * WINDFALL_MULTIPLIER) : baseItemCount;
+  const itemCount = Math.round(
+    (gimmick === "windfall" ? baseItemCount * WINDFALL_MULTIPLIER : baseItemCount) * itemCountMultiplier,
+  );
   for (let i = 0; i < itemCount; i++) {
     const pos = findFreeTile(rng, floor, { roomsOnly: true, avoid: [playerStart] });
     if (!pos) break;

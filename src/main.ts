@@ -64,6 +64,7 @@ import {
 import type { DifficultyMode } from "./entities/difficulty";
 import { costumeById } from "./entities/costumes";
 import { MAIN_CAVE_ID } from "./entities/dungeons";
+import { moodForDate } from "./entities/moods";
 import { todayKey } from "./entities/quests";
 import { STORY_CHAPTER_MESSAGES, storyChapter, storyChapterEventId } from "./entities/story";
 import { speciesById } from "./entities/species";
@@ -348,6 +349,8 @@ class App {
       bringAllies: [...bringAllies],
       compendiumComplete: isCompendiumComplete(this.save),
       trueAwakeningCleared: this.save.trueAwakeningCleared,
+      // ヨリシロの気分(plan/yorishiro-moods.md): 実際の日付から今日の気分を決める
+      moodOverride: moodForDate(todayKey()).id,
       difficulty,
       dungeonId,
       deepest: this.save.deepest,

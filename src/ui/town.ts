@@ -27,7 +27,9 @@ import {
   dungeonById,
   isDungeonUnlocked,
 } from "../entities/dungeons";
+import { moodForDate } from "../entities/moods";
 import { MAX_ALLIES, type TrainingFocus } from "../entities/player";
+import { todayKey } from "../entities/quests";
 import { SPECIES, speciesById } from "../entities/species";
 import { isCompendiumComplete, isTrueAwakeningUnlocked, isWeaponCompendiumComplete, type CompendiumStatus, type FontSize, type SaveData, type StoredItem, type StoredMonster } from "../save";
 import { ITEMS, itemDef } from "../items/catalog";
@@ -1689,6 +1691,13 @@ export class TownScreen {
     heading.className = "town-col-title";
     heading.textContent = "潜るダンジョン";
     wrapper.appendChild(heading);
+
+    // ヨリシロの気分(plan/yorishiro-moods.md): 今日の気分を1行添える
+    const todaysMood = moodForDate(todayKey());
+    const moodLine = document.createElement("p");
+    moodLine.className = "town-mood";
+    moodLine.textContent = `今日の気分: ${todaysMood.name} — ${todaysMood.flavorText}`;
+    wrapper.appendChild(moodLine);
 
     const deepest = this.save?.deepest ?? 0;
     const villageStage = this.save?.villageStage ?? 1;
