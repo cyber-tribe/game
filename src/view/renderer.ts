@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { Vec2 } from "../core/grid";
+import type { MoodVisual } from "../entities/moods";
 
 /** 1マスの大きさ。すべての座標変換はここを基準にする */
 export const TILE = 1.0;
@@ -24,6 +25,9 @@ export class Renderer {
   readonly playerLight: THREE.PointLight;
   /** 影を落とす唯一の光。注視点に合わせて動かす */
   private readonly key: THREE.DirectionalLight;
+  /** 気分の視覚演出(plan/mood-visual-effects.md)で色・強度を差し替える対象 */
+  private readonly fog: THREE.Fog;
+  private readonly ambient: THREE.AmbientLight;
   /** 影の視錐台を最後に合わせた位置。動いたぶんだけ描き直す */
   private readonly shadowAnchor = new THREE.Vector3(Infinity, 0, Infinity);
 
@@ -53,12 +57,14 @@ export class Renderer {
     this.scene.background = new THREE.Color(0x05060c);
     // フォグの開始距離はカメラからプレイヤーまでの距離より遠くに置く。
     // でないと主役が最初から霞んでしまう
-    this.scene.fog = new THREE.Fog(0x070912, 16, 34);
+    this.fog = new THREE.Fog(0x070912, 16, 34);
+    this.scene.fog = this.fog;
 
     this.camera = new THREE.PerspectiveCamera(46, 1, 0.1, 120);
 
     // 洞窟の底なので全体は青く沈ませ、プレイヤーの周りだけを暖色で照らす
-    this.scene.add(new THREE.AmbientLight(0x6674a0, 1.7));
+    this.ambient = new THREE.AmbientLight(0x6674a0, 1.7);
+    this.scene.add(this.ambient);
 
     // 影を落とすのはこの1灯だけ。盤面は 48×36 マスあるので、視錐台を原点に
     // 固定したままだと原点付近にしか影が出ない。カメラの注視点に合わせて
@@ -94,6 +100,19 @@ export class Renderer {
     this.renderer.setSize(width, height, false);
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
+  }
+
+  /**
+   * 気分の視覚演出(plan/mood-visual-effects.md)。Fog・AmbientLightの
+   * 色・強度を差し替える。ダイブ中に気分が変わることはないので、
+   * フェード等のアニメーションは持たず即座に切り替える
+   */
+  setMoodVisual(visual: MoodVisual): void {
+    this.fog.color.setHex(visual.fogColor);
+    this.fog.near = visual.fogNear;
+    this.fog.far = visual.fogFar;
+    this.ambient.color.setHex(visual.ambientColor);
+    this.ambient.intensity = visual.ambientIntensity;
   }
 
   /** カメラが注視する盤面上の位置。滑らかに追いつく */

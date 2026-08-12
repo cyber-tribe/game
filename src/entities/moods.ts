@@ -87,6 +87,37 @@ export const MOODS: readonly MoodDef[] = [
   },
 ];
 
+/**
+ * 気分の視覚演出(plan/mood-visual-effects.md)。既存のFog・AmbientLight
+ * (`src/view/renderer.ts`)の色・強度を、ダイブ開始時に気分ごとへ
+ * 差し替えるだけの薄い上乗せ。新しいシェーダー・ポストプロセスは作らない
+ */
+export interface MoodVisual {
+  fogColor: number;
+  fogNear: number;
+  fogFar: number;
+  ambientColor: number;
+  ambientIntensity: number;
+}
+
+/**
+ * 計画書は`calm`/`shallow`/`deep`/`restless`/`omen`/`chikamichi`という
+ * 仮のidで例示していたが、実際のMoodIdは上のとおり異なる名前なので、
+ * 気分の性質が対応するものへ読み替えた: calm→calmSleep(既定値そのまま)・
+ * shallow→lightSleep・deep→deepSleep・restless→restless(同名)・
+ * omen→premonition(「虫の知らせ」=予兆)・chikamichi→shortcutPresence
+ * (「近道屋の気配」)
+ */
+export const MOOD_VISUALS: Readonly<Record<MoodId, MoodVisual>> = {
+  // src/view/renderer.tsが元々持っていた固定値そのもの
+  calmSleep: { fogColor: 0x070912, fogNear: 16, fogFar: 34, ambientColor: 0x6674a0, ambientIntensity: 1.7 },
+  lightSleep: { fogColor: 0x0a0d1a, fogNear: 18, fogFar: 38, ambientColor: 0x7a86b8, ambientIntensity: 1.9 },
+  deepSleep: { fogColor: 0x05060c, fogNear: 12, fogFar: 28, ambientColor: 0x4a5480, ambientIntensity: 1.3 },
+  restless: { fogColor: 0x120810, fogNear: 14, fogFar: 30, ambientColor: 0x8a5a6a, ambientIntensity: 1.6 },
+  premonition: { fogColor: 0x08101a, fogNear: 16, fogFar: 34, ambientColor: 0x6a8aa0, ambientIntensity: 1.8 },
+  shortcutPresence: { fogColor: 0x100c06, fogNear: 16, fogFar: 34, ambientColor: 0x9a8060, ambientIntensity: 1.75 },
+};
+
 const MOOD_IDS: readonly MoodId[] = MOODS.map((m) => m.id);
 
 const BY_ID = new Map(MOODS.map((m) => [m.id, m]));
