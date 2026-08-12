@@ -497,6 +497,17 @@ export const ITEMS: readonly ItemDef[] = [
     weight: 0,
     description: "わすれられた祭りの跡の主を倒した証。ひび割れた、呼び込みの面。",
   },
+  {
+    // 地方ボス(plan/region-boss-horikuinonushi.md)を撃破した確定ドロップ専用。
+    // ランダムな床落ちには出さない(minFloor: Infinity・weight: 0で除外)
+    id: "horikuiNoKuiSaki",
+    name: "掘り杭の杭先",
+    category: "material",
+    model: "herb",
+    minFloor: Number.POSITIVE_INFINITY,
+    weight: 0,
+    description: "めざめの前庭の主を倒した証。ヨリシロの夢と混ざり合った、杭の先端。",
+  },
 
   // ---- 頭防具(plan/protagonist-equipment.md) ----
   {

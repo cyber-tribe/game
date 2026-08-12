@@ -56,7 +56,12 @@ export type GameEvent =
    * 忘れ物蔵(plan/lost-and-found-vault.md)の隠し通路を見つけた。
    * セーブへの反映(SaveData.foundVaultPassages)は呼び出し側(main.ts)が行う
    */
-  | { type: "secretPassageFound"; regionId: string };
+  | { type: "secretPassageFound"; regionId: string }
+  /**
+   * 地方ボス(plan/region-boss-horikuinonushi.md)。予兆ターンに、大技
+   * (groundSpikes)の発動位置(Tile.crackWarningを立てたマス)を通知する
+   */
+  | { type: "crackWarning"; positions: Vec2[] };
 
 /** メッセージイベントを作るだけの短縮。呼び出し側の見通しのため */
 export function msg(text: string): GameEvent {
