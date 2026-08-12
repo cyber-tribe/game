@@ -4,6 +4,12 @@
  * 段階的に発展していく。章立て(design/story.md)自体は未実装のため、
  * 代わりに既存の最深到達記録(SaveData.deepest)を進行度の代替指標として使う
  * (plan/multiple-dungeons.mdの解放条件と同じ簡略化)。
+ *
+ * minDeepestの各値は地方境界(plan/region-expansion.mdのREGION_SIZE=6)に
+ * 沿わせている(plan/village-stage-rebalance.md)。表の寝穴がMAIN_CAVE_MAX_DEPTH
+ * =48に拡張されたことで、旧来の3/6/10という値のままでは村段階4(物語クリア
+ * 相当の節目)が第二地方クリア程度の早い段階で満たせてしまうため、
+ * 12(第二地方)/24(第四地方)/48(第八地方=完全踏破)に引き上げた。
  */
 export type VillageStage = 1 | 2 | 3 | 4;
 
@@ -18,9 +24,9 @@ export interface VillageStageRequirement {
 
 /** 段階を上げる条件。段階1(始まりの村)は既定なので含まない */
 export const VILLAGE_STAGE_REQUIREMENTS: readonly VillageStageRequirement[] = [
-  { stage: 2, minDeepest: 3, cost: 300, label: "依頼板が建つ" },
-  { stage: 3, minDeepest: 6, cost: 800, label: "工房の拡張" },
-  { stage: 4, minDeepest: 10, cost: 2000, label: "山を静めたあとの村" },
+  { stage: 2, minDeepest: 12, cost: 300, label: "依頼板が建つ" },
+  { stage: 3, minDeepest: 24, cost: 800, label: "工房の拡張" },
+  { stage: 4, minDeepest: 48, cost: 2000, label: "山を静めたあとの村" },
 ];
 
 const HUT_CAPACITY: Record<VillageStage, number> = { 1: 8, 2: 12, 3: 20, 4: 30 };
