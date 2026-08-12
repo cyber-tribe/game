@@ -6,12 +6,30 @@ import {
   ALLY_STANCE_NAMES,
   BARREL_NAMES,
   STATUS_CONFUSE,
+  STATUS_SEAL,
   STATUS_SLEEP,
   type Actor,
+  type StatusKind,
   hasStatus,
 } from "../core/types";
 
 const MAX_LOG_LINES = 6;
+
+/**
+ * 色だけに頼らない状態異常表示(plan/difficulty-modes.md アクセシビリティ節)。
+ * 記号(形)とラベルの両方で区別し、色の識別に頼らない
+ */
+const STATUS_DISPLAY: Partial<Record<StatusKind, string>> = {
+  [STATUS_SLEEP]: "◐ねむり",
+  [STATUS_CONFUSE]: "✳こんらん",
+  [STATUS_SEAL]: "◆封じ",
+};
+
+export function activeStatusLabels(actor: Actor): string[] {
+  return (Object.keys(STATUS_DISPLAY) as StatusKind[])
+    .filter((kind) => hasStatus(actor, kind))
+    .map((kind) => STATUS_DISPLAY[kind]!);
+}
 
 /**
  * 画面まわりの表示。3D の上に重ねた DOM で作る。
@@ -67,9 +85,7 @@ export class Hud {
     const next = expToNext(player);
     this.expEl.textContent = next === null ? "経験値 最大" : `次のLvまで ${next}`;
 
-    const statuses: string[] = [];
-    if (hasStatus(player, STATUS_SLEEP)) statuses.push("ねむり");
-    if (hasStatus(player, STATUS_CONFUSE)) statuses.push("こんらん");
+    const statuses = activeStatusLabels(player);
     this.statusEl.textContent = statuses.join(" / ");
     this.statusEl.style.display = statuses.length > 0 ? "block" : "none";
 
@@ -124,6 +140,14 @@ export class Hud {
 
       row.append(name, hp);
       this.alliesEl.append(row, bar, stance);
+
+      const allyStatuses = activeStatusLabels(ally);
+      if (allyStatuses.length > 0) {
+        const status = document.createElement("div");
+        status.className = "ally-status";
+        status.textContent = allyStatuses.join(" / ");
+        this.alliesEl.append(status);
+      }
     }
   }
 
@@ -178,6 +202,30 @@ export class Hud {
 
   hideOverlay(): void {
     this.overlayEl.style.display = "none";
+  }
+
+  /**
+   * 操作の一括確認(plan/difficulty-modes.md アクセシビリティ節)。
+   * 現在使っているキー配置をいつでも呼び出せるようにする
+   */
+  showKeyHelp(lines: readonly string[]): void {
+    this.overlayEl.innerHTML = "";
+    const box = document.createElement("div");
+    box.className = "overlay-box";
+    const h = document.createElement("h2");
+    h.textContent = "操作説明";
+    box.appendChild(h);
+    for (const line of lines) {
+      const p = document.createElement("p");
+      p.textContent = line;
+      box.appendChild(p);
+    }
+    const hint = document.createElement("p");
+    hint.className = "hint";
+    hint.textContent = "Hでとじる";
+    box.appendChild(hint);
+    this.overlayEl.appendChild(box);
+    this.overlayEl.style.display = "flex";
   }
 
   get element(): HTMLElement {
