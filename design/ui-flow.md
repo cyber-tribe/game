@@ -15,8 +15,8 @@
   └─ (実績帳のハイライト・累計プレイ実績を軽く表示してもよい)
         │
         ▼
-      拠点(ネンネ村)
-  ├─ 倉庫・持ち物選択 ────────────── 既存実装
+      拠点(ネンネ村。3D空間を歩き回る。plan/town-3d-exploration.md)
+  ├─ 倉庫・持ち物選択(モグラ婆) ──── 既存実装
   ├─ ねむり小屋(仲間の預け入れ・夢あわせ・成熟) ── plan/monster-fusion.md, plan/companion-evolution.md
   ├─ ゲンドの工房(強化値・印) ────── plan/equipment-forging.md
   ├─ 依頼板(肝いりのオトネ) ──────── plan/quest-board.md
@@ -24,7 +24,10 @@
   ├─ 実績帳 ─────────────────────── plan/achievements.md
   ├─ 村の発展 ───────────────────── plan/village-development.md
   ├─ NPCとの会話(絆) ─────────────── design/village-life.md
-  └─ 出発(ダンジョン選択) ─────────── plan/multiple-dungeons.md, plan/checkpoint-select.md
+  └─ 出発(洞窟の入口。ダンジョン選択) ─ plan/multiple-dungeons.md, plan/checkpoint-select.md
+
+      いずれも、該当する建物/NPCに歩いて近づき確定キーで開く
+      (plan/town-3d-exploration.md。個々の画面の中身は変えない)
         │
         ▼
      ダンジョン(選んだ穴・チェックポイントから)
