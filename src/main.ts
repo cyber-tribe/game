@@ -130,6 +130,8 @@ class App {
   private diveReachedDepths: number[] = [];
   /** 山の芯(plan/mountain-core.md)。このダイブで最終フロアの会話イベントを経験したか */
   private mountainCoreClearedThisRun = false;
+  /** 真の目覚め(plan/true-awakening.md)。このダイブで「はじめの夢」との決着イベントを経験したか */
+  private trueAwakeningClearedThisRun = false;
   /** フォトモード(plan/gallery-mode.md)。HUDを隠し、移動・行動を止めて画角だけ動かせる */
   private photoMode = false;
   /** 操作説明(plan/difficulty-modes.md アクセシビリティ節)。表示中は行動を止める */
@@ -300,11 +302,10 @@ class App {
 
   /**
    * 章立て(plan/story-chapters.md)。新しく章の境目を跨いでいれば、その章の
-   * 導入メッセージを1回だけ流す。storyClearedはまだ存在しない
-   * (plan/mountain-core.md未実装)ため、当面falseに固定する
+   * 導入メッセージを1回だけ流す
    */
   private checkStoryChapterTransition(): void {
-    const chapter = storyChapter(this.save.deepest, false);
+    const chapter = storyChapter(this.save.deepest, this.save.storyCleared);
     if (chapter === 0) return;
     const eventId = storyChapterEventId(chapter);
     if (this.save.seenVillageEvents.includes(eventId)) return;
@@ -333,6 +334,7 @@ class App {
     this.diveHuntKills = {};
     this.diveNewlySeenCount = 0;
     this.mountainCoreClearedThisRun = false;
+    this.trueAwakeningClearedThisRun = false;
     this.diveReachedDepths = [];
     const startingItems: Item[] = carry.map((stored, index) => fromStored(stored, index + 1));
     this.game = new Game({
@@ -342,6 +344,7 @@ class App {
       trainingFocus,
       bringAllies: [...bringAllies],
       compendiumComplete: isCompendiumComplete(this.save),
+      trueAwakeningCleared: this.save.trueAwakeningCleared,
       difficulty,
       dungeonId,
       deepest: this.save.deepest,
@@ -367,6 +370,7 @@ class App {
     this.diveHuntKills = {};
     this.diveNewlySeenCount = 0;
     this.mountainCoreClearedThisRun = false;
+    this.trueAwakeningClearedThisRun = false;
     this.diveReachedDepths = [];
     this.game = new Game({ seed: 0, resume: snapshot });
     clearRunSnapshot();
@@ -738,6 +742,8 @@ class App {
         if (event.type === "secretPassageFound") this.save = addFoundVaultPassage(this.save, event.regionId);
         // 山の芯(plan/mountain-core.md): 最終フロアの会話イベントを経験した記録
         if (event.type === "mountainCoreCleared") this.mountainCoreClearedThisRun = true;
+        // 真の目覚め(plan/true-awakening.md): 「はじめの夢」との決着イベントを経験した記録
+        if (event.type === "trueAwakeningCleared") this.trueAwakeningClearedThisRun = true;
       }
     });
 
@@ -808,6 +814,7 @@ class App {
       // 山の芯(plan/mountain-core.md): 倒した・全滅にかかわらず記録する
       defeatedRegionBosses: [...this.game.defeatedRegionBossesThisRun],
       mountainCoreCleared: this.mountainCoreClearedThisRun,
+      trueAwakeningCleared: this.trueAwakeningClearedThisRun,
     });
     this.hud.showOverlay(
       cleared ? "だっしゅつ成功!" : "ちからつきた……",

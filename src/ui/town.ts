@@ -20,10 +20,16 @@ import {
   markDef,
 } from "../entities/forging";
 import { COSTUMES, type CostumeDef } from "../entities/costumes";
-import { DUNGEONS, type DungeonDef, isDungeonUnlocked } from "../entities/dungeons";
+import {
+  DUNGEONS,
+  type DungeonDef,
+  TRUE_AWAKENING_ID,
+  dungeonById,
+  isDungeonUnlocked,
+} from "../entities/dungeons";
 import { MAX_ALLIES, type TrainingFocus } from "../entities/player";
 import { SPECIES, speciesById } from "../entities/species";
-import { isCompendiumComplete, isWeaponCompendiumComplete, type CompendiumStatus, type FontSize, type SaveData, type StoredItem, type StoredMonster } from "../save";
+import { isCompendiumComplete, isTrueAwakeningUnlocked, isWeaponCompendiumComplete, type CompendiumStatus, type FontSize, type SaveData, type StoredItem, type StoredMonster } from "../save";
 import { ITEMS, itemDef } from "../items/catalog";
 import { MAX_ACTIVE_QUESTS, questDef } from "../entities/quests";
 import { storyChapter } from "../entities/story";
@@ -249,15 +255,26 @@ export class TownScreen {
     return this.save?.knownCheckpoints ?? [1];
   }
 
-  /** 複数のダンジョン(plan/multiple-dungeons.md)。解放済みのものだけを選択できる */
+  /**
+   * 複数のダンジョン(plan/multiple-dungeons.md)。解放済みのものだけを選択できる。
+   * 真の目覚め(plan/true-awakening.md、TRUE_AWAKENING_ID)は通常のunlock判定には
+   * 乗せず(dungeons.tsのコメント参照)、isTrueAwakeningUnlockedを満たした
+   * ときだけ末尾に追加する隠し要素として扱う
+   */
   private unlockedDungeons(): DungeonDef[] {
     const deepest = this.save?.deepest ?? 0;
     const villageStage = this.save?.villageStage ?? 1;
     const foundPassageCount = this.save?.foundVaultPassages.length ?? 0;
     const defeatedRegionBosses = this.save?.defeatedRegionBosses ?? [];
-    return DUNGEONS.filter((d) =>
-      isDungeonUnlocked(d, deepest, villageStage, foundPassageCount, defeatedRegionBosses),
+    const normal = DUNGEONS.filter(
+      (d) =>
+        d.id !== TRUE_AWAKENING_ID &&
+        isDungeonUnlocked(d, deepest, villageStage, foundPassageCount, defeatedRegionBosses),
     );
+    if (this.save && isTrueAwakeningUnlocked(this.save)) {
+      normal.push(dungeonById(TRUE_AWAKENING_ID));
+    }
+    return normal;
   }
 
   /**
@@ -1669,7 +1686,9 @@ export class TownScreen {
     const defeatedRegionBosses = this.save?.defeatedRegionBosses ?? [];
     const unlocked = this.unlockedDungeons();
     const list = document.createElement("ul");
-    DUNGEONS.forEach((dungeon) => {
+    // 真の目覚め(plan/true-awakening.md)は隠し要素として扱う。3条件が
+    // すべて揃うまでは、未解放のヒント表示すらこの一覧に出さない
+    DUNGEONS.filter((d) => d.id !== TRUE_AWAKENING_ID).forEach((dungeon) => {
       const li = document.createElement("li");
       if (isDungeonUnlocked(dungeon, deepest, villageStage, foundPassageCount, defeatedRegionBosses)) {
         li.textContent = dungeon.name;
@@ -1687,6 +1706,15 @@ export class TownScreen {
       }
       list.appendChild(li);
     });
+    if (this.save && isTrueAwakeningUnlocked(this.save)) {
+      const trueAwakening = dungeonById(TRUE_AWAKENING_ID);
+      const li = document.createElement("li");
+      li.textContent = trueAwakening.name;
+      if (this.column === 12 && unlocked[this.dungeonIndex]?.id === trueAwakening.id) {
+        li.classList.add("selected");
+      }
+      list.appendChild(li);
+    }
     wrapper.appendChild(list);
     return wrapper;
   }

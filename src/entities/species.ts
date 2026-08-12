@@ -1,5 +1,8 @@
 import type { Species } from "../core/types";
 
+/** 真の目覚め(隠し最終局面、plan/true-awakening.md)「はじめの夢」のspeciesId */
+export const HAJIME_NO_YUME_ID = "hajimeNoYume";
+
 /**
  * モンスター図鑑。名前・造形ともにオリジナル。
  * model は public/models/<model>.glb に対応する。
@@ -624,6 +627,33 @@ export const SPECIES: readonly Species[] = [
     ai: "melee",
     minFloor: 43,
     weight: 1,
+  },
+
+  // 真の目覚め(隠し最終局面、plan/true-awakening.md)。ヨリシロがいちばん
+  // 最初に見た夢が、ひとり分の姿を取ったもの。REGION_BOSS_ORDER・
+  // SaveData.defeatedRegionBossesが前提とする「地方ボス8体」には含めない
+  // (isRegionBossは立てない)。この一体だけは倒しても通常のkillActor
+  // (討伐・ドロップ・経験値)処理へ進まず、専用の締めくくりイベントに
+  // 分岐する(src/game.tsのtrueAwakeningEnding)
+  {
+    id: HAJIME_NO_YUME_ID,
+    name: "はじめの夢",
+    model: "madoromi",
+    maxHp: 260,
+    atk: 50,
+    def: 38,
+    // 倒してもtrueAwakeningEnding(killActorを経由しない)に分岐するため、
+    // expは実際には付与されない。型上必須なので0を置く
+    exp: 0,
+    ai: "melee",
+    minFloor: Number.POSITIVE_INFINITY,
+    weight: 0,
+    bossTelegraph: {
+      message: "同じ夢が、いくつも重なって見えはじめた",
+      multiplier: 1,
+      cooldownTurns: 4,
+      effect: "summonEcho",
+    },
   },
 ];
 

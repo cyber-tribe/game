@@ -9,6 +9,7 @@ import v6 from "./fixtures/save/v6-hidden-dungeon.json";
 import v7 from "./fixtures/save/v7-village-life.json";
 import v8 from "./fixtures/save/v8-lost-and-found-vault.json";
 import v9 from "./fixtures/save/v9-mountain-core.json";
+import v10 from "./fixtures/save/v10-true-awakening.json";
 
 /**
  * セーブデータの後方互換チェック(plan/save-compat-testing.md)。
@@ -265,6 +266,27 @@ describe("save-compat: v9-mountain-core(山の芯導入後、現行の全フィ�
       expect(loaded.storyCleared).toBe(v9.storyCleared);
       expect(loaded.foundVaultPassages).toEqual(v9.foundVaultPassages);
       expect(loaded.lastPlayedAt).toBe(v9.lastPlayedAt);
+    });
+  });
+
+  it("真の目覚め(true-awakening.md)導入以前は既定値のまま", () => {
+    withMockedLocalStorage(v9, () => {
+      const loaded = loadSave();
+      expect(loaded.trueAwakeningCleared).toBe(DEFAULTS.trueAwakeningCleared);
+    });
+  });
+});
+
+describe("save-compat: v10-true-awakening(真の目覚め導入後、現行の全フィールド)", () => {
+  it("すべてのフィールドが保持される", () => {
+    withMockedLocalStorage(v10, () => {
+      const loaded = loadSave();
+      expect(loaded.trueAwakeningCleared).toBe(v10.trueAwakeningCleared);
+      expect(loaded.defeatedRegionBosses).toEqual(v10.defeatedRegionBosses);
+      expect(loaded.storyCleared).toBe(v10.storyCleared);
+      expect(loaded.compendium).toEqual(v10.compendium);
+      expect(loaded.achievements).toEqual(v10.achievements);
+      expect(loaded.equippedTitle).toBe(v10.equippedTitle);
     });
   });
 });
