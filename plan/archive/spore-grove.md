@@ -1,3 +1,29 @@
+> **実装済み。**
+> `src/core/types.ts`(`Room.spored?` / `Room.sporeTimer?` を追加)、
+> `src/dungeon/populate.ts`(`placeSporeRooms`。店・モンスターハウス・
+> 階段の部屋を除外し、残りの約40%に `spored: true` を割り当てる)、
+> `src/game.ts`(13〜18階で `placeSporeRooms` を呼ぶ・`tickSporeRooms`
+> を新設して `upkeep()` から毎ターン呼ぶ・`explode()` に爆心の部屋の
+> `spored` を解除する1行を追加)に実装した。
+> テストは `tests/spore-grove.test.ts`(10件)。
+>
+> 実装時の判断:
+> - **後処理パスの配置場所**: 本文書は「`src/dungeon/generate.ts`に、
+>   `plan/wetland-quagmire.md`の深みタイル付与パスと同様の位置に置く」
+>   としていたが、実際の`wetland-quagmire.md`の実装は`generate.ts`では
+>   なく`src/dungeon/populate.ts`に`placeQuagmireTiles`として置かれ、
+>   `game.ts`の`enterFloor`から深さ範囲で呼び出す形になっていた。本文書
+>   もその「同じ位置」という意図を優先し、実際の前例(`populate.ts`+
+>   `game.ts`)にならって`placeSporeRooms`を実装した。
+> - **胞子部屋の判定式**: 除外条件に「階段の部屋」を明示的に追加した
+>   (`plan/wetland-quagmire.md`の深みタイルは店・モンスターハウスだけを
+>   除外し、階段の部屋は対象外にしていなかった。本文書は胞子部屋について
+>   明示的に階段の部屋の除外を求めていたため、そのとおりに実装した)。
+> - **パルスのカウント処理**: `upkeep()`に`tickSporeRooms`を追加し、
+>   `tickStatuses`と同じ枠で毎ターン呼ぶ。8ターン目でパルスを起こして
+>   `sporeTimer`を0に戻す実装で、本文書の数値(40%・8ターン・0.6・3ターン)
+>   をそのまま定数化した。
+
 # 第三地方(まどろみの茸林)固有ギミック: 眠りの胞子
 
 `design/regions.md` の第三地方(まどろみの茸林・13〜18階)の固有ギミック

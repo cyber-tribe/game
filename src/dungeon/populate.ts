@@ -545,3 +545,15 @@ export function placeQuagmireTiles(rng: Rng, floor: FloorState): void {
     }
   }
 }
+
+/** 第三地方(まどろみの茸林)固有ギミック(plan/spore-grove.md)。部屋の一部を胞子部屋にする */
+const SPORE_ROOM_CHANCE = 0.4;
+
+export function placeSporeRooms(rng: Rng, floor: FloorState): void {
+  for (const room of floor.rooms) {
+    // 階段の部屋・出店・モンスターハウスには付与しない
+    if (room.kind !== undefined) continue;
+    if (roomContains(room, floor.stairs)) continue;
+    if (rng.chance(SPORE_ROOM_CHANCE)) room.spored = true;
+  }
+}
