@@ -65,11 +65,16 @@ export class DungeonView {
   build(floor: FloorState): void {
     this.clear();
 
+    const stairsIndex = floor.stairs.y * floor.width + floor.stairs.x;
     const wallCells: number[] = [];
     const floorCells: number[] = [];
     for (let i = 0; i < floor.tiles.length; i++) {
       const tile = floor.tiles[i]!;
       if (isWalkable(tile.kind)) {
+        // 階段のマスは階段モデル自体が床も兼ねているので、通常の床タイルは
+        // 出さない。両方を同じ高さに重ねて描くとZファイティングで白い縁が
+        // ちらつき、階段だと視認できなくなってしまう(#203)
+        if (i === stairsIndex) continue;
         floorCells.push(i);
       } else if (this.touchesWalkable(floor, i)) {
         wallCells.push(i);
