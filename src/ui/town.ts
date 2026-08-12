@@ -19,7 +19,7 @@ import {
 import { DUNGEONS, type DungeonDef, isDungeonUnlocked } from "../entities/dungeons";
 import { MAX_ALLIES, type TrainingFocus } from "../entities/player";
 import { SPECIES, speciesById } from "../entities/species";
-import { isCompendiumComplete, isWeaponCompendiumComplete, type FontSize, type SaveData, type StoredItem, type StoredMonster } from "../save";
+import { isCompendiumComplete, isWeaponCompendiumComplete, type CompendiumStatus, type FontSize, type SaveData, type StoredItem, type StoredMonster } from "../save";
 import { ITEMS, itemDef } from "../items/catalog";
 import { MAX_ACTIVE_QUESTS, questDef } from "../entities/quests";
 import {
@@ -69,6 +69,13 @@ export class TownScreen {
   private dungeonIndex = 0;
   /** ねむり小屋の一覧上のカーソル位置 */
   private hutCursor = 0;
+  /** モンスター図鑑(plan/monster-compendium.md)の一覧上のカーソル位置 */
+  private compendiumCursor = 0;
+  /**
+   * 図鑑ギャラリー(plan/gallery-mode.md)。表示中は`gallerySpeciesId`ゲッターが
+   * カーソル位置の種族idを返し、main.ts側がダンジョンの代わりに3D表示を差し替える
+   */
+  private galleryOpen = false;
   /** 連れて行く仲間として選んだ、ねむり小屋のuid(最大 MAX_ALLIES 体) */
   private bringUids: number[] = [];
   /** 夢あわせ(plan/monster-fusion.md)で、軸として選んで確定した個体。まだ無ければ null */
@@ -195,6 +202,22 @@ export class TownScreen {
     return DUNGEONS.filter((d) => isDungeonUnlocked(d, deepest));
   }
 
+  /**
+   * 図鑑ギャラリー(plan/gallery-mode.md)。表示中ならカーソル位置の種族idを返す。
+   * main.ts側はこれを見て、ダンジョンの代わりにギャラリーの3D表示を描画する
+   */
+  get gallerySpeciesId(): string | null {
+    if (!this.galleryOpen) return null;
+    return SPECIES[this.compendiumCursor]?.id ?? null;
+  }
+
+  /** 図鑑ギャラリー表示中の種族の図鑑状態。"seen"ならシルエット表示にする */
+  get galleryStatus(): CompendiumStatus | undefined {
+    const species = SPECIES[this.compendiumCursor];
+    if (!species || !this.save) return undefined;
+    return this.save.compendium[species.id];
+  }
+
   hide(): void {
     this.open = false;
     this.root.style.display = "none";
@@ -202,6 +225,15 @@ export class TownScreen {
 
   handleKey(code: string): boolean {
     if (!this.open) return false;
+
+    // 図鑑ギャラリー(plan/gallery-mode.md)表示中は、閉じる操作だけを受け付ける
+    if (this.galleryOpen) {
+      if (code === "Escape" || code === "Enter" || code === "NumpadEnter") {
+        this.galleryOpen = false;
+        this.render();
+      }
+      return true;
+    }
 
     if (this.column === 2) {
       const checkpoints = this.checkpoints();
@@ -359,6 +391,14 @@ export class TownScreen {
 
     if (this.column === 7) {
       switch (code) {
+        case "ArrowUp":
+        case "KeyW":
+          this.compendiumCursor = wrap(this.compendiumCursor - 1, SPECIES.length);
+          break;
+        case "ArrowDown":
+        case "KeyS":
+          this.compendiumCursor = wrap(this.compendiumCursor + 1, SPECIES.length);
+          break;
         case "ArrowLeft":
         case "KeyA":
           this.column = 6;
@@ -367,6 +407,13 @@ export class TownScreen {
         case "KeyD":
           this.column = 8;
           break;
+        case "Enter":
+        case "NumpadEnter": {
+          // 図鑑ギャラリー(plan/gallery-mode.md): 一度でも見た種族だけ眺められる
+          const species = SPECIES[this.compendiumCursor];
+          if (species && this.save?.compendium[species.id]) this.galleryOpen = true;
+          break;
+        }
         case "Space":
           this.departNow();
           return true;
@@ -801,6 +848,14 @@ export class TownScreen {
     const save = this.save;
     if (!save) return;
 
+    // 図鑑ギャラリー(plan/gallery-mode.md)表示中は、拠点のDOMを隠して
+    // 3D表示だけを見せる(main.ts側がダンジョンの代わりに描画する)
+    if (this.galleryOpen) {
+      this.root.style.display = "none";
+      return;
+    }
+    this.root.style.display = "flex";
+
     this.root.replaceChildren();
 
     const box = document.createElement("div");
@@ -886,9 +941,12 @@ export class TownScreen {
       desc.textContent = "見て楽しむだけの記録帳。攻略には関わらない。";
     } else if (this.column === 7) {
       const complete = this.save ? isCompendiumComplete(this.save) : false;
+      const seenOrMore = this.save?.compendium[SPECIES[this.compendiumCursor]?.id ?? ""] !== undefined;
       desc.textContent = complete
         ? "図鑑が全種「捕まえた」で埋まった! かがやきの夢のかけらに出会いやすくなる。"
-        : "見た・捕まえた種族の記録。全種「捕まえた」で埋めると特典がある。";
+        : seenOrMore
+          ? "見た・捕まえた種族の記録。Enterで図鑑ギャラリーを開いて眺められる。"
+          : "見た・捕まえた種族の記録。全種「捕まえた」で埋めると特典がある。";
     } else if (this.column === 8) {
       const def = ACHIEVEMENTS[this.achievementCursor];
       if (def?.title && this.save?.achievements[def.id] !== undefined) {
@@ -949,6 +1007,8 @@ export class TownScreen {
     box.appendChild(hint);
 
     this.root.appendChild(box);
+    // 列が増えて横スクロールが要るようになったため、選んでいる列を必ず見える位置に運ぶ
+    columns.querySelector(".town-col.active")?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }
 
   private renderList(label: string, items: StoredItem[], column: 0 | 1): HTMLElement {
@@ -1156,7 +1216,8 @@ export class TownScreen {
 
   /**
    * モンスター図鑑(plan/monster-compendium.md)。種族ごとに「未確認」
-   * 「見た」「捕まえた」を表示するだけの画面(カーソル移動・選択は無い)。
+   * 「見た」「捕まえた」を表示する。一度でも見た種族はEnterで
+   * 図鑑ギャラリー(plan/gallery-mode.md)を開き、3Dモデルを眺められる
    */
   private renderCompendium(): HTMLElement {
     const wrapper = document.createElement("div");
@@ -1175,13 +1236,14 @@ export class TownScreen {
     wrapper.appendChild(summary);
 
     const list = document.createElement("ul");
-    for (const species of SPECIES) {
+    SPECIES.forEach((species, index) => {
       const status = compendium[species.id];
       const label = status === "captured" ? "捕まえた" : status === "seen" ? "見た" : "未確認";
       const li = document.createElement("li");
       li.textContent = status ? `${species.name}: ${label}` : `???: ${label}`;
+      if (this.column === 7 && index === this.compendiumCursor) li.classList.add("selected");
       list.appendChild(li);
-    }
+    });
     wrapper.appendChild(list);
     return wrapper;
   }

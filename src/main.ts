@@ -9,6 +9,7 @@ import { Hud } from "./view/hud";
 import { Input } from "./view/input";
 import { Minimap } from "./view/minimap";
 import { Renderer } from "./view/renderer";
+import { GalleryView } from "./view/gallery";
 import { Stage } from "./view/stage";
 import { ArtsMenu } from "./ui/arts";
 import { InventoryMenu } from "./ui/menu";
@@ -49,6 +50,8 @@ import {
 import type { DifficultyMode } from "./entities/difficulty";
 import { MAIN_CAVE_ID } from "./entities/dungeons";
 import { todayKey } from "./entities/quests";
+import { speciesById } from "./entities/species";
+import { speciesLore } from "./entities/speciesLore";
 import { TUTORIAL_TIPS, type TutorialTipId } from "./core/tutorial";
 import type { Item } from "./core/types";
 import type { TrainingFocus } from "./entities/player";
@@ -84,6 +87,11 @@ class App {
   private readonly namingDialog: NamingDialog;
   private readonly canvas: HTMLCanvasElement;
   private readonly uiRoot: HTMLElement;
+  /** 図鑑ギャラリー(plan/gallery-mode.md)。3Dモデルを眺める、ダンジョンとは別の小さな場面 */
+  private readonly gallery: GalleryView;
+  private readonly galleryInfoEl: HTMLElement;
+  /** 直前フレームでギャラリーが開いていたか。DOM表示切り替えを遷移時だけ行うために使う */
+  private galleryWasOpen = false;
 
   private game!: Game;
   private save: SaveData;
@@ -116,6 +124,8 @@ class App {
     this.artsMenu = new ArtsMenu(document.querySelector<HTMLElement>("#arts")!);
     this.town = new TownScreen(document.querySelector<HTMLElement>("#town")!);
     this.namingDialog = new NamingDialog(document.querySelector<HTMLElement>("#naming")!);
+    this.gallery = new GalleryView(this.assets);
+    this.galleryInfoEl = document.querySelector<HTMLElement>("#gallery-info")!;
     this.save = loadSave();
     this.applyFontSize();
 
@@ -290,6 +300,37 @@ class App {
     });
   }
 
+  /**
+   * 図鑑ギャラリー(plan/gallery-mode.md)。ダンジョンの代わりに1体のモデルを
+   * 回転台に乗せて表示する。「見た」段階はシルエット、「捕まえた」段階は
+   * はっきり見える(`plan/achievements.md`の「隠さない」方針とは別の、
+   * 図鑑そのものの到達感を守るための演出)
+   */
+  private renderGallery(dt: number, speciesId: string): void {
+    if (!this.galleryWasOpen) {
+      this.uiRoot.style.display = "none";
+      this.galleryInfoEl.style.display = "block";
+    }
+    const species = speciesById(speciesId);
+    const status = this.town.galleryStatus;
+    this.gallery.show(species.model, status === "seen");
+    this.gallery.update(dt);
+    this.gallery.setAspect(this.renderer.camera.aspect);
+
+    const lore = status === "captured" ? speciesLore(speciesId) : undefined;
+    this.galleryInfoEl.innerHTML = "";
+    const h = document.createElement("h2");
+    h.textContent = status === "captured" ? species.name : "???";
+    const p = document.createElement("p");
+    p.textContent = lore ?? (status === "captured" ? "生態はまだ記録されていない。" : "実物を見ればもっとわかるかもしれない。");
+    const hint = document.createElement("p");
+    hint.className = "hint";
+    hint.textContent = "Escで戻る";
+    this.galleryInfoEl.append(h, p, hint);
+
+    this.renderer.renderer.render(this.gallery.scene, this.gallery.camera);
+  }
+
   // ------------------------------------------------------------ ループ
 
   private loop = (): void => {
@@ -298,15 +339,26 @@ class App {
 
     this.step(dt);
 
-    this.stage.update(dt, this.elapsed);
-    // 松明はプレイヤーの見た目の位置に付いてくる。マス単位の座標ではなく
-    // 補間中の位置を使わないと、光だけが先に動いてしまう
-    const here = this.stage.playerWorld(this.game.player);
-    this.renderer.playerLight.position.set(here.x, 2.0, here.z);
-    this.renderer.setFocus(this.game.player.pos);
-    this.renderer.update(dt);
-    this.drainDamageFx();
-    this.renderer.render();
+    const gallerySpeciesId = this.town.gallerySpeciesId;
+    if (gallerySpeciesId) {
+      this.renderGallery(dt, gallerySpeciesId);
+    } else {
+      if (this.galleryWasOpen) {
+        this.uiRoot.style.display = "";
+        this.galleryInfoEl.style.display = "none";
+        this.gallery.clear();
+      }
+      this.stage.update(dt, this.elapsed);
+      // 松明はプレイヤーの見た目の位置に付いてくる。マス単位の座標ではなく
+      // 補間中の位置を使わないと、光だけが先に動いてしまう
+      const here = this.stage.playerWorld(this.game.player);
+      this.renderer.playerLight.position.set(here.x, 2.0, here.z);
+      this.renderer.setFocus(this.game.player.pos);
+      this.renderer.update(dt);
+      this.drainDamageFx();
+      this.renderer.render();
+    }
+    this.galleryWasOpen = gallerySpeciesId !== null;
 
     requestAnimationFrame(this.loop);
   };
