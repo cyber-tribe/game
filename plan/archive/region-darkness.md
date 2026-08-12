@@ -1,3 +1,38 @@
+> **一部実装済み。**
+> `src/dungeon/gimmicks.ts`(`pickFloorGimmick`に`isMainCave`引数を追加。
+> 表の寝穴の第一〜第三地方(1〜18階)では`"darkness"`を候補から除外し、
+> 第四地方以降(19階〜)は`rng.pickWeighted`で重み3倍に引き上げる)、
+> `src/game.ts`(`this.dungeon.id === MAIN_CAVE_ID`を`pickFloorGimmick`へ
+> 渡す呼び出し側の変更。松明: `torchTurnsLeft`・`visionExtraRange`拡張・
+> `useTool`の`"torch"`ケース・`tickTorch`を追加)、`src/items/catalog.ts`
+> (`torch`アイテムを追加、category: "tool"、minFloor:15)に実装した。
+> テストは `tests/region-darkness.test.ts`(11件)。
+>
+> **「探索済みマスは通常の明るさで表示する」(本文の中心的な要求の1つ)は
+> 未実装。** `src/view/dungeonMesh.ts`の`tile.visible ? LIT : REMEMBERED`
+> という既存の彩色ロジック(くらやみの階かどうかを問わず、現在見えている
+> かどうかだけで明暗を決める3D描画層)を、くらやみの階の間だけ
+> 「explored済みなら常にLIT」に切り替える変更が必要になる。これは
+> ロジック層(`src/dungeon/visibility.ts`の`tile.visible`)では解決できない
+> ――`visible`はモンスター・アイテムの表示判定にも使われる索敵範囲その
+> ものなので、探索済みマスを一律`visible=true`にすると、くらやみの階の
+> 「暗さでモンスターの接近が見えにくい」という核心のゲーム性が壊れて
+> しまう。`plan/archive/festival-mirage.md`の前例に倣い、3D/view層の
+> 変更はバックエンドのゲームロジックのみのスコープとして今回は
+> 実装していない(別セッションでの`dungeonMesh.ts`側の対応が必要)。
+>
+> その他の実装判断:
+> - 第四地方以降の重み倍率は初期案として3倍(`DARKNESS_HEAVY_REGION_WEIGHT`)
+>   にした(未決事項として明記されていた数値)。
+> - 松明の持続20ターン・視界拡張+2(見晴らしのはちまきの+1より強い光源、
+>   という位置づけ)を初期案として実装した(未決事項として明記されていた
+>   数値)。使い直すと残りターンが上書き(延長)される。
+> - 見晴らしのはちまきとの重ね掛けは単純加算にした(未決事項として
+>   明記されていた「対象外」の判断)。
+> - 松明の店・依頼板での出現優先度(第四地方以降を優先)は、未決事項の
+>   「具体的な出現テーブルは実装時に調整」のとおり今回は特別扱いせず、
+>   通常のminFloorベースの抽選に任せた。
+
 # 暗さを地方の個性にする
 
 `plan/archive/floor-gimmicks.md` の「くらやみの階」(視界範囲が縮む)は

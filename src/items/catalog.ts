@@ -626,6 +626,17 @@ export const ITEMS: readonly ItemDef[] = [
     weight: 2,
     description: "はぐれた仲間を、その場に強制的に呼び寄せる。",
   },
+  {
+    id: "torch",
+    name: "松明",
+    category: "tool",
+    model: "herb",
+    // 第四地方(19階)以降でくらやみの階が出やすくなる(plan/region-darkness.md)のに
+    // 合わせ、その手前から持てるようにする。通常の階でも使える
+    minFloor: 15,
+    weight: 3,
+    description: "しばらくのあいだ、視界がぐっと広がる。くらやみの階でとくに頼りになる。",
+  },
 ];
 
 const BY_ID = new Map(ITEMS.map((i) => [i.id, i]));
