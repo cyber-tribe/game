@@ -676,6 +676,9 @@ class App {
       newlySeenCount: this.diveNewlySeenCount,
       reachedDepths: this.diveReachedDepths,
       dungeonId: this.game.dungeonId,
+      // 腕試しの間(plan/hidden-dungeon.md)の記録用
+      turns: this.game.turnCount,
+      damageTaken: this.game.damageTakenThisRun,
     });
     this.hud.showOverlay(
       cleared ? "だっしゅつ成功!" : "ちからつきた……",

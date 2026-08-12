@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { initialSave, loadSave, type SaveData } from "../src/save";
+import { initialSave, loadSave } from "../src/save";
 import v1 from "./fixtures/save/v1-initial.json";
 import v2 from "./fixtures/save/v2-difficulty-and-shops.json";
 import v3 from "./fixtures/save/v3-quest-board.json";
 import v4 from "./fixtures/save/v4-multi-dungeon-and-village.json";
 import v5 from "./fixtures/save/v5-costumes.json";
+import v6 from "./fixtures/save/v6-hidden-dungeon.json";
 
 /**
  * セーブデータの後方互換チェック(plan/save-compat-testing.md)。
@@ -156,20 +157,40 @@ describe("save-compat: v4-multi-dungeon-and-village(複数のダンジョン・�
   });
 });
 
-describe("save-compat: v5-costumes(現行の全フィールド)", () => {
+describe("save-compat: v5-costumes(衣装導入後、腕試しの間導入以前)", () => {
   it("すべてのフィールドが保持される", () => {
     withMockedLocalStorage(v5, () => {
       const loaded = loadSave();
-      const expected: SaveData = v5 as SaveData;
-      expect(loaded.unlockedCostumes).toEqual(expected.unlockedCostumes);
-      expect(loaded.equippedCostume).toBe(expected.equippedCostume);
-      expect(loaded.villageStage).toBe(expected.villageStage);
-      expect(loaded.fontSize).toBe(expected.fontSize);
-      expect(loaded.nightlyDreamBestDepth).toBe(expected.nightlyDreamBestDepth);
-      expect(loaded.gold).toBe(expected.gold);
-      expect(loaded.hut).toEqual(expected.hut);
-      expect(loaded.compendium).toEqual(expected.compendium);
-      expect(loaded.achievements).toEqual(expected.achievements);
+      expect(loaded.unlockedCostumes).toEqual(v5.unlockedCostumes);
+      expect(loaded.equippedCostume).toBe(v5.equippedCostume);
+      expect(loaded.villageStage).toBe(v5.villageStage);
+      expect(loaded.fontSize).toBe(v5.fontSize);
+      expect(loaded.nightlyDreamBestDepth).toBe(v5.nightlyDreamBestDepth);
+      expect(loaded.gold).toBe(v5.gold);
+      expect(loaded.hut).toEqual(v5.hut);
+      expect(loaded.compendium).toEqual(v5.compendium);
+      expect(loaded.achievements).toEqual(v5.achievements);
+    });
+  });
+
+  it("腕試しの間(hidden-dungeon.md)導入以前は既定値のまま", () => {
+    withMockedLocalStorage(v5, () => {
+      const loaded = loadSave();
+      expect(loaded.arenaRecords).toEqual(DEFAULTS.arenaRecords);
+    });
+  });
+});
+
+describe("save-compat: v6-hidden-dungeon(腕試しの間導入後、現行の全フィールド)", () => {
+  it("すべてのフィールドが保持される", () => {
+    withMockedLocalStorage(v6, () => {
+      const loaded = loadSave();
+      expect(loaded.arenaRecords).toEqual(v6.arenaRecords);
+      expect(loaded.unlockedCostumes).toEqual(v6.unlockedCostumes);
+      expect(loaded.villageStage).toBe(v6.villageStage);
+      expect(loaded.hut).toEqual(v6.hut);
+      expect(loaded.compendium).toEqual(v6.compendium);
+      expect(loaded.achievements).toEqual(v6.achievements);
     });
   });
 });

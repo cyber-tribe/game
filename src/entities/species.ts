@@ -386,3 +386,10 @@ export function speciesForDepth(depth: number): Species[] {
 export const REGION_BOSS_FLOORS: Readonly<Record<number, string>> = {
   6: "oonebosuke",
 };
+
+/**
+ * 地方ボスを地方の順番どおりに並べたもの(plan/hidden-dungeon.mdの
+ * 腕試しの間で使う)。REGION_BOSS_FLOORSの値と同じ集合だが、
+ * 表の寝穴の具体的な階数とは切り離した「出現順」だけの一覧にする
+ */
+export const REGION_BOSS_ORDER: readonly string[] = ["oonebosuke"];

@@ -3,7 +3,7 @@ import type { Actor, Item, MarkId, SkillId } from "./core/types";
 import { ACHIEVEMENTS, achievementDef } from "./entities/achievements";
 import { COSTUMES, DEFAULT_COSTUME_ID, type CostumeDef } from "./entities/costumes";
 import { DIFFICULTY_MODES, type DifficultyMode } from "./entities/difficulty";
-import { NIGHTLY_DREAM_ID } from "./entities/dungeons";
+import { NIGHTLY_DREAM_ID, TRIAL_CHAMBER_ID } from "./entities/dungeons";
 import { MAX_RECENT_FUSION_MATERIALS, tryEvolve } from "./entities/evolution";
 import { HOKORA_DUST_DEF_ID, MARKS, MAX_PLUS } from "./entities/forging";
 import { MAX_ACTIVE_QUESTS, QUESTS, questDef, questsForDate } from "./entities/quests";
@@ -140,6 +140,15 @@ export interface SaveData {
   unlockedCostumes: string[];
   /** 現在身につけている衣装id。既定は"default" */
   equippedCostume: string;
+  /** 腕試しの間(plan/hidden-dungeon.md)。踏破するたびに記録が積み上がる。削除されない */
+  arenaRecords: ArenaRecord[];
+}
+
+/** 腕試しの間(plan/hidden-dungeon.md)。踏破1回ぶんの記録 */
+export interface ArenaRecord {
+  clearedAt: string;
+  turns: number;
+  damageTaken: number;
 }
 
 /** アクセシビリティ(plan/difficulty-modes.md)。メッセージログ・メニューの文字サイズ */
@@ -196,6 +205,7 @@ export function initialSave(): SaveData {
     fontSize: "normal",
     unlockedCostumes: [DEFAULT_COSTUME_ID],
     equippedCostume: DEFAULT_COSTUME_ID,
+    arenaRecords: [],
   };
 }
 
@@ -236,6 +246,7 @@ export function loadSave(): SaveData {
         parsed.equippedCostume,
         sanitizeUnlockedCostumes(parsed.unlockedCostumes),
       ),
+      arenaRecords: sanitizeArenaRecords(parsed.arenaRecords),
     };
   } catch {
     // 壊れた保存データで起動できなくなるほうが困るので、黙って初期値に戻す
@@ -380,6 +391,9 @@ export function recordRun(
     reachedDepths?: number[];
     /** 複数のダンジョン(plan/multiple-dungeons.md): 潜っていたダンジョンid。省略時は表の寝穴 */
     dungeonId?: string;
+    /** 腕試しの間(plan/hidden-dungeon.md): このダイブの経過ターン数・被ダメージ累計 */
+    turns?: number;
+    damageTaken?: number;
   },
 ): SaveData {
   let nextHutUid = current.nextHutUid;
@@ -435,6 +449,18 @@ export function recordRun(
     fontSize: current.fontSize,
     unlockedCostumes: current.unlockedCostumes,
     equippedCostume: current.equippedCostume,
+    // 腕試しの間(plan/hidden-dungeon.md): 踏破したときだけ記録を1件積む。ロストしない
+    arenaRecords:
+      result.dungeonId === TRIAL_CHAMBER_ID && result.cleared
+        ? [
+            ...current.arenaRecords,
+            {
+              clearedAt: new Date().toISOString(),
+              turns: result.turns ?? 0,
+              damageTaken: result.damageTaken ?? 0,
+            },
+          ]
+        : current.arenaRecords,
   };
   // 依頼板(plan/quest-board.md): 受注中の依頼を判定し、達成していれば報酬を渡して外す
   const withQuests = resolveQuests(next, result);
@@ -1106,4 +1132,19 @@ function sanitizeUnlockedCostumes(value: unknown): string[] {
 
 function sanitizeEquippedCostume(value: unknown, unlocked: string[]): string {
   return typeof value === "string" && unlocked.includes(value) ? value : DEFAULT_COSTUME_ID;
+}
+
+/** 腕試しの間(plan/hidden-dungeon.md): 壊れた要素は捨て、正しい形のものだけ残す */
+function sanitizeArenaRecords(value: unknown): ArenaRecord[] {
+  if (!Array.isArray(value)) return [];
+  const out: ArenaRecord[] = [];
+  for (const entry of value) {
+    if (typeof entry !== "object" || entry === null) continue;
+    const r = entry as Partial<ArenaRecord>;
+    if (typeof r.clearedAt !== "string") continue;
+    if (typeof r.turns !== "number" || !Number.isFinite(r.turns) || r.turns < 0) continue;
+    if (typeof r.damageTaken !== "number" || !Number.isFinite(r.damageTaken) || r.damageTaken < 0) continue;
+    out.push({ clearedAt: r.clearedAt, turns: r.turns, damageTaken: r.damageTaken });
+  }
+  return out;
 }

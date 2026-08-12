@@ -1,0 +1,61 @@
+{
+  "deepest": 40,
+  "runs": 130,
+  "clears": 44,
+  "bestLevel": 27,
+  "storage": [
+    { "defId": "healLeaf" },
+    { "defId": "hatchet", "plus": 9, "markId": "gajiri" },
+    { "defId": "ironHelm" },
+    { "defId": "oonebosukeDust" }
+  ],
+  "knownCheckpoints": [1, 6, 11, 16, 21, 26, 31, 36],
+  "seenTutorialTips": ["moveAndAttack", "pickup", "capture", "levelUp", "status", "allyOrders", "death"],
+  "trainingFocus": "balance",
+  "hut": [
+    {
+      "uid": 1,
+      "speciesId": "tokoshiepurun",
+      "level": 30,
+      "exp": 900,
+      "skills": ["steadfastBody"],
+      "bondSuccessCount": 30,
+      "recentFusionMaterials": ["purun", "purun", "purun"]
+    }
+  ],
+  "nextHutUid": 4,
+  "records": { "totalDefeats": 520, "totalCaptures": 90 },
+  "compendium": {
+    "gajiri": "captured",
+    "purun": "captured",
+    "tsubute": "captured",
+    "madoromi": "captured",
+    "honegarami": "captured"
+  },
+  "achievements": {
+    "compendiumHalf": "2026-01-01T00:00:00.000Z",
+    "clear1": "2026-01-02T00:00:00.000Z",
+    "defeats50": "2026-01-05T00:00:00.000Z",
+    "maxPlusReached": "2026-01-10T00:00:00.000Z",
+    "level10": "2026-01-12T00:00:00.000Z"
+  },
+  "equippedTitle": "clear1",
+  "equipmentCompendium": { "hatchet": "mastered", "barrelGuardHat": "mastered", "ironHelm": "mastered" },
+  "markCompendium": { "gajiri": "owned", "purun": "owned" },
+  "materialCompendium": { "hokoraDust": "owned", "markStonePurun": "owned" },
+  "difficulty": "hard",
+  "gold": 10200,
+  "boardDate": "2026-03-05",
+  "boardOffers": ["huntPurun"],
+  "activeQuests": [{ "defId": "huntGajiri", "progress": 5 }],
+  "completedQuestIds": ["gatherHokoraDust", "gatherHealLeaf"],
+  "nightlyDreamBestDepth": 25,
+  "villageStage": 4,
+  "fontSize": "large",
+  "unlockedCostumes": ["default", "okiyoHappi", "quietMountainHaori"],
+  "equippedCostume": "okiyoHappi",
+  "arenaRecords": [
+    { "clearedAt": "2026-03-04T12:00:00.000Z", "turns": 42, "damageTaken": 30 },
+    { "clearedAt": "2026-03-05T09:30:00.000Z", "turns": 35, "damageTaken": 18 }
+  ]
+}

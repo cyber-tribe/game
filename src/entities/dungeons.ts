@@ -13,8 +13,9 @@ export interface DungeonDef {
    * 拠点で選べるようになる条件。本文書は章クリアで解放する案だが、
    * 章立て(design/story.md)自体が未実装のため、代わりに既存の
    * 最深到達記録(SaveData.deepest)を進行度の代替指標として使う。
+   * 腕試しの間(plan/hidden-dungeon.md)は、本文どおり村の発展段階を条件にする
    */
-  unlock: "always" | { minDeepest: number };
+  unlock: "always" | { minDeepest: number } | { minVillageStage: number };
   /** 出現モンスター・アイテムの抽選テーブルに足す深さのずれ */
   floorOffset?: number;
   /** モンスターハウス出現率に掛ける倍率 */
@@ -24,9 +25,13 @@ export interface DungeonDef {
   shopRateMul?: number;
 }
 
+import { REGION_BOSS_ORDER } from "./species";
+
 export const MAIN_CAVE_ID = "mainCave";
 export const MAIN_CAVE_MAX_DEPTH = 10;
 export const NIGHTLY_DREAM_ID = "nightlyDream";
+/** 腕試しの間(plan/hidden-dungeon.md)。地方ボスの再戦だけで構成するボスラッシュ */
+export const TRIAL_CHAMBER_ID = "trialChamber";
 
 export const DUNGEONS: readonly DungeonDef[] = [
   {
@@ -52,6 +57,13 @@ export const DUNGEONS: readonly DungeonDef[] = [
     description: "終わりのないダンジョン。潜れるだけ潜って自己ベストを更新する。",
     unlock: { minDeepest: MAIN_CAVE_MAX_DEPTH },
   },
+  {
+    id: TRIAL_CHAMBER_ID,
+    name: "腕試しの間",
+    description: "地方ボスの再戦だけで構成する、休憩を挟みつつ連続で相手取るボスラッシュ。",
+    maxDepth: REGION_BOSS_ORDER.length,
+    unlock: { minVillageStage: 4 },
+  },
 ];
 
 export function dungeonById(id: string): DungeonDef {
@@ -60,6 +72,8 @@ export function dungeonById(id: string): DungeonDef {
   return found;
 }
 
-export function isDungeonUnlocked(dungeon: DungeonDef, deepest: number): boolean {
-  return dungeon.unlock === "always" || deepest >= dungeon.unlock.minDeepest;
+export function isDungeonUnlocked(dungeon: DungeonDef, deepest: number, villageStage: number): boolean {
+  if (dungeon.unlock === "always") return true;
+  if ("minDeepest" in dungeon.unlock) return deepest >= dungeon.unlock.minDeepest;
+  return villageStage >= dungeon.unlock.minVillageStage;
 }

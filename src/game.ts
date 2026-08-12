@@ -57,7 +57,7 @@ import {
   spawnWanderingMonster,
 } from "./dungeon/populate";
 import { displayActorName } from "./entities/naming";
-import { type DungeonDef, MAIN_CAVE_ID, dungeonById } from "./entities/dungeons";
+import { type DungeonDef, MAIN_CAVE_ID, TRIAL_CHAMBER_ID, dungeonById } from "./entities/dungeons";
 import type { StoredMonster } from "./entities/storedMonster";
 import { isVisible, updateVisibility } from "./dungeon/visibility";
 import {
@@ -87,7 +87,7 @@ import {
   totalAttack,
   totalDefense,
 } from "./entities/player";
-import { REGION_BOSS_FLOORS, speciesById } from "./entities/species";
+import { REGION_BOSS_FLOORS, REGION_BOSS_ORDER, speciesById } from "./entities/species";
 import { itemDef } from "./items/catalog";
 import { type EffectContext, addStatus, applyEffect } from "./items/effects";
 import {
@@ -295,6 +295,8 @@ export class Game {
   status: RunStatus = "playing";
   /** 死亡・クリアの理由。UIの表示に使う */
   endReason = "";
+  /** 腕試しの間(plan/hidden-dungeon.md)の記録用。このダイブでプレイヤーが受けた被ダメージの累計 */
+  damageTakenThisRun = 0;
 
   /** 連れている仲間。フロアをまたいで付いてくるので、floor とは別に持つ */
   allies: Actor[] = [];
@@ -440,8 +442,14 @@ export class Game {
     this.depth = depth;
     this.monsterHouseWarned = false;
     // 地方ボス(plan/region-bosses.md): 表の寝穴のボス階には、通常の野生モンスターも
-    // フロアギミックも乗せない(ボス以外の変数を減らす、本文どおりの方針)
-    const bossSpeciesId = this.dungeon.id === MAIN_CAVE_ID ? REGION_BOSS_FLOORS[depth] : undefined;
+    // フロアギミックも乗せない(ボス以外の変数を減らす、本文どおりの方針)。
+    // 腕試しの間(plan/hidden-dungeon.md)は、全階がボス階の再戦だけで構成される
+    const bossSpeciesId =
+      this.dungeon.id === MAIN_CAVE_ID
+        ? REGION_BOSS_FLOORS[depth]
+        : this.dungeon.id === TRIAL_CHAMBER_ID
+          ? REGION_BOSS_ORDER[depth - 1]
+          : undefined;
     const gimmick = bossSpeciesId
       ? undefined
       : pickFloorGimmick(this.rng, depth, this.previousGimmick, GIMMICK_CHANCE_MULTIPLIER[this.difficulty]);
@@ -1384,6 +1392,7 @@ export class Game {
   private damageActor(target: Actor, damage: number, critical: boolean, events: GameEvent[]): void {
     target.hp -= damage;
     this.hitThisTurn.add(target.id);
+    if (target.kind === "player") this.damageTakenThisRun += damage;
     events.push({
       type: "damage",
       actorId: target.id,

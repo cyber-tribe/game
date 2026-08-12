@@ -15,21 +15,22 @@ import { initialSave, recordRun } from "../src/save";
 describe("entities/dungeons.ts", () => {
   it("表の寝穴は常に解放済み", () => {
     const mainCave = dungeonById(MAIN_CAVE_ID);
-    expect(isDungeonUnlocked(mainCave, 0)).toBe(true);
+    expect(isDungeonUnlocked(mainCave, 0, 1)).toBe(true);
   });
 
   it("近道屋の裏穴は最深到達記録が条件未満だと未解放", () => {
     const shortcut = dungeonById("shortcutBackHole");
     expect(shortcut.unlock).not.toBe("always");
-    const minDeepest = shortcut.unlock === "always" ? 0 : shortcut.unlock.minDeepest;
-    expect(isDungeonUnlocked(shortcut, minDeepest - 1)).toBe(false);
-    expect(isDungeonUnlocked(shortcut, minDeepest)).toBe(true);
+    const minDeepest =
+      shortcut.unlock !== "always" && "minDeepest" in shortcut.unlock ? shortcut.unlock.minDeepest : 0;
+    expect(isDungeonUnlocked(shortcut, minDeepest - 1, 1)).toBe(false);
+    expect(isDungeonUnlocked(shortcut, minDeepest, 1)).toBe(true);
   });
 
   it("夜ごとの夢は表の寝穴の踏破(最深MAIN_CAVE_MAX_DEPTH階)が条件", () => {
     const nightly = dungeonById(NIGHTLY_DREAM_ID);
-    expect(isDungeonUnlocked(nightly, MAIN_CAVE_MAX_DEPTH - 1)).toBe(false);
-    expect(isDungeonUnlocked(nightly, MAIN_CAVE_MAX_DEPTH)).toBe(true);
+    expect(isDungeonUnlocked(nightly, MAIN_CAVE_MAX_DEPTH - 1, 1)).toBe(false);
+    expect(isDungeonUnlocked(nightly, MAIN_CAVE_MAX_DEPTH, 1)).toBe(true);
   });
 
   it("未知のidはエラーになる", () => {
