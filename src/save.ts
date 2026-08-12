@@ -531,6 +531,9 @@ export function checkAchievements(current: SaveData, extraItems: readonly Stored
   const forgedMarkIds = new Set(items.map((i) => i.markId).filter((m): m is MarkId => m !== undefined));
   if (MARKS.every((m) => forgedMarkIds.has(m.id))) next = unlockAchievement(next, "allMarksForged");
 
+  // 装備図鑑(plan/equipment-compendium.md): 武器図鑑コンプリートの称号
+  if (isWeaponCompendiumComplete(next)) next = unlockAchievement(next, "weaponCompendiumComplete");
+
   return next;
 }
 

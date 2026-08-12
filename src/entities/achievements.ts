@@ -68,6 +68,12 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
     name: "鍛えの節目",
     description: "レベル10に到達する。",
   },
+  {
+    id: "weaponCompendiumComplete",
+    name: "武器図鑑コンプリート",
+    description: "装備図鑑の武器をすべての系統「極めた」で埋める。",
+    title: "樽守りの目利き",
+  },
 ];
 
 const BY_ID = new Map(ACHIEVEMENTS.map((a) => [a.id, a]));

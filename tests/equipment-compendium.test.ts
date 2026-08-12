@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { MAX_PLUS } from "../src/entities/forging";
+import { ITEMS } from "../src/items/catalog";
 import {
+  checkAchievements,
   checkEquipmentCompendium,
   initialSave,
   isWeaponCompendiumComplete,
@@ -109,6 +111,21 @@ describe("save.ts: isWeaponCompendiumComplete", () => {
       // hatchetだけ極めても全体は埋まらない
       save = checkEquipmentCompendium(save, [{ defId: "hatchet", plus: MAX_PLUS, markId: "gajiri" }]);
       expect(isWeaponCompendiumComplete(save)).toBe(false);
+    });
+  });
+
+  it("全武器系統を極めると、称号「樽守りの目利き」の実績が付く", () => {
+    withMockedLocalStorage(() => {
+      const allWeapons: StoredItem[] = ITEMS.filter((i) => i.category === "weapon").map((i) => ({
+        defId: i.id,
+        plus: MAX_PLUS,
+        markId: "gajiri",
+      }));
+      let save: SaveData = { ...initialSave(), storage: allWeapons };
+      save = checkEquipmentCompendium(save);
+      expect(isWeaponCompendiumComplete(save)).toBe(true);
+      save = checkAchievements(save);
+      expect(save.achievements["weaponCompendiumComplete"]).toBeDefined();
     });
   });
 });
