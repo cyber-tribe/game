@@ -262,6 +262,9 @@ const SPORE_PULSE_INTERVAL = 8;
 const SPORE_SLEEP_CHANCE = 0.6;
 const SPORE_SLEEP_TURNS = 3;
 
+/** 第四地方(骨積みの回廊)固有ギミック(plan/bonepile-corridor.md): モンスターハウス出現率の乗数 */
+const BONEPILE_MONSTER_HOUSE_MULTIPLIER = 1.5;
+
 /** タルの飛距離 */
 const BARREL_RANGE = 8;
 /** タルをぶつけたときの基本ダメージ */
@@ -479,7 +482,12 @@ export class Game {
       gimmick,
       monsterHouseChanceMultiplier: bossSpeciesId
         ? 0
-        : MONSTER_HOUSE_CHANCE_MULTIPLIER[this.difficulty] * (this.dungeon.monsterHouseRateMul ?? 1),
+        : MONSTER_HOUSE_CHANCE_MULTIPLIER[this.difficulty] *
+          (this.dungeon.monsterHouseRateMul ?? 1) *
+          // 第四地方(骨積みの回廊)固有ギミック(plan/bonepile-corridor.md): 19〜24階はモンスターハウスが出やすい
+          (this.dungeon.id === MAIN_CAVE_ID && depth >= 19 && depth <= 24
+            ? BONEPILE_MONSTER_HOUSE_MULTIPLIER
+            : 1),
       shopChanceMultiplier: bossSpeciesId ? 0 : (this.dungeon.shopRateMul ?? 1),
       forceShop:
         !bossSpeciesId &&
