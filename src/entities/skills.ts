@@ -27,6 +27,47 @@ export const SKILLS: readonly SkillDef[] = [
     description: "HPが1残っていれば、致死ダメージを1回だけ耐える(1ラン1回)。",
   },
   { id: "softBody", name: "みをまもる", description: "被弾ダメージを確率5割で1割軽減する。" },
+  // ---- ここから plan/monster-compendium.md ----
+  {
+    id: "ambushStrike",
+    name: "ふいのいちげき",
+    description: "そのランの最初の1撃のダメージ+50%。",
+  },
+  {
+    id: "confusingClaw",
+    name: "みだしのつめ",
+    description: "攻撃時、低確率で相手を混乱させる。",
+  },
+  {
+    id: "burrowEscape",
+    name: "とんずら",
+    description: "瀕死になると1回だけ、その場から離脱してダメージを避ける(1ラン1回)。",
+  },
+  {
+    id: "flutterDodge",
+    name: "はねひらり",
+    description: "被弾を確率でかわし、無効化する。",
+  },
+  {
+    id: "sealBite",
+    name: "ふうじのキバ",
+    description: "攻撃時、低確率で相手を封じる。",
+  },
+  {
+    id: "slowMend",
+    name: "しずけさのいやし",
+    description: "被弾しなかったターンに、わずかにHPが回復する。",
+  },
+  {
+    id: "warnCall",
+    name: "かく乱のこだま",
+    description: "周囲の敵が新たに気づく確率をわずかに下げる。",
+  },
+  {
+    id: "disguise",
+    name: "みをかくす",
+    description: "複数の相手に隣接されたとき、自分が狙われにくくなる。",
+  },
 ];
 
 /** 種族固有の特技(由来種族を捕まえた/夢あわせで習得した個体が持つ) */
@@ -36,6 +77,17 @@ export const NATIVE_SKILL_BY_SPECIES: Record<string, SkillId> = {
   tsubute: "longThrow",
   honegarami: "stubborn",
   purun: "softBody",
+  // ---- ここから plan/monster-compendium.md ----
+  moyautsubo: "ambushStrike",
+  wasuregani: "confusingClaw",
+  yumekuimogura: "burrowEscape",
+  horoholocho: "flutterDodge",
+  yoroimukade: "sealBite",
+  urumiguma: "slowMend",
+  yamabikogitsune: "warnCall",
+  menkaburikozo: "ambushStrike",
+  yumemayoinokage: "disguise",
+  // オイテケボシ・しずくうお・こだまうさぎ・かざりだるま・ヨリシロの残響: 特技なし
 };
 
 /** 1体が同時に持てる特技の最大数(自分の種族由来 + 夢あわせで得た1つ、程度の枠) */

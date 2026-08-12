@@ -7,6 +7,7 @@ import {
   type Actor,
   type AllyStance,
   type FloorState,
+  type SkillId,
   actorAt,
   barrelAt,
   hasStatus,
@@ -14,6 +15,23 @@ import {
   walkableAt,
 } from "../core/types";
 import { canSee } from "../dungeon/visibility";
+import { speciesById } from "./species";
+
+/** 夢あわせ(plan/monster-fusion.md)で得た特技を持っているか */
+function hasSkill(actor: Actor, id: SkillId): boolean {
+  return actor.skills?.includes(id) ?? false;
+}
+
+/** burrow AI が潜ってから次に現れるまでのターン数(plan/monster-compendium.md) */
+const BURROW_INTERVAL = 3;
+/** burrow AI が現れる際、targetからこの距離以内の空きマスを探す */
+const BURROW_SURFACE_RANGE = 2;
+/** guard AI の反撃力補正(plan/monster-compendium.md) */
+export const GUARD_COUNTER_BONUS = 1.3;
+/** かく乱のこだま(warnCall)が、周囲のモンスターの新規気づきを抑える確率 */
+const WARN_CALL_SUPPRESS_CHANCE = 0.4;
+/** かく乱のこだまが効く範囲(そのモンスターからの距離) */
+const WARN_CALL_RANGE = 4;
 
 export type MonsterAction =
   | { type: "wait" }
@@ -100,15 +118,64 @@ export function nearestVisibleFoe(floor: FloorState, self: Actor): Actor | null 
   return best;
 }
 
-/** 隣にいる敵のうち、いちばん体力の減っているもの */
-export function adjacentFoe(floor: FloorState, self: Actor): Actor | null {
-  let best: Actor | null = null;
+/**
+ * 隣にいる敵のうち、いちばん体力の減っているもの。
+ * avoidDisguised: true なら、「みをかくす」(disguise)持ちの仲間を、
+ * 他に候補がいる限り優先的に避ける(plan/monster-compendium.md)
+ */
+export function adjacentFoe(floor: FloorState, self: Actor, opts?: { avoidDisguised?: boolean }): Actor | null {
+  const candidates: Actor[] = [];
   for (const other of floor.actors) {
     if (!other.alive || !isHostile(self, other)) continue;
     if (chebyshev(self.pos, other.pos) !== 1) continue;
-    if (!best || other.hp < best.hp) best = other;
+    candidates.push(other);
+  }
+  const pool =
+    opts?.avoidDisguised && candidates.some((c) => !hasSkill(c, "disguise"))
+      ? candidates.filter((c) => !hasSkill(c, "disguise"))
+      : candidates;
+  let best: Actor | null = null;
+  for (const c of pool) {
+    if (!best || c.hp < best.hp) best = c;
   }
   return best;
+}
+
+/**
+ * とうめいの巻物・かく乱のこだま(warnCall、plan/monster-compendium.md)を
+ * 考慮した視認判定。まだ気づいていない相手には、周囲に「かく乱のこだま」を
+ * 持つ仲間がいると一定確率で気づけない
+ */
+function attemptSight(rng: Rng, floor: FloorState, monster: Actor, target: Actor): boolean {
+  if (hasStatus(target, STATUS_INVISIBLE)) return false;
+  if (!canSee(floor, monster.pos, target.pos) && nearestVisibleFoe(floor, monster) === null) return false;
+  if (monster.aware) return true;
+  if (nearbyWarnCallAlly(floor, monster) && rng.chance(WARN_CALL_SUPPRESS_CHANCE)) return false;
+  return true;
+}
+
+function nearbyWarnCallAlly(floor: FloorState, monster: Actor): boolean {
+  for (const a of floor.actors) {
+    if (!a.alive || a.kind !== "ally" || !hasSkill(a, "warnCall")) continue;
+    if (chebyshev(monster.pos, a.pos) <= WARN_CALL_RANGE) return true;
+  }
+  return false;
+}
+
+/** burrow AI が地上に現れる位置。targetの近くの空いている歩行可能マスを探す */
+function burrowSurfaceSpot(rng: Rng, floor: FloorState, near: Vec2): Vec2 | null {
+  const candidates: Vec2[] = [];
+  for (let dy = -BURROW_SURFACE_RANGE; dy <= BURROW_SURFACE_RANGE; dy++) {
+    for (let dx = -BURROW_SURFACE_RANGE; dx <= BURROW_SURFACE_RANGE; dx++) {
+      if (dx === 0 && dy === 0) continue;
+      const p = { x: near.x + dx, y: near.y + dy };
+      if (!walkableAt(floor, p)) continue;
+      if (actorAt(floor, p) !== undefined) continue;
+      if (barrelAt(floor, p) !== undefined) continue;
+      candidates.push(p);
+    }
+  }
+  return candidates.length > 0 ? rng.pick(candidates) : null;
 }
 
 /**
@@ -142,16 +209,59 @@ export function decideMonsterAction(
     return away !== null ? { type: "move", dir: away } : wander(rng, floor, monster);
   }
 
-  // とうめいの巻物: 透明な相手を見ても新たに気づかない(すでに気づいている分には効かない)
-  const sees =
-    !hasStatus(target, STATUS_INVISIBLE) &&
-    (canSee(floor, monster.pos, target.pos) || nearestVisibleFoe(floor, monster) !== null);
-  if (sees) monster.aware = true;
+  // ambush・mimic(plan/monster-compendium.md): 隣接されるまで完全に気づかず、
+  // 気づいた直後の1撃には奇襲補正が乗る(game.ts の attack が ambushReady を見る)。
+  // mimic はタルへの視覚的な擬態までは実装せず、この「隣接されるまで潜む」
+  // 挙動だけを流用する簡略化とする(アーカイブ注記参照)
+  if (monster.aiKind === "ambush" || monster.aiKind === "mimic") {
+    const wasAware = monster.aware;
+    const adjacent = adjacentFoe(floor, monster, { avoidDisguised: true });
+    if (adjacent) {
+      monster.aware = true;
+      if (!wasAware) monster.ambushReady = true;
+      return { type: "attack", targetId: adjacent.id };
+    }
+    return { type: "wait" };
+  }
+
+  // burrow(plan/monster-compendium.md): 追跡の距離場を使わず、一定間隔で
+  // 「潜る/現れる」を挟む。隣接していれば潜伏中でも応戦する
+  if (monster.aiKind === "burrow") {
+    const adjacent = adjacentFoe(floor, monster, { avoidDisguised: true });
+    if (adjacent) {
+      monster.aware = true;
+      return { type: "attack", targetId: adjacent.id };
+    }
+    const timer = monster.burrowTimer ?? BURROW_INTERVAL;
+    if (timer <= 0) {
+      const spot = burrowSurfaceSpot(rng, floor, target.pos);
+      if (spot) {
+        monster.pos = spot;
+        monster.aware = true;
+      }
+      monster.burrowTimer = BURROW_INTERVAL;
+    } else {
+      monster.burrowTimer = timer - 1;
+    }
+    return { type: "wait" };
+  }
+
+  // とうめいの巻物・かく乱のこだまを考慮した視認
+  const wasAware = monster.aware;
+  if (attemptSight(rng, floor, monster, target)) monster.aware = true;
+
+  // やまびこぎつね(alertsFloorOnSight): 初めて視認した瞬間、フロア中の
+  // 他のモンスターにも気づかせる(design/regions.md 第六地方)
+  if (!wasAware && monster.aware && monster.speciesId && speciesById(monster.speciesId).alertsFloorOnSight) {
+    for (const other of floor.actors) {
+      if (other.alive && other.kind === "monster") other.aware = true;
+    }
+  }
 
   if (!monster.aware) return wander(rng, floor, monster);
 
   // 隣に敵がいるなら、それが誰であれ殴る。仲間が割り込んでいれば仲間を殴る
-  const adjacent = adjacentFoe(floor, monster);
+  const adjacent = adjacentFoe(floor, monster, { avoidDisguised: true });
   if (adjacent) return { type: "attack", targetId: adjacent.id };
 
   // 逃げ腰のモンスターは瀕死になると距離を取る
@@ -159,6 +269,9 @@ export function decideMonsterAction(
     const away = fleeDirection(floor, monster, target.pos);
     if (away !== null) return { type: "move", dir: away };
   }
+
+  // guard(plan/monster-compendium.md): ほとんど自分から動かず、その場を固める
+  if (monster.aiKind === "guard") return { type: "wait" };
 
   // かなしばりの杖: 封じられている間は遠隔攻撃(特技)が使えず、近づくしかない
   const visible = nearestVisibleFoe(floor, monster);

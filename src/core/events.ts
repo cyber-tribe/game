@@ -45,7 +45,13 @@ export type GameEvent =
   | { type: "gameOver"; reason: string }
   | { type: "message"; text: string }
   /** その場方式のチュートリアルヒント。既読管理は呼び出し側(main.ts)が行う */
-  | { type: "tutorialTip"; id: TutorialTipId };
+  | { type: "tutorialTip"; id: TutorialTipId }
+  /**
+   * モンスター図鑑(plan/monster-compendium.md)の「見た」通知。そのダイブで
+   * 初めて視界に入った種族について1回だけ発生する。セーブへの反映は
+   * 呼び出し側(main.ts)が行う
+   */
+  | { type: "monsterSighted"; speciesId: string };
 
 /** メッセージイベントを作るだけの短縮。呼び出し側の見通しのため */
 export function msg(text: string): GameEvent {
