@@ -84,8 +84,8 @@ describe("entities/species.ts: 淵の主(第五地方ボス)", () => {
     expect(species.bossTelegraph?.effect).toBe("summonTorrent");
   });
 
-  it("REGION_BOSS_ORDERの最後に登録されている", () => {
-    expect(REGION_BOSS_ORDER[REGION_BOSS_ORDER.length - 1]).toBe("fuchiNoNushi");
+  it("REGION_BOSS_ORDERに、ホネヅカのぬしに続いて登録されている", () => {
+    expect(REGION_BOSS_ORDER.indexOf("fuchiNoNushi")).toBe(REGION_BOSS_ORDER.indexOf("honezukaNoNushi") + 1);
   });
 });
 

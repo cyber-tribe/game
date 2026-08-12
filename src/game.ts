@@ -55,6 +55,7 @@ import {
   createAllyFromStored,
   createBarrel,
   createItem,
+  createMonster,
   findFreeTile,
   placeQuagmireTiles,
   placeSecretPassage,
@@ -1528,14 +1529,17 @@ export class Game {
   }
 
   private damageActor(target: Actor, damage: number, critical: boolean, events: GameEvent[]): void {
-    target.hp -= damage;
+    // 地方ボス(plan/region-boss-kodamanonushi.md): 分身はHPを共有する。実際の
+    // 増減・生死判定は本体側のActorに対して行う
+    const hpOwner = this.hpOwnerOf(target);
+    hpOwner.hp -= damage;
     this.hitThisTurn.add(target.id);
     if (target.kind === "player") this.damageTakenThisRun += damage;
     events.push({
       type: "damage",
       actorId: target.id,
       amount: damage,
-      hpAfter: Math.max(0, target.hp),
+      hpAfter: Math.max(0, hpOwner.hp),
       critical,
     });
     // 攻撃を受ければ目が覚める
@@ -1544,23 +1548,37 @@ export class Game {
       sleep.turns = 0;
       events.push({ type: "statusEnd", actorId: target.id, kind: STATUS_SLEEP });
     }
-    if (target.hp <= 0) {
+    if (hpOwner.hp <= 0) {
       // 特技「ふんばり」、ホネガラミの印(plan/equipment-forging.md)、または
       // 身がわりの鈴(plan/protagonist-equipment.md): HPが1残っていた状態
       // からの致死ダメージを1ダイブ1回だけ耐える
-      const hpBeforeThisHit = target.hp + damage;
+      const hpBeforeThisHit = hpOwner.hp + damage;
       const hasStubbornEffect =
-        (target.kind === "ally" && hasSkill(target, "stubborn")) ||
-        (target.kind === "player" &&
+        (hpOwner.kind === "ally" && hasSkill(hpOwner, "stubborn")) ||
+        (hpOwner.kind === "player" &&
           (shieldMarkId(this.player.inventory) === "honegarami" ||
             charmDefId(this.player.inventory) === "guardianBell"));
-      if (hpBeforeThisHit === 1 && hasStubbornEffect && !this.usedStubborn.has(target.id)) {
-        target.hp = 1;
-        this.usedStubborn.add(target.id);
-        events.push({ type: "message", text: `${displayActorName(target)}はふんばりこらえた!` });
+      if (hpBeforeThisHit === 1 && hasStubbornEffect && !this.usedStubborn.has(hpOwner.id)) {
+        hpOwner.hp = 1;
+        this.usedStubborn.add(hpOwner.id);
+        events.push({ type: "message", text: `${displayActorName(hpOwner)}はふんばりこらえた!` });
       } else {
-        this.killActor(target, events);
+        this.killActor(hpOwner, events);
       }
+    }
+    this.mirrorSharedHp(hpOwner);
+  }
+
+  /** 地方ボス(plan/region-boss-kodamanonushi.md): 分身が紐づく本体を返す。紐づいていなければそのまま */
+  private hpOwnerOf(actor: Actor): Actor {
+    if (actor.sharesHpWith === undefined) return actor;
+    return this.floor.actors.find((a) => a.id === actor.sharesHpWith) ?? actor;
+  }
+
+  /** 本体のhpを、紐づく分身全員のhpフィールドへミラーする(表示用。増減判定には使わない) */
+  private mirrorSharedHp(owner: Actor): void {
+    for (const actor of this.floor.actors) {
+      if (actor.sharesHpWith === owner.id) actor.hp = owner.hp;
     }
   }
 
@@ -1616,6 +1634,16 @@ export class Game {
         events.push({ type: "message", text: `レベルが${this.player.level}に上がった!` });
       }
       if (levels > 0) events.push({ type: "tutorialTip", id: "levelUp" });
+    }
+
+    // 地方ボス(plan/region-boss-kodamanonushi.md): 本体が倒れたら、紐づく分身も
+    // 同時に消える。経験値・ドロップの重複を避けるため、通常のkillActor処理は
+    // 分身側には通さない
+    for (const echo of this.floor.actors) {
+      if (echo.id === target.id || echo.sharesHpWith !== target.id || !echo.alive) continue;
+      echo.alive = false;
+      echo.hp = 0;
+      events.push({ type: "die", actorId: echo.id, kind: echo.kind, speciesId: echo.speciesId });
     }
   }
 
@@ -2053,6 +2081,27 @@ export class Game {
                 actor.summonedTorrentTiles.push({ pos: { x, y }, expiresIn: SUMMON_TORRENT_DURATION });
               }
             }
+          }
+          break;
+        }
+        case "summonEcho": {
+          // 地方ボス(plan/region-boss-kodamanonushi.md): 予兆を消費した大技。
+          // HPを共有する分身を、既存の生存数に応じて最大2体まで補充する
+          const existingEchoes = this.floor.actors.filter((a) => a.alive && a.sharesHpWith === actor.id);
+          const toSpawn = Math.max(0, 2 - existingEchoes.length);
+          const species = actor.speciesId ? speciesById(actor.speciesId) : undefined;
+          if (toSpawn > 0 && species) {
+            events.push({ type: "message", text: `${displayActorName(actor)}が分身を呼び出した!` });
+          }
+          for (let i = 0; i < toSpawn && species; i++) {
+            const pos = this.freeSpotNear(actor.pos);
+            if (!pos) break;
+            const echo = createMonster(this.ids.nextActorId(), species, pos);
+            echo.sharesHpWith = actor.id;
+            echo.hp = actor.hp;
+            echo.atk = Math.round(actor.atk * 0.5);
+            echo.aware = true;
+            this.floor.actors.push(echo);
           }
           break;
         }

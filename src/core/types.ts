@@ -177,9 +177,11 @@ export interface Species {
      * "aoeSleep"/"aoeSeal"は隣接攻撃を伴わず、自分のいる部屋の全アクター
      * (敵味方問わず)に睡眠/封じを付与する発動に変わる(plan/region-boss-honezuka.md)。
      * "summonTorrent"は状態異常ではなく、自分のいる部屋の外周タイルへ一時的に
-     * 奔流(plan/waterfall-torrent.md)を呼び込む(plan/region-boss-fuchinonushi.md)
+     * 奔流(plan/waterfall-torrent.md)を呼び込む(plan/region-boss-fuchinonushi.md)。
+     * "summonEcho"は状態異常でも地形でもなく、HPを共有する分身を2体まで
+     * 召喚する(plan/region-boss-kodamanonushi.md、Actor.sharesHpWith参照)
      */
-    effect?: "targetedStrike" | "aoeSleep" | "aoeSeal" | "summonTorrent";
+    effect?: "targetedStrike" | "aoeSleep" | "aoeSeal" | "summonTorrent" | "summonEcho";
   };
   /** 地方ボスを撃破すると確定ドロップする、その地方限定の素材のdefId */
   bossGuaranteedDrop?: string;
@@ -253,6 +255,13 @@ export interface Actor {
    * 一時的に奔流タイルを設置した位置と、元に戻すまでの残りターン数
    */
   summonedTorrentTiles?: { pos: Vec2; expiresIn: number }[];
+  /**
+   * 地方ボス(plan/region-boss-kodamanonushi.md)。設定されていれば、この
+   * アクターは分身であり、実際のダメージ増減・生死判定は指定したactor idの
+   * アクター(本体)側で行う。このアクター自身のhpフィールドは表示用の
+   * ミラーに過ぎない
+   */
+  sharesHpWith?: number;
 
   // ---- 以下は ally のみ ----
   /** 構え。plan/companion-orders.md 参照。既定は "free" */
