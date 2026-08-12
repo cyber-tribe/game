@@ -14,11 +14,18 @@ export function toWorld(pos: Vec2, height = 0): THREE.Vector3 {
  * 真上からだと立体が分からず、低すぎると手前の壁で盤面が隠れるので、
  * その中間の角度に落ち着かせている。
  */
+/** 影を落とす範囲の半径(マス)。見えている範囲を覆えるだけあれば足りる */
+const SHADOW_HALF_SPAN = 12;
+
 export class Renderer {
   readonly scene = new THREE.Scene();
   readonly camera: THREE.PerspectiveCamera;
   readonly renderer: THREE.WebGLRenderer;
   readonly playerLight: THREE.PointLight;
+  /** 影を落とす唯一の光。注視点に合わせて動かす */
+  private readonly key: THREE.DirectionalLight;
+  /** 影の視錐台を最後に合わせた位置。動いたぶんだけ描き直す */
+  private readonly shadowAnchor = new THREE.Vector3(Infinity, 0, Infinity);
 
   /** カメラの水平角(ラジアン)。プレイヤーが回して視点を変えられる */
   yaw = 0;
@@ -34,6 +41,12 @@ export class Renderer {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // ターン制なので影を毎フレーム描き直す必要はない。既定のままだと
+    // 1024×1024 の影マップをフレームごとに作り直すことになり、拠点画面に
+    // 隠れているあいだも払い続けることになる。動きがある間だけ更新する
+    // (呼び出し側は requestShadowUpdate を使う)
+    this.renderer.shadowMap.autoUpdate = false;
+    this.renderer.shadowMap.needsUpdate = true;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 0.98;
 
@@ -47,6 +60,9 @@ export class Renderer {
     // 洞窟の底なので全体は青く沈ませ、プレイヤーの周りだけを暖色で照らす
     this.scene.add(new THREE.AmbientLight(0x6674a0, 1.7));
 
+    // 影を落とすのはこの1灯だけ。盤面は 48×36 マスあるので、視錐台を原点に
+    // 固定したままだと原点付近にしか影が出ない。カメラの注視点に合わせて
+    // 動かし、見えている範囲だけを狭く覆う
     const key = new THREE.DirectionalLight(0xaec2f5, 0.85);
     key.position.set(6, 14, 4);
     key.castShadow = true;
@@ -54,12 +70,13 @@ export class Renderer {
     key.shadow.camera.near = 1;
     key.shadow.camera.far = 40;
     const shadowCam = key.shadow.camera as THREE.OrthographicCamera;
-    shadowCam.left = -12;
-    shadowCam.right = 12;
-    shadowCam.top = 12;
-    shadowCam.bottom = -12;
+    shadowCam.left = -SHADOW_HALF_SPAN;
+    shadowCam.right = SHADOW_HALF_SPAN;
+    shadowCam.top = SHADOW_HALF_SPAN;
+    shadowCam.bottom = -SHADOW_HALF_SPAN;
     this.scene.add(key);
     this.scene.add(key.target);
+    this.key = key;
 
     // 松明の代わり。プレイヤーに付いてまわる暖色の光
     this.playerLight = new THREE.PointLight(0xffd2a6, 30, 13, 1.4);
@@ -109,9 +126,27 @@ export class Renderer {
       this.focus.z + Math.cos(this.yaw) * horizontal,
     );
     this.camera.lookAt(this.focus);
+
+    // 影の視錐台を注視点に追従させる。1マス以上ずれたときだけ動かし、
+    // そのぶん影を描き直す(毎フレーム動かすと影マップを毎回作り直すことになる)
+    if (this.shadowAnchor.distanceToSquared(this.focus) > 1) {
+      this.shadowAnchor.copy(this.focus);
+      this.key.position.set(this.focus.x + 6, 14, this.focus.z + 4);
+      this.key.target.position.set(this.focus.x, 0, this.focus.z);
+      this.key.target.updateMatrixWorld();
+      this.requestShadowUpdate();
+    }
+  }
+
+  /** 次の描画で影を作り直す。ターンが動いたとき・場面が変わったときに呼ぶ */
+  requestShadowUpdate(): void {
+    this.renderer.shadowMap.needsUpdate = true;
   }
 
   render(): void {
     this.renderer.render(this.scene, this.camera);
+    // three は描画のたびに needsUpdate を落とすが、自前で管理していることを
+    // はっきりさせるためここでも倒しておく
+    this.renderer.shadowMap.needsUpdate = false;
   }
 }

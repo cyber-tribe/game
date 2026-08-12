@@ -33,6 +33,24 @@ const NUMPAD_DIRS: Record<string, Dir> = {
   Numpad7: 7,
 };
 
+/** 上の表を毎フレーム Object.entries し直さずに済ませるための控え */
+const NUMPAD_DIR_ENTRIES: readonly (readonly [string, Dir])[] = Object.entries(NUMPAD_DIRS) as [
+  string,
+  Dir,
+][];
+
+/** 北を 0 として時計回りに並べた 8 方向。キーは "dx,dy" */
+const DIR_BY_DELTA: Record<string, Dir> = {
+  "0,-1": 0,
+  "1,-1": 1,
+  "1,0": 2,
+  "1,1": 3,
+  "0,1": 4,
+  "-1,1": 5,
+  "-1,0": 6,
+  "-1,-1": 7,
+};
+
 const AXIS_KEYS = {
   north: ["ArrowUp", "KeyW"],
   south: ["ArrowDown", "KeyS"],
@@ -106,30 +124,27 @@ export class Input {
 
   /** 今押されている方向。押されていなければ null */
   direction(): Dir | null {
-    for (const [code, dir] of Object.entries(NUMPAD_DIRS)) {
+    // ここは毎フレーム呼ばれる。Object.entries や方向表をこの中で作ると
+    // 1フレームごとに使い捨ての配列・オブジェクトが積み上がるので、
+    // どちらもモジュール定数に出してある
+    for (const [code, dir] of NUMPAD_DIR_ENTRIES) {
       if (this.held.has(code)) return dir;
     }
-    const north = AXIS_KEYS.north.some((k) => this.held.has(k));
-    const south = AXIS_KEYS.south.some((k) => this.held.has(k));
-    const west = AXIS_KEYS.west.some((k) => this.held.has(k));
-    const east = AXIS_KEYS.east.some((k) => this.held.has(k));
+    const north = this.anyHeld(AXIS_KEYS.north);
+    const south = this.anyHeld(AXIS_KEYS.south);
+    const west = this.anyHeld(AXIS_KEYS.west);
+    const east = this.anyHeld(AXIS_KEYS.east);
 
     const dy = (south ? 1 : 0) - (north ? 1 : 0);
     const dx = (east ? 1 : 0) - (west ? 1 : 0);
     if (dx === 0 && dy === 0) return null;
 
-    // 北を 0 として時計回りに並べた 8 方向へ落とす
-    const table: Record<string, Dir> = {
-      "0,-1": 0,
-      "1,-1": 1,
-      "1,0": 2,
-      "1,1": 3,
-      "0,1": 4,
-      "-1,1": 5,
-      "-1,0": 6,
-      "-1,-1": 7,
-    };
-    return table[`${dx},${dy}`] ?? null;
+    return DIR_BY_DELTA[`${dx},${dy}`] ?? null;
+  }
+
+  private anyHeld(codes: readonly string[]): boolean {
+    for (const code of codes) if (this.held.has(code)) return true;
+    return false;
   }
 
   /** 向きだけ変えたいとき(Shift を押しながら) */

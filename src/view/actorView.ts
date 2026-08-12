@@ -37,6 +37,13 @@ export class ActorView {
   /** 頭上に抱えているもの。タルを持ち上げているあいだ付いてまわる */
   private carried: THREE.Object3D | null = null;
 
+  /** 被弾演出のために複製した、このインスタンス専用のマテリアル */
+  private readonly ownMaterials: THREE.MeshStandardMaterial[] = [];
+  /** 上の各マテリアルの、光らせる前の発光色 */
+  private readonly flashBase: THREE.Color[] = [];
+  /** 被弾の色を戻すタイマー。続けて殴られたときに張り直す */
+  private flashTimer: number | null = null;
+
   constructor(instance: Instance, pos: Vec2, facing: Dir = 4) {
     this.root = instance.root;
     this.mixer = instance.mixer;
@@ -104,23 +111,50 @@ export class ActorView {
     this.current = name;
   }
 
-  /** 被弾を色で伝える。素材の色を一瞬だけ赤に寄せる */
+  /**
+   * 被弾を色で伝える。素材の色を一瞬だけ赤に寄せる。
+   *
+   * assets.instantiate は SkeletonUtils.clone を使っており、マテリアルは
+   * 同じモデルのインスタンス全員(と、キャッシュしている元データ)で共有される。
+   * そこへ直接書き込むと、1匹殴っただけで同じ種族が全員光り、しかも元の色を
+   * 共有物から読むため、続けて殴られると「赤い状態」を元の色として覚えてしまい
+   * 戻らなくなる。そこで、殴られたインスタンスだけが自前のマテリアルを持つ。
+   */
   flash(scene: THREE.Scene): void {
     void scene;
-    const meshes: THREE.Mesh[] = [];
-    this.root.traverse((obj) => {
-      if ((obj as THREE.Mesh).isMesh) meshes.push(obj as THREE.Mesh);
-    });
-    for (const mesh of meshes) {
-      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-      for (const material of materials) {
-        const standard = material as THREE.MeshStandardMaterial;
-        if (!standard.emissive) continue;
-        const original = standard.emissive.clone();
-        standard.emissive.setRGB(0.75, 0.06, 0.06);
-        window.setTimeout(() => standard.emissive.copy(original), 130);
-      }
+    this.ensureOwnMaterials();
+    if (this.flashTimer !== null) window.clearTimeout(this.flashTimer);
+    for (const material of this.ownMaterials) {
+      material.emissive.setRGB(0.75, 0.06, 0.06);
     }
+    this.flashTimer = window.setTimeout(() => {
+      this.flashTimer = null;
+      for (let i = 0; i < this.ownMaterials.length; i++) {
+        this.ownMaterials[i]!.emissive.copy(this.flashBase[i]!);
+      }
+    }, 130);
+  }
+
+  /**
+   * このインスタンス専用のマテリアルを用意する(初回の被弾時だけ)。
+   * 一度も殴られないものは共有のままなので、余計な複製は増えない。
+   */
+  private ensureOwnMaterials(): void {
+    if (this.ownMaterials.length > 0) return;
+    this.root.traverse((obj) => {
+      const mesh = obj as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      const replaced = materials.map((material) => {
+        const standard = material as THREE.MeshStandardMaterial;
+        if (!standard.emissive) return material;
+        const own = standard.clone();
+        this.ownMaterials.push(own);
+        this.flashBase.push(own.emissive.clone());
+        return own;
+      });
+      mesh.material = Array.isArray(mesh.material) ? replaced : replaced[0]!;
+    });
   }
 
   /**
@@ -186,6 +220,23 @@ export class ActorView {
 
   dispose(): void {
     this.mixer?.stopAllAction();
+    if (this.flashTimer !== null) {
+      window.clearTimeout(this.flashTimer);
+      this.flashTimer = null;
+    }
+    // ジオメトリと素のマテリアルは SkeletonUtils.clone が全インスタンスで
+    // 共有しているので捨ててはいけない。捨てるのは、このインスタンスのために
+    // 作ったものだけ。
+    for (const material of this.ownMaterials) material.dispose();
+    this.ownMaterials.length = 0;
+    this.flashBase.length = 0;
+    // スケルトンはインスタンスごとに作られ、three はそこにボーン行列用の
+    // テクスチャを1枚確保する。共有物ではないので、ここで捨てないと
+    // 階を降りるたびにGPU側へ積み上がっていく(実測: 1階あたり約2.4枚)。
+    this.root.traverse((obj) => {
+      const skinned = obj as THREE.SkinnedMesh;
+      if (skinned.isSkinnedMesh) skinned.skeleton?.dispose();
+    });
     this.root.removeFromParent();
   }
 

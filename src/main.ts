@@ -21,6 +21,7 @@ import {
   acceptQuest,
   addFoundVaultPassage,
   addKnownCheckpoint,
+  batchSaves,
   checkAchievements,
   checkEquipmentCompendium,
   clearRunSnapshot,
@@ -62,6 +63,9 @@ import { speciesLore } from "./entities/speciesLore";
 import { TUTORIAL_TIPS, type TutorialTipId } from "./core/tutorial";
 import type { Item } from "./core/types";
 import type { TrainingFocus } from "./entities/player";
+
+/** 拠点に覆われているあいだ、洞窟を描き直す間隔(秒)。うっすら動いて見えれば足りる */
+const COVERED_RENDER_INTERVAL = 0.2;
 
 /** 操作の一括確認(plan/difficulty-modes.md アクセシビリティ節)。README操作表と揃える */
 const KEY_HELP_LINES: readonly string[] = [
@@ -118,6 +122,8 @@ class App {
   private photoMode = false;
   /** 操作説明(plan/difficulty-modes.md アクセシビリティ節)。表示中は行動を止める */
   private helpVisible = false;
+  /** 拠点に覆われているあいだ、最後に洞窟を描いた時刻 */
+  private lastCoveredRender = -Infinity;
 
   constructor() {
     this.canvas = document.querySelector<HTMLCanvasElement>("#scene")!;
@@ -409,7 +415,19 @@ class App {
       this.renderer.setFocus(this.game.player.pos);
       this.renderer.update(dt);
       this.drainDamageFx();
-      this.renderer.render();
+      // 1ターンの再生が流れているあいだは絵が動くので、影も追従させる。
+      // 止まっているあいだは前のフレームの影マップをそのまま使う
+      if (this.lock > 0) this.renderer.requestShadowUpdate();
+      // 拠点は画面のほとんどを覆う(不透明度0.88)。裏で洞窟がうっすら見える
+      // 演出は残したいので描画を止めはせず、更新の間隔だけ落とす。
+      // 覆われている間に毎フレーム描いても、ほとんど誰にも見えない
+      // (モバイルでは電池と発熱に直結する)
+      if (!this.town.isOpen) {
+        this.renderer.render();
+      } else if (this.elapsed - this.lastCoveredRender >= COVERED_RENDER_INTERVAL) {
+        this.lastCoveredRender = this.elapsed;
+        this.renderer.render();
+      }
     }
     this.galleryWasOpen = gallerySpeciesId !== null;
 
@@ -625,36 +643,41 @@ class App {
     const events = this.game.command(cmd);
     if (events.length === 0) return;
 
-    for (const event of events) {
-      if (event.type === "message") this.hud.log(event.text);
-      // めざめの階段は、ダイブの結果によらず足を踏み入れた瞬間に記録する
-      if (event.type === "checkpoint") this.save = addKnownCheckpoint(this.save, event.depth);
-      if (event.type === "tutorialTip") this.showTutorialTip(event.id);
-      if (event.type === "recruit") this.promptNaming(event.actorId, event.name);
-      // 記録の間(plan/records-hall.md): 倒した・捕まえた数を積み上げる
-      if (event.type === "die" && event.kind === "monster") this.diveDefeats++;
-      if (event.type === "capture") this.diveCaptures++;
-      // モンスター図鑑(plan/monster-compendium.md): 見た・捕まえたを記録する。
-      // 「知識は失われない」原則により、全滅した場合でも取り消さない
-      if (event.type === "monsterSighted") {
-        // 依頼板(plan/quest-board.md): 図鑑依頼は「セーブ上まだ未確認だった」種族だけを数える
-        // (このダイブで初めて見た、ではなく、これまでの記録として初めて見た、という判定)
-        if (this.save.compendium[event.speciesId] === undefined) this.diveNewlySeenCount++;
-        this.save = markSpeciesSeen(this.save, event.speciesId);
+    // このループの中の記録まわり(めざめの階段・図鑑・隠し通路)は、それぞれが
+    // セーブ全体を書き出す作りになっている。1ターンで何度も同期書き込みが走ると
+    // その場で操作が引っかかるので、書き込みは最後の1回にまとめる
+    batchSaves(() => {
+      for (const event of events) {
+        if (event.type === "message") this.hud.log(event.text);
+        // めざめの階段は、ダイブの結果によらず足を踏み入れた瞬間に記録する
+        if (event.type === "checkpoint") this.save = addKnownCheckpoint(this.save, event.depth);
+        if (event.type === "tutorialTip") this.showTutorialTip(event.id);
+        if (event.type === "recruit") this.promptNaming(event.actorId, event.name);
+        // 記録の間(plan/records-hall.md): 倒した・捕まえた数を積み上げる
+        if (event.type === "die" && event.kind === "monster") this.diveDefeats++;
+        if (event.type === "capture") this.diveCaptures++;
+        // モンスター図鑑(plan/monster-compendium.md): 見た・捕まえたを記録する。
+        // 「知識は失われない」原則により、全滅した場合でも取り消さない
+        if (event.type === "monsterSighted") {
+          // 依頼板(plan/quest-board.md): 図鑑依頼は「セーブ上まだ未確認だった」種族だけを数える
+          // (このダイブで初めて見た、ではなく、これまでの記録として初めて見た、という判定)
+          if (this.save.compendium[event.speciesId] === undefined) this.diveNewlySeenCount++;
+          this.save = markSpeciesSeen(this.save, event.speciesId);
+        }
+        if (event.type === "recruit") {
+          const ally = this.game.allyList.find((a) => a.id === event.actorId);
+          if (ally?.speciesId) this.save = markSpeciesCaptured(this.save, ally.speciesId);
+        }
+        // 依頼板: 討伐・探索依頼の判定材料をこのダイブぶん集計する
+        if (event.type === "die" && event.kind === "monster" && event.speciesId) {
+          this.diveHuntKills[event.speciesId] = (this.diveHuntKills[event.speciesId] ?? 0) + 1;
+        }
+        if (event.type === "checkpoint") this.diveReachedDepths.push(event.depth);
+        // 忘れ物蔵(plan/lost-and-found-vault.md): 隠し通路を見つけた瞬間に記録する。
+        // ダイブの結果によらず記録されるべき事実なので、checkpointと同じ扱いにする
+        if (event.type === "secretPassageFound") this.save = addFoundVaultPassage(this.save, event.regionId);
       }
-      if (event.type === "recruit") {
-        const ally = this.game.allyList.find((a) => a.id === event.actorId);
-        if (ally?.speciesId) this.save = markSpeciesCaptured(this.save, ally.speciesId);
-      }
-      // 依頼板: 討伐・探索依頼の判定材料をこのダイブぶん集計する
-      if (event.type === "die" && event.kind === "monster" && event.speciesId) {
-        this.diveHuntKills[event.speciesId] = (this.diveHuntKills[event.speciesId] ?? 0) + 1;
-      }
-      if (event.type === "checkpoint") this.diveReachedDepths.push(event.depth);
-      // 忘れ物蔵(plan/lost-and-found-vault.md): 隠し通路を見つけた瞬間に記録する。
-      // ダイブの結果によらず記録されるべき事実なので、checkpointと同じ扱いにする
-      if (event.type === "secretPassageFound") this.save = addFoundVaultPassage(this.save, event.regionId);
-    }
+    });
 
     const changedFloor = this.game.depth !== beforeDepth;
     if (changedFloor) {
@@ -672,6 +695,8 @@ class App {
     this.stage.dungeon.refresh(this.game.floor);
     this.hud.update(this.game.player, this.game.depth, this.game.allyList);
     this.minimap.draw(this.game.floor, this.game.player);
+    // 盤面が変わったので、影も1度は作り直す(以後は再生が終わるまで毎フレーム更新)
+    this.renderer.requestShadowUpdate();
 
     // ダイブ中オートセーブ(plan/mid-dive-autosave.md)。1ターンが解決するたびに
     // 現在の状態をまるごと書き出す。全滅・踏破・区切りで正規に終わったときは、

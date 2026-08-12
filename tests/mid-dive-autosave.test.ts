@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 import { Rng } from "../src/core/rng";
 import { Game, type RunSnapshot } from "../src/game";
 import {
+  batchSaves,
   clearRunSnapshot,
   loadRunSnapshot,
+  loadSave,
+  saveData,
   saveRunSnapshot,
 } from "../src/save";
 
@@ -163,5 +166,161 @@ describe("save.ts のダイブ中オートセーブ管理", () => {
       clearRunSnapshot();
       expect(loadRunSnapshot()).toBeNull();
     });
+  });
+});
+
+describe("タイル格子の畳み込み", () => {
+  /** 深みタイル(7〜12階)と奔流タイル(25〜30階)も通るよう、複数の階で確かめる */
+  function diveTo(depth: number): Game {
+    const game = new Game({ seed: 777, maxDepth: 48, startingItems: [] });
+    let guard = 0;
+    while (game.depth < depth && guard++ < 200) {
+      game.player.pos = { ...game.floor.stairs };
+      game.command({ type: "descend" });
+    }
+    for (let i = 0; i < 12; i++) game.command({ type: "wait" });
+    return game;
+  }
+
+  for (const depth of [1, 10, 28]) {
+    it(`地下${depth}階のタイルが1マスも欠けずに往復する`, () => {
+      const game = diveTo(depth);
+      const before = game.toSnapshot();
+      const after = roundTripThroughStorage(before);
+
+      const a = before.floor.tiles;
+      const b = after.floor.tiles;
+      expect(b.length).toBe(a.length);
+      for (let i = 0; i < a.length; i++) {
+        expect(b[i]!.kind, `tile[${i}].kind`).toBe(a[i]!.kind);
+        // roomId は保存せず、部屋の矩形から引き直している
+        expect(b[i]!.roomId, `tile[${i}].roomId`).toBe(a[i]!.roomId);
+        expect(b[i]!.explored, `tile[${i}].explored`).toBe(a[i]!.explored);
+        expect(b[i]!.quagmire ?? false, `tile[${i}].quagmire`).toBe(a[i]!.quagmire ?? false);
+        expect(b[i]!.torrent, `tile[${i}].torrent`).toBe(a[i]!.torrent);
+      }
+    });
+  }
+
+  it("見えているマスも往復して変わらない", () => {
+    const game = diveTo(10);
+    const before = game.toSnapshot();
+    const visibleBefore = before.floor.tiles.filter((t) => t.visible).length;
+    expect(visibleBefore).toBeGreaterThan(0);
+
+    const after = roundTripThroughStorage(before);
+    expect(after.floor.tiles.filter((t) => t.visible).length).toBe(visibleBefore);
+
+    const resumed = new Game({ seed: 0, resume: after });
+    expect(resumed.floor.tiles.filter((t) => t.visible).length).toBe(visibleBefore);
+  });
+
+  it("書き出す量がタイルをそのまま並べた場合の3割未満に収まる", () => {
+    // 毎ターン同期で localStorage に書くので、ここが膨らむと操作が引っかかる。
+    // 畳む前は全体の94%がタイルで、1階でも97KBあった
+    const game = diveTo(10);
+    const snapshot = game.toSnapshot();
+    const raw = JSON.stringify(snapshot).length;
+    let written = 0;
+    withMockedLocalStorage(() => {
+      saveRunSnapshot(snapshot);
+      written = (localStorage.getItem("garudo-dungeon/v1/run-snapshot") ?? "").length;
+    });
+    expect(written).toBeGreaterThan(0);
+    expect(written).toBeLessThan(raw * 0.3);
+  });
+
+  it("古い形式(タイルが配列のまま)のスナップショットは読み捨てる", () => {
+    withMockedLocalStorage(() => {
+      const game = new Game({ seed: 3 });
+      // 畳む前の形をそのまま置く
+      localStorage.setItem("garudo-dungeon/v1/run-snapshot", JSON.stringify(game.toSnapshot()));
+      expect(loadRunSnapshot()).toBeNull();
+    });
+  });
+});
+
+describe("セーブのまとめ書き", () => {
+  /** setItem が何回呼ばれたかを数える */
+  function countingStorage(run: () => void): number {
+    const original = globalThis.localStorage;
+    let writes = 0;
+    const store = new Map<string, string>();
+    (globalThis as { localStorage?: unknown }).localStorage = {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => {
+        writes++;
+        store.set(k, v);
+      },
+      removeItem: (k: string) => {
+        store.delete(k);
+      },
+    };
+    try {
+      run();
+    } finally {
+      (globalThis as { localStorage?: unknown }).localStorage = original;
+    }
+    return writes;
+  }
+
+  it("まとめている間は何度呼んでも書き込みは1回だけ", () => {
+    const base = loadSave();
+    const writes = countingStorage(() => {
+      batchSaves(() => {
+        saveData({ ...base, deepest: 1 });
+        saveData({ ...base, deepest: 2 });
+        saveData({ ...base, deepest: 3 });
+      });
+    });
+    expect(writes).toBe(1);
+  });
+
+  it("まとめ終わったあとに書かれるのは最後の内容", () => {
+    const base = loadSave();
+    let stored = "";
+    const original = globalThis.localStorage;
+    const store = new Map<string, string>();
+    (globalThis as { localStorage?: unknown }).localStorage = {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => {
+        store.set(k, v);
+      },
+      removeItem: (k: string) => {
+        store.delete(k);
+      },
+    };
+    try {
+      batchSaves(() => {
+        saveData({ ...base, deepest: 1 });
+        saveData({ ...base, deepest: 42 });
+      });
+      stored = store.get("garudo-dungeon/v1") ?? "";
+    } finally {
+      (globalThis as { localStorage?: unknown }).localStorage = original;
+    }
+    expect(JSON.parse(stored).deepest).toBe(42);
+  });
+
+  it("まとめていないときはこれまで通り毎回書く", () => {
+    const base = loadSave();
+    const writes = countingStorage(() => {
+      saveData({ ...base, deepest: 1 });
+      saveData({ ...base, deepest: 2 });
+    });
+    expect(writes).toBe(2);
+  });
+
+  it("途中で例外が出ても、それまでの変更は書き出される", () => {
+    const base = loadSave();
+    const writes = countingStorage(() => {
+      expect(() =>
+        batchSaves(() => {
+          saveData({ ...base, deepest: 5 });
+          throw new Error("途中で失敗");
+        }),
+      ).toThrow("途中で失敗");
+    });
+    expect(writes).toBe(1);
   });
 });
