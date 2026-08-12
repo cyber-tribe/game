@@ -121,18 +121,17 @@ describe("game.ts: 満腹度の減り", () => {
 describe("dungeon/populate.ts: 難易度による調整", () => {
   it("きびしいはモンスターの攻撃力が上がる(同シードで比較)", () => {
     const floorNormal = generateFloor(new Rng(1), { depth: 5 });
-    populateFloor(new Rng(1), floorNormal, makeIds(), floorNormal.stairs, undefined, false, 1, 1);
+    populateFloor(new Rng(1), floorNormal, makeIds(), floorNormal.stairs, {
+      shopWary: false,
+      shiningChanceMultiplier: 1,
+      monsterAtkMultiplier: 1,
+    });
     const floorHard = generateFloor(new Rng(1), { depth: 5 });
-    populateFloor(
-      new Rng(1),
-      floorHard,
-      makeIds(),
-      floorHard.stairs,
-      undefined,
-      false,
-      1,
-      MONSTER_ATK_MULTIPLIER.hard,
-    );
+    populateFloor(new Rng(1), floorHard, makeIds(), floorHard.stairs, {
+      shopWary: false,
+      shiningChanceMultiplier: 1,
+      monsterAtkMultiplier: MONSTER_ATK_MULTIPLIER.hard,
+    });
     // 端数処理の影響を避けるため、フロア全体のモンスターの合計攻撃力で比較する
     const normalTotalAtk = floorNormal.actors
       .filter((a) => a.kind === "monster")
@@ -147,17 +146,12 @@ describe("dungeon/populate.ts: 難易度による調整", () => {
     const floorNormal = generateFloor(new Rng(2), { depth: 5 });
     populateFloor(new Rng(2), floorNormal, makeIds(), floorNormal.stairs);
     const floorHard = generateFloor(new Rng(2), { depth: 5 });
-    populateFloor(
-      new Rng(2),
-      floorHard,
-      makeIds(),
-      floorHard.stairs,
-      undefined,
-      false,
-      1,
-      1,
-      GOLD_REWARD_MULTIPLIER.hard,
-    );
+    populateFloor(new Rng(2), floorHard, makeIds(), floorHard.stairs, {
+      shopWary: false,
+      shiningChanceMultiplier: 1,
+      monsterAtkMultiplier: 1,
+      goldRewardMultiplier: GOLD_REWARD_MULTIPLIER.hard,
+    });
     const normalTotal = floorNormal.goldPiles.reduce((sum, g) => sum + g.amount, 0);
     const hardTotal = floorHard.goldPiles.reduce((sum, g) => sum + g.amount, 0);
     expect(hardTotal).toBeGreaterThan(normalTotal);

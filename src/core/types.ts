@@ -431,13 +431,32 @@ export type MarkId = "purun" | "gajiri" | "tsubute" | "madoromi" | "honegarami";
  */
 export type WeaponPattern = "single" | "line2" | "arc3" | "quickSingle" | "heavySingle";
 
+/** 使用/投擲時の効果 id。items/effects.ts の applyEffect が解釈する */
+export type ItemEffectId =
+  | "heal"
+  | "power"
+  | "eat"
+  | "revealMap"
+  | "sleepRoom"
+  | "confuseRoom"
+  | "swap"
+  | "sleepTarget"
+  | "cureSleepConfuse"
+  | "curePoison"
+  | "defenseUp"
+  | "senseStairs"
+  | "invisibility"
+  | "fearRoom"
+  | "pull"
+  | "sealTarget";
+
 export interface ItemDef {
   id: string;
   name: string;
   category: ItemCategory;
   model: string;
   /** 使用/投擲時の効果 id。effects.ts が解釈する */
-  effect?: string;
+  effect?: ItemEffectId;
   /** 効果の強さ(回復量・ダメージ量・ターン数など、効果ごとに意味が変わる) */
   power?: number;
   /** 武器なら攻撃力、盾なら守備力の加算値 */

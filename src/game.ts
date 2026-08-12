@@ -700,25 +700,21 @@ export class Game {
           : 1) *
       SHINING_CHANCE_DIFFICULTY_MULTIPLIER[this.difficulty] *
       (this.mood.rareSpawnRateMul ?? 1);
-    populateFloor(
-      this.rng,
-      this.floor,
-      this.ids,
-      start,
+    populateFloor(this.rng, this.floor, this.ids, start, {
       boostedItemDefId,
-      this.shopWary,
+      shopWary: this.shopWary,
       shiningChanceMultiplier,
-      MONSTER_ATK_MULTIPLIER[this.difficulty] * (this.mood.monsterAtkMulAfterAware ?? 1),
-      GOLD_REWARD_MULTIPLIER[this.difficulty] * (this.mood.goldRateMul ?? 1),
-      this.dungeon.floorOffset ?? 0,
+      monsterAtkMultiplier: MONSTER_ATK_MULTIPLIER[this.difficulty] * (this.mood.monsterAtkMulAfterAware ?? 1),
+      goldRewardMultiplier: GOLD_REWARD_MULTIPLIER[this.difficulty] * (this.mood.goldRateMul ?? 1),
+      speciesDepthOffset: this.dungeon.floorOffset ?? 0,
       bossSpeciesId,
-      this.dungeon.monsterCountMul ?? 1,
+      monsterCountMultiplier: this.dungeon.monsterCountMul ?? 1,
       // 夜ごとの夢のモンスター強化カーブ(plan/nightly-dream-scaling.md)
-      this.dungeon.id === NIGHTLY_DREAM_ID ? nightlyDreamStatMultiplier(depth) : 1,
+      statMultiplier: this.dungeon.id === NIGHTLY_DREAM_ID ? nightlyDreamStatMultiplier(depth) : 1,
       // ヨリシロの気分(plan/yorishiro-moods.md)
-      this.mood.dropRateMul ?? 1,
-      this.mood.thiefRateMul ?? 1,
-    );
+      itemCountMultiplier: this.mood.dropRateMul ?? 1,
+      thiefWeightMultiplier: this.mood.thiefRateMul ?? 1,
+    });
 
     // 忘れ物蔵(plan/lost-and-found-vault.md): 表の寝穴の各地方の2階目
     // (depth % REGION_SIZE === 2)にだけ、隠し通路の候補を1本配置する

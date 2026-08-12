@@ -181,7 +181,7 @@ describe("dungeon/populate.ts: ほこら粉寄せの匂い袋(populateFloorのbo
       plainCount += floorPlain.items.filter((gi) => gi.item.defId === "healLeaf").length;
 
       const floorBoosted: FloorState = { ...floorPlain, items: [], actors: [], traps: [], barrels: [] };
-      populateFloor(new Rng(seed), floorBoosted, makeIds(), { x: 0, y: 0 }, "healLeaf");
+      populateFloor(new Rng(seed), floorBoosted, makeIds(), { x: 0, y: 0 }, { boostedItemDefId: "healLeaf" });
       boostedCount += floorBoosted.items.filter((gi) => gi.item.defId === "healLeaf").length;
     }
     expect(boostedCount).toBeGreaterThan(plainCount);
