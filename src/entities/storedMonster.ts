@@ -15,4 +15,9 @@ export interface StoredMonster {
   skills: SkillId[];
   /** プレイヤーがつけた名前。任意 */
   nickname?: string;
+  /**
+   * なじみ(plan/companion-bond-growth.md)。連れて行って踏破・区切りで
+   * 生きて持ち帰った回数。夢あわせで軸にすると引き継ぎ、糧にすると消える
+   */
+  bondSuccessCount: number;
 }

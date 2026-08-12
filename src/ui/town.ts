@@ -1,5 +1,6 @@
 import type { MarkId } from "../core/types";
 import { ACHIEVEMENTS, achievementDef } from "../entities/achievements";
+import { bondStage, bondStageLabel } from "../entities/companionBond";
 import {
   DIFFICULTY_DESCRIPTIONS,
   DIFFICULTY_MODES,
@@ -888,8 +889,9 @@ export class TownScreen {
     hut.forEach((m, index) => {
       const li = document.createElement("li");
       const name = displayStoredMonsterName(m);
-      li.textContent =
-        m.uid === this.fusionAxisUid ? `${name} Lv${m.level}(夢あわせの軸)` : `${name} Lv${m.level}`;
+      const bondLabel = bondStageLabel(bondStage(m.bondSuccessCount));
+      const base = bondLabel ? `${name} Lv${m.level}・${bondLabel}` : `${name} Lv${m.level}`;
+      li.textContent = m.uid === this.fusionAxisUid ? `${base}(夢あわせの軸)` : base;
       if (this.bringUids.includes(m.uid)) li.classList.add("chosen");
       if (m.uid === this.fusionAxisUid) li.classList.add("axis");
       if (this.column === 4 && index === this.hutCursor) li.classList.add("selected");
@@ -975,6 +977,14 @@ export class TownScreen {
       li.textContent = `${label}: ${value}`;
       list.appendChild(li);
     }
+    // なじみ(plan/companion-bond-growth.md): 現在のねむり小屋で最も同伴成功回数が多い個体
+    const mostBonded = [...this.hut()].sort((a, b) => b.bondSuccessCount - a.bondSuccessCount)[0];
+    const bondedLi = document.createElement("li");
+    bondedLi.textContent =
+      mostBonded && mostBonded.bondSuccessCount > 0
+        ? `もっとも連れ添った仲間: ${displayStoredMonsterName(mostBonded)}(${mostBonded.bondSuccessCount}回)`
+        : "もっとも連れ添った仲間: まだいない";
+    list.appendChild(bondedLi);
     wrapper.appendChild(list);
     return wrapper;
   }

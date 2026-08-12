@@ -16,6 +16,7 @@ import {
   roomContains,
   roomOf,
 } from "../core/types";
+import { bondBonus } from "../entities/companionBond";
 import { shopPrice } from "../entities/shop";
 import { fullSkillSet } from "../entities/skills";
 import { speciesById, speciesForDepth } from "../entities/species";
@@ -102,6 +103,16 @@ export function createAllyFromStored(id: number, stored: StoredMonster, pos: Vec
   actor.def = Math.round(actor.def * (1 + growth));
   applySkills(actor, species, fullSkillSet(species.id, stored.skills));
   actor.nickname = stored.nickname;
+  // なじみ(plan/companion-bond-growth.md): 種族基礎値・レベル成長とは独立した
+  // 最後の一段として、既存ステータスにさらに掛ける
+  actor.bondSuccessCount = stored.bondSuccessCount;
+  const bond = bondBonus(stored.bondSuccessCount);
+  if (bond > 0) {
+    actor.maxHp = Math.round(actor.maxHp * (1 + bond));
+    actor.hp = actor.maxHp;
+    actor.atk = Math.round(actor.atk * (1 + bond));
+    actor.def = Math.round(actor.def * (1 + bond));
+  }
   return actor;
 }
 

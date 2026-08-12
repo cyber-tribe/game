@@ -402,6 +402,9 @@ export function actorToStoredMonster(uid: number, actor: Actor): StoredMonster {
     // native(種族由来)はfullSkillSetで暗黙に復元されるため、夢あわせで得た分だけ保存する
     skills: actor.skills ? actor.skills.filter((s) => s !== native) : [],
     nickname: actor.nickname,
+    // なじみ(plan/companion-bond-growth.md): この呼び出し自体が「生きて連れ帰った」
+    // 成功なので+1する。連れ出していない新規個体はactor.bondSuccessCountがundefinedのまま
+    bondSuccessCount: (actor.bondSuccessCount ?? 0) + 1,
   };
 }
 
@@ -826,6 +829,10 @@ function sanitizeHut(value: unknown): StoredMonster[] {
       exp: typeof m.exp === "number" && Number.isFinite(m.exp) ? m.exp : 0,
       skills,
       nickname: typeof m.nickname === "string" ? m.nickname : undefined,
+      bondSuccessCount:
+        typeof m.bondSuccessCount === "number" && Number.isFinite(m.bondSuccessCount) && m.bondSuccessCount >= 0
+          ? m.bondSuccessCount
+          : 0,
     });
   }
   return out;
