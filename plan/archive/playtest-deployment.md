@@ -1,3 +1,25 @@
+> **第一段階を実装済み。** `.github/workflows/deploy-pages.yml`(新規)。
+> `main`へのpushのたびに`npm run build`し、`actions/upload-pages-artifact`
+> → `actions/deploy-pages`でGitHub Pagesへ公開する(本文の擬似コードどおり、
+> `checkout` → `npm ci` → `npm run build` → 公開)。`README.md`に試遊用の
+> URLリンクを追加した。
+>
+> 実装にあたって次の判断をした。
+>
+> - **公開URLはGitHub Pagesの既定ドメイン
+>   (`https://cyber-tribe.github.io/game/`)のままにした。** 未決事項の
+>   カスタムドメインは見送り(本文でも「既定ドメインで十分か」は未決の
+>   まま残されている選択)。
+> - **リポジトリ側で GitHub Pages の Source を「GitHub Actions」に設定する
+>   一度きりの手動操作が必要。** これはワークフローファイルの追加だけでは
+>   自動化できないリポジトリ設定(Settings → Pages)で、実装セッションの
+>   権限では変更できない。未設定のあいだはこのワークフローの`deploy`
+>   ジョブだけが失敗するが、既存の`ci.yml`(型・テスト・ビルド、通しプレイ)
+>   とは完全に別のワークフローなので、PRのマージ判定には一切影響しない。
+> - **PRごとのプレビュー環境(段階2)は本文どおり見送った。**
+> - `vite.config.ts`の`base: "./"`が既に相対パスのため、GitHub Pagesの
+>   サブパス(`/game/`)配信にも変更なしで対応できた。
+
 # テストプレイ環境の自動公開
 
 現状、実際に触ってテストプレイするには `npm install` → `npm run dev`
