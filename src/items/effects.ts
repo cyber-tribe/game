@@ -15,6 +15,7 @@ import {
   roomOf,
   tileAt,
   walkableAt,
+  walkLine,
 } from "../core/types";
 import { buildDistanceField } from "../entities/ai";
 import { MAX_SATIETY, type PlayerState } from "../entities/player";
@@ -186,13 +187,9 @@ function affectRoom(
 
 /** 向いている方向の直線上で、最初に見つかったモンスターを返す */
 function firstMonsterInLine(floor: FloorState, from: Vec2, dir: Dir, maxRange = 12): Actor | null {
-  const delta = dirDelta(dir);
-  let p = { x: from.x + delta.x, y: from.y + delta.y };
-  for (let i = 0; i < maxRange; i++) {
-    if (!walkableAt(floor, p)) return null;
+  for (const p of walkLine(floor, from, dir, maxRange)) {
     const actor = actorAt(floor, p);
     if (actor && actor.kind === "monster") return actor;
-    p = { x: p.x + delta.x, y: p.y + delta.y };
   }
   return null;
 }
