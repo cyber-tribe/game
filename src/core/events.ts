@@ -13,7 +13,7 @@ export type GameEvent =
   | { type: "damage"; actorId: number; amount: number; hpAfter: number; critical: boolean }
   | { type: "heal"; actorId: number; amount: number; hpAfter: number }
   | { type: "miss"; attackerId: number; targetId: number }
-  | { type: "die"; actorId: number; kind: ActorKind }
+  | { type: "die"; actorId: number; kind: ActorKind; speciesId?: string }
   | { type: "spawn"; actorId: number }
   | { type: "status"; actorId: number; kind: StatusKind; turns: number }
   | { type: "statusEnd"; actorId: number; kind: StatusKind }
