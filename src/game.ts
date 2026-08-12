@@ -306,6 +306,11 @@ const MOSAIC_CANDIDATE_REGIONS = [2, 3, 4, 5, 6, 7];
 /** 地方ボス(plan/region-boss-horikuinonushi.md): 大技(groundSpikes)の威力 */
 const GROUND_SPIKES_DAMAGE = 26;
 
+/** 松明(plan/region-darkness.md): 使うと持続する視界拡張の効果時間(ターン)。数値は初期案 */
+const TORCH_DURATION_TURNS = 20;
+/** 松明: 見晴らしのはちまき(+1)より強い光源として、くらやみの階の暗さを大きく緩和する */
+const TORCH_VISION_BONUS = 2;
+
 /** タルの飛距離 */
 const BARREL_RANGE = 8;
 /** タルをぶつけたときの基本ダメージ */
@@ -370,6 +375,8 @@ export class Game {
   endReason = "";
   /** 腕試しの間(plan/hidden-dungeon.md)の記録用。このダイブでプレイヤーが受けた被ダメージの累計 */
   damageTakenThisRun = 0;
+  /** 松明(plan/region-darkness.md)。残りターン数。0なら効果切れ */
+  private torchTurnsLeft = 0;
   /** 実績帳「挑戦」カテゴリ(plan/challenge-achievements.md)。杖・巻物・食料等を使ったか */
   usedItemThisRun = false;
   /** 実績帳「挑戦」カテゴリ。武器を持ち替えたか(素手・未装備からの初回装備は数えない) */
@@ -557,7 +564,13 @@ export class Game {
           : undefined;
     const gimmick = bossSpeciesId
       ? undefined
-      : pickFloorGimmick(this.rng, depth, this.previousGimmick, GIMMICK_CHANCE_MULTIPLIER[this.difficulty]);
+      : pickFloorGimmick(
+          this.rng,
+          depth,
+          this.previousGimmick,
+          GIMMICK_CHANCE_MULTIPLIER[this.difficulty],
+          this.dungeon.id === MAIN_CAVE_ID,
+        );
     this.previousGimmick = gimmick;
     this.floor = generateFloor(this.rng, {
       depth,
@@ -1538,9 +1551,11 @@ export class Game {
     events.push({ type: "message", text: "――部屋の奥で何かがひしめいている気配がする。" });
   }
 
-  /** 見晴らしのはちまき(plan/protagonist-equipment.md)ぶんの視界拡張 */
+  /** 見晴らしのはちまき(plan/protagonist-equipment.md)・松明(plan/region-darkness.md)ぶんの視界拡張。単純に加算する */
   private visionExtraRange(): number {
-    return headDefId(this.player.inventory) === "lookoutHeadband" ? 1 : 0;
+    const headband = headDefId(this.player.inventory) === "lookoutHeadband" ? 1 : 0;
+    const torch = this.torchTurnsLeft > 0 ? TORCH_VISION_BONUS : 0;
+    return headband + torch;
   }
 
   // ------------------------------------------------------------ 戦闘
@@ -2049,6 +2064,13 @@ export class Game {
         });
         return true;
       }
+      case "torch": {
+        // 松明(plan/region-darkness.md): 使い直すと残りターンが上書きされる(延長ではなく更新)。
+        // 視界の再計算はcommand()側が使用直後に必ず行う(consumedTurn=trueになるため)
+        this.torchTurnsLeft = TORCH_DURATION_TURNS;
+        events.push({ type: "message", text: "松明に火を灯した。しばらく視界が広がる。" });
+        return true;
+      }
       default:
         return false;
     }
@@ -2490,6 +2512,7 @@ export class Game {
     this.tickSporeRooms(events);
     this.tickSummonedTorrentTiles();
     this.tickMirrors(events);
+    this.tickTorch(events);
 
     if (this.status !== "playing") return;
 
@@ -2511,6 +2534,15 @@ export class Game {
       if (this.player.artCooldowns[id] > 0) this.player.artCooldowns[id]--;
     }
     this.player.ukemiReady = false;
+  }
+
+  /** 松明(plan/region-darkness.md)。残りターンを減らし、切れた瞬間だけ知らせる */
+  private tickTorch(events: GameEvent[]): void {
+    if (this.torchTurnsLeft <= 0) return;
+    this.torchTurnsLeft--;
+    if (this.torchTurnsLeft === 0) {
+      events.push({ type: "message", text: "松明の火が消えた。" });
+    }
   }
 
   private tickStatuses(events: GameEvent[]): void {
