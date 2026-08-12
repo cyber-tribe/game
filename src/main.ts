@@ -507,6 +507,11 @@ class App {
   /** 一番近いモンスターの隣に立ち、殴りかかるべき方向キーを返す */
   debugFightNearest(): { key: string; name: string } | { key: null; name: string } {
     const player = this.game.player;
+    // 「殴り合いの流れを見せる」だけのテストで運悪く力尽きると、後続のタル/仲間の
+    // 検証まで巻き添えで失敗する。ここは倒す側を見せたいので、プレイヤー側だけ
+    // 底上げしておく(モンスター側はそのまま — 撃破までの流れは変えない)。
+    player.maxHp = Math.max(player.maxHp, 999);
+    player.hp = player.maxHp;
     const floor = this.game.floor;
     const monsters = floor.actors.filter((a) => a.kind === "monster" && a.alive);
     if (monsters.length === 0) return { key: null, name: "モンスターがいない" };
