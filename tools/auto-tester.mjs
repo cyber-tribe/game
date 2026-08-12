@@ -163,6 +163,21 @@ async function runSession(browser, index) {
         triedDirections.clear();
       }
 
+      // ダイブが終わっている(全滅・踏破など)か、拠点で待機している状態。
+      // このエージェントの通常アクション(move/wait/menu/rotate/orders)には
+      // 「R で拠点へ戻る」「Space で潜る」が無いため、ここで拾わないと
+      // ターン予算が尽きるまでHUDが一切変化せず、本物の進行不能と見分けが
+      // つかない「ソフトロック疑い」を大量に誤検知してしまう
+      if (hud.status !== "playing" || hud.screen === "town") {
+        await page.keyboard.press("KeyR").catch(() => {});
+        await page.waitForTimeout(400);
+        await page.keyboard.press("Space").catch(() => {});
+        await page.waitForTimeout(700);
+        unchangedTurns = 0;
+        triedDirections.clear();
+        continue;
+      }
+
       const action = weightedPick(rng, [
         ["move", 60],
         ["wait", 15],
