@@ -1,4 +1,4 @@
-import type { Dir, Vec2 } from "./grid";
+import { dirDelta, type Dir, type Vec2 } from "./grid";
 
 export const TILE_WALL = 0;
 export const TILE_ROOM = 1;
@@ -612,6 +612,19 @@ export function tileAt(floor: FloorState, p: Vec2): Tile | undefined {
 export function walkableAt(floor: FloorState, p: Vec2): boolean {
   const t = tileAt(floor, p);
   return t !== undefined && isWalkable(t.kind);
+}
+
+/**
+ * from の隣から dir 方向へ、歩けるマスである限り1マスずつ辿る。歩けない
+ * マスに当たった時点でそこは含めずに終わる(投擲・射線の共通の土台)。
+ */
+export function* walkLine(floor: FloorState, from: Vec2, dir: Dir, maxRange: number): Generator<Vec2> {
+  const delta = dirDelta(dir);
+  for (let step = 1; step <= maxRange; step++) {
+    const p = { x: from.x + delta.x * step, y: from.y + delta.y * step };
+    if (!walkableAt(floor, p)) return;
+    yield p;
+  }
 }
 
 export function actorAt(floor: FloorState, p: Vec2): Actor | undefined {

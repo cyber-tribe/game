@@ -43,6 +43,7 @@ import {
   roomContains,
   tileAt,
   walkableAt,
+  walkLine,
 } from "./core/types";
 import { type ArtId, artDef } from "./entities/arts";
 import { hasSkill } from "./entities/skills";
@@ -387,6 +388,8 @@ const TRUE_AWAKENING_CLOSING: readonly string[] = [
 
 /** タルの飛距離 */
 const BARREL_RANGE = 8;
+/** アイテムの飛距離 */
+const ITEM_THROW_RANGE = 10;
 /** タルをぶつけたときの基本ダメージ */
 const BARREL_DAMAGE = 8;
 /** 爆発タルの威力と巻き込む範囲 */
@@ -1294,14 +1297,11 @@ export class Game {
     player.pierceReady = false;
 
     player.carrying = null;
-    const delta = dirDelta(player.facing);
     const from = player.pos;
     let landing = from;
     const hits: Actor[] = [];
 
-    for (let step = 1; step <= BARREL_RANGE; step++) {
-      const p = { x: from.x + delta.x * step, y: from.y + delta.y * step };
-      if (!walkableAt(this.floor, p)) break;
+    for (const p of walkLine(this.floor, from, player.facing, BARREL_RANGE)) {
       const blocker = barrelAt(this.floor, p);
       if (blocker) break;
       landing = p;
@@ -2293,14 +2293,11 @@ export class Game {
     const def = itemDef(item.defId);
     removeItem(inv, uid);
 
-    const delta = dirDelta(this.player.facing);
     const from = this.player.pos;
     let landing = from;
     let hit: Actor | null = null;
 
-    for (let step = 1; step <= 10; step++) {
-      const p = { x: from.x + delta.x * step, y: from.y + delta.y * step };
-      if (!walkableAt(this.floor, p)) break;
+    for (const p of walkLine(this.floor, from, this.player.facing, ITEM_THROW_RANGE)) {
       landing = p;
       const actor = actorAt(this.floor, p);
       if (actor && actor.id !== this.player.id) {
