@@ -283,6 +283,9 @@ const SUMMON_TORRENT_DURATION = 3;
 /** 第六地方(こだまの尾根)固有ギミック(plan/echoing-ridge.md): 物音を立てる行動で気づかせる範囲 */
 const ECHO_ALERT_RANGE = 6;
 
+/** 地方ボス(plan/region-boss-misemonononushi.md): 大技(summonMirror)の幻影が自然に消えるまでのターン数 */
+const MIRROR_AUTO_DISPEL_TURNS = 5;
+
 /** タルの飛距離 */
 const BARREL_RANGE = 8;
 /** タルをぶつけたときの基本ダメージ */
@@ -1373,8 +1376,27 @@ export class Game {
       }
       seen.add(target.id);
       hitAny = true;
+
+      // 地方ボス(plan/region-boss-misemonononushi.md): 幻影を攻撃しても
+      // ダメージは発生せず、その場で消えて本体が反撃する
+      if (target.mirrorOf !== undefined) {
+        this.floor.actors = this.floor.actors.filter((a) => a.id !== target.id);
+        events.push({ type: "message", text: "――そっちは幻だった!" });
+        const realBoss = this.floor.actors.find((a) => a.id === target.mirrorOf);
+        if (realBoss?.alive) this.attack(realBoss, player, realBoss.atk, events);
+        continue;
+      }
+
       this.attack(player, target, totalAttack(player), events, { critBonus, forceCrit });
       forceCrit = false; // 強制会心はその手の最初の1体だけ
+
+      // 地方ボス(plan/region-boss-misemonononushi.md): 本体に命中すると、
+      // 残っている幻影は見破られてすべて消える
+      if (this.floor.actors.some((a) => a.mirrorOf === target.id)) {
+        this.floor.actors = this.floor.actors.filter((a) => a.mirrorOf !== target.id);
+        target.mirrorTurnsLeft = undefined;
+        events.push({ type: "message", text: "幻影が見破られ、消え去った!" });
+      }
     }
     player.facing = dir;
     this.alertNearbyMonsters(player.pos);
@@ -2127,6 +2149,25 @@ export class Game {
           }
           break;
         }
+        case "summonMirror": {
+          // 地方ボス(plan/region-boss-misemonononushi.md): 予兆を消費した大技。
+          // 本体そっくりの幻影を3体呼び出す。当てても消えるだけの偽物で、
+          // 本体を選び当てる駆け引きになる
+          const species = actor.speciesId ? speciesById(actor.speciesId) : undefined;
+          if (species) {
+            events.push({ type: "message", text: `${displayActorName(actor)}の周りに幻影が現れた!` });
+            for (let i = 0; i < 3; i++) {
+              const spot = this.freeSpotNear(actor.pos);
+              if (!spot) break;
+              const mirror = createMonster(this.ids.nextActorId(), species, spot);
+              mirror.mirrorOf = actor.id;
+              mirror.aware = true;
+              this.floor.actors.push(mirror);
+            }
+            actor.mirrorTurnsLeft = MIRROR_AUTO_DISPEL_TURNS;
+          }
+          break;
+        }
       }
 
       // 地方ボス(plan/region-boss-nushigaeru.md): 深みタイルの上にいる間、
@@ -2195,6 +2236,7 @@ export class Game {
     this.tickRegen();
     this.tickSporeRooms(events);
     this.tickSummonedTorrentTiles();
+    this.tickMirrors(events);
 
     if (this.status !== "playing") return;
 
@@ -2329,6 +2371,23 @@ export class Game {
         }
       }
       actor.summonedTorrentTiles = remaining;
+    }
+  }
+
+  /**
+   * 地方ボス(plan/region-boss-misemonononushi.md): 幻影を呼び出してから
+   * 一定ターン(既定5)経過しても本体を当てられない場合、幻影が自然に消えて
+   * 通常状態へ戻る(膠着状態を防ぐ安全弁)
+   */
+  private tickMirrors(events: GameEvent[]): void {
+    for (const actor of this.floor.actors) {
+      if (actor.mirrorTurnsLeft === undefined) continue;
+      actor.mirrorTurnsLeft--;
+      if (actor.mirrorTurnsLeft > 0) continue;
+      actor.mirrorTurnsLeft = undefined;
+      const hadMirrors = this.floor.actors.some((a) => a.mirrorOf === actor.id);
+      this.floor.actors = this.floor.actors.filter((a) => a.mirrorOf !== actor.id);
+      if (hadMirrors) events.push({ type: "message", text: "幻影が薄れて消えていった……" });
     }
   }
 

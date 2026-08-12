@@ -270,6 +270,30 @@ export const SPECIES: readonly Species[] = [
     },
     bossGuaranteedDrop: "kodamaNoKakera",
   },
+  {
+    // 第七地方: わすれられた祭りの跡(design/regions.md 37〜42階)。かつての
+    // 賑わいの記憶が歪んでできた、祭りの呼び込みのような姿の異形。大技は
+    // 本体そっくりの幻影を3体呼び出す「見世物の入れ替わり」
+    // (plan/region-boss-misemonononushi.md)
+    id: "misemonoNoNushi",
+    name: "見世物のぬし",
+    model: "honegarami",
+    maxHp: 152,
+    atk: 31,
+    def: 34,
+    exp: 105,
+    ai: "melee",
+    minFloor: Number.POSITIVE_INFINITY,
+    weight: 0,
+    isRegionBoss: true,
+    bossTelegraph: {
+      message: "呼び込みの声がいくつにも分かれて聞こえた",
+      multiplier: 1,
+      cooldownTurns: 5,
+      effect: "summonMirror",
+    },
+    bossGuaranteedDrop: "misemonoNoOmen",
+  },
 
   // ---- plan/monster-compendium.md: 地方別の新種 ----
   // 新規3Dモデルは今回のスコープでは制作せず、既存モデルを色違いの発想で
@@ -496,7 +520,7 @@ export function speciesForDepth(depth: number): Species[] {
  * 地方ボス(plan/region-bosses.md)。表の寝穴(MAIN_CAVE_ID)で、その階の
  * 地方の最終階(6階目)にだけ専用に配置する種族id。design/regions.mdの
  * 8地方(6階ごと、48階)は`plan/region-expansion.md`で実装済み。
- * 残り2地方のボスは未実装のため、実装済みの6体ぶんだけを登録する
+ * 残り1地方のボスは未実装のため、実装済みの7体ぶんだけを登録する
  */
 export const REGION_BOSS_FLOORS: Readonly<Record<number, string>> = {
   6: "oonebosuke",
@@ -505,6 +529,7 @@ export const REGION_BOSS_FLOORS: Readonly<Record<number, string>> = {
   24: "honezukaNoNushi",
   30: "fuchiNoNushi",
   36: "kodamaNoNushi",
+  42: "misemonoNoNushi",
 };
 
 /**
@@ -519,4 +544,5 @@ export const REGION_BOSS_ORDER: readonly string[] = [
   "honezukaNoNushi",
   "fuchiNoNushi",
   "kodamaNoNushi",
+  "misemonoNoNushi",
 ];
