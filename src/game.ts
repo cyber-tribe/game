@@ -265,6 +265,10 @@ const SPORE_SLEEP_TURNS = 3;
 /** 第四地方(骨積みの回廊)固有ギミック(plan/bonepile-corridor.md): モンスターハウス出現率の乗数 */
 const BONEPILE_MONSTER_HOUSE_MULTIPLIER = 1.5;
 
+/** 地方ボス(plan/region-boss-honezuka.md): 大技(aoeSeal)の封じ確率・持続ターン */
+const HONEZUKA_SEAL_CHANCE = 0.6;
+const HONEZUKA_SEAL_TURNS = 3;
+
 /** タルの飛距離 */
 const BARREL_RANGE = 8;
 /** タルをぶつけたときの基本ダメージ */
@@ -1982,7 +1986,18 @@ export class Game {
           const room = this.floor.rooms.find((r) => roomContains(r, actor.pos));
           if (room) {
             const occupants = this.floor.actors.filter((a) => a.alive && roomContains(room, a.pos));
-            this.applySleepPulse(occupants, events);
+            this.applyRoomWideStatus(occupants, STATUS_SLEEP, SPORE_SLEEP_CHANCE, SPORE_SLEEP_TURNS, "眠ってしまった", events);
+          }
+          break;
+        }
+        case "boomAoeSeal": {
+          // 地方ボス(plan/region-boss-honezuka.md): 予兆を消費した大技。
+          // 隣接攻撃ではなく、自分のいる部屋の全アクターに封じを放つ
+          events.push({ type: "message", text: `${displayActorName(actor)}の骨が一斉に鳴り響いた!` });
+          const room = this.floor.rooms.find((r) => roomContains(r, actor.pos));
+          if (room) {
+            const occupants = this.floor.actors.filter((a) => a.alive && roomContains(room, a.pos));
+            this.applyRoomWideStatus(occupants, STATUS_SEAL, HONEZUKA_SEAL_CHANCE, HONEZUKA_SEAL_TURNS, "封じられた", events);
           }
           break;
         }
@@ -2136,18 +2151,26 @@ export class Game {
       if (room.sporeTimer < SPORE_PULSE_INTERVAL) continue;
       room.sporeTimer = 0;
       events.push({ type: "message", text: "むわっと、胞子が満ちた……" });
-      this.applySleepPulse(occupants, events);
+      this.applyRoomWideStatus(occupants, STATUS_SLEEP, SPORE_SLEEP_CHANCE, SPORE_SLEEP_TURNS, "眠ってしまった", events);
     }
   }
 
   /**
-   * 部屋の在室者全員に睡眠を判定する(敵味方問わず)。plan/spore-grove.md の
-   * 胞子部屋パルスと、plan/region-boss-oomadoromi.md の大技(aoeSleep)で共有する
+   * 部屋の在室者全員(敵味方問わず)に状態異常を判定する。plan/spore-grove.md の
+   * 胞子部屋パルス、plan/region-boss-oomadoromi.md の大技(aoeSleep)、
+   * plan/region-boss-honezuka.md の大技(aoeSeal)で共有する
    */
-  private applySleepPulse(occupants: readonly Actor[], events: GameEvent[]): void {
+  private applyRoomWideStatus(
+    occupants: readonly Actor[],
+    kind: StatusKind,
+    chance: number,
+    turns: number,
+    verb: string,
+    events: GameEvent[],
+  ): void {
     for (const actor of occupants) {
-      if (!actor.alive || !this.rng.chance(SPORE_SLEEP_CHANCE)) continue;
-      addStatus(this.effectContext(events), actor, STATUS_SLEEP, SPORE_SLEEP_TURNS, "眠ってしまった");
+      if (!actor.alive || !this.rng.chance(chance)) continue;
+      addStatus(this.effectContext(events), actor, kind, turns, verb);
     }
   }
 
