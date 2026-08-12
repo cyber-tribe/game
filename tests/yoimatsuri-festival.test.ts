@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FESTIVAL_SHOP_OFFERS, YOIMATSURI_NPC_LINES, isYoimatsuri } from "../src/entities/festivals";
-import { VILLAGE_NPCS } from "../src/entities/village";
+import { FESTIVAL_SHOP_OFFERS, isYoimatsuri } from "../src/entities/festivals";
 import { itemDef } from "../src/items/catalog";
 import { buyFestivalItem, initialSave } from "../src/save";
 
@@ -17,18 +16,11 @@ describe("entities/festivals.ts: isYoimatsuri", () => {
   });
 });
 
-describe("entities/festivals.ts: FESTIVAL_SHOP_OFFERS / YOIMATSURI_NPC_LINES", () => {
+describe("entities/festivals.ts: FESTIVAL_SHOP_OFFERS", () => {
   it("品揃えの全defIdが実在するアイテムを指す", () => {
     for (const offer of FESTIVAL_SHOP_OFFERS) {
       expect(() => itemDef(offer.defId)).not.toThrow();
       expect(offer.price).toBeGreaterThan(0);
-    }
-  });
-
-  it("NPCの一言は実在するVillageNpcIdだけをキーに持つ", () => {
-    const validIds = new Set(VILLAGE_NPCS.map((n) => n.id));
-    for (const npcId of Object.keys(YOIMATSURI_NPC_LINES)) {
-      expect(validIds.has(npcId as never)).toBe(true);
     }
   });
 });

@@ -1,3 +1,43 @@
+> **実装済み。** `src/core/types.ts`に`ItemDef.flavorText`・
+> `Species.idleSpeedMul`を追加。`src/entities/dialogue.ts`(新規)に
+> `DialoguePool`・`DIALOGUE_POOLS`・`dialogueContext`(計画書どおりの
+> 優先順位: 絆・最高→highBond、気分「寝苦しい夜」→moodRestless、
+> 宵祭り→afterFestival、どれも該当なければdefault)を実装した。
+>
+> **既存のyoimatsuri-festival.mdのアドホックな仕組みを、本文書が意図
+> していたとおりこの統一されたcontext分岐に吸収した**: 直前のPRで
+> 追加していた`YOIMATSURI_NPC_LINES`(宵祭りの日だけNPCの一言を差し替える
+> 単純なRecord)を廃止し、その内容を`DIALOGUE_POOLS`の
+> `context: "afterFestival"`エントリへ移設した。あわせて
+> `tests/yoimatsuri-festival.test.ts`の対応するテストを削除した。
+>
+> NPCのせりふ抽選は`src/ui/town.ts`の「NPCと話す」列に実装。「直前と
+> 同じ文言を避ける」はNPCごとに直前のインデックスをメモリ上(セッション
+> 内だけ、セーブしない)に持たせて実現した。表示中のNPCが変わったときだけ
+> 再抽選し、同じNPCを見ている間は描画のたびに文言がちらつかないよう固定した。
+>
+> `idleSpeedMul`は`THREE.AnimationAction.timeScale`をidleクリップ再生時
+> だけ適用する形で実装(`src/view/actorView.ts`)。計画書が例示した3種
+> (ぷるん・ガジリねずみ・ホネガラミ)にだけ設定し、残りは未決事項として
+> 見送った(計画書どおり)。
+>
+> **隠れた小ネタ**: おキヨの「うろこ覚えのヒント」・ポチの「ぷるんを
+> 妙に怖がる」は、それぞれのdefaultコンテキストのlinesに素朴な一言として
+> 書き込んだ(新しいcontextは増やしていない)。ゲンドの「+9装備を見せた
+> ときの専用の一言」は、計画書が想定していた`GameEvent`(ダイブ中専用の
+> 仕組み)ではなく、鍛冶(ゲンドの工房)自体が拠点画面(ダイブ外)の
+> 機能だったため、`DialoguePool`とは独立した拠点画面側の一時通知として
+> 実装した(既存の`favoriteNotice`と同じパターン)。
+>
+> `flavorText`はいやしの葉・なた・送り火の粉・松明の4点にだけ追加した
+> (計画書の「全アイテムに一斉に追記する必要はなく、実装後に少しずつ
+> 埋めていける」という方針どおり)。
+>
+> テストは`tests/flavor-and-dialogue.test.ts`(context優先順位・
+> DialoguePoolの整合性とフォールバック・flavorText/idleSpeedMulの
+> 設定)で検証。ブラウザでもアイテムのflavorText表示・NPCのせりふ抽選
+> 表示の両方を確認済み。
+
 # 小ネタ・遊び心(アイテムのflavorText・NPCのせりふプール)
 
 `design/flavor-details.md` を実装可能な形に確定させる。特に

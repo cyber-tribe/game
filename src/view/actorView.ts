@@ -44,10 +44,18 @@ export class ActorView {
   /** 被弾の色を戻すタイマー。続けて殴られたときに張り直す */
   private flashTimer: number | null = null;
 
-  constructor(instance: Instance, pos: Vec2, facing: Dir = 4) {
+  /**
+   * 小ネタ・遊び心(plan/flavor-and-dialogue.md)。待機仕草(idle)の
+   * 再生速度に掛ける倍率。新規クリップは作らず、既存のidleの再生速度
+   * だけで種族ごとの個性を出す
+   */
+  private readonly idleSpeedMul: number;
+
+  constructor(instance: Instance, pos: Vec2, facing: Dir = 4, idleSpeedMul = 1) {
     this.root = instance.root;
     this.mixer = instance.mixer;
     this.actions = instance.actions;
+    this.idleSpeedMul = idleSpeedMul;
     this.setPosition(pos);
     this.yaw = this.targetYaw = yawOf(facing);
     this.root.rotation.y = this.yaw;
@@ -106,6 +114,7 @@ export class ActorView {
     }
     action.enabled = true;
     action.setEffectiveWeight(1);
+    action.timeScale = name === "idle" ? this.idleSpeedMul : 1;
     action.fadeIn(0.09).play();
     if (previous && previous !== action) previous.fadeOut(0.09);
     this.current = name;

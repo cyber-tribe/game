@@ -16,6 +16,7 @@ export const ITEMS: readonly ItemDef[] = [
     minFloor: 1,
     weight: 12,
     description: "HPを25回復する。",
+    flavorText: "揉むとほのかに甘い匂いがする、夢の中でよく見かける葉っぱ。",
   },
   {
     id: "greatLeaf",
@@ -243,6 +244,7 @@ export const ITEMS: readonly ItemDef[] = [
     minFloor: 1,
     weight: 5,
     description: "attack+4。隣接1マスを攻撃する、もっとも素直な性能。",
+    flavorText: "村の樽守りなら、誰もが最初に手にする一振り。",
   },
   {
     id: "ironHatchet",
@@ -632,6 +634,7 @@ export const ITEMS: readonly ItemDef[] = [
     minFloor: 1,
     weight: 2,
     description: "その場でダイブを打ち切り、持ち物・仲間を持ったまま麓へ戻る。",
+    flavorText: "撒くと、夢の底からふっと足元が浮くような感覚がする。",
   },
   {
     id: "barrelAppraisal",
@@ -661,6 +664,7 @@ export const ITEMS: readonly ItemDef[] = [
     minFloor: 15,
     weight: 3,
     description: "しばらくのあいだ、視界がぐっと広がる。くらやみの階でとくに頼りになる。",
+    flavorText: "火を灯すと、夢の暗がりがほんの少しだけ現実に近づく。",
   },
 
   // ---- NPCサイドストーリー第2弾(plan/side-stories-part2.md)の専用道具 ----
