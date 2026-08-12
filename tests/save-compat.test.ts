@@ -8,6 +8,7 @@ import v5 from "./fixtures/save/v5-costumes.json";
 import v6 from "./fixtures/save/v6-hidden-dungeon.json";
 import v7 from "./fixtures/save/v7-village-life.json";
 import v8 from "./fixtures/save/v8-lost-and-found-vault.json";
+import v9 from "./fixtures/save/v9-mountain-core.json";
 
 /**
  * セーブデータの後方互換チェック(plan/save-compat-testing.md)。
@@ -244,6 +245,26 @@ describe("save-compat: v8-lost-and-found-vault(忘れ物蔵導入後、現行の
       expect(loaded.hut).toEqual(v8.hut);
       expect(loaded.compendium).toEqual(v8.compendium);
       expect(loaded.achievements).toEqual(v8.achievements);
+    });
+  });
+
+  it("山の芯(mountain-core.md)導入以前は既定値のまま", () => {
+    withMockedLocalStorage(v8, () => {
+      const loaded = loadSave();
+      expect(loaded.defeatedRegionBosses).toEqual(DEFAULTS.defeatedRegionBosses);
+      expect(loaded.storyCleared).toBe(DEFAULTS.storyCleared);
+    });
+  });
+});
+
+describe("save-compat: v9-mountain-core(山の芯導入後、現行の全フィールド)", () => {
+  it("すべてのフィールドが保持される", () => {
+    withMockedLocalStorage(v9, () => {
+      const loaded = loadSave();
+      expect(loaded.defeatedRegionBosses).toEqual(v9.defeatedRegionBosses);
+      expect(loaded.storyCleared).toBe(v9.storyCleared);
+      expect(loaded.foundVaultPassages).toEqual(v9.foundVaultPassages);
+      expect(loaded.lastPlayedAt).toBe(v9.lastPlayedAt);
     });
   });
 });

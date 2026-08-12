@@ -254,7 +254,10 @@ export class TownScreen {
     const deepest = this.save?.deepest ?? 0;
     const villageStage = this.save?.villageStage ?? 1;
     const foundPassageCount = this.save?.foundVaultPassages.length ?? 0;
-    return DUNGEONS.filter((d) => isDungeonUnlocked(d, deepest, villageStage, foundPassageCount));
+    const defeatedRegionBosses = this.save?.defeatedRegionBosses ?? [];
+    return DUNGEONS.filter((d) =>
+      isDungeonUnlocked(d, deepest, villageStage, foundPassageCount, defeatedRegionBosses),
+    );
   }
 
   /**
@@ -1663,11 +1666,12 @@ export class TownScreen {
     const deepest = this.save?.deepest ?? 0;
     const villageStage = this.save?.villageStage ?? 1;
     const foundPassageCount = this.save?.foundVaultPassages.length ?? 0;
+    const defeatedRegionBosses = this.save?.defeatedRegionBosses ?? [];
     const unlocked = this.unlockedDungeons();
     const list = document.createElement("ul");
     DUNGEONS.forEach((dungeon) => {
       const li = document.createElement("li");
-      if (isDungeonUnlocked(dungeon, deepest, villageStage, foundPassageCount)) {
+      if (isDungeonUnlocked(dungeon, deepest, villageStage, foundPassageCount, defeatedRegionBosses)) {
         li.textContent = dungeon.name;
         if (this.column === 12 && unlocked[this.dungeonIndex]?.id === dungeon.id) {
           li.classList.add("selected");
@@ -1676,6 +1680,8 @@ export class TownScreen {
         li.textContent = `${dungeon.name}(未解放: 最深${dungeon.unlock.minDeepest}階到達で解放)`;
       } else if (dungeon.unlock !== "always" && "minVillageStage" in dungeon.unlock) {
         li.textContent = `${dungeon.name}(未解放: 村の発展段階${dungeon.unlock.minVillageStage}で解放)`;
+      } else if (dungeon.unlock !== "always" && "afterBossDefeated" in dungeon.unlock) {
+        li.textContent = `${dungeon.name}(未解放: ${speciesById(dungeon.unlock.afterBossDefeated).name}を撃破すると解放)`;
       } else {
         li.textContent = `${dungeon.name}(未解放: 忘れ物蔵の隠し通路を全8地方で見つけると解放。現在${foundPassageCount}/8)`;
       }

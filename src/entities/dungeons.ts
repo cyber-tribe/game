@@ -19,7 +19,9 @@ export interface DungeonDef {
     | "always"
     | { minDeepest: number }
     | { minVillageStage: number }
-    | { allPassagesFound: true };
+    | { allPassagesFound: true }
+    /** 山の芯(plan/mountain-core.md)。指定した地方ボスのspeciesIdを撃破済みなら解放 */
+    | { afterBossDefeated: string };
   /** 出現モンスター・アイテムの抽選テーブルに足す深さのずれ */
   floorOffset?: number;
   /** モンスターハウス出現率に掛ける倍率 */
@@ -53,6 +55,8 @@ export const NIGHTLY_DREAM_ID = "nightlyDream";
 export const TRIAL_CHAMBER_ID = "trialChamber";
 /** 忘れ物蔵(plan/lost-and-found-vault.md)。8地方の隠し通路をすべて見つけると解放される */
 export const LOST_AND_FOUND_VAULT_ID = "lostAndFoundVault";
+/** 山の芯(plan/mountain-core.md)。対近道屋の決着ダンジョン */
+export const MOUNTAIN_CORE_ID = "mountainCore";
 
 export const DUNGEONS: readonly DungeonDef[] = [
   {
@@ -94,6 +98,17 @@ export const DUNGEONS: readonly DungeonDef[] = [
     monsterCountMul: 0.5,
     satietyDrainMul: 1.5,
   },
+  {
+    id: MOUNTAIN_CORE_ID,
+    name: "山の芯",
+    description: "ヨリシロの意識の核に近い、特別な夢。近道屋との決着の場。",
+    maxDepth: 3,
+    unlock: { afterBossDefeated: "horikuiNoNushi" },
+    // 出現モンスタープールは第八地方(めざめの前庭・43〜48階)と同じものを
+    // 流用し、floorOffsetで難度だけ底上げする(近道屋の裏穴と同じ仕組み)。
+    // 1〜3階 + 42 = 43〜45階ぶんのテーブルを引く
+    floorOffset: 42,
+  },
 ];
 
 export function dungeonById(id: string): DungeonDef {
@@ -131,9 +146,12 @@ export function isDungeonUnlocked(
   deepest: number,
   villageStage: number,
   foundPassageCount = 0,
+  /** 山の芯(plan/mountain-core.md)。撃破済みの地方ボスspeciesId一覧 */
+  defeatedRegionBosses: readonly string[] = [],
 ): boolean {
   if (dungeon.unlock === "always") return true;
   if ("minDeepest" in dungeon.unlock) return deepest >= dungeon.unlock.minDeepest;
   if ("minVillageStage" in dungeon.unlock) return villageStage >= dungeon.unlock.minVillageStage;
+  if ("afterBossDefeated" in dungeon.unlock) return defeatedRegionBosses.includes(dungeon.unlock.afterBossDefeated);
   return foundPassageCount >= 8;
 }

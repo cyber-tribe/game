@@ -128,6 +128,8 @@ class App {
   private diveHuntKills: Record<string, number> = {};
   private diveNewlySeenCount = 0;
   private diveReachedDepths: number[] = [];
+  /** 山の芯(plan/mountain-core.md)。このダイブで最終フロアの会話イベントを経験したか */
+  private mountainCoreClearedThisRun = false;
   /** フォトモード(plan/gallery-mode.md)。HUDを隠し、移動・行動を止めて画角だけ動かせる */
   private photoMode = false;
   /** 操作説明(plan/difficulty-modes.md アクセシビリティ節)。表示中は行動を止める */
@@ -330,6 +332,7 @@ class App {
     this.diveCaptures = 0;
     this.diveHuntKills = {};
     this.diveNewlySeenCount = 0;
+    this.mountainCoreClearedThisRun = false;
     this.diveReachedDepths = [];
     const startingItems: Item[] = carry.map((stored, index) => fromStored(stored, index + 1));
     this.game = new Game({
@@ -363,6 +366,7 @@ class App {
     this.diveCaptures = 0;
     this.diveHuntKills = {};
     this.diveNewlySeenCount = 0;
+    this.mountainCoreClearedThisRun = false;
     this.diveReachedDepths = [];
     this.game = new Game({ seed: 0, resume: snapshot });
     clearRunSnapshot();
@@ -732,6 +736,8 @@ class App {
         // 忘れ物蔵(plan/lost-and-found-vault.md): 隠し通路を見つけた瞬間に記録する。
         // ダイブの結果によらず記録されるべき事実なので、checkpointと同じ扱いにする
         if (event.type === "secretPassageFound") this.save = addFoundVaultPassage(this.save, event.regionId);
+        // 山の芯(plan/mountain-core.md): 最終フロアの会話イベントを経験した記録
+        if (event.type === "mountainCoreCleared") this.mountainCoreClearedThisRun = true;
       }
     });
 
@@ -799,6 +805,9 @@ class App {
       // 実績帳「挑戦」カテゴリ(plan/challenge-achievements.md)
       usedItem: this.game.usedItemThisRun,
       usedMultipleWeapons: this.game.usedMultipleWeaponsThisRun,
+      // 山の芯(plan/mountain-core.md): 倒した・全滅にかかわらず記録する
+      defeatedRegionBosses: [...this.game.defeatedRegionBossesThisRun],
+      mountainCoreCleared: this.mountainCoreClearedThisRun,
     });
     this.hud.showOverlay(
       cleared ? "だっしゅつ成功!" : "ちからつきた……",
