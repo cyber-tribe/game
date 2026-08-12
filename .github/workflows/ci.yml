@@ -104,6 +104,26 @@ jobs:
       - name: 本番ビルド
         run: npm run build
 
+      # 配信する JS の大きさを見張る。ここは黙って増えていくもので、
+      # 増えたぶんはそのまま、初めて遊ぶ人の待ち時間になる。
+      # 上限は現状(gzip 約227KB)に対して余裕を持たせた値。
+      # ライブラリを1つ足すと一気に超えるので、そのときは意図した増加か確かめる
+      - name: 配信サイズを確かめる
+        env:
+          GZIP_LIMIT_KB: 320
+        run: |
+          total=0
+          for f in dist/assets/*.js; do
+            kb=$(gzip -c "$f" | wc -c | awk '{printf "%.1f", $1/1024}')
+            echo "  $(basename "$f"): ${kb}KB (gzip)"
+            total=$(awk -v a="$total" -v b="$kb" 'BEGIN{printf "%.1f", a+b}')
+          done
+          echo "合計 ${total}KB (gzip) / 上限 ${GZIP_LIMIT_KB}KB"
+          if awk -v t="$total" -v l="$GZIP_LIMIT_KB" 'BEGIN{exit !(t > l)}'; then
+            echo "::error::配信する JS が上限を超えました (${total}KB > ${GZIP_LIMIT_KB}KB)"
+            exit 1
+          fi
+
       - name: ビルド成果物を残す
         uses: actions/upload-artifact@v7
         with:
