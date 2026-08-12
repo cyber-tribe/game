@@ -349,6 +349,15 @@ export function captureChance(target: Actor): number {
   return Math.min(0.85, 0.12 + 0.68 * wounded);
 }
 
+/**
+ * 武器の系統id(plan/challenge-achievements.md)。基本形・上位形は同じ
+ * attackPatternを持つので、そのまま系統として使える(plan/protagonist-
+ * weapons.md)。なた系統(attackPattern未指定)は"basic"に統一する
+ */
+function weaponKindOf(defId: string): string {
+  return itemDef(defId).attackPattern ?? "basic";
+}
+
 export class Game {
   readonly rng: Rng;
   readonly maxDepth: number;
@@ -361,6 +370,16 @@ export class Game {
   endReason = "";
   /** 腕試しの間(plan/hidden-dungeon.md)の記録用。このダイブでプレイヤーが受けた被ダメージの累計 */
   damageTakenThisRun = 0;
+  /** 実績帳「挑戦」カテゴリ(plan/challenge-achievements.md)。杖・巻物・食料等を使ったか */
+  usedItemThisRun = false;
+  /** 実績帳「挑戦」カテゴリ。武器を持ち替えたか(素手・未装備からの初回装備は数えない) */
+  usedMultipleWeaponsThisRun = false;
+  /**
+   * 実績帳「挑戦」カテゴリ。このダイブで最後に装備した武器の系統
+   * (weaponKindOf、"attackPattern未指定"の系統は"basic"文字列にする)。
+   * undefinedは「まだ一度も武器を装備していない」を表す専用のセンチネル
+   */
+  private weaponKindThisRun: string | undefined;
 
   /** 連れている仲間。フロアをまたいで付いてくるので、floor とは別に持つ */
   allies: Actor[] = [];
@@ -915,8 +934,20 @@ export class Game {
       case "equip": {
         const item = findItem(player.inventory, cmd.uid);
         if (!item) return false;
+        const def = itemDef(item.defId);
+        // 実績帳「挑戦」カテゴリ(plan/challenge-achievements.md): 武器の
+        // 持ち替えを記録する。装備中の武器を「はずす」操作(トグルの逆方向)
+        // は持ち替えに数えない。素手・未装備からの初回装備も系統を記録する
+        // だけで持ち替えに数えない
+        if (def.category === "weapon" && player.inventory.weaponUid !== cmd.uid) {
+          const kind = weaponKindOf(item.defId);
+          if (this.weaponKindThisRun !== undefined && this.weaponKindThisRun !== kind) {
+            this.usedMultipleWeaponsThisRun = true;
+          }
+          this.weaponKindThisRun = kind;
+        }
         equip(player.inventory, cmd.uid);
-        events.push({ type: "equip", actorId: player.id, itemUid: cmd.uid, name: itemDef(item.defId).name });
+        events.push({ type: "equip", actorId: player.id, itemUid: cmd.uid, name: def.name });
         events.push({
           type: "message",
           text: `${displayName(player.inventory, item)}を装備した。`,
@@ -1934,7 +1965,11 @@ export class Game {
 
     if (def.category === "tool") {
       const handled = this.useTool(item.defId, events);
-      if (handled) removeItem(inv, uid);
+      if (handled) {
+        // 実績帳「挑戦」カテゴリ(plan/challenge-achievements.md)
+        this.usedItemThisRun = true;
+        removeItem(inv, uid);
+      }
       return handled;
     }
 
@@ -1944,6 +1979,10 @@ export class Game {
         return false;
       }
     }
+
+    // 実績帳「挑戦」カテゴリ(plan/challenge-achievements.md): 装備・素材
+    // (上の早期returnで除外済み)を除く、実際に道具を使う操作を記録する
+    this.usedItemThisRun = true;
 
     events.push({ type: "useItem", actorId: this.player.id, itemUid: uid, name: def.name });
     events.push({ type: "message", text: `${def.name}を使った。` });
