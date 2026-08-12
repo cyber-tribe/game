@@ -17,6 +17,7 @@ import { StanceMenu } from "./ui/stance";
 import { TownScreen } from "./ui/town";
 import {
   addKnownCheckpoint,
+  checkAchievements,
   clearRunSnapshot,
   fromStored,
   fuseMonsters,
@@ -30,6 +31,7 @@ import {
   renameStoredMonster,
   saveData,
   saveRunSnapshot,
+  setEquippedTitle,
   setTrainingFocus,
   takeFromHut,
   type SaveData,
@@ -119,7 +121,9 @@ class App {
           setTrainingFocus({ ...this.save, storage }, trainingFocus),
           bringAllyUids,
         );
-        this.save = afterTake;
+        // 実績帳(plan/achievements.md): 出発時点で倉庫・持ち込み品を
+        // まとめて走査し、強化・刻印系の実績を確定させる
+        this.save = checkAchievements(afterTake, carry);
         saveData(this.save);
         this.newRun(carry, startDepth, trainingFocus, taken);
       },
@@ -136,6 +140,10 @@ class App {
           this.save = renamed;
           this.town.refreshSave(this.save);
         });
+      },
+      (id) => {
+        this.save = setEquippedTitle(this.save, id);
+        this.town.refreshSave(this.save);
       },
     );
   }
