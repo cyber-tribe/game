@@ -1,4 +1,5 @@
 import { Rng } from "./core/rng";
+import { OncePerRunTracker } from "./core/oncePerRunTracker";
 import {
   ALL_DIRS,
   type Dir,
@@ -491,14 +492,12 @@ export class Game {
   /** 双樽鉤の「そのラン最初の1手は必ず会心」がまだ使われていないか */
   private firstStrikeAvailable = true;
 
-  /** 特技「ふいうち」を、そのダイブで既に使った仲間のid(plan/monster-fusion.md) */
-  private readonly usedQuickStart = new Set<number>();
-  /** 特技「ふんばり」を、そのダイブで既に使った仲間のid */
-  private readonly usedStubborn = new Set<number>();
-  /** 特技「ふいのいちげき」を、そのダイブで既に使った仲間のid(plan/monster-compendium.md) */
-  private readonly usedAmbushStrike = new Set<number>();
-  /** 特技「とんずら」を、そのダイブで既に使った仲間のid */
-  private readonly usedBurrowEscape = new Set<number>();
+  /**
+   * 「1ラン1回」の特技(ふいうち・ふんばり・ふいのいちげき・とんずら)を、
+   * そのダイブで既に使った仲間のid(plan/monster-fusion.md、
+   * plan/monster-compendium.md)
+   */
+  private readonly oncePerRun = new OncePerRunTracker();
   /** このターン被弾したアクターのid。regenIfUnhit・特技「しずけさのいやし」の判定に使う */
   private hitThisTurn = new Set<number>();
   /** 遭遇済み(図鑑「見た」)として、このダイブで既に通知した種族id(plan/monster-compendium.md) */
@@ -1826,8 +1825,8 @@ export class Game {
     const hasQuickStartEffect =
       (attacker.kind === "ally" && hasSkill(attacker, "quickStart")) ||
       (attacker.kind === "player" && weaponMarkIds(this.player.inventory).includes("gajiri"));
-    const quickStart = hasQuickStartEffect && !this.usedQuickStart.has(attacker.id);
-    if (hasQuickStartEffect) this.usedQuickStart.add(attacker.id);
+    const quickStart = hasQuickStartEffect && !this.oncePerRun.hasUsed("quickStart", attacker.id);
+    if (hasQuickStartEffect) this.oncePerRun.markUsed("quickStart", attacker.id);
 
     // ambush・mimic AI(plan/monster-compendium.md): 隣接されるまで潜んでいた
     // モンスターが、気づいた直後の1撃で会心になる
@@ -1837,8 +1836,8 @@ export class Game {
     // 特技「ふいのいちげき」(ambushStrike、plan/monster-compendium.md):
     // そのランの最初の1撃のダメージ+50%
     const hasAmbushStrikeEffect = attacker.kind === "ally" && hasSkill(attacker, "ambushStrike");
-    const ambushStrike = hasAmbushStrikeEffect && !this.usedAmbushStrike.has(attacker.id);
-    if (hasAmbushStrikeEffect) this.usedAmbushStrike.add(attacker.id);
+    const ambushStrike = hasAmbushStrikeEffect && !this.oncePerRun.hasUsed("ambushStrike", attacker.id);
+    if (hasAmbushStrikeEffect) this.oncePerRun.markUsed("ambushStrike", attacker.id);
 
     // 地方ごとの成熟系統(plan/companion-evolution-expansion.md): かすみウツボは
     // 確率で攻撃をまるごと回避する
@@ -1965,10 +1964,10 @@ export class Game {
       // 1ラン1回だけ、とっさに離脱して避ける
       if (
         hasSkill(target, "burrowEscape") &&
-        !this.usedBurrowEscape.has(target.id) &&
+        !this.oncePerRun.hasUsed("burrowEscape", target.id) &&
         target.hp - damage <= target.maxHp * 0.3
       ) {
-        this.usedBurrowEscape.add(target.id);
+        this.oncePerRun.markUsed("burrowEscape", target.id);
         events.push({ type: "message", text: `${displayActorName(target)}はとっさに離脱してダメージを避けた!` });
         return 0;
       }
@@ -2022,9 +2021,9 @@ export class Game {
         (hpOwner.kind === "player" &&
           (shieldMarkIds(this.player.inventory).includes("honegarami") ||
             charmDefId(this.player.inventory) === "guardianBell"));
-      if (hpBeforeThisHit === 1 && hasStubbornEffect && !this.usedStubborn.has(hpOwner.id)) {
+      if (hpBeforeThisHit === 1 && hasStubbornEffect && !this.oncePerRun.hasUsed("stubborn", hpOwner.id)) {
         hpOwner.hp = 1;
-        this.usedStubborn.add(hpOwner.id);
+        this.oncePerRun.markUsed("stubborn", hpOwner.id);
         events.push({ type: "message", text: `${displayActorName(hpOwner)}はふんばりこらえた!` });
       } else if (hpOwner.speciesId === HAJIME_NO_YUME_ID) {
         this.trueAwakeningEnding(hpOwner, events);
