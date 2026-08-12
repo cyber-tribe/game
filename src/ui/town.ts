@@ -116,6 +116,11 @@ export class TownScreen {
   private workshopSynthesisCursor = 0;
   /** 村の暮らし(plan/village-life.md)。NPC一覧上のカーソル位置(visibleVillageNpcsの中での位置) */
   private npcIndex = 0;
+  /**
+   * NPCサイドストーリー第1弾(plan/side-stories-part1.md)。話しかけて
+   * 新たに解放された一言。次に別のNPCを選ぶ・列を離れるとクリアされる
+   */
+  private npcTalkMessage: string | null = null;
   private depart:
     | ((
         carry: StoredItem[],
@@ -137,8 +142,8 @@ export class TownScreen {
   private onDevelopVillage: (() => void) | null = null;
   private onSetFontSize: ((fontSize: FontSize) => void) | null = null;
   private onEquipCostume: ((costumeId: string) => void) | null = null;
-  /** 村の暮らし(plan/village-life.md)。NPCと話す(絆段階の会話を既読にする) */
-  private onTalkToNpc: ((npcId: VillageNpcId, eventId: string) => void) | null = null;
+  /** 村の暮らし(plan/village-life.md)。NPCと話す */
+  private onTalkToNpc: ((npcId: VillageNpcId) => void) | null = null;
   /** 村の暮らし(plan/village-life.md)。素材を献上して絆を上げる */
   private onGiftMaterial: ((npcId: VillageNpcId, defId: string) => void) | null = null;
   /** バグ報告ボタン(plan/bug-report-button.md) */
@@ -176,7 +181,7 @@ export class TownScreen {
     onDevelopVillage: () => void,
     onSetFontSize: (fontSize: FontSize) => void,
     onEquipCostume: (costumeId: string) => void,
-    onTalkToNpc: (npcId: VillageNpcId, eventId: string) => void,
+    onTalkToNpc: (npcId: VillageNpcId) => void,
     onGiftMaterial: (npcId: VillageNpcId, defId: string) => void,
     onToggleFavorite: (uid: number) => void,
     onReportBug: () => void,
@@ -205,6 +210,7 @@ export class TownScreen {
     this.workshopMarkAddingSecond = false;
     this.workshopSynthesisChoices = null;
     this.npcIndex = 0;
+    this.npcTalkMessage = null;
     this.depart = onDepart;
     this.onFuse = onFuse;
     this.onRename = onRename;
@@ -238,17 +244,22 @@ export class TownScreen {
     this.render();
   }
 
+  /**
+   * NPCサイドストーリー第1弾(plan/side-stories-part1.md)。話しかけた結果、
+   * 新たに解放された一言をmain.ts側から渡してもらい、NPCと話す列の説明欄に表示する
+   */
+  showNpcMessage(text: string): void {
+    this.npcTalkMessage = text;
+    this.render();
+  }
+
   private hut(): StoredMonster[] {
     return this.save?.hut ?? [];
   }
 
-  /**
-   * 章立て(plan/story-chapters.md)。SaveData.storyClearedはまだ
-   * 存在しない(plan/mountain-core.md未実装)ため、当面falseに固定する。
-   * mountain-core.md実装後は`this.save.storyCleared`を渡すよう更新すること
-   */
+  /** 章立て(plan/story-chapters.md) */
   private currentStoryChapter(): ReturnType<typeof storyChapter> {
-    return storyChapter(this.save?.deepest ?? 0, false);
+    return storyChapter(this.save?.deepest ?? 0, this.save?.storyCleared ?? false);
   }
 
   private checkpoints(): number[] {
@@ -755,25 +766,24 @@ export class TownScreen {
         case "ArrowUp":
         case "KeyW":
           this.npcIndex = wrap(this.npcIndex - 1, npcs.length);
+          this.npcTalkMessage = null;
           break;
         case "ArrowDown":
         case "KeyS":
           this.npcIndex = wrap(this.npcIndex + 1, npcs.length);
+          this.npcTalkMessage = null;
           break;
         case "ArrowLeft":
         case "KeyA":
           this.column = 15;
+          this.npcTalkMessage = null;
           break;
         case "Enter":
         case "NumpadEnter": {
+          // NPCサイドストーリー第1弾(plan/side-stories-part1.md)。新たに解放
+          // された一言があれば、main.ts側からshowNpcMessageで戻ってくる
           const npc = npcs[this.npcIndex];
-          if (npc && this.save) {
-            const stage = bondStage(this.save.bonds[npc.id] ?? 0);
-            // 絆段階を初めて跨いだ最初のタイミングだけ、専用の一言を1回だけ再生する
-            // (design/village-life.mdの「段階解放の会話」。stageが"none"のときは会話を出さない)
-            const eventId = `bond:${npc.id}:${stage}`;
-            if (stage !== "none") this.onTalkToNpc?.(npc.id, eventId);
-          }
+          if (npc) this.onTalkToNpc?.(npc.id);
           break;
         }
         case "KeyG": {
@@ -1278,7 +1288,7 @@ export class TownScreen {
         : "";
     } else if (this.column === 16) {
       const npc = visibleVillageNpcs(this.currentStoryChapter())[this.npcIndex];
-      desc.textContent = npc ? npc.role : "";
+      desc.textContent = this.npcTalkMessage ?? (npc ? npc.role : "");
     } else {
       const selected = (this.column === 0 ? this.storage : this.carry)[this.cursor[this.column]];
       desc.textContent = selected ? itemDef(selected.defId).description : "";

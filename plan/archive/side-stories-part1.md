@@ -1,3 +1,49 @@
+> **実装済み。** `src/entities/sideStories.ts`(新規)に、絆段階(+一部は
+> 追加条件)で段が進むモグラ婆・ゲンドの`SideStoryDef`と、絆と無関係に
+> 「会うたびに」進む目覚めたおたまの`OTAMA_VISIT_STORY`をデータとして
+> 持たせ、判定ロジック本体(`talkToNpc(save, npcId)`)は`src/save.ts`に
+> 置いた(`achievements.ts`/`checkAchievements`と同じ、循環importを
+> 避ける切り分け)。
+>
+> **これまで存在しなかった「会話の実際の表示」を新設した**: 既存の
+> `plan/village-life.md`の実装は、NPCと話す操作で`seenVillageEvents`に
+> 既読フラグを立てるだけで、実際の台詞は一切表示されないスタブだった
+> (本文書が前提としていた表示の仕組みが、実はまだ無かった)。
+> `src/ui/town.ts`に`npcTalkMessage`(選択中NPCの説明欄に会話文を出す
+> 一時状態)と`showNpcMessage()`を追加し、話しかけて新たに解放された
+> 一言があれば拠点画面の説明欄に表示するようにした。
+>
+> 各段の判定は、絆段階だけでなく段ごとの追加条件(モグラ婆第2段は
+> `deepest>=12`、第3段は`deepest>=18`)を素直にAND判定する形にした。
+> 段の解放は`sideStory:${npcId}:${段番号}`という新しいeventIdで
+> `seenVillageEvents`に一度だけ記録し、既存の「初めて跨いだときだけ
+> 1回」という設計をそのまま踏襲した。
+>
+> **未決事項だった「まぼろしの一振り」の必要素材**を、実装時の判断で
+> ほこら粉1個+ガジリねずみの印の刻印石1個(会心率に関わる印で、
+> 「会心の一振り」という逸話に意味が通る組み合わせ)とし、第3段解放時に
+> 消費するようにした。
+>
+> 専用武器2種(モグラ婆の形見のなた・まぼろしの大鉈)は、既存のなた系・
+> 大鉈系と同じ性能でカタログに追加した。`flavorText`フィールドは
+> `plan/flavor-and-dialogue.md`(未実装、かつそちらは`plan/yorishiro-
+> moods.md`・`plan/yoimatsuri-festival.md`にも依存する)側の仕事のため、
+> 今回は`description`のみとし、専用の外見・flavorTextは見送った
+> (`flavorText`は省略可能フィールドとして設計されているため、後から
+> 実装しても既存データを壊さない)。
+>
+> **ついでに見つけて修正したバグ**: `src/ui/town.ts`の
+> `currentStoryChapter()`が、`plan/mountain-core.md`実装前の名残で
+> `storyChapter`の第2引数を`false`に固定したままだった(`main.ts`側の
+> 同種の見落としは`plan/true-awakening.md`実装時に修正済みだったが、
+> `town.ts`側は見落とされていた)。これは目覚めたおたまの出現条件
+> (`storyChapter>=2`)・第4段の条件(`storyChapter===3`)の両方に
+> 直接影響するため、`this.save.storyCleared`を渡すよう修正した。
+>
+> テストは`tests/side-stories-part1.test.ts`(段の解放条件・報酬武器の
+> 付与と素材消費・おたまの訪問回数ベースの進行・第2弾未実装NPCの沈黙)
+> で検証。拠点画面での会話表示もブラウザで目視確認済み。
+
 # NPCサイドストーリー(第1弾: モグラ婆・ゲンド・目覚めたおたま)
 
 `design/side-stories.md` を実装可能な形に確定させる。**この文書は

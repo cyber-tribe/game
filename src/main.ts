@@ -55,6 +55,7 @@ import {
   setFontSize,
   setTrainingFocus,
   takeFromHut,
+  talkToNpc,
   toggleFavorite,
   type SaveData,
   type StoredItem,
@@ -268,12 +269,14 @@ class App {
         this.save = equipCostume(this.save, costumeId);
         this.town.refreshSave(this.save);
       },
-      (_npcId, eventId) => {
-        // 話すこと自体は絆を上げない(絆は依頼達成・素材献上でのみ上がる)。
-        // 段階を跨いだ最初の1回だけ会話を表示するための既読フラグを立てるだけ
-        this.save = markVillageEventSeen(this.save, eventId);
-        saveData(this.save);
+      (npcId) => {
+        // NPCサイドストーリー第1弾(plan/side-stories-part1.md)。話すこと自体は
+        // 絆を上げない(絆は依頼達成・素材献上でのみ上がる)。新たに解放された
+        // 一言があれば、拠点画面のNPCと話す列に表示する
+        const { save: next, message } = talkToNpc(this.save, npcId);
+        this.save = next;
         this.town.refreshSave(this.save);
+        if (message) this.town.showNpcMessage(message);
       },
       (npcId, defId) => {
         this.save = giftMaterial(this.save, npcId, defId);
