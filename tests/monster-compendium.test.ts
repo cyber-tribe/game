@@ -160,9 +160,36 @@ describe("entities/ai.ts: burrow AI", () => {
     floor.actors.push(monster, player);
     const before = { ...monster.pos };
     const action = decideMonsterAction(new Rng(1), floor, monster, player, new Int32Array(floor.width * floor.height).fill(-1));
-    expect(action).toEqual({ type: "wait" });
-    expect(monster.pos).not.toEqual(before);
+    expect(action.type).toBe("burrowSurface");
+    // 座標の書き換えとteleportイベントの発行は呼び出し側(game.ts)の責務なので、
+    // decideMonsterAction自体はmonster.posを変えない(#180: 直接書き換えると
+    // 表示側が古い位置のまま取り残され、次に動いたとき遠くへ飛んで見える)
+    expect(monster.pos).toEqual(before);
     expect(monster.aware).toBe(true);
+    if (action.type === "burrowSurface") {
+      expect(action.to).not.toEqual(before);
+    }
+  });
+
+  it("#180: game.tsのrunActorsは座標を動かすと同時にteleportイベントを出す(表示側の取り残し防止)", () => {
+    const game = new Game({ seed: 1 });
+    game.floor.actors = game.floor.actors.filter((a) => a.kind === "player");
+    const monster = createMonster(9010, speciesById("yumekuimogura"), {
+      x: game.player.pos.x + 5,
+      y: game.player.pos.y,
+    });
+    monster.burrowTimer = 0;
+    game.floor.actors.push(monster);
+    const before = { ...monster.pos };
+
+    const runActors = (
+      game as unknown as { runActors: (events: { type: string; actorId?: number }[]) => void }
+    ).runActors.bind(game);
+    const events: { type: string; actorId?: number; to?: unknown }[] = [];
+    runActors(events);
+
+    expect(monster.pos).not.toEqual(before);
+    expect(events.some((e) => e.type === "teleport" && e.actorId === monster.id)).toBe(true);
   });
 
   it("隣接していれば潜伏中でも応戦する", () => {
