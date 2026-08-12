@@ -14,32 +14,10 @@ import {
   setActiveSlot,
   type SaveData,
 } from "../src/save";
+import { withMockedLocalStorage } from "./helpers/localStorage";
 
 function sampleSnapshot() {
   return new Game({ seed: 1, maxDepth: 10 }).toSnapshot();
-}
-
-/**
- * セーブ枠(plan/save-slots.md)。tests/save-compat.test.ts と同じ、
- * localStorageをMapで差し替えるフィクスチャ手法を使う。
- */
-function withMockedLocalStorage(run: (store: Map<string, string>) => void): void {
-  const original = globalThis.localStorage;
-  const store = new Map<string, string>();
-  (globalThis as { localStorage?: unknown }).localStorage = {
-    getItem: (k: string) => store.get(k) ?? null,
-    setItem: (k: string, v: string) => {
-      store.set(k, v);
-    },
-    removeItem: (k: string) => {
-      store.delete(k);
-    },
-  };
-  try {
-    run(store);
-  } finally {
-    (globalThis as { localStorage?: unknown }).localStorage = original;
-  }
 }
 
 describe("save.ts: セーブ枠(plan/save-slots.md)", () => {

@@ -9,25 +9,7 @@ import {
   saveData,
   saveRunSnapshot,
 } from "../src/save";
-
-function withMockedLocalStorage(run: () => void): void {
-  const original = globalThis.localStorage;
-  const store = new Map<string, string>();
-  (globalThis as { localStorage?: unknown }).localStorage = {
-    getItem: (k: string) => store.get(k) ?? null,
-    setItem: (k: string, v: string) => {
-      store.set(k, v);
-    },
-    removeItem: (k: string) => {
-      store.delete(k);
-    },
-  };
-  try {
-    run();
-  } finally {
-    (globalThis as { localStorage?: unknown }).localStorage = original;
-  }
-}
+import { withMockedLocalStorage } from "./helpers/localStorage";
 
 /** localStorage を経由して往復させる。JSON化できないフィールドが混ざれば壊れて検知できる */
 function roundTripThroughStorage(snapshot: RunSnapshot): RunSnapshot {

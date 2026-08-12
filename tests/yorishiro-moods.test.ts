@@ -5,6 +5,7 @@ import { decideMonsterAction } from "../src/entities/ai";
 import { DEFAULT_MOOD_ID, MOODS, moodDef, moodForDate } from "../src/entities/moods";
 import { speciesById } from "../src/entities/species";
 import { Game } from "../src/game";
+import { makeEmptyFloor } from "./helpers/floor";
 
 describe("entities/moods.ts", () => {
   it("同じ日付キーからは常に同じ気分が決まる", () => {
@@ -35,28 +36,14 @@ describe("game.ts: Game.moodOverride(plan/yorishiro-moods.md)", () => {
 });
 
 function emptyFloor(): FloorState {
-  const width = 10;
-  const height = 10;
-  return {
+  return makeEmptyFloor({
     depth: 1,
-    width,
-    height,
-    rooms: [{ id: 0, x: 0, y: 0, w: width, h: height }],
-    stairs: { x: 0, y: 0 },
-    actors: [],
-    items: [],
-    traps: [],
-    barrels: [],
-    goldPiles: [],
-    fieldObstacles: [],
-    secretPassages: [],
-    tiles: Array.from({ length: width * height }, () => ({
-      kind: 1,
-      explored: true,
-      visible: true,
-      roomId: 0,
-    })),
-  } as unknown as FloorState;
+    width: 10,
+    height: 10,
+    rooms: [{ id: 0, x: 0, y: 0, w: 10, h: 10 }],
+    tileKind: 1,
+    roomId: 0,
+  });
 }
 
 function monsterActor(pos: { x: number; y: number }): Actor {

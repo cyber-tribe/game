@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Actor } from "../src/core/types";
 import { activeStatusLabels } from "../src/view/hud";
 import { initialSave, loadSave, setFontSize } from "../src/save";
+import { withMockedLocalStorage } from "./helpers/localStorage";
 
 function actor(overrides: Partial<Actor> = {}): Actor {
   return {
@@ -20,22 +21,6 @@ function actor(overrides: Partial<Actor> = {}): Actor {
     alive: true,
     ...overrides,
   };
-}
-
-function withMockedLocalStorage(run: () => void): void {
-  const original = globalThis.localStorage;
-  const store = new Map<string, string>();
-  (globalThis as { localStorage?: unknown }).localStorage = {
-    getItem: (k: string) => store.get(k) ?? null,
-    setItem: (k: string, v: string) => {
-      store.set(k, v);
-    },
-  };
-  try {
-    run();
-  } finally {
-    (globalThis as { localStorage?: unknown }).localStorage = original;
-  }
 }
 
 describe("view/hud.ts: activeStatusLabels(色だけに頼らない状態異常表示)", () => {

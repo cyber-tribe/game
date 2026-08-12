@@ -11,6 +11,7 @@ import v8 from "./fixtures/save/v8-lost-and-found-vault.json";
 import v9 from "./fixtures/save/v9-mountain-core.json";
 import v10 from "./fixtures/save/v10-true-awakening.json";
 import v11 from "./fixtures/save/v11-audio-playback.json";
+import { withMockedLocalStorage } from "./helpers/localStorage";
 
 /**
  * セーブデータの後方互換チェック(plan/save-compat-testing.md)。
@@ -18,23 +19,6 @@ import v11 from "./fixtures/save/v11-audio-playback.json";
  * フィールドが保持され、まだ存在しなかったフィールドは initialSave() と
  * 同じ既定値になることを確認する。フィクスチャは一度追加したら削除しない。
  */
-
-function withMockedLocalStorage(raw: unknown, run: () => void): void {
-  const original = globalThis.localStorage;
-  const store = new Map<string, string>();
-  store.set("garudo-dungeon/v1/slot0", JSON.stringify(raw));
-  (globalThis as { localStorage?: unknown }).localStorage = {
-    getItem: (k: string) => store.get(k) ?? null,
-    setItem: (k: string, v: string) => {
-      store.set(k, v);
-    },
-  };
-  try {
-    run();
-  } finally {
-    (globalThis as { localStorage?: unknown }).localStorage = original;
-  }
-}
 
 const DEFAULTS = initialSave();
 

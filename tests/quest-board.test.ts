@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { MAX_ACTIVE_QUESTS, QUESTS, questsForDate } from "../src/entities/quests";
 import { abandonQuest, acceptQuest, initialSave, loadSave, recordRun, refreshBoard } from "../src/save";
+import { withMockedLocalStorage } from "./helpers/localStorage";
 
 describe("entities/quests.ts: 依頼の抽選", () => {
   it("同じ日付キーなら常に同じ並び順になる", () => {
@@ -237,22 +238,6 @@ describe("save.ts: 所持金(gold)の永続化", () => {
     expect(save.gold).toBe(0);
   });
 });
-
-function withMockedLocalStorage(run: () => void): void {
-  const original = globalThis.localStorage;
-  const store = new Map<string, string>();
-  (globalThis as { localStorage?: unknown }).localStorage = {
-    getItem: (k: string) => store.get(k) ?? null,
-    setItem: (k: string, v: string) => {
-      store.set(k, v);
-    },
-  };
-  try {
-    run();
-  } finally {
-    (globalThis as { localStorage?: unknown }).localStorage = original;
-  }
-}
 
 describe("save.ts: 壊れたセーブデータの依頼板・所持金", () => {
   it("フィールド自体が無くても初期値で読み込める", () => {

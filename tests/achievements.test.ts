@@ -12,22 +12,7 @@ import {
   type SaveData,
   type StoredItem,
 } from "../src/save";
-
-function withMockedLocalStorage(run: () => void): void {
-  const original = globalThis.localStorage;
-  const store = new Map<string, string>();
-  (globalThis as { localStorage?: unknown }).localStorage = {
-    getItem: (k: string) => store.get(k) ?? null,
-    setItem: (k: string, v: string) => {
-      store.set(k, v);
-    },
-  };
-  try {
-    run();
-  } finally {
-    (globalThis as { localStorage?: unknown }).localStorage = original;
-  }
-}
+import { withMockedLocalStorage } from "./helpers/localStorage";
 
 describe("entities/achievements.ts", () => {
   it("すべての実績が一意なidを持つ", () => {

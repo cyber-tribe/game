@@ -8,6 +8,7 @@ import {
   loadSave,
   type StoredMonster,
 } from "../src/save";
+import { withMockedLocalStorage } from "./helpers/localStorage";
 
 function stored(overrides: Partial<StoredMonster> = {}): StoredMonster {
   return {
@@ -20,22 +21,6 @@ function stored(overrides: Partial<StoredMonster> = {}): StoredMonster {
     recentFusionMaterials: [],
     ...overrides,
   };
-}
-
-function withMockedLocalStorage(run: () => void): void {
-  const original = globalThis.localStorage;
-  const store = new Map<string, string>();
-  (globalThis as { localStorage?: unknown }).localStorage = {
-    getItem: (k: string) => store.get(k) ?? null,
-    setItem: (k: string, v: string) => {
-      store.set(k, v);
-    },
-  };
-  try {
-    run();
-  } finally {
-    (globalThis as { localStorage?: unknown }).localStorage = original;
-  }
 }
 
 describe("save.ts: toggleFavorite(plan/companion-favorite-lock.md)", () => {

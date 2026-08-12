@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Game } from "../src/game";
+import { withMockedLocalStorage } from "./helpers/localStorage";
 import { hokoraDustCost, markDef, MARKS, MARK_STONE_DEF_ID } from "../src/entities/forging";
 import {
   addItem,
@@ -69,22 +70,6 @@ describe("save.ts: toStored/fromStoredはplus・markIdsを保つ", () => {
     expect(stored).toEqual({ defId: "healLeaf" });
   });
 });
-
-function withMockedLocalStorage(run: () => void): void {
-  const original = globalThis.localStorage;
-  const store = new Map<string, string>();
-  (globalThis as { localStorage?: unknown }).localStorage = {
-    getItem: (k: string) => store.get(k) ?? null,
-    setItem: (k: string, v: string) => {
-      store.set(k, v);
-    },
-  };
-  try {
-    run();
-  } finally {
-    (globalThis as { localStorage?: unknown }).localStorage = original;
-  }
-}
 
 describe("save.ts: 壊れたセーブデータのplus・markIds", () => {
   it("範囲外のplus・未知のmarkIdは捨てる", () => {
