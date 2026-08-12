@@ -224,9 +224,16 @@ export function populateFloor(
   monsterAtkMultiplier = 1,
   /** 難易度モード(plan/difficulty-modes.md)による、金貨の山の量に掛ける倍率 */
   goldRewardMultiplier = 1,
+  /**
+   * ダンジョンごと(plan/multiple-dungeons.md)の、出現モンスター・アイテムの
+   * 抽選テーブルに足す深さのずれ。実際の階数(floor.depth、モンスター数や
+   * 金貨の量に使う)はそのままで、テーブル選択だけをずらす
+   */
+  speciesDepthOffset = 0,
 ): void {
   const gimmick = floor.gimmick;
-  const pool = speciesForDepth(floor.depth);
+  const tableDepth = Math.max(1, floor.depth + speciesDepthOffset);
+  const pool = speciesForDepth(tableDepth);
   const baseMonsterCount = Math.min(12, 4 + Math.floor(floor.depth / 2));
   const monsterCount =
     gimmick === "silence"
@@ -269,7 +276,7 @@ export function populateFloor(
     }
   }
 
-  const itemPool = itemsForDepth(floor.depth);
+  const itemPool = itemsForDepth(tableDepth);
   const baseItemCount = rng.int(3, 6);
   const itemCount =
     gimmick === "windfall" ? Math.round(baseItemCount * WINDFALL_MULTIPLIER) : baseItemCount;
@@ -303,15 +310,21 @@ export function populateFloor(
   }
 
   placeBarrels(rng, floor, ids, playerStart);
-  populateMonsterHouse(rng, floor, ids, shiningChanceMultiplier, monsterAtkMultiplier);
-  populateShop(rng, floor, ids, shopWary);
+  populateMonsterHouse(rng, floor, ids, shiningChanceMultiplier, monsterAtkMultiplier, speciesDepthOffset);
+  populateShop(rng, floor, ids, shopWary, speciesDepthOffset);
 }
 
 /**
  * 近道屋の出店(plan/shops-and-thieves.md)の部屋があれば、店主と
  * 売り物を置く。店主は万引きされるまで動かず攻撃もしない
  */
-function populateShop(rng: Rng, floor: FloorState, ids: IdSource, wary: boolean): void {
+function populateShop(
+  rng: Rng,
+  floor: FloorState,
+  ids: IdSource,
+  wary: boolean,
+  speciesDepthOffset = 0,
+): void {
   const room = floor.rooms.find((r) => r.kind === "shop");
   if (!room) return;
 
@@ -339,7 +352,7 @@ function populateShop(rng: Rng, floor: FloorState, ids: IdSource, wary: boolean)
     });
   }
 
-  const itemPool = itemsForDepth(floor.depth);
+  const itemPool = itemsForDepth(Math.max(1, floor.depth + speciesDepthOffset));
   const goodsCount = rng.int(2, 4);
   for (let i = 0; i < goodsCount; i++) {
     const pos = findFreeTile(rng, floor, { room });
@@ -364,12 +377,13 @@ function populateMonsterHouse(
   ids: IdSource,
   shiningChanceMultiplier: number,
   monsterAtkMultiplier = 1,
+  speciesDepthOffset = 0,
 ): void {
   const room = floor.rooms.find((r) => r.kind === "monsterHouse");
   if (!room) return;
 
   if (floor.gimmick !== "silence") {
-    const pool = speciesForDepth(floor.depth);
+    const pool = speciesForDepth(Math.max(1, floor.depth + speciesDepthOffset));
     const monsterCount = Math.min(8, 5 + Math.floor(floor.depth / 10));
     for (let i = 0; i < monsterCount; i++) {
       const pos = findFreeTile(rng, floor, { room });
@@ -383,7 +397,7 @@ function populateMonsterHouse(
     }
   }
 
-  const itemPool = itemsForDepth(floor.depth);
+  const itemPool = itemsForDepth(Math.max(1, floor.depth + speciesDepthOffset));
   const rewardCount = rng.int(1, 2);
   for (let i = 0; i < rewardCount; i++) {
     const pos = findFreeTile(rng, floor, { room });
@@ -427,6 +441,7 @@ export function spawnWanderingMonster(
   floor: FloorState,
   ids: IdSource,
   playerPos: Vec2,
+  speciesDepthOffset = 0,
 ): Actor | null {
   if (floor.gimmick === "silence") return null;
   const pos = findFreeTile(rng, floor, {
@@ -434,7 +449,7 @@ export function spawnWanderingMonster(
     minDistanceFrom: { pos: playerPos, distance: 8 },
   });
   if (!pos) return null;
-  const pool = speciesForDepth(floor.depth);
+  const pool = speciesForDepth(Math.max(1, floor.depth + speciesDepthOffset));
   const species = rng.pickWeighted(pool, (s) => s.weight);
   const monster = createMonster(ids.nextActorId(), species, pos);
   if (floor.gimmick === "alert") monster.aware = true;

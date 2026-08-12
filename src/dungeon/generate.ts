@@ -20,6 +20,10 @@ export interface GenerateOptions {
   gimmick?: FloorGimmickKind;
   /** 難易度モード(plan/difficulty-modes.md)による、モンスターハウス出現率の倍率。省略時は1 */
   monsterHouseChanceMultiplier?: number;
+  /** ダンジョンごと(plan/multiple-dungeons.md)の、近道屋の出店出現率の倍率。省略時は1 */
+  shopChanceMultiplier?: number;
+  /** trueなら確率を無視して出店を必ず出す(候補の部屋が無ければ出せない) */
+  forceShop?: boolean;
 }
 
 const DEFAULT_WIDTH = 48;
@@ -66,6 +70,8 @@ export function generateFloor(rng: Rng, opts: GenerateOptions): FloorState {
       height,
       opts.gimmick,
       opts.monsterHouseChanceMultiplier ?? 1,
+      opts.shopChanceMultiplier ?? 1,
+      opts.forceShop ?? false,
     );
     if (floor && validate(floor)) return floor;
   }
@@ -79,6 +85,8 @@ function tryGenerate(
   height: number,
   gimmick?: FloorGimmickKind,
   monsterHouseChanceMultiplier = 1,
+  shopChanceMultiplier = 1,
+  forceShop = false,
 ): FloorState | null {
   const tiles: Tile[] = new Array(width * height);
   for (let i = 0; i < tiles.length; i++) {
@@ -126,7 +134,7 @@ function tryGenerate(
   const stairs = randomTileInRoom(rng, stairsRoom);
 
   designateMonsterHouse(rng, depth, rooms, stairsRoom, monsterHouseChanceMultiplier);
-  designateShop(rng, depth, rooms, stairsRoom);
+  designateShop(rng, depth, rooms, stairsRoom, shopChanceMultiplier, forceShop);
 
   return {
     depth,
@@ -289,8 +297,15 @@ function shopChance(depth: number): number {
  * 一定確率で、部屋を1つだけ近道屋の出店に指定する。モンスターハウス・
  * 階段の部屋とは重ねない(すでにどちらかの用途があれば対象から外れる)。
  */
-function designateShop(rng: Rng, depth: number, rooms: Room[], stairsRoom: Room): void {
-  if (!rng.chance(shopChance(depth))) return;
+function designateShop(
+  rng: Rng,
+  depth: number,
+  rooms: Room[],
+  stairsRoom: Room,
+  chanceMultiplier = 1,
+  force = false,
+): void {
+  if (!force && !rng.chance(shopChance(depth) * chanceMultiplier)) return;
   const candidates = rooms.filter(
     (room) => room !== stairsRoom && room.kind === undefined && room.w * room.h >= MIN_SHOP_AREA,
   );

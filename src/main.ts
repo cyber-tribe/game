@@ -45,12 +45,11 @@ import {
   type StoredMonster,
 } from "./save";
 import type { DifficultyMode } from "./entities/difficulty";
+import { MAIN_CAVE_ID } from "./entities/dungeons";
 import { todayKey } from "./entities/quests";
 import { TUTORIAL_TIPS, type TutorialTipId } from "./core/tutorial";
 import type { Item } from "./core/types";
 import type { TrainingFocus } from "./entities/player";
-
-const MAX_DEPTH = 10;
 
 class App {
   private readonly renderer: Renderer;
@@ -130,7 +129,7 @@ class App {
     this.save = refreshBoard(this.save, todayKey());
     this.town.show(
       this.save,
-      (carry, storage, startDepth, trainingFocus, bringAllyUids, difficulty) => {
+      (carry, storage, startDepth, trainingFocus, bringAllyUids, difficulty, dungeonId) => {
         const { save: afterTake, taken } = takeFromHut(
           setDifficulty(setTrainingFocus({ ...this.save, storage }, trainingFocus), difficulty),
           bringAllyUids,
@@ -140,7 +139,7 @@ class App {
         // 実績帳(plan/achievements.md): 続けて強化・刻印系の実績も確定させる
         this.save = checkAchievements(checkEquipmentCompendium(afterTake, carry), carry);
         saveData(this.save);
-        this.newRun(carry, startDepth, trainingFocus, taken, difficulty);
+        this.newRun(carry, startDepth, trainingFocus, taken, difficulty, dungeonId);
       },
       (axisUid, foodUid) => {
         const fused = fuseMonsters(this.save, axisUid, foodUid);
@@ -181,6 +180,7 @@ class App {
     trainingFocus: TrainingFocus = "balance",
     bringAllies: readonly StoredMonster[] = [],
     difficulty: DifficultyMode = "normal",
+    dungeonId: string = MAIN_CAVE_ID,
   ): void {
     this.diveDefeats = 0;
     this.diveCaptures = 0;
@@ -190,13 +190,13 @@ class App {
     const startingItems: Item[] = carry.map((stored, index) => fromStored(stored, index + 1));
     this.game = new Game({
       seed: (Math.random() * 0xffffffff) >>> 0,
-      maxDepth: MAX_DEPTH,
       startingItems,
       startDepth,
       trainingFocus,
       bringAllies: [...bringAllies],
       compendiumComplete: isCompendiumComplete(this.save),
       difficulty,
+      dungeonId,
     });
     this.presentFloor();
     this.hud.log(`地下${this.game.depth}階。最深記録は ${this.save.deepest} 階。`);
@@ -526,6 +526,7 @@ class App {
       huntKills: this.diveHuntKills,
       newlySeenCount: this.diveNewlySeenCount,
       reachedDepths: this.diveReachedDepths,
+      dungeonId: this.game.dungeonId,
     });
     this.hud.showOverlay(
       cleared ? "だっしゅつ成功!" : "ちからつきた……",

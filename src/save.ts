@@ -2,6 +2,7 @@ import { TUTORIAL_TIP_IDS, type TutorialTipId } from "./core/tutorial";
 import type { Actor, Item, MarkId, SkillId } from "./core/types";
 import { ACHIEVEMENTS, achievementDef } from "./entities/achievements";
 import { DIFFICULTY_MODES, type DifficultyMode } from "./entities/difficulty";
+import { NIGHTLY_DREAM_ID } from "./entities/dungeons";
 import { MAX_RECENT_FUSION_MATERIALS, tryEvolve } from "./entities/evolution";
 import { HOKORA_DUST_DEF_ID, MARKS, MAX_PLUS } from "./entities/forging";
 import { MAX_ACTIVE_QUESTS, QUESTS, questDef, questsForDate } from "./entities/quests";
@@ -112,6 +113,12 @@ export interface SaveData {
   activeQuests: { defId: string; progress: number }[];
   /** 達成した依頼idの履歴。ロストしない */
   completedQuestIds: string[];
+  /**
+   * 複数のダンジョン(plan/multiple-dungeons.md)。「夜ごとの夢」(終わりのない
+   * 周回モード)で過去に到達した最も深い階。表の寝穴のdeepestとは別に持つ
+   * (上限のあるダンジョンと単純比較できないため)
+   */
+  nightlyDreamBestDepth: number;
 }
 
 /** "seen": 遭遇した。"captured": タルで捕まえた、または夢あわせの糧にした */
@@ -160,6 +167,7 @@ export function initialSave(): SaveData {
     boardOffers: [],
     activeQuests: [],
     completedQuestIds: [],
+    nightlyDreamBestDepth: 0,
   };
 }
 
@@ -192,6 +200,7 @@ export function loadSave(): SaveData {
       boardOffers: sanitizeQuestIdList(parsed.boardOffers),
       activeQuests: sanitizeActiveQuests(parsed.activeQuests),
       completedQuestIds: sanitizeQuestIdList(parsed.completedQuestIds),
+      nightlyDreamBestDepth: Math.max(0, numberOr(parsed.nightlyDreamBestDepth, 0)),
     };
   } catch {
     // 壊れた保存データで起動できなくなるほうが困るので、黙って初期値に戻す
@@ -274,6 +283,8 @@ export function recordRun(
     newlySeenCount?: number;
     /** 依頼板: このダイブ中に到達しためざめの階段の階(探索依頼の判定用) */
     reachedDepths?: number[];
+    /** 複数のダンジョン(plan/multiple-dungeons.md): 潜っていたダンジョンid。省略時は表の寝穴 */
+    dungeonId?: string;
   },
 ): SaveData {
   let nextHutUid = current.nextHutUid;
@@ -316,6 +327,10 @@ export function recordRun(
     boardOffers: current.boardOffers,
     activeQuests: current.activeQuests,
     completedQuestIds: current.completedQuestIds,
+    nightlyDreamBestDepth:
+      result.dungeonId === NIGHTLY_DREAM_ID
+        ? Math.max(current.nightlyDreamBestDepth, result.depth)
+        : current.nightlyDreamBestDepth,
   };
   // 依頼板(plan/quest-board.md): 受注中の依頼を判定し、達成していれば報酬を渡して外す
   const withQuests = resolveQuests(next, result);

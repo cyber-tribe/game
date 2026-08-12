@@ -56,6 +56,7 @@ import {
   spawnWanderingMonster,
 } from "./dungeon/populate";
 import { displayActorName } from "./entities/naming";
+import { type DungeonDef, MAIN_CAVE_ID, dungeonById } from "./entities/dungeons";
 import type { StoredMonster } from "./entities/storedMonster";
 import { isVisible, updateVisibility } from "./dungeon/visibility";
 import {
@@ -202,6 +203,11 @@ export interface RunOptions {
   compendiumComplete?: boolean;
   /** 難易度モード(plan/difficulty-modes.md)。省略時は "normal" */
   difficulty?: DifficultyMode;
+  /**
+   * 潜るダンジョン(plan/multiple-dungeons.md)。省略時は表の寝穴("mainCave")。
+   * maxDepthを個別指定した場合はそちらを優先する
+   */
+  dungeonId?: string;
 }
 
 export type RunStatus = "playing" | "dead" | "cleared";
@@ -227,6 +233,8 @@ export interface RunSnapshot {
   barrelIdCounter: number;
   /** 鍛え方(plan/protagonist-training.md)。復帰後もこのダイブの方針を引き継ぐ */
   trainingFocus: TrainingFocus;
+  /** 潜っているダンジョン(plan/multiple-dungeons.md)。復帰後の階移動で出現テーブルを揃えるのに使う */
+  dungeonId: string;
 }
 
 /** 満腹度がこのターン数ぶん減る。100 / 0.2 = 500ターンもつ */
@@ -319,6 +327,18 @@ export class Game {
   /** 難易度モード(plan/difficulty-modes.md) */
   private difficulty: DifficultyMode = "normal";
 
+  /** 潜っているダンジョン(plan/multiple-dungeons.md) */
+  private dungeon: DungeonDef = dungeonById(MAIN_CAVE_ID);
+
+  /** 潜っているダンジョンid(plan/multiple-dungeons.md)。記録の間の集計などに使う */
+  get dungeonId(): string {
+    return this.dungeon.id;
+  }
+
+  /** そのダイブ中に近道屋の出店が一度でも出たか。shopRateMulを指定したダンジョンで
+   * 最終階まで一度も出なかった場合に、最終階で必ず出すための判定に使う */
+  private shopSeenThisRun = false;
+
   private actorIdCounter = 1;
   private itemUidCounter = 1;
   private barrelIdCounter = 1;
@@ -346,6 +366,7 @@ export class Game {
       this.turnCount = s.turnCount;
       this.endReason = s.endReason;
       this.trainingFocus = s.trainingFocus;
+      this.dungeon = dungeonById(s.dungeonId);
 
       // JSON化を経由すると、本来は同じオブジェクトを指していたはずの
       // player/allies と floor.actors 内の対応する要素が別オブジェクトに
@@ -361,7 +382,8 @@ export class Game {
     }
 
     this.rng = new Rng(opts.seed);
-    this.maxDepth = opts.maxDepth ?? 10;
+    this.dungeon = dungeonById(opts.dungeonId ?? MAIN_CAVE_ID);
+    this.maxDepth = opts.maxDepth ?? this.dungeon.maxDepth ?? Number.POSITIVE_INFINITY;
     this.trainingFocus = opts.trainingFocus ?? "balance";
     this.compendiumComplete = opts.compendiumComplete ?? false;
     this.difficulty = opts.difficulty ?? "normal";
@@ -399,6 +421,7 @@ export class Game {
       itemUidCounter: this.itemUidCounter,
       barrelIdCounter: this.barrelIdCounter,
       trainingFocus: this.trainingFocus,
+      dungeonId: this.dungeon.id,
     };
   }
 
@@ -412,11 +435,16 @@ export class Game {
     this.floor = generateFloor(this.rng, {
       depth,
       gimmick,
-      monsterHouseChanceMultiplier: MONSTER_HOUSE_CHANCE_MULTIPLIER[this.difficulty],
+      monsterHouseChanceMultiplier:
+        MONSTER_HOUSE_CHANCE_MULTIPLIER[this.difficulty] * (this.dungeon.monsterHouseRateMul ?? 1),
+      shopChanceMultiplier: this.dungeon.shopRateMul ?? 1,
+      forceShop:
+        this.dungeon.shopRateMul !== undefined && depth === this.maxDepth && !this.shopSeenThisRun,
     });
     const start = choosePlayerStart(this.rng, this.floor);
     this.player.pos = start;
     this.floor.actors.push(this.player);
+    if (this.floor.rooms.some((r) => r.kind === "shop")) this.shopSeenThisRun = true;
     const boostedItemDefId =
       charmDefId(this.player.inventory) === "dustLureSachet" ? "hokoraDust" : undefined;
     const shiningChanceMultiplier =
@@ -432,6 +460,7 @@ export class Game {
       shiningChanceMultiplier,
       MONSTER_ATK_MULTIPLIER[this.difficulty],
       GOLD_REWARD_MULTIPLIER[this.difficulty],
+      this.dungeon.floorOffset ?? 0,
     );
 
     // 仲間は階段について来る。プレイヤーの周りの空いたマスに並べる
@@ -1763,7 +1792,7 @@ export class Game {
     if (this.status !== "playing") return;
 
     if (this.turnCount > 0 && this.turnCount % SPAWN_INTERVAL === 0) {
-      spawnWanderingMonster(this.rng, this.floor, this.ids, this.player.pos);
+      spawnWanderingMonster(this.rng, this.floor, this.ids, this.player.pos, this.dungeon.floorOffset ?? 0);
     }
 
     // 倒された者を取り除く。プレイヤーは死んでも参照が要るので残す
