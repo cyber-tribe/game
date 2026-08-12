@@ -5,6 +5,7 @@ import { COSTUMES, DEFAULT_COSTUME_ID, type CostumeDef } from "./entities/costum
 import { DIFFICULTY_MODES, type DifficultyMode } from "./entities/difficulty";
 import { MAIN_CAVE_ID, MAIN_CAVE_MAX_DEPTH, NIGHTLY_DREAM_ID, REGION_SIZE, TRIAL_CHAMBER_ID } from "./entities/dungeons";
 import { MAX_RECENT_FUSION_MATERIALS, tryEvolve } from "./entities/evolution";
+import { FESTIVAL_SHOP_OFFERS, isYoimatsuri } from "./entities/festivals";
 import { HOKORA_DUST_DEF_ID, MARKS, MAX_MARK_SLOTS, MAX_PLUS } from "./entities/forging";
 import { MAX_ACTIVE_QUESTS, QUESTS, questDef, questsForDate, todayKey } from "./entities/quests";
 import type { TrainingFocus } from "./entities/player";
@@ -555,6 +556,23 @@ export function developVillage(current: SaveData): SaveData {
     ...current,
     villageStage: requirement.stage,
     gold: current.gold - requirement.cost,
+  };
+  saveData(next);
+  return next;
+}
+
+/**
+ * 宵祭りの出店(plan/yoimatsuri-festival.md)。宵祭りの日以外、または
+ * 所持金が足りない場合は何もしない。品揃え・価格は固定(補充・売り切れの概念は持たない)
+ */
+export function buyFestivalItem(current: SaveData, defId: string, dateKey: string = todayKey()): SaveData {
+  if (!isYoimatsuri(dateKey)) return current;
+  const offer = FESTIVAL_SHOP_OFFERS.find((o) => o.defId === defId);
+  if (!offer || current.gold < offer.price) return current;
+  const next: SaveData = {
+    ...current,
+    gold: current.gold - offer.price,
+    storage: [...current.storage, { defId: offer.defId }],
   };
   saveData(next);
   return next;
