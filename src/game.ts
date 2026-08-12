@@ -87,6 +87,7 @@ import {
   type DifficultyMode,
 } from "./entities/difficulty";
 import { HOKORA_DUST_DEF_ID, MARK_STONE_DEF_ID, MARKS } from "./entities/forging";
+import { sellPrice } from "./entities/shop";
 import {
   MAX_ALLIES,
   MAX_SATIETY,
@@ -1758,6 +1759,8 @@ export class Game {
 
   private dropItem(uid: number, events: GameEvent[]): boolean {
     const pos = this.player.pos;
+    const shopRoom = this.floor.rooms.find((r) => r.kind === "shop" && roomContains(r, pos));
+    if (shopRoom) return this.sellItem(uid, events);
     if (this.floor.items.some((gi) => eq(gi.pos, pos))) {
       events.push({ type: "message", text: "ここには既に何か置いてある。" });
       return false;
@@ -1767,6 +1770,17 @@ export class Game {
     this.floor.items.push({ item, pos });
     events.push({ type: "drop", actorId: this.player.id, itemUid: uid, pos });
     events.push({ type: "message", text: `${itemDef(item.defId).name}を置いた。` });
+    return true;
+  }
+
+  /** 店の部屋で「置く」を使うと売却になる(plan/item-selling.md) */
+  private sellItem(uid: number, events: GameEvent[]): boolean {
+    const item = removeItem(this.player.inventory, uid);
+    if (!item) return false;
+    const def = itemDef(item.defId);
+    const price = sellPrice(def, item, this.shopWary);
+    this.player.gold += price;
+    events.push({ type: "message", text: `${def.name}を${price}ゴールドで売った。` });
     return true;
   }
 

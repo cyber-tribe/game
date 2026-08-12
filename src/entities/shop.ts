@@ -19,3 +19,8 @@ export function shopPrice(def: ItemDef, item: Item, wary: boolean): number {
   if (wary) price = Math.round(price * WARY_PRICE_MULTIPLIER);
   return Math.max(1, price);
 }
+
+/** アイテムの売却額(plan/item-selling.md)。買値の4割。waryなら買値と同様に割高が乗る */
+export function sellPrice(def: ItemDef, item: Item, wary: boolean): number {
+  return Math.round(shopPrice(def, item, wary) * 0.4);
+}
