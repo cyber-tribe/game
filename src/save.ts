@@ -649,7 +649,10 @@ export const RELEASE_COMPANION_HOKORA_DUST = 1;
  * hut配列とは独立しているため、何もしなくても消えない。見つからないuidは無視する
  */
 export function releaseCompanion(current: SaveData, uid: number): SaveData {
-  if (!current.hut.some((m) => m.uid === uid)) return current;
+  const target = current.hut.find((m) => m.uid === uid);
+  // お気に入りロック(plan/companion-favorite-lock.md): 誤操作防止のガード。
+  // 通常はUI側(先にお気に入りを外させる)が呼ばせないが、念のためここでも弾く
+  if (!target || target.favorite) return current;
   const next: SaveData = {
     ...current,
     hut: current.hut.filter((m) => m.uid !== uid),
@@ -680,6 +683,18 @@ export function renameStoredMonster(
 }
 
 /**
+ * お気に入り(plan/companion-favorite-lock.md)の切り替え。
+ * uidが見つからなければ null を返す(何もしない)。
+ */
+export function toggleFavorite(current: SaveData, uid: number): SaveData | null {
+  if (!current.hut.some((m) => m.uid === uid)) return null;
+  const hut = current.hut.map((m) => (m.uid === uid ? { ...m, favorite: !m.favorite } : m));
+  const next: SaveData = { ...current, hut };
+  saveData(next);
+  return next;
+}
+
+/**
  * 夢あわせ。軸(残す側)に糧(消える側)を溶け込ませる。
  * どちらかのuidが見つからなければ null を返す(何もしない)。
  */
@@ -692,6 +707,9 @@ export function fuseMonsters(
   const axis = current.hut.find((m) => m.uid === axisUid);
   const food = current.hut.find((m) => m.uid === foodUid);
   if (!axis || !food) return null;
+  // お気に入りロック(plan/companion-favorite-lock.md): 糧側だけを禁止する。
+  // 軸(残る側)は消えないため制限しない。通常はUI側が呼ばせないが念のため
+  if (food.favorite) return null;
 
   // 種族由来(native)の特技は暗黙で持つため、比較・上限判定は完全な特技一式で行う。
   // 実際に保存するのは夢あわせで追加した分だけ
@@ -1077,7 +1095,7 @@ function sanitizeHut(value: unknown): StoredMonster[] {
       ? m.skills.filter((s): s is SkillId => typeof s === "string" && VALID_SKILL_IDS.has(s))
       : [];
     seenUids.add(m.uid);
-    out.push({
+    const monster: StoredMonster = {
       uid: m.uid,
       speciesId: m.speciesId,
       level: m.level,
@@ -1093,7 +1111,9 @@ function sanitizeHut(value: unknown): StoredMonster[] {
             .filter((id): id is string => typeof id === "string" && VALID_SPECIES_IDS.has(id))
             .slice(-MAX_RECENT_FUSION_MATERIALS)
         : [],
-    });
+    };
+    if (m.favorite === true) monster.favorite = true;
+    out.push(monster);
   }
   return out;
 }

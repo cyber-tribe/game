@@ -25,4 +25,9 @@ export interface StoredMonster {
    * (新しい順ではなく古い順。MAX_RECENT_FUSION_MATERIALS件だけ保持)
    */
   recentFusionMaterials: string[];
+  /**
+   * お気に入り(plan/companion-favorite-lock.md)。trueの個体は、夢あわせの
+   * 糧・夢に還す、の対象として選べなくなる(誤操作防止)。既定はfalse相当
+   */
+  favorite?: boolean;
 }

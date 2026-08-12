@@ -49,6 +49,7 @@ import {
   setFontSize,
   setTrainingFocus,
   takeFromHut,
+  toggleFavorite,
   type SaveData,
   type StoredItem,
   type StoredMonster,
@@ -243,6 +244,12 @@ class App {
       (npcId, defId) => {
         this.save = giftMaterial(this.save, npcId, defId);
         saveData(this.save);
+        this.town.refreshSave(this.save);
+      },
+      (uid) => {
+        const toggled = toggleFavorite(this.save, uid);
+        if (!toggled) return;
+        this.save = toggled;
         this.town.refreshSave(this.save);
       },
     );
