@@ -71,10 +71,17 @@ jobs:
     #
     # changes ジョブ自体が失敗した(API 障害など)場合は、判定不能を「スキップしてよい」
     # ではなく「フル実行する」側に倒す。判定が壊れて静かに検査を素通りする方が怖い。
+    #
+    # 先頭の !cancelled() は必須。GitHub は「needs のジョブがスキップされたら
+    # 後続もスキップ」を既定とし、if に always()/!cancelled() 等を書いたときだけ
+    # それを上書きできる。これが無いと、changes が PR 以外でスキップされるのに
+    # 引きずられて check ごとスキップされ、main へのマージ後に何も検査されない。
     if: |
-      needs.changes.result != 'success' ||
-      needs.changes.outputs.code == 'true' ||
-      github.event_name != 'pull_request'
+      !cancelled() && (
+        github.event_name != 'pull_request' ||
+        needs.changes.result != 'success' ||
+        needs.changes.outputs.code == 'true'
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -106,16 +113,27 @@ jobs:
 
   playtest:
     name: 実機での通しプレイ
-    needs: [changes, check]
-    # if を自分で書くと、既定で暗黙に効いている success() が効かなくなる。
-    # そのため needs.check.result の確認を自分で足す。これが無いと、
-    # check が失敗した場合でも(code 変更あり/push 時なら)playtest が
-    # 走ってしまう。
+    # check には依存させない。直列にすると check の30秒ぶんまるごと待ってから
+    # 始まることになり、CI 全体で最も長いこのジョブの開始がそのぶん遅れる。
+    # 型エラーで落ちる PR では通しプレイが無駄になるが、待ち時間の短縮を優先する。
+    needs: changes
+    # このジョブだけで数分かかるので、PR と手動実行に限る。main へのマージ後は
+    # 軽い check だけで「個々は緑だった変更が合流して壊れた」を捕まえる。
+    # !cancelled() が要る理由は check 側のコメントを参照。
     if: |
-      needs.check.result == 'success' &&
-      (needs.changes.result != 'success' || needs.changes.outputs.code == 'true' || github.event_name != 'pull_request')
+      !cancelled() && (
+        github.event_name == 'workflow_dispatch' || (
+          github.event_name == 'pull_request' && (
+            needs.changes.result != 'success' ||
+            needs.changes.outputs.code == 'true'
+          )
+        )
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      # キャッシュキーに使うので、範囲指定ではなく固定する
+      PLAYWRIGHT_VERSION: "1.56.0"
     steps:
       - uses: actions/checkout@v7
 
@@ -126,12 +144,28 @@ jobs:
 
       - run: npm ci
 
+      # ブラウザ本体はキャッシュから戻す。毎回ダウンロードすると 26〜32 秒かかり、
+      # ビルドやテストより長い。バージョンを固定しているので、上げたときだけ取り直す。
+      - name: Chromium をキャッシュから戻す
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ env.PLAYWRIGHT_VERSION }}
+
       # playwright は依存に入れていない。ブラウザまで抱えると、遊びたいだけの人にも
       # 数百MBを背負わせることになるため、CI でだけ入れる。
       - name: Chromium を用意する
+        env:
+          # npm 側でブラウザまで取りに行かせない。取得は playwright install に一本化する
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
         run: |
-          npm i --no-save playwright@^1.56
-          npx playwright install --with-deps chromium
+          npm i --no-save playwright@${PLAYWRIGHT_VERSION}
+          if [ "${{ steps.pw-cache.outputs.cache-hit }}" != "true" ]; then
+            npx playwright install --with-deps chromium
+          else
+            echo "キャッシュから復元したので、ダウンロードは省略する"
+          fi
 
       - name: 本番ビルド
         run: npm run build

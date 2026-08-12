@@ -850,6 +850,17 @@ class App {
     return null;
   }
 
+  /**
+   * アニメーションの再生が終わって、次の入力を受け付けられる状態か。
+   *
+   * 通しプレイ(tools/playtest.mjs)の待ち合わせ用。固定時間で待つと、
+   * 遅い環境では再生が終わる前に次の操作へ進んでしまい、後続の検査が
+   * 巻き添えで落ちる。逆に速い環境では無駄に待つことになる。
+   */
+  debugIdle(): boolean {
+    return this.lock <= 0;
+  }
+
   /** 倒れたときの流れを確かめるために、わざと力尽きさせる */
   debugKill(): void {
     this.game.player.hp = 1;
