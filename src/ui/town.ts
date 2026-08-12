@@ -16,6 +16,7 @@ import {
   hokoraDustCost,
   markDef,
 } from "../entities/forging";
+import { DUNGEONS, type DungeonDef, isDungeonUnlocked } from "../entities/dungeons";
 import { MAX_ALLIES, type TrainingFocus } from "../entities/player";
 import { SPECIES, speciesById } from "../entities/species";
 import { isCompendiumComplete, isWeaponCompendiumComplete, type SaveData, type StoredItem, type StoredMonster } from "../save";
@@ -46,8 +47,8 @@ const TRAINING_FOCUS_DESCRIPTIONS: Record<TrainingFocus, string> = {
  */
 export class TownScreen {
   private open = false;
-  /** 0=倉庫 1=持ち込み 2=出発地点 3=鍛え方 4=つれていく仲間 5=ゲンドの工房 6=記録の間 7=モンスター図鑑 8=実績帳 9=装備図鑑 10=難易度 11=依頼板 */
-  private column: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 = 0;
+  /** 0=倉庫 1=持ち込み 2=出発地点 3=鍛え方 4=つれていく仲間 5=ゲンドの工房 6=記録の間 7=モンスター図鑑 8=実績帳 9=装備図鑑 10=難易度 11=依頼板 12=潜るダンジョン */
+  private column: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 = 0;
   private cursor: [number, number] = [0, 0];
   private storage: StoredItem[] = [];
   private carry: StoredItem[] = [];
@@ -58,6 +59,8 @@ export class TownScreen {
   private trainingFocusIndex = TRAINING_FOCI.indexOf("balance");
   /** 難易度モード(plan/difficulty-modes.md)。前回選んだものを引き継いで開く */
   private difficultyIndex = DIFFICULTY_MODES.indexOf("normal");
+  /** 複数のダンジョン(plan/multiple-dungeons.md)。解放済みダンジョン一覧(unlockedDungeons())の中でのカーソル位置 */
+  private dungeonIndex = 0;
   /** ねむり小屋の一覧上のカーソル位置 */
   private hutCursor = 0;
   /** 連れて行く仲間として選んだ、ねむり小屋のuid(最大 MAX_ALLIES 体) */
@@ -81,6 +84,7 @@ export class TownScreen {
         trainingFocus: TrainingFocus,
         bringAllyUids: number[],
         difficulty: DifficultyMode,
+        dungeonId: string,
       ) => void)
     | null = null;
   private onFuse: ((axisUid: number, foodUid: number) => void) | null = null;
@@ -111,6 +115,7 @@ export class TownScreen {
       trainingFocus: TrainingFocus,
       bringAllyUids: number[],
       difficulty: DifficultyMode,
+      dungeonId: string,
     ) => void,
     onFuse: (axisUid: number, foodUid: number) => void,
     onRename: (uid: number, current: string | undefined) => void,
@@ -131,6 +136,7 @@ export class TownScreen {
     this.trainingFocusIndex = idx >= 0 ? idx : TRAINING_FOCI.indexOf("balance");
     const diffIdx = DIFFICULTY_MODES.indexOf(save.difficulty);
     this.difficultyIndex = diffIdx >= 0 ? diffIdx : DIFFICULTY_MODES.indexOf("normal");
+    this.dungeonIndex = 0;
     this.hutCursor = 0;
     this.bringUids = [];
     this.fusionAxisUid = null;
@@ -169,6 +175,12 @@ export class TownScreen {
 
   private checkpoints(): number[] {
     return this.save?.knownCheckpoints ?? [1];
+  }
+
+  /** 複数のダンジョン(plan/multiple-dungeons.md)。解放済みのものだけを選択できる */
+  private unlockedDungeons(): DungeonDef[] {
+    const deepest = this.save?.deepest ?? 0;
+    return DUNGEONS.filter((d) => isDungeonUnlocked(d, deepest));
   }
 
   hide(): void {
@@ -448,6 +460,10 @@ export class TownScreen {
         case "KeyA":
           this.column = 10;
           break;
+        case "ArrowRight":
+        case "KeyD":
+          this.column = 12;
+          break;
         case "Enter":
         case "NumpadEnter": {
           const row = rows[this.questCursor];
@@ -455,6 +471,31 @@ export class TownScreen {
           else if (row?.status === "active") this.onAbandonQuest?.(row.defId);
           break;
         }
+        case "Space":
+          this.departNow();
+          return true;
+        default:
+          return true;
+      }
+      this.render();
+      return true;
+    }
+
+    if (this.column === 12) {
+      const dungeons = this.unlockedDungeons();
+      switch (code) {
+        case "ArrowUp":
+        case "KeyW":
+          this.dungeonIndex = wrap(this.dungeonIndex - 1, dungeons.length);
+          break;
+        case "ArrowDown":
+        case "KeyS":
+          this.dungeonIndex = wrap(this.dungeonIndex + 1, dungeons.length);
+          break;
+        case "ArrowLeft":
+        case "KeyA":
+          this.column = 11;
+          break;
         case "Space":
           this.departNow();
           return true;
@@ -684,12 +725,14 @@ export class TownScreen {
     const depart = this.depart;
     const carry = this.carry.map((s) => ({ ...s }));
     const storage = this.storage.map((s) => ({ ...s }));
-    const startDepth = this.checkpoints()[this.startDepthIndex] ?? 1;
+    const dungeon = this.unlockedDungeons()[this.dungeonIndex] ?? DUNGEONS[0]!;
+    // 出発地点(めざめの階段)は表の寝穴だけの仕組み。他のダンジョンは常に1階から
+    const startDepth = dungeon.id === DUNGEONS[0]!.id ? this.checkpoints()[this.startDepthIndex] ?? 1 : 1;
     const trainingFocus = TRAINING_FOCI[this.trainingFocusIndex] ?? "balance";
     const difficulty = DIFFICULTY_MODES[this.difficultyIndex] ?? "normal";
     const bringAllyUids = [...this.bringUids];
     this.hide();
-    depart?.(carry, storage, startDepth, trainingFocus, bringAllyUids, difficulty);
+    depart?.(carry, storage, startDepth, trainingFocus, bringAllyUids, difficulty, dungeon.id);
   }
 
   private render(): void {
@@ -743,6 +786,7 @@ export class TownScreen {
       this.renderEquipmentCompendium(),
       this.renderDifficulty(),
       this.renderQuestBoard(),
+      this.renderDungeons(),
     );
     box.appendChild(columns);
 
@@ -805,6 +849,9 @@ export class TownScreen {
             ? `Enterで受注する(最大${MAX_ACTIVE_QUESTS}件まで)。${def.description}`
             : `Enterで受注を取り下げる(達成報酬は失われる)。${def.description}`
           : "貼り出されている依頼が無い。日をまたぐと新しい依頼が貼り出される。";
+    } else if (this.column === 12) {
+      const dungeon = this.unlockedDungeons()[this.dungeonIndex];
+      desc.textContent = dungeon?.description ?? "";
     } else {
       const selected = (this.column === 0 ? this.storage : this.carry)[this.cursor[this.column]];
       desc.textContent = selected ? itemDef(selected.defId).description : "";
@@ -1014,6 +1061,7 @@ export class TownScreen {
           ["全滅回数", save.runs - save.clears],
           ["累計撃破数", save.records.totalDefeats],
           ["のべ捕獲数", save.records.totalCaptures],
+          ["夜ごとの夢 自己ベスト", save.nightlyDreamBestDepth],
         ]
       : [];
     for (const [label, value] of rows) {
@@ -1164,6 +1212,40 @@ export class TownScreen {
       const li = document.createElement("li");
       li.textContent = DIFFICULTY_NAMES[mode];
       if (this.column === 10 && index === this.difficultyIndex) li.classList.add("selected");
+      list.appendChild(li);
+    });
+    wrapper.appendChild(list);
+    return wrapper;
+  }
+
+  /**
+   * 複数のダンジョン(plan/multiple-dungeons.md)。どの寝穴に潜るかを選ぶ。
+   * 未解放のものも一覧に表示し、解放条件を添える(選ぶことはできない)。
+   */
+  private renderDungeons(): HTMLElement {
+    const wrapper = document.createElement("div");
+    wrapper.className = "town-col";
+    if (this.column === 12) wrapper.classList.add("active");
+
+    const heading = document.createElement("div");
+    heading.className = "town-col-title";
+    heading.textContent = "潜るダンジョン";
+    wrapper.appendChild(heading);
+
+    const deepest = this.save?.deepest ?? 0;
+    const unlocked = this.unlockedDungeons();
+    const list = document.createElement("ul");
+    DUNGEONS.forEach((dungeon) => {
+      const li = document.createElement("li");
+      if (isDungeonUnlocked(dungeon, deepest)) {
+        li.textContent = dungeon.name;
+        if (this.column === 12 && unlocked[this.dungeonIndex]?.id === dungeon.id) {
+          li.classList.add("selected");
+        }
+      } else {
+        const need = dungeon.unlock === "always" ? 0 : dungeon.unlock.minDeepest;
+        li.textContent = `${dungeon.name}(未解放: 最深${need}階到達で解放)`;
+      }
       list.appendChild(li);
     });
     wrapper.appendChild(list);
