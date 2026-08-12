@@ -270,6 +270,7 @@ function makeOpenFloor(): FloorState {
     traps: [],
     barrels: [],
     goldPiles: [],
+    fieldObstacles: [],
   };
 }
 

@@ -135,7 +135,15 @@ export interface Species {
   regenIfUnhit?: boolean;
   /** true なら、プレイヤーを初めて視認した瞬間、そのフロアの他のモンスターにも気づかせる(やまびこぎつね) */
   alertsFloorOnSight?: boolean;
+  /**
+   * あうんの呼吸(plan/ally-field-gimmicks.md)。移動・探索専用のタグで、
+   * 戦闘上の強さには一切関与しない
+   */
+  fieldSkill?: FieldSkillId;
 }
+
+/** あうんの呼吸(plan/ally-field-gimmicks.md)。障害物が要求する仲間の性質 */
+export type FieldSkillId = "break" | "squeeze" | "leap" | "dig";
 
 export interface Actor {
   id: number;
@@ -343,6 +351,18 @@ export interface GoldPile {
   amount: number;
 }
 
+// ---------------------------------------------------------- あうんの呼吸
+
+/**
+ * あうんの呼吸(plan/ally-field-gimmicks.md)の障害物。対応する`fieldSkill`
+ * を持つ仲間を連れて隣接すると開き、報酬のアイテムがその場に現れる
+ */
+export interface FieldObstacle {
+  pos: Vec2;
+  requires: FieldSkillId;
+  opened: boolean;
+}
+
 // ---------------------------------------------------------------- 罠
 
 export type TrapKind = "damage" | "sleep" | "alarm" | "pitfall" | "poison";
@@ -416,6 +436,8 @@ export interface FloorState {
   goldPiles: GoldPile[];
   /** そのフロアに乗っているギミック。無ければ「いつも通りの階」 */
   gimmick?: FloorGimmickKind;
+  /** あうんの呼吸(plan/ally-field-gimmicks.md)の障害物 */
+  fieldObstacles: FieldObstacle[];
 }
 
 export function tileAt(floor: FloorState, p: Vec2): Tile | undefined {

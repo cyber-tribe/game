@@ -29,6 +29,7 @@ export const SPECIES: readonly Species[] = [
     ai: "coward",
     minFloor: 1,
     weight: 8,
+    fieldSkill: "squeeze",
   },
   {
     id: "tsubute",
@@ -42,6 +43,7 @@ export const SPECIES: readonly Species[] = [
     range: 4,
     minFloor: 3,
     weight: 6,
+    fieldSkill: "leap",
   },
   {
     id: "madoromi",
@@ -67,6 +69,7 @@ export const SPECIES: readonly Species[] = [
     ai: "melee",
     minFloor: 6,
     weight: 4,
+    fieldSkill: "break",
   },
   {
     // plan/shops-and-thieves.md: 近道屋の強欲さが夢に映り込んでできた、
@@ -175,6 +178,7 @@ export const SPECIES: readonly Species[] = [
     ai: "burrow",
     minFloor: 13,
     weight: 5,
+    fieldSkill: "dig",
   },
   {
     id: "horoholocho",
@@ -188,6 +192,7 @@ export const SPECIES: readonly Species[] = [
     minFloor: 13,
     weight: 4,
     swarmSize: [3, 4],
+    fieldSkill: "squeeze",
   },
 
   // 第四地方: 骨積みの回廊(19〜24階)
@@ -203,6 +208,7 @@ export const SPECIES: readonly Species[] = [
     minFloor: 19,
     weight: 4,
     inflicts: { kind: "seal", chance: 0.2, turns: 3 },
+    fieldSkill: "break",
   },
   {
     id: "oitekeboshi",
@@ -232,6 +238,7 @@ export const SPECIES: readonly Species[] = [
     minFloor: 25,
     weight: 4,
     swarmSize: [3, 4],
+    fieldSkill: "leap",
   },
   {
     id: "urumiguma",
@@ -245,6 +252,7 @@ export const SPECIES: readonly Species[] = [
     minFloor: 25,
     weight: 4,
     regenIfUnhit: true,
+    fieldSkill: "break",
   },
 
   // 第六地方: こだまの尾根(31〜36階)
@@ -274,6 +282,7 @@ export const SPECIES: readonly Species[] = [
     minFloor: 31,
     weight: 4,
     swarmSize: [3, 4],
+    fieldSkill: "squeeze",
   },
 
   // 第七地方: わすれられた祭りの跡(37〜42階)
@@ -301,6 +310,7 @@ export const SPECIES: readonly Species[] = [
     ai: "guard",
     minFloor: 37,
     weight: 3,
+    fieldSkill: "break",
   },
 
   // 第八地方: めざめの前庭(43〜48階)
