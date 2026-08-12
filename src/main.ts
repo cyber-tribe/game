@@ -27,12 +27,14 @@ import {
   equipCostume,
   fromStored,
   fuseMonsters,
+  giftMaterial,
   isCompendiumComplete,
   loadRunSnapshot,
   loadSave,
   markSpeciesCaptured,
   markSpeciesSeen,
   markTutorialTipSeen,
+  markVillageEventSeen,
   recordRun,
   refreshBoard,
   refreshUnlockedCostumes,
@@ -219,6 +221,18 @@ class App {
       },
       (costumeId) => {
         this.save = equipCostume(this.save, costumeId);
+        this.town.refreshSave(this.save);
+      },
+      (_npcId, eventId) => {
+        // 話すこと自体は絆を上げない(絆は依頼達成・素材献上でのみ上がる)。
+        // 段階を跨いだ最初の1回だけ会話を表示するための既読フラグを立てるだけ
+        this.save = markVillageEventSeen(this.save, eventId);
+        saveData(this.save);
+        this.town.refreshSave(this.save);
+      },
+      (npcId, defId) => {
+        this.save = giftMaterial(this.save, npcId, defId);
+        saveData(this.save);
         this.town.refreshSave(this.save);
       },
     );

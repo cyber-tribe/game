@@ -28,6 +28,8 @@ import {
   canDevelopVillage,
   hutCapacity,
   nextVillageStageRequirement,
+  visibleVillageNpcs,
+  type VillageNpcId,
 } from "../entities/village";
 
 /** ダンジョンに持ち込める数。全部持って行けたら倉庫に預ける意味がない */
@@ -54,8 +56,8 @@ const TRAINING_FOCUS_DESCRIPTIONS: Record<TrainingFocus, string> = {
  */
 export class TownScreen {
   private open = false;
-  /** 0=倉庫 1=持ち込み 2=出発地点 3=鍛え方 4=つれていく仲間 5=ゲンドの工房 6=記録の間 7=モンスター図鑑 8=実績帳 9=装備図鑑 10=難易度 11=依頼板 12=潜るダンジョン 13=村の発展 14=アクセシビリティ 15=身支度 */
-  private column: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 = 0;
+  /** 0=倉庫 1=持ち込み 2=出発地点 3=鍛え方 4=つれていく仲間 5=ゲンドの工房 6=記録の間 7=モンスター図鑑 8=実績帳 9=装備図鑑 10=難易度 11=依頼板 12=潜るダンジョン 13=村の発展 14=アクセシビリティ 15=身支度 16=NPCと話す(plan/village-life.md) */
+  private column: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 = 0;
   private cursor: [number, number] = [0, 0];
   private storage: StoredItem[] = [];
   private carry: StoredItem[] = [];
@@ -92,6 +94,8 @@ export class TownScreen {
   /** 印刻みの候補一覧(倉庫にある刻印石ぶんだけ)。サブメニュー表示中のみ非null */
   private workshopMarkChoices: MarkId[] | null = null;
   private workshopMarkCursor = 0;
+  /** 村の暮らし(plan/village-life.md)。NPC一覧上のカーソル位置(visibleVillageNpcsの中での位置) */
+  private npcIndex = 0;
   private depart:
     | ((
         carry: StoredItem[],
@@ -112,6 +116,10 @@ export class TownScreen {
   private onDevelopVillage: (() => void) | null = null;
   private onSetFontSize: ((fontSize: FontSize) => void) | null = null;
   private onEquipCostume: ((costumeId: string) => void) | null = null;
+  /** 村の暮らし(plan/village-life.md)。NPCと話す(絆段階の会話を既読にする) */
+  private onTalkToNpc: ((npcId: VillageNpcId, eventId: string) => void) | null = null;
+  /** 村の暮らし(plan/village-life.md)。素材を献上して絆を上げる */
+  private onGiftMaterial: ((npcId: VillageNpcId, defId: string) => void) | null = null;
   /** 実績帳(plan/achievements.md)の一覧上のカーソル位置 */
   private achievementCursor = 0;
   /** 依頼板(plan/quest-board.md)の一覧上のカーソル位置 */
@@ -145,6 +153,8 @@ export class TownScreen {
     onDevelopVillage: () => void,
     onSetFontSize: (fontSize: FontSize) => void,
     onEquipCostume: (costumeId: string) => void,
+    onTalkToNpc: (npcId: VillageNpcId, eventId: string) => void,
+    onGiftMaterial: (npcId: VillageNpcId, defId: string) => void,
   ): void {
     this.save = save;
     this.storage = save.storage.map((s) => ({ ...s }));
@@ -166,6 +176,7 @@ export class TownScreen {
     this.workshopCursor = 0;
     this.workshopMarkTarget = null;
     this.workshopMarkChoices = null;
+    this.npcIndex = 0;
     this.depart = onDepart;
     this.onFuse = onFuse;
     this.onRename = onRename;
@@ -176,6 +187,8 @@ export class TownScreen {
     this.onDevelopVillage = onDevelopVillage;
     this.onSetFontSize = onSetFontSize;
     this.onEquipCostume = onEquipCostume;
+    this.onTalkToNpc = onTalkToNpc;
+    this.onGiftMaterial = onGiftMaterial;
     this.achievementCursor = 0;
     this.questCursor = 0;
     this.open = true;
@@ -640,12 +653,63 @@ export class TownScreen {
         case "KeyA":
           this.column = 14;
           break;
+        case "ArrowRight":
+        case "KeyD":
+          this.column = 16;
+          break;
         case "Enter":
         case "NumpadEnter": {
           const costume = COSTUMES[this.costumeCursor];
           if (costume && this.save?.unlockedCostumes.includes(costume.id)) {
             this.onEquipCostume?.(costume.id);
           }
+          break;
+        }
+        case "Space":
+          this.departNow();
+          return true;
+        default:
+          return true;
+      }
+      this.render();
+      return true;
+    }
+
+    if (this.column === 16) {
+      const npcs = visibleVillageNpcs(this.save?.deepest ?? 0);
+      switch (code) {
+        case "ArrowUp":
+        case "KeyW":
+          this.npcIndex = wrap(this.npcIndex - 1, npcs.length);
+          break;
+        case "ArrowDown":
+        case "KeyS":
+          this.npcIndex = wrap(this.npcIndex + 1, npcs.length);
+          break;
+        case "ArrowLeft":
+        case "KeyA":
+          this.column = 15;
+          break;
+        case "Enter":
+        case "NumpadEnter": {
+          const npc = npcs[this.npcIndex];
+          if (npc && this.save) {
+            const stage = bondStage(this.save.bonds[npc.id] ?? 0);
+            // 絆段階を初めて跨いだ最初のタイミングだけ、専用の一言を1回だけ再生する
+            // (design/village-life.mdの「段階解放の会話」。stageが"none"のときは会話を出さない)
+            const eventId = `bond:${npc.id}:${stage}`;
+            if (stage !== "none") this.onTalkToNpc?.(npc.id, eventId);
+          }
+          break;
+        }
+        case "KeyG": {
+          // 素材の献上(design/village-life.md)。倉庫にある最初の素材(ほこら粉・刻印石)を渡す
+          const npc = npcs[this.npcIndex];
+          const markStoneDefIds = new Set(Object.values(MARK_STONE_DEF_ID));
+          const giftable = this.storage.find(
+            (item) => item.defId === HOKORA_DUST_DEF_ID || markStoneDefIds.has(item.defId),
+          );
+          if (npc && giftable) this.onGiftMaterial?.(npc.id, giftable.defId);
           break;
         }
         case "Space":
@@ -950,6 +1014,7 @@ export class TownScreen {
       this.renderVillage(),
       this.renderAccessibility(),
       this.renderCostumes(),
+      this.renderVillageLife(),
     );
     box.appendChild(columns);
 
@@ -1035,6 +1100,9 @@ export class TownScreen {
           ? `Enterで身につける(戦闘には一切影響しない)。${costume.description}`
           : `まだ入手していない。${costume.description}`
         : "";
+    } else if (this.column === 16) {
+      const npc = visibleVillageNpcs(this.save?.deepest ?? 0)[this.npcIndex];
+      desc.textContent = npc ? npc.role : "";
     } else {
       const selected = (this.column === 0 ? this.storage : this.carry)[this.cursor[this.column]];
       desc.textContent = selected ? itemDef(selected.defId).description : "";
@@ -1053,6 +1121,8 @@ export class TownScreen {
         : "←→ 列を移る / ↑↓ 選ぶ / Enter 強化(+1) / M 印を刻む / Space もぐる";
     } else if (this.column === 6) {
       hint.textContent = "← 列を移る / Space もぐる";
+    } else if (this.column === 16) {
+      hint.textContent = "← 列を移る / ↑↓ 選ぶ / Enter 話す / G 素材を渡す(1日1回) / Space もぐる";
     } else {
       hint.textContent = "←→ 列を移る / ↑↓ 選ぶ / Enter 移す / Space もぐる";
     }
@@ -1588,6 +1658,35 @@ export class TownScreen {
       const state = costume.id === equipped ? "(装備中)" : unlocked ? "(入手済み)" : "(未入手)";
       li.textContent = `${costume.name}${state}`;
       if (this.column === 15 && index === this.costumeCursor) li.classList.add("selected");
+      list.appendChild(li);
+    });
+    wrapper.appendChild(list);
+    return wrapper;
+  }
+
+  /**
+   * 村の暮らし(plan/village-life.md)。NPCと話す。絆段階が上がった直後だけ
+   * Enterで専用の一言が流れる(seenVillageEventsで再生済みかどうかは
+   * main.ts側が判定する)。Gキーで倉庫の素材(ほこら粉・刻印石)を1個献上できる。
+   */
+  private renderVillageLife(): HTMLElement {
+    const wrapper = document.createElement("div");
+    wrapper.className = "town-col";
+    if (this.column === 16) wrapper.classList.add("active");
+
+    const heading = document.createElement("div");
+    heading.className = "town-col-title";
+    heading.textContent = "NPCと話す";
+    wrapper.appendChild(heading);
+
+    const npcs = visibleVillageNpcs(this.save?.deepest ?? 0);
+    const list = document.createElement("ul");
+    npcs.forEach((npc, index) => {
+      const level = this.save?.bonds[npc.id] ?? 0;
+      const label = bondStageLabel(bondStage(level));
+      const li = document.createElement("li");
+      li.textContent = label ? `${npc.name}(${label})` : npc.name;
+      if (this.column === 16 && index === this.npcIndex) li.classList.add("selected");
       list.appendChild(li);
     });
     wrapper.appendChild(list);
