@@ -57,6 +57,7 @@ import {
   findFreeTile,
   placeQuagmireTiles,
   placeSecretPassage,
+  placeSporeRooms,
   populateFloor,
   spawnWanderingMonster,
 } from "./dungeon/populate";
@@ -255,6 +256,11 @@ const SATIETY_PER_TURN = 0.2;
 const REGEN_INTERVAL = 8;
 /** このターンごとにモンスターが1体湧く */
 const SPAWN_INTERVAL = 45;
+
+/** 第三地方(まどろみの茸林)固有ギミック(plan/spore-grove.md): 胞子部屋のパルス間隔・睡眠確率・持続ターン */
+const SPORE_PULSE_INTERVAL = 8;
+const SPORE_SLEEP_CHANCE = 0.6;
+const SPORE_SLEEP_TURNS = 3;
 
 /** タルの飛距離 */
 const BARREL_RANGE = 8;
@@ -515,6 +521,11 @@ export class Game {
     // 第二地方(忘れ潮の湿地)固有ギミック(plan/wetland-quagmire.md): 7〜12階に深みタイルを配置する
     if (this.dungeon.id === MAIN_CAVE_ID && depth >= 7 && depth <= 12) {
       placeQuagmireTiles(this.rng, this.floor);
+    }
+
+    // 第三地方(まどろみの茸林)固有ギミック(plan/spore-grove.md): 13〜18階に胞子部屋を配置する
+    if (this.dungeon.id === MAIN_CAVE_ID && depth >= 13 && depth <= 18) {
+      placeSporeRooms(this.rng, this.floor);
     }
 
     // 仲間は階段について来る。プレイヤーの周りの空いたマスに並べる
@@ -1066,6 +1077,11 @@ export class Game {
     this.floor.barrels = this.floor.barrels.filter(
       (b) => chebyshev(b.pos, center) > BOMB_RADIUS,
     );
+
+    // 第三地方(まどろみの茸林)固有ギミック(plan/spore-grove.md): 爆心の部屋の
+    // 胞子を吹き飛ばして無効化する(そのフロア滞在中は解除されたまま)
+    const room = this.floor.rooms.find((r) => roomContains(r, center));
+    if (room?.spored) room.spored = false;
   }
 
   private movePlayer(dir: Dir, events: GameEvent[]): boolean {
@@ -1976,6 +1992,7 @@ export class Game {
     this.tickHunger(events);
     this.tickArtCooldowns();
     this.tickRegen();
+    this.tickSporeRooms(events);
 
     if (this.status !== "playing") return;
 
@@ -2071,6 +2088,27 @@ export class Game {
       const skillRegen = actor.kind === "ally" && hasSkill(actor, "slowMend");
       if (!nativeRegen && !skillRegen) continue;
       actor.hp = Math.min(actor.maxHp, actor.hp + REGEN_IF_UNHIT_AMOUNT);
+    }
+  }
+
+  /**
+   * 第三地方(まどろみの茸林)固有ギミック(plan/spore-grove.md): 胞子部屋に
+   * 誰か(敵味方問わず)が居続けると、8ターンごとに部屋全体へ睡眠を判定する。
+   * 誰もいないターンはカウントしない
+   */
+  private tickSporeRooms(events: GameEvent[]): void {
+    for (const room of this.floor.rooms) {
+      if (!room.spored) continue;
+      const occupants = this.floor.actors.filter((a) => a.alive && roomContains(room, a.pos));
+      if (occupants.length === 0) continue;
+      room.sporeTimer = (room.sporeTimer ?? 0) + 1;
+      if (room.sporeTimer < SPORE_PULSE_INTERVAL) continue;
+      room.sporeTimer = 0;
+      events.push({ type: "message", text: "むわっと、胞子が満ちた……" });
+      for (const actor of occupants) {
+        if (!actor.alive || !this.rng.chance(SPORE_SLEEP_CHANCE)) continue;
+        addStatus(this.effectContext(events), actor, STATUS_SLEEP, SPORE_SLEEP_TURNS, "眠ってしまった");
+      }
     }
   }
 

@@ -33,6 +33,10 @@ export interface Room {
   h: number;
   /** 特殊な部屋の種別。無指定なら普通の部屋 */
   kind?: "monsterHouse" | "shop";
+  /** 第三地方(まどろみの茸林)固有ギミック(plan/spore-grove.md): 胞子部屋かどうか */
+  spored?: boolean;
+  /** 胞子部屋に誰かがいたターン数のカウンタ。8に達すると睡眠パルスを起こして0に戻す */
+  sporeTimer?: number;
 }
 
 export function roomContains(room: Room, p: Vec2): boolean {
