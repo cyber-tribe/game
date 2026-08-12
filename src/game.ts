@@ -647,6 +647,50 @@ export class Game {
     return null;
   }
 
+  /**
+   * プレイヤーと敵モンスターの重なりフェイルセーフ(plan/actor-overlap-failsafe.md):
+   * 上下左右→斜めの順で最初に見つかった、隣接する歩行可能マス
+   */
+  private static readonly OVERLAP_ESCAPE_DIRS: readonly Dir[] = [0, 2, 4, 6, 1, 3, 5, 7];
+
+  private adjacentFreeSpot(center: Vec2): Vec2 | null {
+    for (const dir of Game.OVERLAP_ESCAPE_DIRS) {
+      const delta = dirDelta(dir);
+      const p = { x: center.x + delta.x, y: center.y + delta.y };
+      if (isFree(this.floor, p)) return p;
+    }
+    return null;
+  }
+
+  /**
+   * プレイヤーと敵モンスターは同じマスに同時に存在しない、という不変条件の
+   * フェイルセーフ(plan/actor-overlap-failsafe.md)。根本原因(#180)を問わず、
+   * 万一重なりが起きた場合は毎ターン検知して後始末する。
+   * 味方(仲間)との重なりは対象外(README記載の入れ替え仕様のまま)。
+   */
+  private resolveActorOverlaps(events: GameEvent[], playerPosBeforeCommand: Vec2): void {
+    const player = this.player;
+    const overlapping = this.floor.actors.find(
+      (a) => a.alive && a.kind === "monster" && isHostile(player, a) && eq(a.pos, player.pos),
+    );
+    if (!overlapping) return;
+
+    const spot = this.adjacentFreeSpot(player.pos);
+    if (spot) {
+      const from = overlapping.pos;
+      overlapping.pos = spot;
+      events.push({ type: "move", actorId: overlapping.id, from, to: spot });
+      return;
+    }
+
+    // 退避先が一切見つからない極端な場合は、プレイヤー側を直前にいたマスへ1歩押し戻す
+    if (!eq(player.pos, playerPosBeforeCommand)) {
+      const from = player.pos;
+      player.pos = playerPosBeforeCommand;
+      events.push({ type: "move", actorId: player.id, from, to: playerPosBeforeCommand });
+    }
+  }
+
   private descend(events: GameEvent[]): void {
     if (this.depth >= this.maxDepth) {
       this.status = "cleared";
@@ -702,6 +746,7 @@ export class Game {
       }
       this.upkeep(events);
       this.turnCount++;
+      if (this.status === "playing") this.resolveActorOverlaps(events, posBeforeCommand);
     }
 
     updateVisibility(this.floor, this.player.pos, this.visionExtraRange());
