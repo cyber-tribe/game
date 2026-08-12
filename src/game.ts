@@ -691,6 +691,21 @@ export class Game {
     }
   }
 
+  /**
+   * タルを抱えたまま階段を使おうとした場合のフェイルセーフ(plan/barrel-stairs-safeguard.md):
+   * 階段の上に居座らせず、隣接する空きマスへ押し戻す。「直前にいたマス」を
+   * 厳密に追跡する仕組みは持たないため、actor-overlap-failsafeで導入した
+   * adjacentFreeSpotを再利用し、直近の空きマスへ最小移動させる
+   */
+  private pushBackFromStairs(events: GameEvent[]): void {
+    const player = this.player;
+    const spot = this.adjacentFreeSpot(player.pos);
+    if (!spot) return;
+    const from = player.pos;
+    player.pos = spot;
+    events.push({ type: "move", actorId: player.id, from, to: spot });
+  }
+
   private descend(events: GameEvent[]): void {
     if (this.depth >= this.maxDepth) {
       this.status = "cleared";
@@ -716,6 +731,12 @@ export class Game {
     if (!eq(this.player.pos, this.floor.stairs)) {
       events.push({ type: "message", text: "ここには階段がない。" });
       return false;
+    }
+    // タルを抱えたままの階段降りを禁止する(plan/barrel-stairs-safeguard.md)
+    if (this.player.carrying) {
+      events.push({ type: "message", text: "タルを抱えたままでは降りられない。" });
+      this.pushBackFromStairs(events);
+      return true;
     }
     this.status = "cleared";
     this.endReason = `地下${this.depth}階のめざめの階段で区切って持ち帰った!`;
@@ -830,6 +851,12 @@ export class Game {
         if (!eq(player.pos, this.floor.stairs)) {
           events.push({ type: "message", text: "ここには階段がない。" });
           return false;
+        }
+        // タルを抱えたままの階段降りを禁止する(plan/barrel-stairs-safeguard.md)
+        if (player.carrying) {
+          events.push({ type: "message", text: "タルを抱えたままでは降りられない。" });
+          this.pushBackFromStairs(events);
+          return true;
         }
         this.descend(events);
         return true;
