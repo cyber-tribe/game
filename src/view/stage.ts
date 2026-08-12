@@ -9,6 +9,14 @@ import { tileAt } from "../core/types";
 import { toWorld } from "./renderer";
 import { BARREL_MODELS } from "../modelList";
 import { speciesById } from "../entities/species";
+import type { AudioPlayer } from "../audio/player";
+
+/**
+ * サウンド再生(plan/audio-playback.md)。ボスの予兆(bossTelegraph)は既存の
+ * "message"イベントとして流れてくるだけなので、専用のイベント種別を増やさず、
+ * game.ts側が組み立てる文言の末尾の記号だけで判定する
+ */
+const BOSS_TELEGRAPH_MESSAGE_SUFFIX = "――!";
 
 /** 1マス動くのにかける時間。短いほどきびきびするが、短すぎると何が起きたか読めない */
 export const MOVE_TIME = 0.15;
@@ -56,6 +64,7 @@ export class Stage {
   constructor(
     private readonly scene: THREE.Scene,
     private readonly assets: Assets,
+    private readonly audio: AudioPlayer,
   ) {
     this.scene.add(this.actorRoot);
     this.scene.add(this.effectRoot);
@@ -239,7 +248,25 @@ export class Stage {
         }
         case "explosion":
           this.spawnExplosion(event.pos, event.radius);
+          this.audio.playSfx("explosion");
           lock = Math.max(lock, 0.42 * scale);
+          break;
+
+        // ---- サウンド再生(plan/audio-playback.md)。見た目には影響しないSFXだけの分岐 ----
+        case "capture":
+          this.audio.playSfx("capture");
+          break;
+        case "levelUp":
+          this.audio.playSfx("levelUp");
+          break;
+        case "checkpoint":
+          this.audio.playSfx("checkpoint");
+          break;
+        case "hungerWarning":
+          if (event.level === "empty") this.audio.playSfx("hungerWarning");
+          break;
+        case "message":
+          if (event.text.endsWith(BOSS_TELEGRAPH_MESSAGE_SUFFIX)) this.audio.playSfx("bossTelegraph");
           break;
 
         default:

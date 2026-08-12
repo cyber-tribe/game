@@ -75,6 +75,8 @@ describe("save.ts: recordRunは腕試しの間の踏破を記録する(plan/hidd
       defeatedRegionBosses: [],
       storyCleared: false,
       trueAwakeningCleared: false,
+      audioMuted: false,
+      audioVolume: 0.7,
     };
   }
 

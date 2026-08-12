@@ -33,7 +33,7 @@ import { moodForDate } from "../entities/moods";
 import { MAX_ALLIES, type TrainingFocus } from "../entities/player";
 import { todayKey } from "../entities/quests";
 import { SPECIES, speciesById } from "../entities/species";
-import { isCompendiumComplete, isTrueAwakeningUnlocked, isWeaponCompendiumComplete, type CompendiumStatus, type FontSize, type SaveData, type StoredItem, type StoredMonster } from "../save";
+import { DEFAULT_AUDIO_VOLUME, isCompendiumComplete, isTrueAwakeningUnlocked, isWeaponCompendiumComplete, type CompendiumStatus, type FontSize, type SaveData, type StoredItem, type StoredMonster } from "../save";
 import { ITEMS, itemDef } from "../items/catalog";
 import { MAX_ACTIVE_QUESTS, questDef } from "../entities/quests";
 import { storyChapter } from "../entities/story";
@@ -71,7 +71,7 @@ const TRAINING_FOCUS_DESCRIPTIONS: Record<TrainingFocus, string> = {
 export class TownScreen {
   private open = false;
   /** 0=倉庫 1=持ち込み 2=出発地点 3=鍛え方 4=つれていく仲間 5=ゲンドの工房 6=記録の間 7=モンスター図鑑 8=実績帳 9=装備図鑑 10=難易度 11=依頼板 12=潜るダンジョン 13=村の発展 14=アクセシビリティ 15=身支度 16=NPCと話す(plan/village-life.md) 17=宵祭りの出店(plan/yoimatsuri-festival.md) */
-  private column: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 = 0;
+  private column: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 = 0;
   private cursor: [number, number] = [0, 0];
   private storage: StoredItem[] = [];
   private carry: StoredItem[] = [];
@@ -167,6 +167,11 @@ export class TownScreen {
   private onReportBug: (() => void) | null = null;
   /** 宵祭りの出店(plan/yoimatsuri-festival.md) */
   private onBuyFestivalItem: ((defId: string) => void) | null = null;
+  /** サウンド再生(plan/audio-playback.md) */
+  private onSetAudioMuted: ((muted: boolean) => void) | null = null;
+  private onSetAudioVolume: ((volume: number) => void) | null = null;
+  /** サウンド再生: 音の設定列上のカーソル位置(0=ミュート、1=音量) */
+  private audioSettingsCursor: 0 | 1 = 0;
   /** 実績帳(plan/achievements.md)の一覧上のカーソル位置 */
   private achievementCursor = 0;
   /** 依頼板(plan/quest-board.md)の一覧上のカーソル位置 */
@@ -205,6 +210,8 @@ export class TownScreen {
     onToggleFavorite: (uid: number) => void,
     onReportBug: () => void,
     onBuyFestivalItem: (defId: string) => void,
+    onSetAudioMuted: (muted: boolean) => void,
+    onSetAudioVolume: (volume: number) => void,
   ): void {
     this.save = save;
     this.storage = save.storage.map((s) => ({ ...s }));
@@ -247,6 +254,9 @@ export class TownScreen {
     this.onGiftMaterial = onGiftMaterial;
     this.onReportBug = onReportBug;
     this.onBuyFestivalItem = onBuyFestivalItem;
+    this.onSetAudioMuted = onSetAudioMuted;
+    this.onSetAudioVolume = onSetAudioVolume;
+    this.audioSettingsCursor = 0;
     this.festivalShopCursor = 0;
     this.achievementCursor = 0;
     this.questCursor = 0;
@@ -848,10 +858,47 @@ export class TownScreen {
         case "KeyA":
           this.column = 16;
           break;
+        case "ArrowRight":
+        case "KeyD":
+          this.column = 18;
+          break;
         case "Enter":
         case "NumpadEnter": {
           const offer = FESTIVAL_SHOP_OFFERS[this.festivalShopCursor];
           if (offer) this.onBuyFestivalItem?.(offer.defId);
+          break;
+        }
+        case "Space":
+          this.departNow();
+          return true;
+        default:
+          return true;
+      }
+      this.render();
+      return true;
+    }
+
+    if (this.column === 18) {
+      switch (code) {
+        case "ArrowUp":
+        case "KeyW":
+        case "ArrowDown":
+        case "KeyS":
+          this.audioSettingsCursor = this.audioSettingsCursor === 0 ? 1 : 0;
+          break;
+        case "ArrowLeft":
+        case "KeyA":
+          this.column = 17;
+          break;
+        case "Enter":
+        case "NumpadEnter": {
+          if (this.audioSettingsCursor === 0) {
+            this.onSetAudioMuted?.(!(this.save?.audioMuted ?? false));
+          } else {
+            const current = this.save?.audioVolume ?? DEFAULT_AUDIO_VOLUME;
+            const stepped = Math.round((current + 0.1) * 10) / 10;
+            this.onSetAudioVolume?.(stepped > 1 ? 0 : stepped);
+          }
           break;
         }
         case "Space":
@@ -1260,6 +1307,7 @@ export class TownScreen {
       this.renderCostumes(),
       this.renderVillageLife(),
       this.renderYoimatsuriShop(),
+      this.renderAudioSettings(),
     );
     box.appendChild(columns);
 
@@ -1371,6 +1419,11 @@ export class TownScreen {
     } else if (this.column === 17) {
       const offer = FESTIVAL_SHOP_OFFERS[this.festivalShopCursor];
       desc.textContent = offer ? itemDef(offer.defId).description : "";
+    } else if (this.column === 18) {
+      desc.textContent =
+        this.audioSettingsCursor === 0
+          ? "Enterでミュートを切り替える。"
+          : "Enterで音量を10%刻みで上げる(100%の次は0%に戻る)。";
     } else {
       const selected = (this.column === 0 ? this.storage : this.carry)[this.cursor[this.column]];
       desc.textContent = selected ? itemDef(selected.defId).description : "";
@@ -1406,7 +1459,9 @@ export class TownScreen {
     } else if (this.column === 16) {
       hint.textContent = "←→ 列を移る / ↑↓ 選ぶ / Enter 話す / G 素材を渡す(1日1回) / Space もぐる";
     } else if (this.column === 17) {
-      hint.textContent = "← 列を移る / ↑↓ 選ぶ / Enter 買う / Space もぐる";
+      hint.textContent = "←→ 列を移る / ↑↓ 選ぶ / Enter 買う / Space もぐる";
+    } else if (this.column === 18) {
+      hint.textContent = "← 列を移る / ↑↓ 選ぶ / Enter 切り替え・音量変更 / Space もぐる";
     } else {
       hint.textContent = "←→ 列を移る / ↑↓ 選ぶ / Enter 移す / Space もぐる";
     }
@@ -2076,6 +2131,35 @@ export class TownScreen {
       li.textContent = "今日は宵祭りの日ではない。";
       list.appendChild(li);
     }
+    wrapper.appendChild(list);
+    return wrapper;
+  }
+
+  /** サウンド再生(plan/audio-playback.md)。ミュート・音量の設定 */
+  private renderAudioSettings(): HTMLElement {
+    const wrapper = document.createElement("div");
+    wrapper.className = "town-col";
+    if (this.column === 18) wrapper.classList.add("active");
+
+    const heading = document.createElement("div");
+    heading.className = "town-col-title";
+    heading.textContent = "音";
+    wrapper.appendChild(heading);
+
+    const muted = this.save?.audioMuted ?? false;
+    const volume = this.save?.audioVolume ?? DEFAULT_AUDIO_VOLUME;
+    const list = document.createElement("ul");
+
+    const muteLi = document.createElement("li");
+    muteLi.textContent = `ミュート: ${muted ? "オン" : "オフ"}`;
+    if (this.column === 18 && this.audioSettingsCursor === 0) muteLi.classList.add("selected");
+    list.appendChild(muteLi);
+
+    const volumeLi = document.createElement("li");
+    volumeLi.textContent = `音量: ${Math.round(volume * 100)}%`;
+    if (this.column === 18 && this.audioSettingsCursor === 1) volumeLi.classList.add("selected");
+    list.appendChild(volumeLi);
+
     wrapper.appendChild(list);
     return wrapper;
   }
