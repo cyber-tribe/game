@@ -5,6 +5,7 @@ import { decideMonsterAction } from "../src/entities/ai";
 import { dirFromDelta } from "../src/core/grid";
 import { REGION_BOSS_ORDER, speciesById } from "../src/entities/species";
 import { Game } from "../src/game";
+import { access } from "./helpers/access";
 import { makeEmptyFloor } from "./helpers/floor";
 
 function bossActor(overrides: Partial<Actor> = {}): Actor {
@@ -130,9 +131,7 @@ describe("game.ts: 地方ボスの階(depth 12、表の寝穴)", () => {
     const game = new Game({ seed: 1, startDepth: 12 });
     const boss = game.floor.actors.find((a) => a.speciesId === "nushigaeru")!;
 
-    const killActor = (
-      game as unknown as { killActor: (target: Actor, events: unknown[]) => void }
-    ).killActor.bind(game);
+    const killActor = access(game).killActor.bind(game);
     killActor(boss, []);
 
     const dropped = game.floor.items.some(

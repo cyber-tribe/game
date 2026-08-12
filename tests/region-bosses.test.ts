@@ -4,6 +4,7 @@ import type { Actor, FloorState } from "../src/core/types";
 import { decideMonsterAction } from "../src/entities/ai";
 import { speciesById } from "../src/entities/species";
 import { Game } from "../src/game";
+import { access } from "./helpers/access";
 import { makeEmptyFloor } from "./helpers/floor";
 import { fuseMonsters, initialSave, type StoredMonster } from "../src/save";
 
@@ -200,9 +201,7 @@ describe("game.ts: 地方ボスの階(depth 6、表の寝穴)", () => {
     const game = new Game({ seed: 1, startDepth: 6, maxDepth: 10 });
     const boss = game.floor.actors.find((a) => a.speciesId === "oonebosuke")!;
 
-    const killActor = (
-      game as unknown as { killActor: (target: Actor, events: unknown[]) => void }
-    ).killActor.bind(game);
+    const killActor = access(game).killActor.bind(game);
     killActor(boss, []);
 
     const dropped = game.floor.items.some(

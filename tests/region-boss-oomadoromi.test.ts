@@ -4,6 +4,7 @@ import type { Actor, FloorState } from "../src/core/types";
 import { decideMonsterAction } from "../src/entities/ai";
 import { REGION_BOSS_ORDER, speciesById } from "../src/entities/species";
 import { Game } from "../src/game";
+import { access } from "./helpers/access";
 import { makeEmptyFloor } from "./helpers/floor";
 import { roomContains } from "../src/core/types";
 
@@ -115,9 +116,7 @@ describe("game.ts: 地方ボスの階(depth 18、表の寝穴)", () => {
     const game = new Game({ seed: 1, startDepth: 18 });
     const boss = game.floor.actors.find((a) => a.speciesId === "oomadoromi")!;
 
-    const killActor = (
-      game as unknown as { killActor: (target: Actor, events: unknown[]) => void }
-    ).killActor.bind(game);
+    const killActor = access(game).killActor.bind(game);
     killActor(boss, []);
 
     const dropped = game.floor.items.some(
@@ -167,9 +166,7 @@ describe("game.ts: ばくはつタルで大技(予兆)を解除する", () => {
     boss.telegraphCharge = true;
     boss.telegraphCooldown = 4;
 
-    const explode = (
-      game as unknown as { explode: (pos: unknown, events: unknown[], throwerId?: number) => void }
-    ).explode.bind(game);
+    const explode = access(game).explode.bind(game);
     const events: { type: string; text?: string }[] = [];
     explode(boss.pos, events);
 
