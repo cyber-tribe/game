@@ -70,9 +70,11 @@ import { displayActorName } from "./entities/naming";
 import {
   type DungeonDef,
   MAIN_CAVE_ID,
+  NIGHTLY_DREAM_ID,
   REGION_SIZE,
   TRIAL_CHAMBER_ID,
   dungeonById,
+  nightlyDreamStatMultiplier,
 } from "./entities/dungeons";
 import type { StoredMonster } from "./entities/storedMonster";
 import { isVisible, updateVisibility } from "./dungeon/visibility";
@@ -557,6 +559,8 @@ export class Game {
       this.dungeon.floorOffset ?? 0,
       bossSpeciesId,
       this.dungeon.monsterCountMul ?? 1,
+      // 夜ごとの夢のモンスター強化カーブ(plan/nightly-dream-scaling.md)
+      this.dungeon.id === NIGHTLY_DREAM_ID ? nightlyDreamStatMultiplier(depth) : 1,
     );
 
     // 忘れ物蔵(plan/lost-and-found-vault.md): 表の寝穴の各地方の2階目
