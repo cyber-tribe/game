@@ -15,7 +15,7 @@ import {
   type VillageStage,
 } from "./entities/village";
 import { MAX_SKILLS, NATIVE_SKILL_BY_SPECIES, SKILLS, fullSkillSet } from "./entities/skills";
-import { SPECIES } from "./entities/species";
+import { SPECIES, speciesById } from "./entities/species";
 import type { StoredMonster } from "./entities/storedMonster";
 import type { RunSnapshot, RunStatus } from "./game";
 import { ITEMS } from "./items/catalog";
@@ -614,9 +614,12 @@ export function fuseMonsters(
   const recentFusionMaterials = [...axis.recentFusionMaterials, food.speciesId].slice(
     -MAX_RECENT_FUSION_MATERIALS,
   );
+  // 地方ボス(plan/region-bosses.md): 糧にすると通常個体3体分の経験値換算になる
+  // (仲間にする体験を、単なる効率アイテムにしないための特別ルール)
+  const foodValueMultiplier = speciesById(food.speciesId).isRegionBoss ? 3 : 1;
   const fused: StoredMonster = {
     ...axis,
-    level: axis.level + Math.floor(food.level / 2) + 1,
+    level: axis.level + Math.floor((food.level * foodValueMultiplier) / 2) + 1,
     skills,
     recentFusionMaterials,
   };

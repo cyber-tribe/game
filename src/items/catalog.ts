@@ -420,6 +420,17 @@ export const ITEMS: readonly ItemDef[] = [
     weight: 2,
     description: "ゲンドの工房で盾に刻める。HPが1残っていれば、致死ダメージを1回だけ耐える。",
   },
+  {
+    // 地方ボス(plan/region-bosses.md)を撃破した確定ドロップ専用。
+    // ランダムな床落ちには出さない(minFloor: Infinity・weight: 0で除外)
+    id: "oonebosukeDust",
+    name: "おおねぼすけの眠り粉",
+    category: "material",
+    model: "herb",
+    minFloor: Number.POSITIVE_INFINITY,
+    weight: 0,
+    description: "うたたねの参道の主を倒した証。ゲンドの工房でも珍しがられる、上質な粉。",
+  },
 
   // ---- 頭防具(plan/protagonist-equipment.md) ----
   {

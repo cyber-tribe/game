@@ -87,7 +87,7 @@ import {
   totalAttack,
   totalDefense,
 } from "./entities/player";
-import { speciesById } from "./entities/species";
+import { REGION_BOSS_FLOORS, speciesById } from "./entities/species";
 import { itemDef } from "./items/catalog";
 import { type EffectContext, addStatus, applyEffect } from "./items/effects";
 import {
@@ -439,16 +439,25 @@ export class Game {
   private enterFloor(depth: number): void {
     this.depth = depth;
     this.monsterHouseWarned = false;
-    const gimmick = pickFloorGimmick(this.rng, depth, this.previousGimmick, GIMMICK_CHANCE_MULTIPLIER[this.difficulty]);
+    // 地方ボス(plan/region-bosses.md): 表の寝穴のボス階には、通常の野生モンスターも
+    // フロアギミックも乗せない(ボス以外の変数を減らす、本文どおりの方針)
+    const bossSpeciesId = this.dungeon.id === MAIN_CAVE_ID ? REGION_BOSS_FLOORS[depth] : undefined;
+    const gimmick = bossSpeciesId
+      ? undefined
+      : pickFloorGimmick(this.rng, depth, this.previousGimmick, GIMMICK_CHANCE_MULTIPLIER[this.difficulty]);
     this.previousGimmick = gimmick;
     this.floor = generateFloor(this.rng, {
       depth,
       gimmick,
-      monsterHouseChanceMultiplier:
-        MONSTER_HOUSE_CHANCE_MULTIPLIER[this.difficulty] * (this.dungeon.monsterHouseRateMul ?? 1),
-      shopChanceMultiplier: this.dungeon.shopRateMul ?? 1,
+      monsterHouseChanceMultiplier: bossSpeciesId
+        ? 0
+        : MONSTER_HOUSE_CHANCE_MULTIPLIER[this.difficulty] * (this.dungeon.monsterHouseRateMul ?? 1),
+      shopChanceMultiplier: bossSpeciesId ? 0 : (this.dungeon.shopRateMul ?? 1),
       forceShop:
-        this.dungeon.shopRateMul !== undefined && depth === this.maxDepth && !this.shopSeenThisRun,
+        !bossSpeciesId &&
+        this.dungeon.shopRateMul !== undefined &&
+        depth === this.maxDepth &&
+        !this.shopSeenThisRun,
     });
     const start = choosePlayerStart(this.rng, this.floor);
     this.player.pos = start;
@@ -470,6 +479,7 @@ export class Game {
       MONSTER_ATK_MULTIPLIER[this.difficulty],
       GOLD_REWARD_MULTIPLIER[this.difficulty],
       this.dungeon.floorOffset ?? 0,
+      bossSpeciesId,
     );
 
     // 仲間は階段について来る。プレイヤーの周りの空いたマスに並べる
@@ -1444,6 +1454,12 @@ export class Game {
       this.floor.items.push({ item: createItem(this.ids.nextItemUid(), defId), pos: { ...target.pos } });
       events.push({ type: "message", text: "かがやく残り香から、上質な素材が現れた!" });
     }
+    // 地方ボス(plan/region-bosses.md): 撃破すると、その地方限定の素材を確定ドロップする
+    const bossDrop = target.speciesId ? speciesById(target.speciesId).bossGuaranteedDrop : undefined;
+    if (bossDrop) {
+      this.floor.items.push({ item: createItem(this.ids.nextItemUid(), bossDrop), pos: { ...target.pos } });
+      events.push({ type: "message", text: "地方ボスの証となる、特別な素材が現れた!" });
+    }
     const exp = target.exp ?? 0;
     if (exp > 0) {
       const levels = gainExp(this.player, exp, this.trainingFocus);
@@ -1779,10 +1795,31 @@ export class Game {
           if (actor.aiKind === "thief" && actor.stolenGold === undefined) {
             this.attemptSteal(actor, target, events);
           } else {
+            // 地方ボス(plan/region-bosses.md): 予兆を消費した一撃は大技として、
+            // 通常のダメージ計算にmultiplierを掛けたぶんだけ底上げする
+            const bossTelegraph =
+              action.empowered && actor.speciesId ? speciesById(actor.speciesId).bossTelegraph : undefined;
             // guard(plan/monster-compendium.md): 隣接されたときの反撃力が高い
-            const attackPower =
-              actor.aiKind === "guard" ? Math.round(actor.atk * GUARD_COUNTER_BONUS) : actor.atk;
+            const attackPower = bossTelegraph
+              ? Math.round(actor.atk * bossTelegraph.multiplier)
+              : actor.aiKind === "guard"
+                ? Math.round(actor.atk * GUARD_COUNTER_BONUS)
+                : actor.atk;
             this.attack(actor, target, attackPower, events);
+            if (bossTelegraph) {
+              events.push({ type: "message", text: `${displayActorName(actor)}の大技が炸裂した!` });
+            }
+          }
+          break;
+        }
+        case "telegraph": {
+          // 地方ボス(plan/region-bosses.md): この手は攻撃せず、警告メッセージだけ出す。
+          // 既存のGameEvent(message)の枠組みで実装し、新規UIは増やさない
+          const target = this.floor.actors.find((a) => a.id === action.targetId && a.alive);
+          const telegraph = actor.speciesId ? speciesById(actor.speciesId).bossTelegraph : undefined;
+          if (target && telegraph) {
+            actor.facing = dirFromDelta(target.pos.x - actor.pos.x, target.pos.y - actor.pos.y);
+            events.push({ type: "message", text: `${displayActorName(actor)}は${telegraph.message}――!` });
           }
           break;
         }

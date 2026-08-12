@@ -231,47 +231,68 @@ export function populateFloor(
    * 金貨の量に使う)はそのままで、テーブル選択だけをずらす
    */
   speciesDepthOffset = 0,
+  /**
+   * 地方ボス(plan/region-bosses.md)。指定があれば、通常の野生モンスター湧きは
+   * 一切行わず、この種族を1体だけ配置する(ボス部屋には道中の雑魚を混ぜない)
+   */
+  bossSpeciesId?: string,
 ): void {
   const gimmick = floor.gimmick;
   const tableDepth = Math.max(1, floor.depth + speciesDepthOffset);
-  const pool = speciesForDepth(tableDepth);
-  const baseMonsterCount = Math.min(12, 4 + Math.floor(floor.depth / 2));
-  const monsterCount =
-    gimmick === "silence"
-      ? 0
-      : gimmick === "windfall"
-        ? Math.round(baseMonsterCount * WINDFALL_MULTIPLIER)
-        : baseMonsterCount;
-  for (let i = 0; i < monsterCount; i++) {
+
+  if (bossSpeciesId) {
+    // 地方ボス(plan/region-bosses.md): 通常の野生モンスター湧きは一切行わず、
+    // ボスを1体だけ配置する(ボス部屋には道中の雑魚を混ぜない)
+    const species = speciesById(bossSpeciesId);
     const pos = findFreeTile(rng, floor, {
       roomsOnly: true,
       minDistanceFrom: { pos: playerStart, distance: 6 },
     });
-    if (!pos) break;
-    const species = rng.pickWeighted(pool, (s) => s.weight);
-    const monster = createMonster(ids.nextActorId(), species, pos);
-    if (gimmick === "alert") monster.aware = true;
-    monster.atk = Math.round(monster.atk * monsterAtkMultiplier);
-    rollShining(rng, monster, shiningChanceMultiplier);
-    floor.actors.push(monster);
+    if (pos) {
+      const boss = createMonster(ids.nextActorId(), species, pos);
+      boss.atk = Math.round(boss.atk * monsterAtkMultiplier);
+      floor.actors.push(boss);
+    }
+  } else {
+    const pool = speciesForDepth(tableDepth);
+    const baseMonsterCount = Math.min(12, 4 + Math.floor(floor.depth / 2));
+    const monsterCount =
+      gimmick === "silence"
+        ? 0
+        : gimmick === "windfall"
+          ? Math.round(baseMonsterCount * WINDFALL_MULTIPLIER)
+          : baseMonsterCount;
+    for (let i = 0; i < monsterCount; i++) {
+      const pos = findFreeTile(rng, floor, {
+        roomsOnly: true,
+        minDistanceFrom: { pos: playerStart, distance: 6 },
+      });
+      if (!pos) break;
+      const species = rng.pickWeighted(pool, (s) => s.weight);
+      const monster = createMonster(ids.nextActorId(), species, pos);
+      if (gimmick === "alert") monster.aware = true;
+      monster.atk = Math.round(monster.atk * monsterAtkMultiplier);
+      rollShining(rng, monster, shiningChanceMultiplier);
+      floor.actors.push(monster);
 
-    // swarm(plan/monster-compendium.md): 生成時に複数体まとまって配置される。
-    // 群れの残りは、最初の1体と同じ部屋の空きマスを探して置く(部屋がなければ諦める)
-    if (species.ai === "swarm" && species.swarmSize) {
-      const room = roomOf(floor, pos);
-      if (room) {
-        const [min, max] = species.swarmSize;
-        const extra = rng.int(min, max) - 1;
-        const placed = [pos];
-        for (let j = 0; j < extra; j++) {
-          const nearPos = findFreeTile(rng, floor, { room, avoid: placed });
-          if (!nearPos) break;
-          placed.push(nearPos);
-          const companion = createMonster(ids.nextActorId(), species, nearPos);
-          if (gimmick === "alert") companion.aware = true;
-          companion.atk = Math.round(companion.atk * monsterAtkMultiplier);
-          rollShining(rng, companion, shiningChanceMultiplier);
-          floor.actors.push(companion);
+      // swarm(plan/monster-compendium.md): 生成時に複数体まとまって配置される。
+      // 群れの残りは、最初の1体と同じ部屋の空きマスを探して置く(部屋がなければ諦める)
+      if (species.ai === "swarm" && species.swarmSize) {
+        const room = roomOf(floor, pos);
+        if (room) {
+          const [min, max] = species.swarmSize;
+          const extra = rng.int(min, max) - 1;
+          const placed = [pos];
+          for (let j = 0; j < extra; j++) {
+            const nearPos = findFreeTile(rng, floor, { room, avoid: placed });
+            if (!nearPos) break;
+            placed.push(nearPos);
+            const companion = createMonster(ids.nextActorId(), species, nearPos);
+            if (gimmick === "alert") companion.aware = true;
+            companion.atk = Math.round(companion.atk * monsterAtkMultiplier);
+            rollShining(rng, companion, shiningChanceMultiplier);
+            floor.actors.push(companion);
+          }
         }
       }
     }

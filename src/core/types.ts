@@ -140,6 +140,15 @@ export interface Species {
    * 戦闘上の強さには一切関与しない
    */
   fieldSkill?: FieldSkillId;
+  /**
+   * 地方ボス(plan/region-bosses.md)。true なら、夢あわせの「糧」にしたとき
+   * 通常個体3体分の経験値換算になる(仲間にする価値を持たせる特別ルール)
+   */
+  isRegionBoss?: boolean;
+  /** 地方ボスの予兆つきの大技。隣接して初めて発動条件を見るため、発動条件そのものはActor側で管理する */
+  bossTelegraph?: { message: string; multiplier: number; cooldownTurns: number };
+  /** 地方ボスを撃破すると確定ドロップする、その地方限定の素材のdefId */
+  bossGuaranteedDrop?: string;
 }
 
 /** あうんの呼吸(plan/ally-field-gimmicks.md)。障害物が要求する仲間の性質 */
@@ -196,6 +205,10 @@ export interface Actor {
    * 倒すと上質な素材を落とす低確率のレア個体
    */
   shining?: boolean;
+  /** 地方ボス(plan/region-bosses.md)。予兆を出した直後で、次の隣接攻撃が大技として発動する */
+  telegraphCharge?: boolean;
+  /** 地方ボス。次に予兆を出せるようになるまでの残りターン数 */
+  telegraphCooldown?: number;
 
   // ---- 以下は ally のみ ----
   /** 構え。plan/companion-orders.md 参照。既定は "free" */
