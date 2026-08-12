@@ -421,6 +421,7 @@ class App {
     this.hud.hideOverlay();
     this.stage.enterFloor(this.game.floor);
     this.applyCostumeTint();
+    this.applyCarriedBarrelVisual();
     this.renderer.setFocus(this.game.player.pos, true);
     this.hud.update(this.game.player, this.game.depth, this.game.allyList);
     this.minimap.draw(this.game.floor, this.game.player);
@@ -456,6 +457,19 @@ class App {
     const costume = costumeById(this.save.equippedCostume);
     if (!costume.tint) return;
     this.stage.viewOf(this.game.player.id)?.applyTint(costume.tint);
+  }
+
+  /**
+   * タルを抱えたまま階段を降りる等でフロアが切り替わると、
+   * `Stage.enterFloor`がプレイヤーのActorViewを作り直すため、抱えている
+   * タルの見た目(setCarriedで付けていた3Dモデル)だけが引き継がれずに
+   * 消えてしまう(#185)。抱えている状態(player.carrying)はロジック側で
+   * 保持され続けているので、フロアに入り直すたびに見た目を作り直す
+   */
+  private applyCarriedBarrelVisual(): void {
+    const barrel = this.game.player.carrying;
+    if (!barrel) return;
+    this.stage.viewOf(this.game.player.id)?.setCarried(this.assets.instantiate(BARREL_MODELS[barrel.kind]).root);
   }
 
   /** その場方式のチュートリアルヒント。まだ見ていなければ表示して既読にする */
@@ -812,6 +826,7 @@ class App {
     if (changedFloor) {
       this.stage.enterFloor(this.game.floor);
       this.applyCostumeTint();
+      this.applyCarriedBarrelVisual();
       this.renderer.setFocus(this.game.player.pos, true);
       this.lock = 0.25;
       this.save.deepest = Math.max(this.save.deepest, this.game.depth);
