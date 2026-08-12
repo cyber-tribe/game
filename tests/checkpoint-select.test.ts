@@ -32,39 +32,62 @@ describe("出発地点(startDepth)", () => {
   });
 });
 
-describe("めざめの階段の記録(checkpointイベント)", () => {
-  it("階段の上に乗ると、depthを含むcheckpointイベントが流れる", () => {
-    const game = new Game({ seed: 2 });
+/**
+ * 階段の上に立つよう、隣接する歩けるマスから1歩だけ踏み出すコマンドを
+ * 実行してそのイベント列を返す(plan/region-expansion.mdで、地方境界の
+ * 階だけがcheckpointイベントを出す仕様になったため、複数のテストで使う
+ * 共通ヘルパーとして切り出した)。
+ */
+function stepOntoStairs(game: Game): ReturnType<Game["command"]> {
+  const candidates: Array<{ from: { x: number; y: number }; dir: 0 | 2 | 4 | 6 }> = [
+    { from: { x: game.floor.stairs.x, y: game.floor.stairs.y - 1 }, dir: 4 },
+    { from: { x: game.floor.stairs.x - 1, y: game.floor.stairs.y }, dir: 2 },
+    { from: { x: game.floor.stairs.x, y: game.floor.stairs.y + 1 }, dir: 0 },
+    { from: { x: game.floor.stairs.x + 1, y: game.floor.stairs.y }, dir: 6 },
+  ];
 
-    // 階段に隣接する歩けるマスから、階段へ向けて1歩踏み出す
-    // (北・東・南・西の順で、実際に踏み出せる方向を探す)
-    const candidates: Array<{ from: { x: number; y: number }; dir: 0 | 2 | 4 | 6 }> = [
-      { from: { x: game.floor.stairs.x, y: game.floor.stairs.y - 1 }, dir: 4 },
-      { from: { x: game.floor.stairs.x - 1, y: game.floor.stairs.y }, dir: 2 },
-      { from: { x: game.floor.stairs.x, y: game.floor.stairs.y + 1 }, dir: 0 },
-      { from: { x: game.floor.stairs.x + 1, y: game.floor.stairs.y }, dir: 6 },
-    ];
-
-    for (const { from, dir } of candidates) {
-      if (from.x < 0 || from.y < 0 || from.x >= game.floor.width || from.y >= game.floor.height) {
-        continue;
-      }
-      const tile = game.floor.tiles[from.y * game.floor.width + from.x];
-      if (!tile || tile.kind === 0) continue; // 壁からは踏み出せない
-
-      game.player.pos = from;
-      const events = game.command({ type: "move", dir });
-      const checkpoint = events.find(
-        (e): e is Extract<(typeof events)[number], { type: "checkpoint" }> =>
-          e.type === "checkpoint",
-      );
-      if (checkpoint) {
-        expect(checkpoint.depth).toBe(game.depth);
-        return;
-      }
+  for (const { from, dir } of candidates) {
+    if (from.x < 0 || from.y < 0 || from.x >= game.floor.width || from.y >= game.floor.height) {
+      continue;
     }
-    // フロア生成は階段への到達可能性を保証しているので、ここには来ないはず
-    throw new Error("階段に隣接する歩けるマスが見つからなかった");
+    const tile = game.floor.tiles[from.y * game.floor.width + from.x];
+    if (!tile || tile.kind === 0) continue; // 壁からは踏み出せない
+
+    game.player.pos = from;
+    return game.command({ type: "move", dir });
+  }
+  // フロア生成は階段への到達可能性を保証しているので、ここには来ないはず
+  throw new Error("階段に隣接する歩けるマスが見つからなかった");
+}
+
+describe("めざめの階段の記録(checkpointイベント)", () => {
+  it("表の寝穴では、地方の最終階(6の倍数)の階段でcheckpointイベントが流れる", () => {
+    const game = new Game({ seed: 2, startDepth: 6 });
+    const events = stepOntoStairs(game);
+    const checkpoint = events.find(
+      (e): e is Extract<(typeof events)[number], { type: "checkpoint" }> =>
+        e.type === "checkpoint",
+    );
+    expect(checkpoint).toBeDefined();
+    expect(checkpoint?.depth).toBe(6);
+  });
+
+  it("表の寝穴では、地方境界でない階の階段ではcheckpointイベントが流れない", () => {
+    const game = new Game({ seed: 2, startDepth: 3 });
+    const events = stepOntoStairs(game);
+    const checkpoint = events.find((e) => e.type === "checkpoint");
+    expect(checkpoint).toBeUndefined();
+  });
+
+  it("近道屋の裏穴のような地方の概念を持たないダンジョンでは、どの階の階段でもcheckpointイベントが流れる", () => {
+    const game = new Game({ seed: 2, dungeonId: "shortcutBackHole", startDepth: 1 });
+    const events = stepOntoStairs(game);
+    const checkpoint = events.find(
+      (e): e is Extract<(typeof events)[number], { type: "checkpoint" }> =>
+        e.type === "checkpoint",
+    );
+    expect(checkpoint).toBeDefined();
+    expect(checkpoint?.depth).toBe(1);
   });
 });
 

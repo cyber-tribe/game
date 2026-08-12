@@ -57,7 +57,13 @@ import {
   spawnWanderingMonster,
 } from "./dungeon/populate";
 import { displayActorName } from "./entities/naming";
-import { type DungeonDef, MAIN_CAVE_ID, TRIAL_CHAMBER_ID, dungeonById } from "./entities/dungeons";
+import {
+  type DungeonDef,
+  MAIN_CAVE_ID,
+  REGION_SIZE,
+  TRIAL_CHAMBER_ID,
+  dungeonById,
+} from "./entities/dungeons";
 import type { StoredMonster } from "./entities/storedMonster";
 import { isVisible, updateVisibility } from "./dungeon/visibility";
 import {
@@ -1150,10 +1156,17 @@ export class Game {
     }
     if (eq(pos, this.floor.stairs)) {
       events.push({ type: "message", text: "階段がある。" });
+      // 表の寝穴では、地方の最終階(6階ごと)の階段だけが「めざめの階段」
+      // として既知になる(plan/region-expansion.md)。他のダンジョン
+      // (近道屋の裏穴・夜ごとの夢・腕試しの間)は地方の概念を持たないため
+      // 従来どおりどの階の階段でも既知になる。
       // 足を踏み入れた瞬間に「既知」となる。ダイブの結果によらず記録されるべき
       // 事実なので、保存は呼び出し側(main.ts)が checkpoint イベントを見て行う
-      events.push({ type: "checkpoint", depth: this.depth });
-      events.push({ type: "tutorialTip", id: "checkpoint" });
+      const isCheckpointFloor = this.dungeon.id !== MAIN_CAVE_ID || this.depth % REGION_SIZE === 0;
+      if (isCheckpointFloor) {
+        events.push({ type: "checkpoint", depth: this.depth });
+        events.push({ type: "tutorialTip", id: "checkpoint" });
+      }
     }
   }
 
