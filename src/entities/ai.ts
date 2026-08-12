@@ -269,7 +269,9 @@ export function decideMonsterAction(
     // 次に隣接して攻撃する手が必ず大技になる。既存のattack/telegraphの枠組みに
     // 乗せるだけで、専用の移動AIやUIは増やさない
     const telegraph = monster.speciesId ? speciesById(monster.speciesId).bossTelegraph : undefined;
-    if (telegraph) {
+    // 地方ボス(plan/region-boss-nushigaeru.md): HPがactivateBelowHpRatioを
+    // 上回っている間はまだ予兆のサイクルに入らず、通常の攻撃で戦う
+    if (telegraph && monster.hp <= monster.maxHp * (telegraph.activateBelowHpRatio ?? 1)) {
       if (monster.telegraphCooldown && monster.telegraphCooldown > 0) monster.telegraphCooldown--;
       if (monster.telegraphCharge) {
         monster.telegraphCharge = false;
