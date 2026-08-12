@@ -116,8 +116,8 @@ import {
   headDefId,
   isFull,
   removeItem,
-  shieldMarkId,
-  weaponMarkId,
+  shieldMarkIds,
+  weaponMarkIds,
 } from "./items/inventory";
 import { attackOffsets, computeDamage } from "./systems/combat";
 
@@ -1580,7 +1580,7 @@ export class Game {
     // (plan/equipment-forging.md): そのダイブで最初の1手は必ず会心
     const hasQuickStartEffect =
       (attacker.kind === "ally" && hasSkill(attacker, "quickStart")) ||
-      (attacker.kind === "player" && weaponMarkId(this.player.inventory) === "gajiri");
+      (attacker.kind === "player" && weaponMarkIds(this.player.inventory).includes("gajiri"));
     const quickStart = hasQuickStartEffect && !this.usedQuickStart.has(attacker.id);
     if (hasQuickStartEffect) this.usedQuickStart.add(attacker.id);
 
@@ -1624,7 +1624,7 @@ export class Game {
     // 隣接する敵への攻撃に、眠り付与の確率+10%を上乗せする
     const hasDrowsyEffect =
       (attacker.kind === "ally" && hasSkill(attacker, "drowsyBreath")) ||
-      (attacker.kind === "player" && weaponMarkId(this.player.inventory) === "madoromi");
+      (attacker.kind === "player" && weaponMarkIds(this.player.inventory).includes("madoromi"));
     const drowsyBonus = hasDrowsyEffect ? 0.1 : 0;
     const inflictChance = (attacker.inflicts?.chance ?? 0) + drowsyBonus;
     // かなしばりの杖で封じられている間は、特技(状態異常の追加付与)が出せない
@@ -1664,7 +1664,7 @@ export class Game {
         events.push({ type: "message", text: "身構えていたので、ダメージをおさえた!" });
         return Math.max(1, Math.floor(damage * (1 - GUARD_DAMAGE_REDUCTION)));
       }
-      if (shieldMarkId(this.player.inventory) === "purun" && this.rng.chance(0.5)) {
+      if (shieldMarkIds(this.player.inventory).includes("purun") && this.rng.chance(0.5)) {
         events.push({ type: "message", text: "印の力で衝撃をやわらげた!" });
         return Math.max(1, Math.floor(damage * 0.9));
       }
@@ -1705,7 +1705,7 @@ export class Game {
 
   /** タルを投げたときの基礎ダメージ。ツブテガエルの印(plan/equipment-forging.md)で+2 */
   private barrelThrowDamage(): number {
-    return BARREL_DAMAGE + (weaponMarkId(this.player.inventory) === "tsubute" ? 2 : 0);
+    return BARREL_DAMAGE + (weaponMarkIds(this.player.inventory).includes("tsubute") ? 2 : 0);
   }
 
   private damageActor(target: Actor, damage: number, critical: boolean, events: GameEvent[]): void {
@@ -1736,7 +1736,7 @@ export class Game {
       const hasStubbornEffect =
         (hpOwner.kind === "ally" && hasSkill(hpOwner, "stubborn")) ||
         (hpOwner.kind === "player" &&
-          (shieldMarkId(this.player.inventory) === "honegarami" ||
+          (shieldMarkIds(this.player.inventory).includes("honegarami") ||
             charmDefId(this.player.inventory) === "guardianBell"));
       if (hpBeforeThisHit === 1 && hasStubbornEffect && !this.usedStubborn.has(hpOwner.id)) {
         hpOwner.hp = 1;

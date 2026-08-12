@@ -15,6 +15,18 @@ export const MARK_IMPRINT_DUST_COST = 3;
 
 export const HOKORA_DUST_DEF_ID = "hokoraDust";
 
+/**
+ * 2つ目の刻印を可能にする条件(plan/dual-mark-equipment.md)。
+ * 装備1つが持てる印の上限
+ */
+export const MAX_MARK_SLOTS = 2;
+
+/** 重ね刻みの砥石(2つ目の刻印の解放素材)のdefId */
+export const OVERLAY_STONE_DEF_ID = "overlayMarkStone";
+
+/** 重ね刻みの砥石を合成するのに必要な、ほこら粉の個数(刻印石2個は別途消費する) */
+export const OVERLAY_STONE_DUST_COST = 8;
+
 export interface MarkDef {
   id: MarkId;
   name: string;

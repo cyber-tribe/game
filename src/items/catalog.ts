@@ -421,6 +421,18 @@ export const ITEMS: readonly ItemDef[] = [
     description: "ゲンドの工房で盾に刻める。HPが1残っていれば、致死ダメージを1回だけ耐える。",
   },
   {
+    // 2つ目の刻印を可能にする条件(plan/dual-mark-equipment.md)。ゲンドの
+    // 工房で刻印石2つ+ほこら粉から合成する専用素材。ダンジョンでの直接
+    // ドロップにはしない(minFloor: Infinity・weight: 0で除外)
+    id: "overlayMarkStone",
+    name: "重ね刻みの砥石",
+    category: "material",
+    model: "herb",
+    minFloor: Number.POSITIVE_INFINITY,
+    weight: 0,
+    description: "ゲンドの工房で、+9の装備に2つ目の印を刻めるようにする。",
+  },
+  {
     // 地方ボス(plan/region-bosses.md)を撃破した確定ドロップ専用。
     // ランダムな床落ちには出さない(minFloor: Infinity・weight: 0で除外)
     id: "oonebosukeDust",

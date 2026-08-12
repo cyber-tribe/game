@@ -86,16 +86,16 @@ export function shieldBonus(inv: Inventory): number {
   return (itemDef(item.defId).bonus ?? 0) + (item.plus ?? 0) * SHIELD_PLUS_BONUS;
 }
 
-/** 装備中の武器に刻んである印。未刻印/未装備ならundefined */
-export function weaponMarkId(inv: Inventory): MarkId | undefined {
-  if (inv.weaponUid === null) return undefined;
-  return findItem(inv, inv.weaponUid)?.markId;
+/** 装備中の武器に刻んである印の一覧。未刻印/未装備なら空配列(plan/dual-mark-equipment.md、最大2件) */
+export function weaponMarkIds(inv: Inventory): MarkId[] {
+  if (inv.weaponUid === null) return [];
+  return findItem(inv, inv.weaponUid)?.markIds ?? [];
 }
 
-/** 装備中の盾に刻んである印。未刻印/未装備ならundefined */
-export function shieldMarkId(inv: Inventory): MarkId | undefined {
-  if (inv.shieldUid === null) return undefined;
-  return findItem(inv, inv.shieldUid)?.markId;
+/** 装備中の盾に刻んである印の一覧。未刻印/未装備なら空配列(plan/dual-mark-equipment.md、最大2件) */
+export function shieldMarkIds(inv: Inventory): MarkId[] {
+  if (inv.shieldUid === null) return [];
+  return findItem(inv, inv.shieldUid)?.markIds ?? [];
 }
 
 /** 装備中の頭防具の防御ボーナス(鉄兜のみ)。他の頭防具は数値に触れない方向の効果なので0 */
@@ -124,7 +124,7 @@ export function displayName(inv: Inventory, item: Item): string {
   if (def.category === "staff" && item.charges !== undefined) name += `[${item.charges}]`;
   if (def.category === "weapon" || def.category === "shield") {
     if (item.plus) name += `+${item.plus}`;
-    if (item.markId) name += `【${markDef(item.markId).name}】`;
+    for (const markId of item.markIds ?? []) name += `【${markDef(markId).name}】`;
   }
   if (isEquipped(inv, item.uid)) name += " (装備中)";
   return name;
