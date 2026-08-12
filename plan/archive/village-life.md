@@ -1,5 +1,40 @@
 # 村の暮らし(NPC・絆の基盤)
 
+> **実装済み。** `src/entities/village.ts`(`VillageNpcId`・
+> `VillageNpcDef`・`VILLAGE_NPCS`・`visibleVillageNpcs`)・`src/save.ts`
+> (`SaveData.bonds`・`seenVillageEvents`・`lastGiftDates`、
+> `raiseBond`・`markVillageEventSeen`・`giftMaterial`・
+> `villageNpcBondStage`、`resolveQuests`が依頼達成数ぶんオトネの絆を
+> 加算)・`src/ui/town.ts`(拠点に列16「NPCと話す」を新設。Enterで
+> 話す(絆段階を初めて跨いだ会話を1回だけ再生)、Gキーで倉庫の素材
+> (ほこら粉・刻印石)を献上)・`src/main.ts`(`onTalkToNpc`・
+> `onGiftMaterial`コールバックの配線)。
+>
+> テストは `tests/village-life.test.ts`(新規14件)。既存の
+> `tests/hidden-dungeon.test.ts`・`tests/save-compat.test.ts`
+> (新規フィクスチャ`v7-village-life.json`)も新フィールドに合わせて
+> 更新した。`npx tsc --noEmit`・`npx vitest run`(548件全て通過)・
+> `npm run build`を確認済み。
+>
+> 実装にあたって次の判断をした。
+>
+> - **絆の段階(`BondStage`)の閾値は、本文が挙げた「中3・高8・最高20」
+>   ではなく、既存の`bondStage`関数(仲間のなじみと同じ、中5・高15・
+>   最高30)をそのまま流用した。** 本文自身が「新しい型を増やさない」
+>   方針を掲げていたため、既存の閾値を変えずに使い回す方を優先した。
+> - **「話す」操作は絆を上げない。** 絆は依頼達成(オトネ)・素材献上
+>   だけで上がり、Enterで話す操作は「段階を初めて跨いだ会話を1回だけ
+>   再生する」既読フラグの確認・記録だけを行う。
+> - **NPCごとの専用のせりふプール(`DialoguePool`、`plan/flavor-and-
+>   dialogue.md`)はまだ実装しない。** 段階を跨いだ瞬間の会話は
+>   `onTalkToNpc`の配線だけを用意し、実際の会話文言(flavor-and-
+>   dialogue.md側の仕事)は本PRのスコープ外とした。現状は
+>   `seenVillageEvents`への記録のみが動く状態で、実際の会話テキスト
+>   表示はflavor-and-dialogue.md実装時に追加する想定。
+> - **素材献上のUIは、倉庫にある最初のほこら粉・刻印石を自動選択して
+>   渡す簡易な形にした。** 未決事項どおり、献上する素材を選ぶサブ
+>   メニューは作らず、Gキー1つで即座に献上する形に単純化した。
+
 `design/village-life.md` を実装可能な形に確定させる。**この文書は
 土台(絆の仕組み・NPCの配置)を扱い、`plan/archive/side-stories.md`
 (参照時点ではまだ書かれていないが同名の構想を指す)・`plan/side-

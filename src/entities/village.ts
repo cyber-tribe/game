@@ -45,3 +45,31 @@ export function canDevelopVillage(stage: VillageStage, deepest: number, gold: nu
   if (!next) return false;
   return deepest >= next.minDeepest && gold >= next.cost;
 }
+
+/**
+ * 村の暮らし(plan/village-life.md)。NPC・絆の基盤。
+ */
+export type VillageNpcId = "mogurababa" | "gendo" | "otone" | "okiyo" | "pochi" | "otama";
+
+export interface VillageNpcDef {
+  id: VillageNpcId;
+  name: string;
+  role: string;
+  /** 表示に必要な最深到達記録。省略時は常に表示(design/story.mdの「進行状況で出現が変わるNPC」の実装) */
+  appearsFromDeepest?: number;
+}
+
+export const VILLAGE_NPCS: readonly VillageNpcDef[] = [
+  { id: "mogurababa", name: "モグラ婆", role: "育ての親・倉庫番" },
+  { id: "gendo", name: "樽転がしのゲンド", role: "樽細工職人" },
+  { id: "otone", name: "肝いりのオトネ", role: "村の顔役" },
+  { id: "okiyo", name: "物知りのおキヨ", role: "生き物に詳しい老人" },
+  { id: "pochi", name: "ひよっこのポチ", role: "村の子供" },
+  // 第二地方クリア(deepest>=12)で出現。design/story.md第二章の救出イベント後という
+  // 設定の暫定的な代替指標(plan/village-life.md、章立て実装後に差し替える余地を残す)
+  { id: "otama", name: "目覚めたおたま", role: "救出された村人", appearsFromDeepest: 12 },
+];
+
+export function visibleVillageNpcs(deepest: number): readonly VillageNpcDef[] {
+  return VILLAGE_NPCS.filter((npc) => npc.appearsFromDeepest === undefined || deepest >= npc.appearsFromDeepest);
+}

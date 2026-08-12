@@ -67,6 +67,9 @@ describe("save.ts: recordRunは腕試しの間の踏破を記録する(plan/hidd
       unlockedCostumes: ["default"],
       equippedCostume: "default",
       arenaRecords: [],
+      bonds: {},
+      seenVillageEvents: [],
+      lastGiftDates: {},
     };
   }
 

@@ -6,12 +6,15 @@ import { DIFFICULTY_MODES, type DifficultyMode } from "./entities/difficulty";
 import { NIGHTLY_DREAM_ID, TRIAL_CHAMBER_ID } from "./entities/dungeons";
 import { MAX_RECENT_FUSION_MATERIALS, tryEvolve } from "./entities/evolution";
 import { HOKORA_DUST_DEF_ID, MARKS, MAX_PLUS } from "./entities/forging";
-import { MAX_ACTIVE_QUESTS, QUESTS, questDef, questsForDate } from "./entities/quests";
+import { MAX_ACTIVE_QUESTS, QUESTS, questDef, questsForDate, todayKey } from "./entities/quests";
 import type { TrainingFocus } from "./entities/player";
+import { bondStage } from "./entities/companionBond";
 import {
+  VILLAGE_NPCS,
   canDevelopVillage,
   hutCapacity,
   nextVillageStageRequirement,
+  type VillageNpcId,
   type VillageStage,
 } from "./entities/village";
 import { MAX_SKILLS, NATIVE_SKILL_BY_SPECIES, SKILLS, fullSkillSet } from "./entities/skills";
@@ -142,6 +145,12 @@ export interface SaveData {
   equippedCostume: string;
   /** 腕試しの間(plan/hidden-dungeon.md)。踏破するたびに記録が積み上がる。削除されない */
   arenaRecords: ArenaRecord[];
+  /** 村の暮らし(plan/village-life.md)。NPCのid → 絆レベル(0始まり) */
+  bonds: Record<string, number>;
+  /** 村の暮らし: 一度見た挿話のid(演出の再生防止)。例: "bond:mogurababa:familiar" */
+  seenVillageEvents: string[];
+  /** 村の暮らし: NPCのid → 最後に素材を渡した日付キー(YYYY-MM-DD)。1日1回の献上制限に使う */
+  lastGiftDates: Record<string, string>;
 }
 
 /** 腕試しの間(plan/hidden-dungeon.md)。踏破1回ぶんの記録 */
@@ -206,6 +215,9 @@ export function initialSave(): SaveData {
     unlockedCostumes: [DEFAULT_COSTUME_ID],
     equippedCostume: DEFAULT_COSTUME_ID,
     arenaRecords: [],
+    bonds: {},
+    seenVillageEvents: [],
+    lastGiftDates: {},
   };
 }
 
@@ -247,6 +259,9 @@ export function loadSave(): SaveData {
         sanitizeUnlockedCostumes(parsed.unlockedCostumes),
       ),
       arenaRecords: sanitizeArenaRecords(parsed.arenaRecords),
+      bonds: sanitizeBonds(parsed.bonds),
+      seenVillageEvents: sanitizeStringList(parsed.seenVillageEvents),
+      lastGiftDates: sanitizeLastGiftDates(parsed.lastGiftDates),
     };
   } catch {
     // 壊れた保存データで起動できなくなるほうが困るので、黙って初期値に戻す
@@ -461,6 +476,9 @@ export function recordRun(
             },
           ]
         : current.arenaRecords,
+    bonds: current.bonds,
+    seenVillageEvents: current.seenVillageEvents,
+    lastGiftDates: current.lastGiftDates,
   };
   // 依頼板(plan/quest-board.md): 受注中の依頼を判定し、達成していれば報酬を渡して外す
   const withQuests = resolveQuests(next, result);
@@ -526,12 +544,16 @@ function resolveQuests(
   }
 
   if (completed.length === 0) return current;
+  // 村の暮らし(plan/village-life.md): 依頼達成は肝いりのオトネの絆を上げる
+  // (依頼板の「顔」がオトネであるため、達成数ぶん一律で加算する単純な割り当て)
+  const bonds = { ...current.bonds, otone: (current.bonds.otone ?? 0) + completed.length };
   return {
     ...current,
     gold,
     storage,
     activeQuests: remaining,
     completedQuestIds: [...current.completedQuestIds, ...completed],
+    bonds,
   };
 }
 
@@ -1147,4 +1169,71 @@ function sanitizeArenaRecords(value: unknown): ArenaRecord[] {
     out.push({ clearedAt: r.clearedAt, turns: r.turns, damageTaken: r.damageTaken });
   }
   return out;
+}
+
+const VALID_VILLAGE_NPC_IDS = new Set(VILLAGE_NPCS.map((n) => n.id));
+
+/** 村の暮らし(plan/village-life.md): 既知のNPCidだけを残し、負の値は0に切り詰める */
+function sanitizeBonds(value: unknown): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (typeof value !== "object" || value === null) return out;
+  for (const [npcId, level] of Object.entries(value as Record<string, unknown>)) {
+    if (!VALID_VILLAGE_NPC_IDS.has(npcId as VillageNpcId)) continue;
+    if (typeof level !== "number" || !Number.isFinite(level)) continue;
+    out[npcId] = Math.max(0, Math.floor(level));
+  }
+  return out;
+}
+
+function sanitizeStringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((v): v is string => typeof v === "string");
+}
+
+function sanitizeLastGiftDates(value: unknown): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (typeof value !== "object" || value === null) return out;
+  for (const [npcId, date] of Object.entries(value as Record<string, unknown>)) {
+    if (!VALID_VILLAGE_NPC_IDS.has(npcId as VillageNpcId)) continue;
+    if (typeof date !== "string") continue;
+    out[npcId] = date;
+  }
+  return out;
+}
+
+/** 村の暮らし(plan/village-life.md): NPCの絆を上げる。存在しないNPCidは無視する */
+export function raiseBond(current: SaveData, npcId: VillageNpcId, amount = 1): SaveData {
+  if (!VALID_VILLAGE_NPC_IDS.has(npcId) || amount <= 0) return current;
+  const nextLevel = (current.bonds[npcId] ?? 0) + amount;
+  return { ...current, bonds: { ...current.bonds, [npcId]: nextLevel } };
+}
+
+/** 村の暮らし(plan/village-life.md): 挿話を「見た」として記録する。重複しない */
+export function markVillageEventSeen(current: SaveData, eventId: string): SaveData {
+  if (current.seenVillageEvents.includes(eventId)) return current;
+  return { ...current, seenVillageEvents: [...current.seenVillageEvents, eventId] };
+}
+
+/**
+ * 村の暮らし(plan/village-life.md): 素材をNPCに献上して絆を+1する。
+ * 対象の素材を1個以上持っていて、かつそのNPCへ今日まだ渡していない場合だけ成立する。
+ * 条件を満たさない場合は何も変えずそのまま返す(既存のacceptQuest等と同じ、静かな失敗パターン)。
+ */
+export function giftMaterial(current: SaveData, npcId: VillageNpcId, defId: string): SaveData {
+  if (!VALID_VILLAGE_NPC_IDS.has(npcId)) return current;
+  const today = todayKey();
+  if (current.lastGiftDates[npcId] === today) return current;
+  const index = current.storage.findIndex((item) => item.defId === defId);
+  if (index < 0) return current;
+  const storage = [...current.storage];
+  storage.splice(index, 1);
+  return raiseBond(
+    { ...current, storage, lastGiftDates: { ...current.lastGiftDates, [npcId]: today } },
+    npcId,
+  );
+}
+
+/** 村の暮らし(plan/village-life.md): NPCの絆段階が今の記録で新たに跨いだか確認するための補助 */
+export function villageNpcBondStage(current: SaveData, npcId: VillageNpcId): ReturnType<typeof bondStage> {
+  return bondStage(current.bonds[npcId] ?? 0);
 }
