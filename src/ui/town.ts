@@ -11,8 +11,8 @@ import {
 } from "../entities/forging";
 import { MAX_ALLIES, type TrainingFocus } from "../entities/player";
 import { SPECIES, speciesById } from "../entities/species";
-import { isCompendiumComplete, type SaveData, type StoredItem, type StoredMonster } from "../save";
-import { itemDef } from "../items/catalog";
+import { isCompendiumComplete, isWeaponCompendiumComplete, type SaveData, type StoredItem, type StoredMonster } from "../save";
+import { ITEMS, itemDef } from "../items/catalog";
 
 /** ダンジョンに持ち込める数。全部持って行けたら倉庫に預ける意味がない */
 export const CARRY_LIMIT = 8;
@@ -38,8 +38,8 @@ const TRAINING_FOCUS_DESCRIPTIONS: Record<TrainingFocus, string> = {
  */
 export class TownScreen {
   private open = false;
-  /** 0=倉庫 1=持ち込み 2=出発地点 3=鍛え方 4=つれていく仲間 5=ゲンドの工房 6=記録の間 7=モンスター図鑑 8=実績帳 */
-  private column: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 = 0;
+  /** 0=倉庫 1=持ち込み 2=出発地点 3=鍛え方 4=つれていく仲間 5=ゲンドの工房 6=記録の間 7=モンスター図鑑 8=実績帳 9=装備図鑑 */
+  private column: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 = 0;
   private cursor: [number, number] = [0, 0];
   private storage: StoredItem[] = [];
   private carry: StoredItem[] = [];
@@ -309,9 +309,29 @@ export class TownScreen {
         case "KeyA":
           this.column = 7;
           break;
+        case "ArrowRight":
+        case "KeyD":
+          this.column = 9;
+          break;
         case "Enter":
         case "NumpadEnter":
           this.toggleEquippedTitle();
+          break;
+        case "Space":
+          this.departNow();
+          return true;
+        default:
+          return true;
+      }
+      this.render();
+      return true;
+    }
+
+    if (this.column === 9) {
+      switch (code) {
+        case "ArrowLeft":
+        case "KeyA":
+          this.column = 8;
           break;
         case "Space":
           this.departNow();
@@ -597,6 +617,7 @@ export class TownScreen {
       this.renderRecords(),
       this.renderCompendium(),
       this.renderAchievements(),
+      this.renderEquipmentCompendium(),
     );
     box.appendChild(columns);
 
@@ -640,6 +661,11 @@ export class TownScreen {
       } else {
         desc.textContent = def?.description ?? "";
       }
+    } else if (this.column === 9) {
+      const complete = this.save ? isWeaponCompendiumComplete(this.save) : false;
+      desc.textContent = complete
+        ? "武器図鑑が全系統「極めた」で埋まった! 称号『樽守りの目利き』を実績帳で身につけられる。"
+        : "入手・強化・刻印の記録。武器は+9かつ印を刻んで初めて「極めた」になる。";
     } else {
       const selected = (this.column === 0 ? this.storage : this.carry)[this.cursor[this.column]];
       desc.textContent = selected ? itemDef(selected.defId).description : "";
@@ -915,6 +941,54 @@ export class TownScreen {
       if (this.column === 8 && index === this.achievementCursor) li.classList.add("selected");
       list.appendChild(li);
     });
+    wrapper.appendChild(list);
+    return wrapper;
+  }
+
+  /**
+   * 装備図鑑(plan/equipment-compendium.md)。武器・頭防具・装身具・印・素材の
+   * 入手/極めた状態を表示するだけの画面(カーソル移動・選択は無い)。
+   */
+  private renderEquipmentCompendium(): HTMLElement {
+    const wrapper = document.createElement("div");
+    wrapper.className = "town-col";
+    if (this.column === 9) wrapper.classList.add("active");
+
+    const heading = document.createElement("div");
+    heading.className = "town-col-title";
+    heading.textContent = "装備図鑑";
+    wrapper.appendChild(heading);
+
+    const equipment = this.save?.equipmentCompendium ?? {};
+    const marks = this.save?.markCompendium ?? {};
+    const materials = this.save?.materialCompendium ?? {};
+
+    const list = document.createElement("ul");
+    const weaponIds = ITEMS.filter((i) => i.category === "weapon").map((i) => i.id);
+    const mastered = weaponIds.filter((id) => equipment[id] === "mastered").length;
+    const summary = document.createElement("li");
+    summary.textContent = `武器: 極めた ${mastered} / ${weaponIds.length} 系統`;
+    list.appendChild(summary);
+
+    for (const def of ITEMS.filter((i) => i.category === "weapon" || i.category === "head" || i.category === "charm")) {
+      const status = equipment[def.id];
+      const label = status === "mastered" ? "極めた" : status === "owned" ? "入手済み" : "未発見";
+      const li = document.createElement("li");
+      li.textContent = status ? `${def.name}: ${label}` : `???: ${label}`;
+      list.appendChild(li);
+    }
+    for (const mark of MARKS) {
+      const label = marks[mark.id] === "owned" ? "入手済み" : "未発見";
+      const li = document.createElement("li");
+      li.textContent = `${markDef(mark.id).name}: ${label}`;
+      list.appendChild(li);
+    }
+    for (const def of ITEMS.filter((i) => i.category === "material")) {
+      const label = materials[def.id] === "owned" ? "入手済み" : "未発見";
+      const li = document.createElement("li");
+      li.textContent = materials[def.id] ? `${def.name}: ${label}` : `???: ${label}`;
+      list.appendChild(li);
+    }
     wrapper.appendChild(list);
     return wrapper;
   }

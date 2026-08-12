@@ -18,6 +18,7 @@ import { TownScreen } from "./ui/town";
 import {
   addKnownCheckpoint,
   checkAchievements,
+  checkEquipmentCompendium,
   clearRunSnapshot,
   fromStored,
   fuseMonsters,
@@ -121,9 +122,10 @@ class App {
           setTrainingFocus({ ...this.save, storage }, trainingFocus),
           bringAllyUids,
         );
-        // 実績帳(plan/achievements.md): 出発時点で倉庫・持ち込み品を
-        // まとめて走査し、強化・刻印系の実績を確定させる
-        this.save = checkAchievements(afterTake, carry);
+        // 装備図鑑(plan/equipment-compendium.md): 出発時点で倉庫・持ち込み品を
+        // まとめて走査し、入手・強化・刻印の記録を確定させる
+        // 実績帳(plan/achievements.md): 続けて強化・刻印系の実績も確定させる
+        this.save = checkAchievements(checkEquipmentCompendium(afterTake, carry), carry);
         saveData(this.save);
         this.newRun(carry, startDepth, trainingFocus, taken);
       },
