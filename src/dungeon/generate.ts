@@ -18,6 +18,8 @@ export interface GenerateOptions {
   height?: number;
   /** そのフロアに乗るギミック。plan/floor-gimmicks.md 参照 */
   gimmick?: FloorGimmickKind;
+  /** 難易度モード(plan/difficulty-modes.md)による、モンスターハウス出現率の倍率。省略時は1 */
+  monsterHouseChanceMultiplier?: number;
 }
 
 const DEFAULT_WIDTH = 48;
@@ -57,7 +59,14 @@ export function generateFloor(rng: Rng, opts: GenerateOptions): FloorState {
   // 検証に落ちたら作り直す。区画分割方式なら普通は一発で通るが、
   // 乱数の巡り合わせで妙な形になる可能性を潰しておく。
   for (let attempt = 0; attempt < 50; attempt++) {
-    const floor = tryGenerate(rng, opts.depth, width, height, opts.gimmick);
+    const floor = tryGenerate(
+      rng,
+      opts.depth,
+      width,
+      height,
+      opts.gimmick,
+      opts.monsterHouseChanceMultiplier ?? 1,
+    );
     if (floor && validate(floor)) return floor;
   }
   throw new Error(`フロア生成に失敗しました (depth=${opts.depth})`);
@@ -69,6 +78,7 @@ function tryGenerate(
   width: number,
   height: number,
   gimmick?: FloorGimmickKind,
+  monsterHouseChanceMultiplier = 1,
 ): FloorState | null {
   const tiles: Tile[] = new Array(width * height);
   for (let i = 0; i < tiles.length; i++) {
@@ -115,7 +125,7 @@ function tryGenerate(
   const stairsRoom = chooseStairsRoom(rng, sections, rooms, sectionRoom, chosen, gimmick);
   const stairs = randomTileInRoom(rng, stairsRoom);
 
-  designateMonsterHouse(rng, depth, rooms, stairsRoom);
+  designateMonsterHouse(rng, depth, rooms, stairsRoom, monsterHouseChanceMultiplier);
   designateShop(rng, depth, rooms, stairsRoom);
 
   return {
@@ -252,8 +262,14 @@ function monsterHouseChance(depth: number): number {
  * 階段の部屋は安全地帯として除外する。地形(通路)には一切手を入れないので、
  * 退路(既存のフラッドフィル到達可能性)は自動的に保たれる。
  */
-function designateMonsterHouse(rng: Rng, depth: number, rooms: Room[], stairsRoom: Room): void {
-  if (!rng.chance(monsterHouseChance(depth))) return;
+function designateMonsterHouse(
+  rng: Rng,
+  depth: number,
+  rooms: Room[],
+  stairsRoom: Room,
+  chanceMultiplier = 1,
+): void {
+  if (!rng.chance(monsterHouseChance(depth) * chanceMultiplier)) return;
   const candidates = rooms.filter(
     (room) => room !== stairsRoom && room.w * room.h >= MIN_MONSTER_HOUSE_AREA,
   );

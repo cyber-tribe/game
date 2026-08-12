@@ -74,6 +74,12 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
     description: "装備図鑑の武器をすべての系統「極めた」で埋める。",
     title: "樽守りの目利き",
   },
+  {
+    id: "hardModeClear",
+    name: "きびしいを踏破する",
+    description: "難易度「きびしい」で表の寝穴を踏破する。",
+    title: "屈強な踏破者",
+  },
 ];
 
 const BY_ID = new Map(ACHIEVEMENTS.map((a) => [a.id, a]));

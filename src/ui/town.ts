@@ -1,6 +1,12 @@
 import type { MarkId } from "../core/types";
 import { ACHIEVEMENTS, achievementDef } from "../entities/achievements";
 import {
+  DIFFICULTY_DESCRIPTIONS,
+  DIFFICULTY_MODES,
+  DIFFICULTY_NAMES,
+  type DifficultyMode,
+} from "../entities/difficulty";
+import {
   HOKORA_DUST_DEF_ID,
   MARKS,
   MARK_IMPRINT_DUST_COST,
@@ -38,8 +44,8 @@ const TRAINING_FOCUS_DESCRIPTIONS: Record<TrainingFocus, string> = {
  */
 export class TownScreen {
   private open = false;
-  /** 0=倉庫 1=持ち込み 2=出発地点 3=鍛え方 4=つれていく仲間 5=ゲンドの工房 6=記録の間 7=モンスター図鑑 8=実績帳 9=装備図鑑 */
-  private column: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 = 0;
+  /** 0=倉庫 1=持ち込み 2=出発地点 3=鍛え方 4=つれていく仲間 5=ゲンドの工房 6=記録の間 7=モンスター図鑑 8=実績帳 9=装備図鑑 10=難易度 */
+  private column: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 = 0;
   private cursor: [number, number] = [0, 0];
   private storage: StoredItem[] = [];
   private carry: StoredItem[] = [];
@@ -48,6 +54,8 @@ export class TownScreen {
   private startDepthIndex = 0;
   /** このダイブの鍛え方。前回選んだ方針を引き継いで開く */
   private trainingFocusIndex = TRAINING_FOCI.indexOf("balance");
+  /** 難易度モード(plan/difficulty-modes.md)。前回選んだものを引き継いで開く */
+  private difficultyIndex = DIFFICULTY_MODES.indexOf("normal");
   /** ねむり小屋の一覧上のカーソル位置 */
   private hutCursor = 0;
   /** 連れて行く仲間として選んだ、ねむり小屋のuid(最大 MAX_ALLIES 体) */
@@ -68,6 +76,7 @@ export class TownScreen {
         startDepth: number,
         trainingFocus: TrainingFocus,
         bringAllyUids: number[],
+        difficulty: DifficultyMode,
       ) => void)
     | null = null;
   private onFuse: ((axisUid: number, foodUid: number) => void) | null = null;
@@ -92,6 +101,7 @@ export class TownScreen {
       startDepth: number,
       trainingFocus: TrainingFocus,
       bringAllyUids: number[],
+      difficulty: DifficultyMode,
     ) => void,
     onFuse: (axisUid: number, foodUid: number) => void,
     onRename: (uid: number, current: string | undefined) => void,
@@ -107,6 +117,8 @@ export class TownScreen {
     // 前回選んだ鍛え方を引き継ぐ。一度決めておけば以後は何も聞かれない
     const idx = TRAINING_FOCI.indexOf(save.trainingFocus);
     this.trainingFocusIndex = idx >= 0 ? idx : TRAINING_FOCI.indexOf("balance");
+    const diffIdx = DIFFICULTY_MODES.indexOf(save.difficulty);
+    this.difficultyIndex = diffIdx >= 0 ? diffIdx : DIFFICULTY_MODES.indexOf("normal");
     this.hutCursor = 0;
     this.bringUids = [];
     this.fusionAxisUid = null;
@@ -332,6 +344,34 @@ export class TownScreen {
         case "ArrowLeft":
         case "KeyA":
           this.column = 8;
+          break;
+        case "ArrowRight":
+        case "KeyD":
+          this.column = 10;
+          break;
+        case "Space":
+          this.departNow();
+          return true;
+        default:
+          return true;
+      }
+      this.render();
+      return true;
+    }
+
+    if (this.column === 10) {
+      switch (code) {
+        case "ArrowUp":
+        case "KeyW":
+          this.difficultyIndex = wrap(this.difficultyIndex - 1, DIFFICULTY_MODES.length);
+          break;
+        case "ArrowDown":
+        case "KeyS":
+          this.difficultyIndex = wrap(this.difficultyIndex + 1, DIFFICULTY_MODES.length);
+          break;
+        case "ArrowLeft":
+        case "KeyA":
+          this.column = 9;
           break;
         case "Space":
           this.departNow();
@@ -564,9 +604,10 @@ export class TownScreen {
     const storage = this.storage.map((s) => ({ ...s }));
     const startDepth = this.checkpoints()[this.startDepthIndex] ?? 1;
     const trainingFocus = TRAINING_FOCI[this.trainingFocusIndex] ?? "balance";
+    const difficulty = DIFFICULTY_MODES[this.difficultyIndex] ?? "normal";
     const bringAllyUids = [...this.bringUids];
     this.hide();
-    depart?.(carry, storage, startDepth, trainingFocus, bringAllyUids);
+    depart?.(carry, storage, startDepth, trainingFocus, bringAllyUids, difficulty);
   }
 
   private render(): void {
@@ -618,6 +659,7 @@ export class TownScreen {
       this.renderCompendium(),
       this.renderAchievements(),
       this.renderEquipmentCompendium(),
+      this.renderDifficulty(),
     );
     box.appendChild(columns);
 
@@ -666,6 +708,9 @@ export class TownScreen {
       desc.textContent = complete
         ? "武器図鑑が全系統「極めた」で埋まった! 称号『樽守りの目利き』を実績帳で身につけられる。"
         : "入手・強化・刻印の記録。武器は+9かつ印を刻んで初めて「極めた」になる。";
+    } else if (this.column === 10) {
+      const mode = DIFFICULTY_MODES[this.difficultyIndex] ?? "normal";
+      desc.textContent = DIFFICULTY_DESCRIPTIONS[mode];
     } else {
       const selected = (this.column === 0 ? this.storage : this.carry)[this.cursor[this.column]];
       desc.textContent = selected ? itemDef(selected.defId).description : "";
@@ -989,6 +1034,28 @@ export class TownScreen {
       li.textContent = materials[def.id] ? `${def.name}: ${label}` : `???: ${label}`;
       list.appendChild(li);
     }
+    wrapper.appendChild(list);
+    return wrapper;
+  }
+
+  /** 難易度モード(plan/difficulty-modes.md)。次回のダイブから反映される */
+  private renderDifficulty(): HTMLElement {
+    const wrapper = document.createElement("div");
+    wrapper.className = "town-col";
+    if (this.column === 10) wrapper.classList.add("active");
+
+    const heading = document.createElement("div");
+    heading.className = "town-col-title";
+    heading.textContent = "難易度";
+    wrapper.appendChild(heading);
+
+    const list = document.createElement("ul");
+    DIFFICULTY_MODES.forEach((mode, index) => {
+      const li = document.createElement("li");
+      li.textContent = DIFFICULTY_NAMES[mode];
+      if (this.column === 10 && index === this.difficultyIndex) li.classList.add("selected");
+      list.appendChild(li);
+    });
     wrapper.appendChild(list);
     return wrapper;
   }

@@ -65,6 +65,15 @@ import {
   decideAllyAction,
   decideMonsterAction,
 } from "./entities/ai";
+import {
+  GIMMICK_CHANCE_MULTIPLIER,
+  GOLD_REWARD_MULTIPLIER,
+  MONSTER_ATK_MULTIPLIER,
+  MONSTER_HOUSE_CHANCE_MULTIPLIER,
+  SATIETY_RATE_MULTIPLIER,
+  SHINING_CHANCE_DIFFICULTY_MULTIPLIER,
+  type DifficultyMode,
+} from "./entities/difficulty";
 import { HOKORA_DUST_DEF_ID, MARK_STONE_DEF_ID, MARKS } from "./entities/forging";
 import {
   MAX_ALLIES,
@@ -191,6 +200,8 @@ export interface RunOptions {
    * いるか。true ならかがやきの夢のかけらの出現率がわずかに上がる
    */
   compendiumComplete?: boolean;
+  /** 難易度モード(plan/difficulty-modes.md)。省略時は "normal" */
+  difficulty?: DifficultyMode;
 }
 
 export type RunStatus = "playing" | "dead" | "cleared";
@@ -305,6 +316,9 @@ export class Game {
   /** 図鑑を全種「捕まえた」まで埋めているか(plan/monster-compendium.md) */
   private compendiumComplete = false;
 
+  /** 難易度モード(plan/difficulty-modes.md) */
+  private difficulty: DifficultyMode = "normal";
+
   private actorIdCounter = 1;
   private itemUidCounter = 1;
   private barrelIdCounter = 1;
@@ -350,6 +364,7 @@ export class Game {
     this.maxDepth = opts.maxDepth ?? 10;
     this.trainingFocus = opts.trainingFocus ?? "balance";
     this.compendiumComplete = opts.compendiumComplete ?? false;
+    this.difficulty = opts.difficulty ?? "normal";
     this.player = createPlayer(1);
 
     for (const item of opts.startingItems ?? []) {
@@ -392,16 +407,32 @@ export class Game {
   private enterFloor(depth: number): void {
     this.depth = depth;
     this.monsterHouseWarned = false;
-    const gimmick = pickFloorGimmick(this.rng, depth, this.previousGimmick);
+    const gimmick = pickFloorGimmick(this.rng, depth, this.previousGimmick, GIMMICK_CHANCE_MULTIPLIER[this.difficulty]);
     this.previousGimmick = gimmick;
-    this.floor = generateFloor(this.rng, { depth, gimmick });
+    this.floor = generateFloor(this.rng, {
+      depth,
+      gimmick,
+      monsterHouseChanceMultiplier: MONSTER_HOUSE_CHANCE_MULTIPLIER[this.difficulty],
+    });
     const start = choosePlayerStart(this.rng, this.floor);
     this.player.pos = start;
     this.floor.actors.push(this.player);
     const boostedItemDefId =
       charmDefId(this.player.inventory) === "dustLureSachet" ? "hokoraDust" : undefined;
-    const shiningChanceMultiplier = this.compendiumComplete ? COMPENDIUM_COMPLETE_SHINING_MULTIPLIER : 1;
-    populateFloor(this.rng, this.floor, this.ids, start, boostedItemDefId, this.shopWary, shiningChanceMultiplier);
+    const shiningChanceMultiplier =
+      (this.compendiumComplete ? COMPENDIUM_COMPLETE_SHINING_MULTIPLIER : 1) *
+      SHINING_CHANCE_DIFFICULTY_MULTIPLIER[this.difficulty];
+    populateFloor(
+      this.rng,
+      this.floor,
+      this.ids,
+      start,
+      boostedItemDefId,
+      this.shopWary,
+      shiningChanceMultiplier,
+      MONSTER_ATK_MULTIPLIER[this.difficulty],
+      GOLD_REWARD_MULTIPLIER[this.difficulty],
+    );
 
     // 仲間は階段について来る。プレイヤーの周りの空いたマスに並べる
     for (const ally of this.allies) {
@@ -1778,7 +1809,7 @@ export class Game {
     const feastMultiplier = this.floor.gimmick === "feast" ? 0.5 : 1;
     // 満たされ石(plan/protagonist-equipment.md): 満腹度の減りが2割ゆるやかになる
     const charmMultiplier = charmDefId(player.inventory) === "fulfillingStone" ? 0.8 : 1;
-    const rate = SATIETY_PER_TURN * feastMultiplier * charmMultiplier;
+    const rate = SATIETY_PER_TURN * feastMultiplier * charmMultiplier * SATIETY_RATE_MULTIPLIER[this.difficulty];
     player.satiety = Math.max(0, player.satiety - rate);
 
     if (before > 20 && player.satiety <= 20) {
