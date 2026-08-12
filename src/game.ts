@@ -289,6 +289,9 @@ const MIRROR_AUTO_DISPEL_TURNS = 5;
 /** 第八地方(めざめの前庭)固有ギミック(plan/dream-garden-mosaic.md): 抽選対象の地方番号(第二〜第七地方) */
 const MOSAIC_CANDIDATE_REGIONS = [2, 3, 4, 5, 6, 7];
 
+/** 地方ボス(plan/region-boss-horikuinonushi.md): 大技(groundSpikes)の威力 */
+const GROUND_SPIKES_DAMAGE = 26;
+
 /** タルの飛距離 */
 const BARREL_RANGE = 8;
 /** タルをぶつけたときの基本ダメージ */
@@ -603,6 +606,29 @@ export class Game {
    */
   private regionGimmickApplies(depth: number, from: number, to: number, region: number): boolean {
     return (depth >= from && depth <= to) || this.mosaicRegions.includes(region);
+  }
+
+  /**
+   * 地方ボス(plan/region-boss-horikuinonushi.md): 大技(groundSpikes)の予兆。
+   * 対象の位置を中心とした十字型(中心+上下左右)のうち、部屋タイルにだけ
+   * crackWarningを立てる。実際に立てた位置を返す
+   */
+  private markGroundSpikeWarnings(center: Vec2): Vec2[] {
+    const candidates: Vec2[] = [
+      center,
+      { x: center.x - 1, y: center.y },
+      { x: center.x + 1, y: center.y },
+      { x: center.x, y: center.y - 1 },
+      { x: center.x, y: center.y + 1 },
+    ];
+    const marked: Vec2[] = [];
+    for (const pos of candidates) {
+      const tile = tileAt(this.floor, pos);
+      if (!tile || tile.kind !== TILE_ROOM) continue;
+      tile.crackWarning = true;
+      marked.push(pos);
+    }
+    return marked;
   }
 
   /** 指定位置の近くで、誰も立っていないマスを探す */
@@ -1171,6 +1197,14 @@ export class Game {
       if (chargingBoss) {
         chargingBoss.telegraphCharge = false;
         events.push({ type: "message", text: "大技の気配が霧散した!" });
+        // 地方ボス(plan/region-boss-horikuinonushi.md): 解除時、発動しないまま
+        // 残り続けてしまう部屋内のひび割れ予告も一緒に消す
+        for (let y = room.y; y < room.y + room.h; y++) {
+          for (let x = room.x; x < room.x + room.w; x++) {
+            const tile = tileAt(this.floor, { x, y });
+            if (tile) tile.crackWarning = false;
+          }
+        }
       }
     }
   }
@@ -2094,6 +2128,12 @@ export class Game {
           if (target && telegraph) {
             actor.facing = dirFromDelta(target.pos.x - actor.pos.x, target.pos.y - actor.pos.y);
             events.push({ type: "message", text: `${displayActorName(actor)}は${telegraph.message}――!` });
+            // 地方ボス(plan/region-boss-horikuinonushi.md): groundSpikesだけは、
+            // 予兆ターンの時点で床にひび割れ(crackWarning)を立てて危険地帯を可視化する
+            if (telegraph.effect === "groundSpikes") {
+              const positions = this.markGroundSpikeWarnings(target.pos);
+              if (positions.length > 0) events.push({ type: "crackWarning", positions });
+            }
           }
           break;
         }
@@ -2202,6 +2242,25 @@ export class Game {
           const from = actor.pos;
           actor.pos = action.to;
           events.push({ type: "teleport", actorId: actor.id, from, to: action.to });
+          break;
+        }
+        case "groundSpikes": {
+          // 地方ボス(plan/region-boss-horikuinonushi.md): 予兆を消費した大技。
+          // crackWarningの立つ全マスについて、上にいるアクターへダメージを
+          // 適用し、その後crackWarningをすべて解除する
+          events.push({ type: "message", text: `${displayActorName(actor)}が地面から杭を突き上げた!` });
+          for (let i = 0; i < this.floor.tiles.length; i++) {
+            const tile = this.floor.tiles[i]!;
+            if (!tile.crackWarning) continue;
+            tile.crackWarning = false;
+            const pos = { x: i % this.floor.width, y: Math.floor(i / this.floor.width) };
+            const hit = actorAt(this.floor, pos);
+            if (!hit || !hit.alive) continue;
+            const result = computeDamage(this.rng, GROUND_SPIKES_DAMAGE, hit.def);
+            events.push({ type: "message", text: `${displayActorName(hit)}に${result.damage}のダメージ!` });
+            this.damageActor(hit, result.damage, result.critical, events);
+            if (this.status !== "playing") return;
+          }
           break;
         }
       }

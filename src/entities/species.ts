@@ -294,6 +294,30 @@ export const SPECIES: readonly Species[] = [
     },
     bossGuaranteedDrop: "misemonoNoOmen",
   },
+  {
+    // 第八地方: めざめの前庭(design/regions.md 43〜48階)。近道屋が打ち込んだ
+    // 杭が、ヨリシロの夢と混ざり合ってできた異形。表の寝穴・最後のボス。
+    // 大技(groundSpikes)は唯一、床そのものに前兆(crackWarning)が
+    // 表示されるタイプ(plan/region-boss-horikuinonushi.md)
+    id: "horikuiNoNushi",
+    name: "掘り杭の主",
+    model: "honegarami",
+    maxHp: 304,
+    atk: 59,
+    def: 42,
+    exp: 120,
+    ai: "melee",
+    minFloor: Number.POSITIVE_INFINITY,
+    weight: 0,
+    isRegionBoss: true,
+    bossTelegraph: {
+      message: "足もとの地面がひび割れはじめた",
+      multiplier: 1,
+      cooldownTurns: 4,
+      effect: "groundSpikes",
+    },
+    bossGuaranteedDrop: "horikuiNoKuiSaki",
+  },
 
   // ---- plan/monster-compendium.md: 地方別の新種 ----
   // 新規3Dモデルは今回のスコープでは制作せず、既存モデルを色違いの発想で
@@ -520,7 +544,7 @@ export function speciesForDepth(depth: number): Species[] {
  * 地方ボス(plan/region-bosses.md)。表の寝穴(MAIN_CAVE_ID)で、その階の
  * 地方の最終階(6階目)にだけ専用に配置する種族id。design/regions.mdの
  * 8地方(6階ごと、48階)は`plan/region-expansion.md`で実装済み。
- * 残り1地方のボスは未実装のため、実装済みの7体ぶんだけを登録する
+ * 表の寝穴の全8地方ぶん、実装済み
  */
 export const REGION_BOSS_FLOORS: Readonly<Record<number, string>> = {
   6: "oonebosuke",
@@ -530,6 +554,7 @@ export const REGION_BOSS_FLOORS: Readonly<Record<number, string>> = {
   30: "fuchiNoNushi",
   36: "kodamaNoNushi",
   42: "misemonoNoNushi",
+  48: "horikuiNoNushi",
 };
 
 /**
@@ -545,4 +570,5 @@ export const REGION_BOSS_ORDER: readonly string[] = [
   "fuchiNoNushi",
   "kodamaNoNushi",
   "misemonoNoNushi",
+  "horikuiNoNushi",
 ];

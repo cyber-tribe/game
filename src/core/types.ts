@@ -24,6 +24,11 @@ export interface Tile {
    * タイルの一部に付与される。この向きへ強制的に押し流す
    */
   torrent?: Dir;
+  /**
+   * 地方ボス(plan/region-boss-horikuinonushi.md)。予兆ターンに一時的に
+   * 立つ、杭の突き上げ予告。発動ターンでダメージ適用後に解除される
+   */
+  crackWarning?: boolean;
 }
 
 export function isWalkable(kind: TileKind): boolean {
@@ -182,7 +187,12 @@ export interface Species {
      * 召喚する(plan/region-boss-kodamanonushi.md、Actor.sharesHpWith参照)。
      * "summonMirror"は本体そっくりの幻影を3体召喚する。当てると即消える
      * 幻影で、本体を選び当てる駆け引きになる(plan/region-boss-
-     * misemonononushi.md、Actor.mirrorOf参照)
+     * misemonononushi.md、Actor.mirrorOf参照)。
+     * "groundSpikes"は唯一、予兆ターンの時点で床にTile.crackWarningを
+     * 立てて危険地帯を可視化する(他の効果はメッセージだけで危険を伝える)。
+     * 発動ターンでcrackWarningの立つマスにいる全アクターへダメージを
+     * 適用し、その後crackWarningを解除する(plan/region-boss-
+     * horikuinonushi.md)
      */
     effect?:
       | "targetedStrike"
@@ -190,7 +200,8 @@ export interface Species {
       | "aoeSeal"
       | "summonTorrent"
       | "summonEcho"
-      | "summonMirror";
+      | "summonMirror"
+      | "groundSpikes";
   };
   /** 地方ボスを撃破すると確定ドロップする、その地方限定の素材のdefId */
   bossGuaranteedDrop?: string;

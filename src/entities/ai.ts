@@ -51,7 +51,9 @@ export type MonsterAction =
   /** 地方ボス(plan/region-boss-misemonononushi.md)。予兆を消費し、本体そっくりの幻影を3体呼び出す */
   | { type: "summonMirror" }
   /** burrow(plan/monster-compendium.md)。潜伏から地上へ現れる。呼び出し側で位置を動かし、teleportイベントを出す */
-  | { type: "burrowSurface"; to: Vec2 };
+  | { type: "burrowSurface"; to: Vec2 }
+  /** 地方ボス(plan/region-boss-horikuinonushi.md)。予兆を消費し、crackWarningの立つマスにいる全員へ地面から杭を突き上げる */
+  | { type: "groundSpikes" };
 
 /**
  * 指定した地点からの歩数を全マスぶん求めた距離場(いわゆるダイクストラマップ)。
@@ -301,6 +303,7 @@ export function decideMonsterAction(
         if (telegraph.effect === "summonTorrent") return { type: "summonTorrent" };
         if (telegraph.effect === "summonEcho") return { type: "summonEcho" };
         if (telegraph.effect === "summonMirror") return { type: "summonMirror" };
+        if (telegraph.effect === "groundSpikes") return { type: "groundSpikes" };
         return { type: "attack", targetId: adjacent.id, empowered: true };
       }
       if (!monster.telegraphCooldown) {

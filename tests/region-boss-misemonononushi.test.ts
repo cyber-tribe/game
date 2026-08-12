@@ -85,8 +85,10 @@ describe("entities/species.ts: 見世物のぬし(第七地方ボス)", () => {
     expect(species.bossTelegraph?.effect).toBe("summonMirror");
   });
 
-  it("REGION_BOSS_ORDERの最後に登録されている", () => {
-    expect(REGION_BOSS_ORDER[REGION_BOSS_ORDER.length - 1]).toBe("misemonoNoNushi");
+  it("REGION_BOSS_ORDERで掘り杭の主(第八地方)の直前に登録されている", () => {
+    expect(REGION_BOSS_ORDER.indexOf("misemonoNoNushi")).toBe(
+      REGION_BOSS_ORDER.indexOf("horikuiNoNushi") - 1,
+    );
   });
 });
 

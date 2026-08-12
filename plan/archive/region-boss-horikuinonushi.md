@@ -1,3 +1,45 @@
+> **実装済み。**
+> `src/core/types.ts`(`Tile.crackWarning?: boolean` を追加。
+> `Species.bossTelegraph.effect` に `"groundSpikes"` を追加。
+> 唯一、床そのものに前兆が表示されるタイプ)、`src/core/events.ts`
+> (`GameEvent` に `{ type: "crackWarning"; positions: Vec2[] }` を追加)、
+> `src/entities/ai.ts`(`MonsterAction` に `{ type: "groundSpikes" }` を
+> 追加。ボス分岐で`effect === "summonMirror"`の次に
+> `effect === "groundSpikes"`の判定を追加)、`src/entities/species.ts`
+> (`horikuiNoNushi` を追加、`REGION_BOSS_FLOORS[48]` /
+> `REGION_BOSS_ORDER` の末尾に登録)、`src/items/catalog.ts`
+> (`horikuiNoKuiSaki` を追加)、`src/game.ts` に実装した。
+> テストは `tests/region-boss-horikuinonushi.test.ts`(13件)。
+>
+> `src/game.ts` の実装詳細:
+> - これまで全ボス共通・メッセージのみだった`case "telegraph":`を、
+>   `groundSpikes`のときだけ`markGroundSpikeWarnings(target.pos)`を
+>   呼んで`crackWarning`を立てる分岐で拡張した(初めて予兆ターンに
+>   タイル状態を変更するボス)。
+> - ひび割れパターンは「未決事項」にあった4〜6マスの中から、
+>   プレイヤーの現在位置を中心とした**十字型(中心+上下左右の5マス)**
+>   に決定。`TILE_ROOM`のマスのみ対象とする。
+> - `case "groundSpikes":`で全床タイルを走査し、`crackWarning`が
+>   立っているマスにいるアクターにのみ`computeDamage`でダメージを
+>   与え(未使用のタイルは何も起きない=回避可能)、判定後に
+>   `crackWarning`を解除する。ダメージ量は`GROUND_SPIKES_DAMAGE = 26`
+>   固定(`explode()`のタル爆発ダメージと同水準)。
+> - プランには明記されていなかった追加対応として、`explode()`の
+>   大技解除(タルによる`telegraphCharge`解除)ロジックに、同じ部屋の
+>   `crackWarning`も一緒にクリアする処理を追加した。解除しないと、
+>   発動されないまま`crackWarning`が床に残り続けるため。
+>
+> モデルは新規制作せず、`honegarami`(`yorishironozankyo`由来、本ボスで
+> 4体目の流用)を使用。HP・攻撃力・防御力は`yorishironozankyo`
+> (HP160・atk45・def32)を基準に共通仕様の係数(約1.9倍/約1.3倍)で
+> 算出し、表の寝穴・全8地方ボスの中で最高値(HP304・atk59・def42)にした。
+>
+> 「山の芯」への接続(新規ダンジョンエントリ・解放条件)は本文書の
+> スコープ外のまま未実装(プランに明記の通り、別文書に譲る)。また、
+> `crackWarning`の3D描画(`view/`・`dungeonMesh.ts`側の可視化)も
+> `plan/archive/festival-mirage.md`の前例に倣い、バックエンドの
+> ゲームロジックのみのスコープとして今回は実装していない。
+
 # 第八地方ボス: 掘り杭の主
 
 `plan/archive/region-bosses.md` の共通仕様の上に、第八地方(めざめの
