@@ -90,8 +90,8 @@ describe("entities/species.ts: ホネヅカのぬし(第四地方ボス)", () =>
     expect(species.def).toBeGreaterThan(honegarami.def);
   });
 
-  it("REGION_BOSS_ORDERの最後に登録されている", () => {
-    expect(REGION_BOSS_ORDER[REGION_BOSS_ORDER.length - 1]).toBe("honezukaNoNushi");
+  it("REGION_BOSS_ORDERに、オオマドロミに続いて登録されている", () => {
+    expect(REGION_BOSS_ORDER.indexOf("honezukaNoNushi")).toBe(REGION_BOSS_ORDER.indexOf("oomadoromi") + 1);
   });
 });
 

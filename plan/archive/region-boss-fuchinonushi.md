@@ -1,3 +1,34 @@
+> **実装済み。**
+> `src/core/types.ts`(`Species.bossTelegraph.effect` に
+> `"summonTorrent"` を追加。`Actor.summonedTorrentTiles?: { pos: Vec2;
+> expiresIn: number }[]` を追加)、`src/entities/ai.ts`
+> (`MonsterAction` に `{ type: "summonTorrent" }` を追加。ボス分岐で
+> `effect === "summonTorrent"` のときは `summonTorrent` を返す)、
+> `src/entities/species.ts`(`fuchiNoNushi` を追加、
+> `REGION_BOSS_FLOORS[30]` / `REGION_BOSS_ORDER` に登録)、
+> `src/items/catalog.ts`(`fuchiNoNushiNoUroko` を追加)、`src/game.ts`
+> (`"summonTorrent"` ケースを追加。ボスのいる部屋の外周タイル
+> (`TILE_ROOM` のもののみ)へ、部屋の中心方向を向いた `torrent` を設定し、
+> `actor.summonedTorrentTiles` に記録する。`tickSummonedTorrentTiles` を
+> 新設し `upkeep()` から毎ターン呼んで `expiresIn` を減らし、0になったら
+> `torrent` を `undefined` に戻す)に実装した。既存の奔流タイルの押し流し
+> 処理(`plan/waterfall-torrent.md` の `applyTorrentPush`)と、`explode()`
+> の予兆解除処理(`plan/region-boss-oomadoromi.md`で追加済み、ボス種族を
+> 問わない作り)はどちらも変更なしでそのまま効く。テストは
+> `tests/region-boss-fuchinonushi.test.ts`(11件)。
+>
+> 実装時の判断:
+> - **モデル**: 新規3Dモデルは作らず、第五地方雑魚最上位種
+>   `urumiguma`(うるみぐま)と同じ `honegarami` を流用した(これまでの
+>   地方ボスの前例に合わせた判断)。
+> - **一時的な奔流タイルの配置パターン**: 未決事項どおり実装時に判断し、
+>   「部屋の外周全周」を選んだ(壁際タイル全周のうち `TILE_ROOM` のものに
+>   限定)。各タイルの向きは、部屋の中心へ向かう方向(`dirFromDelta`で
+>   機械的に算出)にした。
+> - **HP・攻撃力・防御力**: 第五地方雑魚最上位種(`urumiguma`:
+>   HP60・atk22・def18)を基準に、共通仕様(HP1.8〜2.2倍・攻撃力1.3倍
+>   程度)で算出した(HP114・atk29・def23)。
+
 # 第五地方ボス: 淵の主
 
 `plan/archive/region-bosses.md` の共通仕様の上に、第五地方(なみだの

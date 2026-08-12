@@ -43,7 +43,9 @@ export type MonsterAction =
   /** 地方ボス(plan/region-boss-oomadoromi.md)。予兆を消費し、隣接を問わず自分の部屋全体に睡眠を放つ */
   | { type: "boomAoeSleep" }
   /** 地方ボス(plan/region-boss-honezuka.md)。予兆を消費し、隣接を問わず自分の部屋全体に封じを放つ */
-  | { type: "boomAoeSeal" };
+  | { type: "boomAoeSeal" }
+  /** 地方ボス(plan/region-boss-fuchinonushi.md)。予兆を消費し、自分の部屋の外周へ一時的に奔流を呼び込む */
+  | { type: "summonTorrent" };
 
 /**
  * 指定した地点からの歩数を全マスぶん求めた距離場(いわゆるダイクストラマップ)。
@@ -281,6 +283,7 @@ export function decideMonsterAction(
         monster.telegraphCharge = false;
         if (telegraph.effect === "aoeSleep") return { type: "boomAoeSleep" };
         if (telegraph.effect === "aoeSeal") return { type: "boomAoeSeal" };
+        if (telegraph.effect === "summonTorrent") return { type: "summonTorrent" };
         return { type: "attack", targetId: adjacent.id, empowered: true };
       }
       if (!monster.telegraphCooldown) {
