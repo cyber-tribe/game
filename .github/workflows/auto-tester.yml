@@ -1,0 +1,208 @@
+name: 自動テストプレイ
+
+# plan/archive/auto-tester.md: プレイヤーの代わりにゲームを遊び、
+# 見つけた不具合を自動でGitHub Issueに起票する。npm run playtest
+# (決まった導線の機械的な回帰確認、ci.yml)を置き換えるものではなく、
+# まだ知らない不具合を重み付きランダムな入力で探す、別の仕組み。
+on:
+  schedule:
+    - cron: "0 18 * * *" # 毎日 JST 3:00(UTC 18:00)。開発時間帯を避ける
+  workflow_dispatch: {}
+
+permissions:
+  issues: write
+  contents: read
+
+concurrency:
+  group: auto-tester
+  cancel-in-progress: false
+
+jobs:
+  explore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Chromium を用意する
+        run: |
+          npm i --no-save playwright@^1.56
+          npx playwright install --with-deps chromium
+
+      - name: 本番ビルド
+        run: npm run build
+
+      - name: プレビューサーバーを起動して待つ
+        run: |
+          npx vite preview --port 4173 --host 127.0.0.1 > preview.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:4173/ -o /dev/null; then
+              echo "サーバーが立ち上がりました"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "プレビューサーバーが起動しませんでした"
+          cat preview.log
+          exit 1
+
+      - name: 自動探索(8セッション、重み付きランダム入力)
+        env:
+          URL: http://127.0.0.1:4173/
+          OUT: auto-tester-shots
+        run: npm run auto-tester
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: auto-tester-shots
+          path: auto-tester-shots/
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: 異常をGitHub Issueへ起票(重複排除つき)
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require("fs");
+            const reportPath = "auto-tester-shots/report.json";
+            if (!fs.existsSync(reportPath)) {
+              console.log("report.json が無い(探索が最後まで走らなかった可能性)。Issueは作らない。");
+              return;
+            }
+            const report = JSON.parse(fs.readFileSync(reportPath, "utf8"));
+
+            // 1. 実行内ではまず1件にまとめる(同じフィンガープリントからは最大1回しかAPIを呼ばない)
+            const groups = new Map();
+            for (const session of report.sessions) {
+              for (const a of session.anomalies) {
+                if (!groups.has(a.fingerprint)) {
+                  groups.set(a.fingerprint, {
+                    fingerprint: a.fingerprint,
+                    kind: a.kind,
+                    detail: a.detail,
+                    lowConfidence: !!a.lowConfidence,
+                    screen: session.finalHud?.screen ?? "unknown",
+                    count: 0,
+                    sample: { session, anomaly: a },
+                  });
+                }
+                groups.get(a.fingerprint).count++;
+              }
+            }
+            console.log(`検出したユニークな異常: ${groups.size}件`);
+
+            const MAX_NEW_ISSUES = 5; // 4. サーキットブレーカー
+            let newIssueCount = 0;
+
+            for (const group of groups.values()) {
+              const marker = `<!-- auto-tester:fingerprint:sha256:${group.fingerprint} -->`;
+
+              // 3. 起票前に既存Issueを検索する(auto-reportラベル、open/closed問わず)
+              const searchResult = await github.rest.search.issuesAndPullRequests({
+                q: `repo:${context.repo.owner}/${context.repo.repo} label:auto-report "${group.fingerprint}" in:body`,
+              });
+              const existing = searchResult.data.items[0];
+
+              if (existing) {
+                if (existing.state === "open") {
+                  const comments = await github.rest.issues.listComments({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: existing.number,
+                    per_page: 100,
+                  });
+                  const ourComments = comments.data.filter((c) => c.body?.includes(marker));
+                  const lastAt =
+                    ourComments.length > 0
+                      ? new Date(ourComments[ourComments.length - 1].created_at).getTime()
+                      : new Date(existing.created_at).getTime();
+                  if (Date.now() - lastAt >= 24 * 60 * 60 * 1000) {
+                    await github.rest.issues.createComment({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      issue_number: existing.number,
+                      body: `また${group.count}回再現しました(このバッチ内)。\n\n${marker}`,
+                    });
+                    console.log(`#${existing.number} に再発コメントを追記: ${group.fingerprint}`);
+                  } else {
+                    console.log(`#${existing.number} は24時間以内にコメント済みなのでスキップ: ${group.fingerprint}`);
+                  }
+                } else {
+                  const detail = await github.rest.issues.get({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: existing.number,
+                  });
+                  if (detail.data.state_reason === "completed") {
+                    await github.rest.issues.update({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      issue_number: existing.number,
+                      state: "open",
+                    });
+                    await github.rest.issues.createComment({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      issue_number: existing.number,
+                      body: `直したはずが再発しました。\n\n${marker}`,
+                    });
+                    console.log(`#${existing.number} を再オープン(リグレッション): ${group.fingerprint}`);
+                  } else {
+                    console.log(`#${existing.number} はnot_plannedで閉じられているのでIssue化しない: ${group.fingerprint}`);
+                  }
+                }
+                continue;
+              }
+
+              if (newIssueCount >= MAX_NEW_ISSUES) {
+                console.log(`新規Issue上限(${MAX_NEW_ISSUES}件)に達したためスキップ: ${group.fingerprint}`);
+                continue;
+              }
+
+              const labels = ["auto-report", "needs-triage", `screen:${group.screen}`];
+              if (group.lowConfidence) labels.push("low-confidence");
+
+              const { session } = group.sample;
+              const body = [
+                `**種別**: ${group.kind}`,
+                `**内容**: ${group.detail}`,
+                `**発生画面**: ${group.screen}`,
+                "",
+                "### 再現用の乱数シード",
+                `- ダンジョンrngState: ${session.rngState}`,
+                `- 入力選択rngState(inputSeed): ${session.inputSeed}`,
+                "",
+                "### 直前のログ",
+                "```",
+                ...(session.recentLog ?? []).slice(-15),
+                "```",
+                "",
+                "### ダイブの状態(floor.tilesを除くトリミング版)",
+                "```json",
+                JSON.stringify(session.snapshot, null, 2).slice(0, 4000),
+                "```",
+                "",
+                `このバッチ内で${group.count}回検出。実行: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+                "",
+                marker,
+              ].join("\n");
+
+              const created = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `[自動検知] ${group.kind}: ${group.detail}`.slice(0, 200),
+                body,
+                labels,
+              });
+              console.log(`新規Issue作成: #${created.data.number} (${group.fingerprint})`);
+              newIssueCount++;
+            }
