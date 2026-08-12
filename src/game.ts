@@ -286,6 +286,9 @@ const ECHO_ALERT_RANGE = 6;
 /** 地方ボス(plan/region-boss-misemonononushi.md): 大技(summonMirror)の幻影が自然に消えるまでのターン数 */
 const MIRROR_AUTO_DISPEL_TURNS = 5;
 
+/** 第八地方(めざめの前庭)固有ギミック(plan/dream-garden-mosaic.md): 抽選対象の地方番号(第二〜第七地方) */
+const MOSAIC_CANDIDATE_REGIONS = [2, 3, 4, 5, 6, 7];
+
 /** タルの飛距離 */
 const BARREL_RANGE = 8;
 /** タルをぶつけたときの基本ダメージ */
@@ -347,6 +350,13 @@ export class Game {
 
   /** 直前のフロアに乗っていたギミック。連続で同じものを選ばないための記憶 */
   private previousGimmick?: FloorGimmickKind;
+
+  /**
+   * 第八地方(めざめの前庭)固有ギミック(plan/dream-garden-mosaic.md): 今のフロアで
+   * 「実際のdepthの代わりに扱う」地方番号(第二〜第七地方の部分集合、要素数1〜2)。
+   * 43〜48階以外では常に空配列
+   */
+  private mosaicRegions: number[] = [];
 
   /** そのフロアのモンスターハウスについて、もう警告を出したか */
   private monsterHouseWarned = false;
@@ -485,6 +495,12 @@ export class Game {
   private enterFloor(depth: number): void {
     this.depth = depth;
     this.monsterHouseWarned = false;
+    // 第八地方(めざめの前庭)固有ギミック(plan/dream-garden-mosaic.md): 43〜48階は、
+    // 第二〜第七地方の固有ギミックのうち1〜2種類をランダムに選んで、そのフロアだけに適用する
+    this.mosaicRegions =
+      this.dungeon.id === MAIN_CAVE_ID && depth >= 43 && depth <= 48
+        ? this.rng.shuffled(MOSAIC_CANDIDATE_REGIONS).slice(0, this.rng.int(1, 2))
+        : [];
     // 地方ボス(plan/region-bosses.md): 表の寝穴のボス階には、通常の野生モンスターも
     // フロアギミックも乗せない(ボス以外の変数を減らす、本文どおりの方針)。
     // 腕試しの間(plan/hidden-dungeon.md)は、全階がボス階の再戦だけで構成される
@@ -506,7 +522,7 @@ export class Game {
         : MONSTER_HOUSE_CHANCE_MULTIPLIER[this.difficulty] *
           (this.dungeon.monsterHouseRateMul ?? 1) *
           // 第四地方(骨積みの回廊)固有ギミック(plan/bonepile-corridor.md): 19〜24階はモンスターハウスが出やすい
-          (this.dungeon.id === MAIN_CAVE_ID && depth >= 19 && depth <= 24
+          (this.dungeon.id === MAIN_CAVE_ID && this.regionGimmickApplies(depth, 19, 24, 4)
             ? BONEPILE_MONSTER_HOUSE_MULTIPLIER
             : 1),
       shopChanceMultiplier: bossSpeciesId ? 0 : (this.dungeon.shopRateMul ?? 1),
@@ -548,22 +564,22 @@ export class Game {
     }
 
     // 第二地方(忘れ潮の湿地)固有ギミック(plan/wetland-quagmire.md): 7〜12階に深みタイルを配置する
-    if (this.dungeon.id === MAIN_CAVE_ID && depth >= 7 && depth <= 12) {
+    if (this.dungeon.id === MAIN_CAVE_ID && this.regionGimmickApplies(depth, 7, 12, 2)) {
       placeQuagmireTiles(this.rng, this.floor);
     }
 
     // 第三地方(まどろみの茸林)固有ギミック(plan/spore-grove.md): 13〜18階に胞子部屋を配置する
-    if (this.dungeon.id === MAIN_CAVE_ID && depth >= 13 && depth <= 18) {
+    if (this.dungeon.id === MAIN_CAVE_ID && this.regionGimmickApplies(depth, 13, 18, 3)) {
       placeSporeRooms(this.rng, this.floor);
     }
 
     // 第五地方(なみだの滝つぼ)固有ギミック(plan/waterfall-torrent.md): 25〜30階に奔流タイルを配置する
-    if (this.dungeon.id === MAIN_CAVE_ID && depth >= 25 && depth <= 30) {
+    if (this.dungeon.id === MAIN_CAVE_ID && this.regionGimmickApplies(depth, 25, 30, 5)) {
       placeTorrentTiles(this.rng, this.floor);
     }
 
     // 第七地方(わすれられた祭りの跡)固有ギミック(plan/festival-mirage.md): 37〜42階に偽の階段・偽のタルを配置する
-    if (this.dungeon.id === MAIN_CAVE_ID && depth >= 37 && depth <= 42) {
+    if (this.dungeon.id === MAIN_CAVE_ID && this.regionGimmickApplies(depth, 37, 42, 7)) {
       placeDecoyStairs(this.rng, this.floor);
       placeDecoyBarrels(this.rng, this.floor, this.ids);
     }
@@ -578,6 +594,15 @@ export class Game {
     }
 
     updateVisibility(this.floor, this.player.pos, this.visionExtraRange());
+  }
+
+  /**
+   * 地方固有ギミックの適用条件。実際のdepthがその地方の範囲内か、または
+   * 第八地方(めざめの前庭)固有ギミック(plan/dream-garden-mosaic.md)で
+   * その地方番号が今回のフロアのmosaicRegionsに選ばれていれば true
+   */
+  private regionGimmickApplies(depth: number, from: number, to: number, region: number): boolean {
+    return (depth >= from && depth <= to) || this.mosaicRegions.includes(region);
   }
 
   /** 指定位置の近くで、誰も立っていないマスを探す */
@@ -1932,7 +1957,7 @@ export class Game {
    * (階全体をawareにする)より弱い、範囲限定の効果として書き分ける
    */
   private alertNearbyMonsters(pos: Vec2): void {
-    if (!(this.dungeon.id === MAIN_CAVE_ID && this.depth >= 31 && this.depth <= 36)) return;
+    if (!(this.dungeon.id === MAIN_CAVE_ID && this.regionGimmickApplies(this.depth, 31, 36, 6))) return;
     for (const actor of this.floor.actors) {
       if (actor.kind !== "monster" || !actor.alive) continue;
       if (chebyshev(actor.pos, pos) <= ECHO_ALERT_RANGE) actor.aware = true;

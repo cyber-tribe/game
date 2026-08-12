@@ -1,3 +1,35 @@
+> **実装済み。**
+> `src/game.ts` に `mosaicRegions: number[]`(フィールド)を新設し、
+> `enterFloor` の冒頭で、表の寝穴43〜48階のときだけ
+> `MOSAIC_CANDIDATE_REGIONS`([2,3,4,5,6,7])から1〜2個をランダムに
+> 選んで保持する。各ギミックの適用条件を一律
+> `regionGimmickApplies(depth, from, to, region)`(「実depthがその範囲内
+> OR その地方番号がmosaicRegionsに含まれる」)という共通ヘルパーに
+> 差し替えた。本文書の見積もりどおり、各ギミック自体の実行ロジックは
+> 一切変更していない(呼び出し条件の分岐だけを触った)。
+> テストは `tests/dream-garden-mosaic.test.ts`(6件)。
+>
+> 対象にした6種のギミックと、対応する地方番号:
+> - 第二地方: 深みタイル(`placeQuagmireTiles`)
+> - 第三地方: 胞子部屋(`placeSporeRooms`)
+> - 第四地方: モンスターハウス出現率の乗数(`BONEPILE_MONSTER_HOUSE_
+>   MULTIPLIER`)
+> - 第五地方: 奔流タイル(`placeTorrentTiles`)
+> - 第六地方: 物音で気づかせる範囲(`alertNearbyMonsters`。フロア生成
+>   時ではなく、プレイヤーの攻撃・罠発動のたびに毎回参照される判定
+>   だったため、`mosaicRegions`をフィールドとして保持し、実行時にも
+>   参照できるようにした)
+> - 第七地方: 偽の階段・偽のタル(`placeDecoyStairs`・
+>   `placeDecoyBarrels`)
+>
+> 実装時の判断:
+> - **`mosaicRegions`をフィールドで持たせた理由**: 未決事項には無いが、
+>   第六地方の`alertNearbyMonsters`だけがフロア生成時ではなく戦闘中に
+>   毎回呼ばれる判定だったため、単純な「生成時の後処理パス呼び分け」
+>   だけでは対応できなかった。`this.mosaicRegions`をGameインスタンスの
+>   フィールドとして保持し、`enterFloor`で新しいフロアに入るたびに
+>   再抽選(範囲外なら空配列)する形にした。
+
 # 第八地方(めざめの前庭)固有ギミック: 地方ギミックの混在
 
 `design/regions.md` の第八地方(めざめの前庭・43〜48階)の固有ギミックを
