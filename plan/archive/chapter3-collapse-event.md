@@ -1,3 +1,36 @@
+> **実装済み。**
+> `src/entities/dungeons.ts`(`CHAPTER3_COLLAPSE_DEPTH = REGION_SIZE * 4`
+> =24を追加)、`src/dungeon/populate.ts`(`placeChapter3CollapseObstacle`を
+> 新設。既存の`FieldObstacle`(`requires: "break"`)をそのまま使う)、
+> `src/game.ts`(`RunOptions.deepest`を新設し、24階かつ`MAIN_CAVE_ID`かつ
+> `storyChapter(deepestAtStart, false) >= 3`のときだけ配置)、
+> `src/main.ts`(`newRun`が`this.save.deepest`を渡すよう変更。章突入
+> メッセージの直後にモグラ婆の助言メッセージを追加)に実装した。
+> テストは `tests/chapter3-collapse-event.test.ts`(8件)。
+>
+> **プランに無かった重要な追加判断: `deepest>=30`(第三章到達済み)を
+> 条件に加えた。** プラン本文は「24階に固定でFieldObstacleを配置する」
+> とだけ書いていたが、それだと**初めて第四地方を通過するプレイヤーが、
+> 瓦礫を砕ける仲間(fieldSkill: "break")をまだ持っていない場合に
+> 詰む**(FieldObstacleは既存仕様どおり本当に通行不能で、ダイブ中に
+> 引き返す手段は無い)。design/story.mdの「近道屋の裏穴」記述
+> (`plan/checkpoint-select.md`の「既に一度通過して既知になった
+> めざめの階段へ、拠点から選び直して戻る」)を読むと、この崩落は
+> **最初から存在するのではなく、第三章に入ったあとの「戻りのダイブ」で
+> 初めて意味を持つ**という設計だと判断した。deepest>=30は「既に24階を
+> 越えたことがある」ことを意味するので、初回プレイヤーを足止めしない。
+>
+> その他の実装判断:
+> - 出口タイルの選定は「階段のある部屋のタイルのうち、通路タイルに
+>   隣接するものを1つ(先頭一致)」というシンプルな決定的ロジックにした
+>   (乱数を使わない。同じフロアなら毎回同じ出口になる)。
+> - `fieldSkill: "break"`を持つ種族の第四地方内での確認: `yoroimukade`
+>   (ヨロイムカデ、minFloor:19、第四地方の範囲内)が既に存在したため、
+>   プランの「無ければ既存種のminFloorを調整する」対応は不要だった。
+> - 助言NPCはモグラ婆(育ての親・倉庫番)を選んだ(未決事項として
+>   両論併記されていたうちの1つ。仲間探しの助言役として自然という判断)。
+> - 助言メッセージの文面は新規に作成した。
+
 # 第三章「仲間探し」の崩落イベント
 
 `plan/story-chapters.md`が「本文書のスコープ外」として`plan/ally-

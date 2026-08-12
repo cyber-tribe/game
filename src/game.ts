@@ -57,6 +57,7 @@ import {
   createItem,
   createMonster,
   findFreeTile,
+  placeChapter3CollapseObstacle,
   placeDecoyBarrels,
   placeDecoyStairs,
   placeQuagmireTiles,
@@ -68,6 +69,7 @@ import {
 } from "./dungeon/populate";
 import { displayActorName } from "./entities/naming";
 import {
+  CHAPTER3_COLLAPSE_DEPTH,
   type DungeonDef,
   MAIN_CAVE_ID,
   NIGHTLY_DREAM_ID,
@@ -76,6 +78,7 @@ import {
   dungeonById,
   nightlyDreamStatMultiplier,
 } from "./entities/dungeons";
+import { storyChapter } from "./entities/story";
 import type { StoredMonster } from "./entities/storedMonster";
 import { isVisible, updateVisibility } from "./dungeon/visibility";
 import {
@@ -228,6 +231,15 @@ export interface RunOptions {
    * maxDepthを個別指定した場合はそちらを優先する
    */
   dungeonId?: string;
+  /**
+   * 第三章「仲間探し」の崩落イベント(plan/chapter3-collapse-event.md)用。
+   * SaveData.deepest(これまでの最深到達記録)。省略時は0(序章扱い)。
+   * 骨積みの回廊(第四地方)最終階の崩落は、既に一度そこを越えて
+   * deepest>=30(章立て上の第三章)まで進んだあとの「戻り」のダイブ
+   * でだけ発生させる。そうしないと、まだ壊せる仲間を持たない
+   * 初回プレイヤーがこの階で足止めされてしまうため
+   */
+  deepest?: number;
 }
 
 export type RunStatus = "playing" | "dead" | "cleared";
@@ -400,6 +412,12 @@ export class Game {
   /** 潜っているダンジョン(plan/multiple-dungeons.md) */
   private dungeon: DungeonDef = dungeonById(MAIN_CAVE_ID);
 
+  /**
+   * 第三章「仲間探し」の崩落イベント(plan/chapter3-collapse-event.md)用。
+   * SaveData.deepest(このダイブ開始前の最深到達記録)
+   */
+  private readonly deepestAtStart: number;
+
   /** 潜っているダンジョンid(plan/multiple-dungeons.md)。記録の間の集計などに使う */
   get dungeonId(): string {
     return this.dungeon.id;
@@ -422,6 +440,8 @@ export class Game {
     };
 
     if (opts.resume) {
+      // 復帰時は新しくフロアを生成しないため使わないが、readonlyの初期化として必要
+      this.deepestAtStart = 0;
       const s = opts.resume;
       this.rng = Rng.fromState(s.rngState);
       this.maxDepth = s.maxDepth;
@@ -452,6 +472,7 @@ export class Game {
     }
 
     this.rng = new Rng(opts.seed);
+    this.deepestAtStart = opts.deepest ?? 0;
     this.dungeon = dungeonById(opts.dungeonId ?? MAIN_CAVE_ID);
     this.maxDepth = opts.maxDepth ?? this.dungeon.maxDepth ?? Number.POSITIVE_INFINITY;
     this.trainingFocus = opts.trainingFocus ?? "balance";
@@ -589,6 +610,18 @@ export class Game {
     if (this.dungeon.id === MAIN_CAVE_ID && this.regionGimmickApplies(depth, 37, 42, 7)) {
       placeDecoyStairs(this.rng, this.floor);
       placeDecoyBarrels(this.rng, this.floor, this.ids);
+    }
+
+    // 第三章「仲間探し」の崩落イベント(plan/chapter3-collapse-event.md): 骨積みの
+    // 回廊(第四地方)最終階の階段部屋の出口に、瓦礫の崩落を固定配置する。
+    // 既にdeepest>=30(章立て上の第三章)まで進んだあとの「戻り」のダイブ
+    // でだけ発生させる(初回プレイヤーがこの階で足止めされないように)
+    if (
+      this.dungeon.id === MAIN_CAVE_ID &&
+      depth === CHAPTER3_COLLAPSE_DEPTH &&
+      storyChapter(this.deepestAtStart, false) >= 3
+    ) {
+      placeChapter3CollapseObstacle(this.floor);
     }
 
     // 仲間は階段について来る。プレイヤーの周りの空いたマスに並べる
