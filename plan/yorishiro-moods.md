@@ -11,11 +11,13 @@
 そのまま採用する。追加のセーブフィールドは不要(その日の日付から
 毎回同じ気分が再計算できるため、永続化する必要がない)。
 
+**日付キーの算出は新規に作らず、`plan/archive/quest-board.md` が既に
+実装済みの `todayKey`(`src/entities/quests.ts`)をそのまま import して
+使う。** 依頼板・気分・後述の村の祭り(`plan/yoimatsuri-festival.md`)が
+みな同じ日付キーを共有することで、「今日は何の日か」がずれなく揃う。
+
 ```ts
-export function todayKey(date = new Date()): string {
-  // YYYY-MM-DD(ローカルタイムゾーン)
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
+import { todayKey } from "./quests";
 
 export function moodForDate(dateKey: string): MoodId {
   let h = 0;
@@ -93,8 +95,8 @@ MONSTER_HOUSE_CHANCE_MULTIPLIER[this.difficulty]
 
 ## 実装への影響の見積もり
 
-- `src/entities/moods.ts`(新規): `MoodDef`・`MOODS`・`todayKey`・
-  `moodForDate`。
+- `src/entities/moods.ts`(新規): `MoodDef`・`MOODS`・`moodForDate`
+  (`todayKey`は`src/entities/quests.ts`から import して使う)。
 - `src/game.ts`: `RunOptions.moodOverride`、`Game.mood`フィールド、
   既存の各種係数計算への合成。
 - `src/entities/ai.ts`: 索敵距離・気づいた後の攻撃力への係数適用。
