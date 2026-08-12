@@ -64,6 +64,8 @@ export class TownScreen {
   private bringUids: number[] = [];
   /** 夢あわせ(plan/monster-fusion.md)で、軸として選んで確定した個体。まだ無ければ null */
   private fusionAxisUid: number | null = null;
+  /** 夢に還す(plan/release-companion.md)の確認待ちの個体。確認中(サブメニュー表示中)のみ非null */
+  private releaseConfirmUid: number | null = null;
   /** ゲンドの工房(plan/equipment-forging.md)の一覧上のカーソル位置 */
   private workshopCursor = 0;
   /** 印を刻む対象として選んでいる装備。選択中(サブメニュー表示中)のみ非null */
@@ -86,6 +88,7 @@ export class TownScreen {
   private onEquipTitle: ((id: string | undefined) => void) | null = null;
   private onAcceptQuest: ((defId: string) => void) | null = null;
   private onAbandonQuest: ((defId: string) => void) | null = null;
+  private onReleaseCompanion: ((uid: number) => void) | null = null;
   /** 実績帳(plan/achievements.md)の一覧上のカーソル位置 */
   private achievementCursor = 0;
   /** 依頼板(plan/quest-board.md)の一覧上のカーソル位置 */
@@ -114,6 +117,7 @@ export class TownScreen {
     onEquipTitle: (id: string | undefined) => void,
     onAcceptQuest: (defId: string) => void,
     onAbandonQuest: (defId: string) => void,
+    onReleaseCompanion: (uid: number) => void,
   ): void {
     this.save = save;
     this.storage = save.storage.map((s) => ({ ...s }));
@@ -130,6 +134,7 @@ export class TownScreen {
     this.hutCursor = 0;
     this.bringUids = [];
     this.fusionAxisUid = null;
+    this.releaseConfirmUid = null;
     this.workshopCursor = 0;
     this.workshopMarkTarget = null;
     this.workshopMarkChoices = null;
@@ -139,6 +144,7 @@ export class TownScreen {
     this.onEquipTitle = onEquipTitle;
     this.onAcceptQuest = onAcceptQuest;
     this.onAbandonQuest = onAbandonQuest;
+    this.onReleaseCompanion = onReleaseCompanion;
     this.achievementCursor = 0;
     this.questCursor = 0;
     this.open = true;
@@ -153,6 +159,7 @@ export class TownScreen {
   refreshSave(save: SaveData): void {
     this.save = save;
     this.hutCursor = Math.min(this.hutCursor, Math.max(0, this.hut().length - 1));
+    this.releaseConfirmUid = null;
     this.render();
   }
 
@@ -231,6 +238,29 @@ export class TownScreen {
 
     if (this.column === 4) {
       const hut = this.hut();
+
+      // 夢に還す(plan/release-companion.md): 取り消せない操作なので、確定前に1回確認を挟む
+      if (this.releaseConfirmUid !== null) {
+        switch (code) {
+          case "Enter":
+          case "NumpadEnter": {
+            const uid = this.releaseConfirmUid;
+            this.releaseConfirmUid = null;
+            this.bringUids = this.bringUids.filter((u) => u !== uid);
+            if (this.fusionAxisUid === uid) this.fusionAxisUid = null;
+            this.onReleaseCompanion?.(uid);
+            break;
+          }
+          case "Escape":
+            this.releaseConfirmUid = null;
+            break;
+          default:
+            return true;
+        }
+        this.render();
+        return true;
+      }
+
       switch (code) {
         case "ArrowUp":
         case "KeyW":
@@ -260,6 +290,11 @@ export class TownScreen {
           const target = hut[this.hutCursor];
           if (target) this.onRename?.(target.uid, target.nickname);
           return true;
+        }
+        case "KeyX": {
+          const target = hut[this.hutCursor];
+          if (target) this.releaseConfirmUid = target.uid;
+          break;
         }
         case "Escape":
           this.fusionAxisUid = null;
@@ -720,9 +755,11 @@ export class TownScreen {
       desc.textContent = TRAINING_FOCUS_DESCRIPTIONS[focus];
     } else if (this.column === 4) {
       desc.textContent =
-        this.fusionAxisUid === null
-          ? `Enterで選択/解除(最大${MAX_ALLIES}体、0体なら手ぶらで出発)。Mで夢あわせの軸を選ぶ。Nで改名。`
-          : "夢あわせ: 糧にする個体を選んでMで確定(軸は消えず、糧は消えて軸に溶け込む)。";
+        this.releaseConfirmUid !== null
+          ? "この個体を夢に還す。取り消せない。よければEnter、やめるならEsc。"
+          : this.fusionAxisUid === null
+            ? `Enterで選択/解除(最大${MAX_ALLIES}体、0体なら手ぶらで出発)。Mで夢あわせの軸を選ぶ。Nで改名。Xで夢に還す。`
+            : "夢あわせ: 糧にする個体を選んでMで確定(軸は消えず、糧は消えて軸に溶け込む)。";
     } else if (this.column === 5) {
       const dust = this.countMaterial(HOKORA_DUST_DEF_ID);
       if (this.workshopMarkChoices) {
@@ -777,7 +814,9 @@ export class TownScreen {
     const hint = document.createElement("p");
     hint.className = "town-hint";
     if (this.column === 4) {
-      hint.textContent = "←→ 列を移る / ↑↓ 選ぶ / Enter 選択・解除 / M 夢あわせ / N 改名 / Space もぐる";
+      hint.textContent = this.releaseConfirmUid !== null
+        ? "Enter 夢に還す(確定) / Esc やめる"
+        : "←→ 列を移る / ↑↓ 選ぶ / Enter 選択・解除 / M 夢あわせ / N 改名 / X 夢に還す / Space もぐる";
     } else if (this.column === 5) {
       hint.textContent = this.workshopMarkChoices
         ? "↑↓ 印を選ぶ / Enter 刻む / Esc もどる"
@@ -891,7 +930,12 @@ export class TownScreen {
       const name = displayStoredMonsterName(m);
       const bondLabel = bondStageLabel(bondStage(m.bondSuccessCount));
       const base = bondLabel ? `${name} Lv${m.level}・${bondLabel}` : `${name} Lv${m.level}`;
-      li.textContent = m.uid === this.fusionAxisUid ? `${base}(夢あわせの軸)` : base;
+      li.textContent =
+        m.uid === this.releaseConfirmUid
+          ? `${base}(夢に還す?)`
+          : m.uid === this.fusionAxisUid
+            ? `${base}(夢あわせの軸)`
+            : base;
       if (this.bringUids.includes(m.uid)) li.classList.add("chosen");
       if (m.uid === this.fusionAxisUid) li.classList.add("axis");
       if (this.column === 4 && index === this.hutCursor) li.classList.add("selected");

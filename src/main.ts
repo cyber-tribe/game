@@ -32,6 +32,7 @@ import {
   markTutorialTipSeen,
   recordRun,
   refreshBoard,
+  releaseCompanion,
   renameStoredMonster,
   saveData,
   saveRunSnapshot,
@@ -165,6 +166,10 @@ class App {
       },
       (defId) => {
         this.save = abandonQuest(this.save, defId);
+        this.town.refreshSave(this.save);
+      },
+      (uid) => {
+        this.save = releaseCompanion(this.save, uid);
         this.town.refreshSave(this.save);
       },
     );

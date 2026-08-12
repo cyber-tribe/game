@@ -2,7 +2,7 @@ import { TUTORIAL_TIP_IDS, type TutorialTipId } from "./core/tutorial";
 import type { Actor, Item, MarkId, SkillId } from "./core/types";
 import { ACHIEVEMENTS, achievementDef } from "./entities/achievements";
 import { DIFFICULTY_MODES, type DifficultyMode } from "./entities/difficulty";
-import { MARKS, MAX_PLUS } from "./entities/forging";
+import { HOKORA_DUST_DEF_ID, MARKS, MAX_PLUS } from "./entities/forging";
 import { MAX_ACTIVE_QUESTS, QUESTS, questDef, questsForDate } from "./entities/quests";
 import type { TrainingFocus } from "./entities/player";
 import { MAX_SKILLS, NATIVE_SKILL_BY_SPECIES, SKILLS, fullSkillSet } from "./entities/skills";
@@ -425,6 +425,28 @@ export function takeFromHut(
   const next: SaveData = { ...current, hut: remaining };
   saveData(next);
   return { save: next, taken };
+}
+
+/** 夢に還す(plan/release-companion.md)ときに残すほこら粉の数。ごくわずか、に留める */
+export const RELEASE_COMPANION_HOKORA_DUST = 1;
+
+/**
+ * 夢に還す(plan/release-companion.md)。ねむり小屋からuidの個体を取り除き、
+ * ごくわずかなほこら粉を残す。図鑑(plan/monster-compendium.md)の記録は
+ * hut配列とは独立しているため、何もしなくても消えない。見つからないuidは無視する
+ */
+export function releaseCompanion(current: SaveData, uid: number): SaveData {
+  if (!current.hut.some((m) => m.uid === uid)) return current;
+  const next: SaveData = {
+    ...current,
+    hut: current.hut.filter((m) => m.uid !== uid),
+    storage: [
+      ...current.storage,
+      ...Array.from({ length: RELEASE_COMPANION_HOKORA_DUST }, () => ({ defId: HOKORA_DUST_DEF_ID })),
+    ],
+  };
+  saveData(next);
+  return next;
 }
 
 /**
