@@ -209,6 +209,106 @@
         100% { opacity: 0; transform: translate(-50%, -160%) scale(1); }
       }
 
+      /* ------------------------------------------------ タッチ操作(plan/touch-controls.md) */
+      /* タッチ可能な端末(pointer: coarse)でだけ表示する。キーボードとの共存を妨げないよう
+         Inputへ直接press/releaseするだけの入力ソースとして重ねる */
+      #touch {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        display: none;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      @media (pointer: coarse) {
+        #touch { display: block; }
+      }
+      .touch-pad {
+        position: absolute;
+        left: 26px; bottom: 26px;
+        width: 108px; height: 108px;
+        border-radius: 50%;
+        background: rgba(10, 13, 24, 0.55);
+        border: 1px solid var(--edge);
+        pointer-events: auto;
+        touch-action: none;
+      }
+      .touch-pad-knob {
+        position: absolute;
+        left: 50%; top: 50%;
+        width: 46px; height: 46px;
+        margin: -23px 0 0 -23px;
+        border-radius: 50%;
+        background: rgba(127, 190, 255, 0.32);
+        border: 1px solid rgba(127, 190, 255, 0.6);
+        pointer-events: none;
+        transition: transform 0.05s linear;
+      }
+      .touch-actions {
+        position: absolute;
+        right: 18px; bottom: 22px;
+        display: grid;
+        grid-template-columns: repeat(2, 58px);
+        gap: 10px;
+      }
+      .touch-btn, .touch-menu-btn, .touch-menu button {
+        font-family: inherit;
+        cursor: pointer;
+      }
+      .touch-btn {
+        pointer-events: auto;
+        width: 58px; height: 58px;
+        border-radius: 50%;
+        background: rgba(10, 13, 24, 0.62);
+        border: 1px solid var(--edge);
+        color: var(--ink);
+        font-size: 12px;
+        touch-action: none;
+      }
+      .touch-btn:active { background: rgba(127, 190, 255, 0.28); }
+      .touch-btn-confirm {
+        grid-column: 2;
+        background: rgba(127, 190, 255, 0.22);
+        border-color: rgba(127, 190, 255, 0.55);
+        font-weight: 700;
+      }
+      .touch-menu-btn {
+        position: absolute;
+        right: 16px; top: 16px;
+        pointer-events: auto;
+        width: 42px; height: 42px;
+        border-radius: 8px;
+        background: rgba(10, 13, 24, 0.62);
+        border: 1px solid var(--edge);
+        color: var(--ink);
+        font-size: 18px;
+        touch-action: none;
+      }
+      .touch-menu {
+        position: absolute;
+        right: 16px; top: 64px;
+        pointer-events: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding: 8px;
+        width: 168px;
+        background: var(--panel);
+        border: 1px solid var(--edge);
+        border-radius: 10px;
+        backdrop-filter: blur(8px);
+      }
+      .touch-menu button {
+        padding: 8px 10px;
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid var(--edge);
+        color: var(--ink);
+        font-size: 12px;
+        text-align: left;
+        touch-action: none;
+      }
+
       /* ------------------------------------------------ メニュー */
       #menu, #stance, #arts, #stairsConfirm {
         position: absolute;
@@ -442,6 +542,7 @@
         </div>
 
         <div id="fx"></div>
+        <div id="touch"></div>
         <div id="menu"></div>
         <div id="stance"></div>
         <div id="arts"></div>
