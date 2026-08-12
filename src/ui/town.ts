@@ -23,6 +23,7 @@ import { SPECIES, speciesById } from "../entities/species";
 import { isCompendiumComplete, isWeaponCompendiumComplete, type CompendiumStatus, type FontSize, type SaveData, type StoredItem, type StoredMonster } from "../save";
 import { ITEMS, itemDef } from "../items/catalog";
 import { MAX_ACTIVE_QUESTS, questDef } from "../entities/quests";
+import { storyChapter } from "../entities/story";
 import {
   VILLAGE_STAGE_REQUIREMENTS,
   canDevelopVillage,
@@ -209,6 +210,15 @@ export class TownScreen {
 
   private hut(): StoredMonster[] {
     return this.save?.hut ?? [];
+  }
+
+  /**
+   * 章立て(plan/story-chapters.md)。SaveData.storyClearedはまだ
+   * 存在しない(plan/mountain-core.md未実装)ため、当面falseに固定する。
+   * mountain-core.md実装後は`this.save.storyCleared`を渡すよう更新すること
+   */
+  private currentStoryChapter(): ReturnType<typeof storyChapter> {
+    return storyChapter(this.save?.deepest ?? 0, false);
   }
 
   private checkpoints(): number[] {
@@ -677,7 +687,7 @@ export class TownScreen {
     }
 
     if (this.column === 16) {
-      const npcs = visibleVillageNpcs(this.save?.deepest ?? 0);
+      const npcs = visibleVillageNpcs(this.currentStoryChapter());
       switch (code) {
         case "ArrowUp":
         case "KeyW":
@@ -1102,7 +1112,7 @@ export class TownScreen {
           : `まだ入手していない。${costume.description}`
         : "";
     } else if (this.column === 16) {
-      const npc = visibleVillageNpcs(this.save?.deepest ?? 0)[this.npcIndex];
+      const npc = visibleVillageNpcs(this.currentStoryChapter())[this.npcIndex];
       desc.textContent = npc ? npc.role : "";
     } else {
       const selected = (this.column === 0 ? this.storage : this.carry)[this.cursor[this.column]];
@@ -1683,7 +1693,7 @@ export class TownScreen {
     heading.textContent = "NPCと話す";
     wrapper.appendChild(heading);
 
-    const npcs = visibleVillageNpcs(this.save?.deepest ?? 0);
+    const npcs = visibleVillageNpcs(this.currentStoryChapter());
     const list = document.createElement("ul");
     npcs.forEach((npc, index) => {
       const level = this.save?.bonds[npc.id] ?? 0;

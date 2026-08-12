@@ -9,9 +9,9 @@ describe("entities/village.ts: 村のNPC一覧", () => {
     expect(visible).toEqual(["mogurababa", "gendo", "otone", "okiyo", "pochi"]);
   });
 
-  it("目覚めたおたまは第二地方クリア(deepest>=12)で表示される", () => {
-    expect(visibleVillageNpcs(11).some((n) => n.id === "otama")).toBe(false);
-    expect(visibleVillageNpcs(12).some((n) => n.id === "otama")).toBe(true);
+  it("目覚めたおたまは第二章到達(storyChapter>=2)で表示される(plan/story-chapters.md)", () => {
+    expect(visibleVillageNpcs(1).some((n) => n.id === "otama")).toBe(false);
+    expect(visibleVillageNpcs(2).some((n) => n.id === "otama")).toBe(true);
   });
 
   it("NPCは全て一意なidを持つ", () => {

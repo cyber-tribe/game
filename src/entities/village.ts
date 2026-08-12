@@ -52,6 +52,8 @@ export function canDevelopVillage(stage: VillageStage, deepest: number, gold: nu
   return deepest >= next.minDeepest && gold >= next.cost;
 }
 
+import type { StoryChapter } from "./story";
+
 /**
  * 村の暮らし(plan/village-life.md)。NPC・絆の基盤。
  */
@@ -61,8 +63,8 @@ export interface VillageNpcDef {
   id: VillageNpcId;
   name: string;
   role: string;
-  /** 表示に必要な最深到達記録。省略時は常に表示(design/story.mdの「進行状況で出現が変わるNPC」の実装) */
-  appearsFromDeepest?: number;
+  /** 表示に必要な章。省略時は常に表示(design/story.mdの「進行状況で出現が変わるNPC」の実装) */
+  appearsFromChapter?: StoryChapter;
 }
 
 export const VILLAGE_NPCS: readonly VillageNpcDef[] = [
@@ -71,11 +73,12 @@ export const VILLAGE_NPCS: readonly VillageNpcDef[] = [
   { id: "otone", name: "肝いりのオトネ", role: "村の顔役" },
   { id: "okiyo", name: "物知りのおキヨ", role: "生き物に詳しい老人" },
   { id: "pochi", name: "ひよっこのポチ", role: "村の子供" },
-  // 第二地方クリア(deepest>=12)で出現。design/story.md第二章の救出イベント後という
-  // 設定の暫定的な代替指標(plan/village-life.md、章立て実装後に差し替える余地を残す)
-  { id: "otama", name: "目覚めたおたま", role: "救出された村人", appearsFromDeepest: 12 },
+  // 第二章到達(design/story.mdの救出イベント後)で出現(plan/story-chapters.md)。
+  // plan/village-life.mdが暫定にしていたdeepest>=12条件を、章立て実装により
+  // 本来の条件(storyChapter>=2)に差し替えた
+  { id: "otama", name: "目覚めたおたま", role: "救出された村人", appearsFromChapter: 2 },
 ];
 
-export function visibleVillageNpcs(deepest: number): readonly VillageNpcDef[] {
-  return VILLAGE_NPCS.filter((npc) => npc.appearsFromDeepest === undefined || deepest >= npc.appearsFromDeepest);
+export function visibleVillageNpcs(chapter: StoryChapter): readonly VillageNpcDef[] {
+  return VILLAGE_NPCS.filter((npc) => npc.appearsFromChapter === undefined || chapter >= npc.appearsFromChapter);
 }

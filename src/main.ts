@@ -56,6 +56,7 @@ import type { DifficultyMode } from "./entities/difficulty";
 import { costumeById } from "./entities/costumes";
 import { MAIN_CAVE_ID } from "./entities/dungeons";
 import { todayKey } from "./entities/quests";
+import { STORY_CHAPTER_MESSAGES, storyChapter, storyChapterEventId } from "./entities/story";
 import { speciesById } from "./entities/species";
 import { speciesLore } from "./entities/speciesLore";
 import { TUTORIAL_TIPS, type TutorialTipId } from "./core/tutorial";
@@ -167,6 +168,8 @@ class App {
     this.save = refreshBoard(this.save, todayKey());
     // 衣装(plan/costumes.md): 拠点に戻るたびに、新たに満たした解放条件が無いか確認する
     this.save = refreshUnlockedCostumes(this.save);
+    // 章立て(plan/story-chapters.md): 拠点帰還のたびに、新しく跨いだ章が無いか確認する
+    this.checkStoryChapterTransition();
     this.town.show(
       this.save,
       (carry, storage, startDepth, trainingFocus, bringAllyUids, difficulty, dungeonId) => {
@@ -237,6 +240,21 @@ class App {
         this.town.refreshSave(this.save);
       },
     );
+  }
+
+  /**
+   * 章立て(plan/story-chapters.md)。新しく章の境目を跨いでいれば、その章の
+   * 導入メッセージを1回だけ流す。storyClearedはまだ存在しない
+   * (plan/mountain-core.md未実装)ため、当面falseに固定する
+   */
+  private checkStoryChapterTransition(): void {
+    const chapter = storyChapter(this.save.deepest, false);
+    if (chapter === 0) return;
+    const eventId = storyChapterEventId(chapter);
+    if (this.save.seenVillageEvents.includes(eventId)) return;
+    this.save = markVillageEventSeen(this.save, eventId);
+    saveData(this.save);
+    this.hud.log(STORY_CHAPTER_MESSAGES[chapter]);
   }
 
   private newRun(
