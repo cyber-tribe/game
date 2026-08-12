@@ -5,6 +5,7 @@ import {
   canDevelopVillage,
   hutCapacity,
   nextVillageStageRequirement,
+  villageStageRequirement,
 } from "../src/entities/village";
 import { developVillage, initialSave, recordRun } from "../src/save";
 
@@ -54,6 +55,12 @@ describe("entities/village.ts", () => {
       );
       expect(VILLAGE_STAGE_REQUIREMENTS[i]!.cost).toBeGreaterThan(VILLAGE_STAGE_REQUIREMENTS[i - 1]!.cost);
     }
+  });
+
+  it("段階2〜4のminDeepestは地方境界(12/24/48)に沿っている(plan/village-stage-rebalance.md)", () => {
+    expect(villageStageRequirement(2)?.minDeepest).toBe(12);
+    expect(villageStageRequirement(3)?.minDeepest).toBe(24);
+    expect(villageStageRequirement(4)?.minDeepest).toBe(48);
   });
 });
 

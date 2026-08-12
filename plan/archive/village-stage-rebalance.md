@@ -1,5 +1,17 @@
 # 村の発展段階の条件を、地方拡張後のmaxDepthに合わせて調整する
 
+> **実装済み。** `src/entities/village.ts`の`VILLAGE_STAGE_REQUIREMENTS`
+> の`minDeepest`を本文どおり3/6/10→12/24/48に変更(`cost`・`label`は
+> 変更なし)。既存テスト(`tests/village-development.test.ts`)は
+> `nextVillageStageRequirement`等を経由した相対比較のみで具体値を
+> 直接書いていなかったため、変更不要のまま通過した。新しい具体値
+> (12/24/48)を回帰確認する1件だけ追加した。
+>
+> テストは既存の`tests/village-development.test.ts`に1件追加。
+> `npx tsc --noEmit`・`npx vitest run`(559件全て通過)・
+> `npm run build`を確認済み。他の実装への影響は本文の「波及確認」
+> どおり、追加の変更は不要だった。
+
 `plan/region-expansion.md` で `MAIN_CAVE_MAX_DEPTH` が10→48に変わった
 ことで生じた整合性の崩れを直す。`plan/archive/village-development.md`
 (実装済み)の `minDeepest` 条件は、当時「10階=表の寝穴の完全踏破」を
