@@ -24,6 +24,7 @@ import {
   checkEquipmentCompendium,
   clearRunSnapshot,
   developVillage,
+  equipCostume,
   fromStored,
   fuseMonsters,
   isCompendiumComplete,
@@ -34,6 +35,7 @@ import {
   markTutorialTipSeen,
   recordRun,
   refreshBoard,
+  refreshUnlockedCostumes,
   releaseCompanion,
   renameStoredMonster,
   saveData,
@@ -48,6 +50,7 @@ import {
   type StoredMonster,
 } from "./save";
 import type { DifficultyMode } from "./entities/difficulty";
+import { costumeById } from "./entities/costumes";
 import { MAIN_CAVE_ID } from "./entities/dungeons";
 import { todayKey } from "./entities/quests";
 import { speciesById } from "./entities/species";
@@ -159,6 +162,8 @@ class App {
     this.hud.hideOverlay();
     // 依頼板(plan/quest-board.md): 日付が変わっていれば、受注していない残り枠を補充する
     this.save = refreshBoard(this.save, todayKey());
+    // 衣装(plan/costumes.md): 拠点に戻るたびに、新たに満たした解放条件が無いか確認する
+    this.save = refreshUnlockedCostumes(this.save);
     this.town.show(
       this.save,
       (carry, storage, startDepth, trainingFocus, bringAllyUids, difficulty, dungeonId) => {
@@ -210,6 +215,10 @@ class App {
       (fontSize) => {
         this.save = setFontSize(this.save, fontSize);
         this.applyFontSize();
+        this.town.refreshSave(this.save);
+      },
+      (costumeId) => {
+        this.save = equipCostume(this.save, costumeId);
         this.town.refreshSave(this.save);
       },
     );
@@ -275,9 +284,20 @@ class App {
     this.artsMenu.hide();
     this.hud.hideOverlay();
     this.stage.enterFloor(this.game.floor);
+    this.applyCostumeTint();
     this.renderer.setFocus(this.game.player.pos, true);
     this.hud.update(this.game.player, this.game.depth, this.game.allyList);
     this.minimap.draw(this.game.floor, this.game.player);
+  }
+
+  /**
+   * 衣装(plan/costumes.md)。フロアに入り直すたびにプレイヤーの見た目を
+   * 作り直すので、そのつど装備中の衣装の色替えを掛け直す
+   */
+  private applyCostumeTint(): void {
+    const costume = costumeById(this.save.equippedCostume);
+    if (!costume.tint) return;
+    this.stage.viewOf(this.game.player.id)?.applyTint(costume.tint);
   }
 
   /** その場方式のチュートリアルヒント。まだ見ていなければ表示して既読にする */
@@ -603,6 +623,7 @@ class App {
     const changedFloor = this.game.depth !== beforeDepth;
     if (changedFloor) {
       this.stage.enterFloor(this.game.floor);
+      this.applyCostumeTint();
       this.renderer.setFocus(this.game.player.pos, true);
       this.lock = 0.25;
       this.save.deepest = Math.max(this.save.deepest, this.game.depth);

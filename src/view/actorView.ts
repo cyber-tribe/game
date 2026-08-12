@@ -188,6 +188,29 @@ export class ActorView {
     this.mixer?.stopAllAction();
     this.root.removeFromParent();
   }
+
+  /**
+   * 衣装(plan/costumes.md)。新しい3Dモデルは作らず、既存メッシュの
+   * マテリアル色にRGB倍率を掛けるだけで色替えを表現する
+   * (README記載の「かがやきの夢のかけら」の色替えと同じ発想)。
+   * 生成直後の1回だけ呼ぶ想定(以後この見た目のまま使い切る)
+   */
+  applyTint(tint: readonly [number, number, number]): void {
+    const [r, g, b] = tint;
+    this.root.traverse((obj) => {
+      const mesh = obj as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      mesh.material = Array.isArray(mesh.material)
+        ? mesh.material.map((m) => tintedMaterial(m, r, g, b))
+        : tintedMaterial(mesh.material, r, g, b);
+    });
+  }
+}
+
+function tintedMaterial(material: THREE.Material, r: number, g: number, b: number): THREE.Material {
+  const clone = material.clone() as THREE.Material & { color?: THREE.Color };
+  clone.color?.multiply(new THREE.Color(r, g, b));
+  return clone;
 }
 
 /** 盤面の方向をモデルの向き(Y軸回転)に直す */

@@ -16,6 +16,7 @@ import {
   hokoraDustCost,
   markDef,
 } from "../entities/forging";
+import { COSTUMES, type CostumeDef } from "../entities/costumes";
 import { DUNGEONS, type DungeonDef, isDungeonUnlocked } from "../entities/dungeons";
 import { MAX_ALLIES, type TrainingFocus } from "../entities/player";
 import { SPECIES, speciesById } from "../entities/species";
@@ -53,8 +54,8 @@ const TRAINING_FOCUS_DESCRIPTIONS: Record<TrainingFocus, string> = {
  */
 export class TownScreen {
   private open = false;
-  /** 0=倉庫 1=持ち込み 2=出発地点 3=鍛え方 4=つれていく仲間 5=ゲンドの工房 6=記録の間 7=モンスター図鑑 8=実績帳 9=装備図鑑 10=難易度 11=依頼板 12=潜るダンジョン 13=村の発展 14=アクセシビリティ */
-  private column: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 = 0;
+  /** 0=倉庫 1=持ち込み 2=出発地点 3=鍛え方 4=つれていく仲間 5=ゲンドの工房 6=記録の間 7=モンスター図鑑 8=実績帳 9=装備図鑑 10=難易度 11=依頼板 12=潜るダンジョン 13=村の発展 14=アクセシビリティ 15=身支度 */
+  private column: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 = 0;
   private cursor: [number, number] = [0, 0];
   private storage: StoredItem[] = [];
   private carry: StoredItem[] = [];
@@ -67,6 +68,8 @@ export class TownScreen {
   private difficultyIndex = DIFFICULTY_MODES.indexOf("normal");
   /** 複数のダンジョン(plan/multiple-dungeons.md)。解放済みダンジョン一覧(unlockedDungeons())の中でのカーソル位置 */
   private dungeonIndex = 0;
+  /** 衣装(plan/costumes.md)の一覧上のカーソル位置(COSTUMES配列のインデックス) */
+  private costumeCursor = 0;
   /** ねむり小屋の一覧上のカーソル位置 */
   private hutCursor = 0;
   /** モンスター図鑑(plan/monster-compendium.md)の一覧上のカーソル位置 */
@@ -108,6 +111,7 @@ export class TownScreen {
   private onReleaseCompanion: ((uid: number) => void) | null = null;
   private onDevelopVillage: (() => void) | null = null;
   private onSetFontSize: ((fontSize: FontSize) => void) | null = null;
+  private onEquipCostume: ((costumeId: string) => void) | null = null;
   /** 実績帳(plan/achievements.md)の一覧上のカーソル位置 */
   private achievementCursor = 0;
   /** 依頼板(plan/quest-board.md)の一覧上のカーソル位置 */
@@ -140,6 +144,7 @@ export class TownScreen {
     onReleaseCompanion: (uid: number) => void,
     onDevelopVillage: () => void,
     onSetFontSize: (fontSize: FontSize) => void,
+    onEquipCostume: (costumeId: string) => void,
   ): void {
     this.save = save;
     this.storage = save.storage.map((s) => ({ ...s }));
@@ -170,6 +175,7 @@ export class TownScreen {
     this.onReleaseCompanion = onReleaseCompanion;
     this.onDevelopVillage = onDevelopVillage;
     this.onSetFontSize = onSetFontSize;
+    this.onEquipCostume = onEquipCostume;
     this.achievementCursor = 0;
     this.questCursor = 0;
     this.open = true;
@@ -599,10 +605,46 @@ export class TownScreen {
         case "KeyA":
           this.column = 13;
           break;
+        case "ArrowRight":
+        case "KeyD":
+          this.column = 15;
+          break;
         case "Enter":
         case "NumpadEnter": {
           const next: FontSize = this.save?.fontSize === "large" ? "normal" : "large";
           this.onSetFontSize?.(next);
+          break;
+        }
+        case "Space":
+          this.departNow();
+          return true;
+        default:
+          return true;
+      }
+      this.render();
+      return true;
+    }
+
+    if (this.column === 15) {
+      switch (code) {
+        case "ArrowUp":
+        case "KeyW":
+          this.costumeCursor = wrap(this.costumeCursor - 1, COSTUMES.length);
+          break;
+        case "ArrowDown":
+        case "KeyS":
+          this.costumeCursor = wrap(this.costumeCursor + 1, COSTUMES.length);
+          break;
+        case "ArrowLeft":
+        case "KeyA":
+          this.column = 14;
+          break;
+        case "Enter":
+        case "NumpadEnter": {
+          const costume = COSTUMES[this.costumeCursor];
+          if (costume && this.save?.unlockedCostumes.includes(costume.id)) {
+            this.onEquipCostume?.(costume.id);
+          }
           break;
         }
         case "Space":
@@ -906,6 +948,7 @@ export class TownScreen {
       this.renderDungeons(),
       this.renderVillage(),
       this.renderAccessibility(),
+      this.renderCostumes(),
     );
     box.appendChild(columns);
 
@@ -983,6 +1026,14 @@ export class TownScreen {
     } else if (this.column === 14) {
       desc.textContent =
         "Enterでメッセージログ・メニューの文字サイズを切り替える。ダンジョン内ではHキーでいつでも操作説明を呼び出せる。";
+    } else if (this.column === 15) {
+      const costume = COSTUMES[this.costumeCursor];
+      const unlocked = costume ? (this.save?.unlockedCostumes.includes(costume.id) ?? false) : false;
+      desc.textContent = costume
+        ? unlocked
+          ? `Enterで身につける(戦闘には一切影響しない)。${costume.description}`
+          : `まだ入手していない。${costume.description}`
+        : "";
     } else {
       const selected = (this.column === 0 ? this.storage : this.carry)[this.cursor[this.column]];
       desc.textContent = selected ? itemDef(selected.defId).description : "";
@@ -1508,6 +1559,35 @@ export class TownScreen {
     const note = document.createElement("p");
     note.textContent = "状態異常は色だけでなく記号(◐/✳/◆)でも区別して表示する。";
     wrapper.appendChild(note);
+    return wrapper;
+  }
+
+  /**
+   * 身支度(plan/costumes.md)。戦闘に一切影響しない見た目だけの衣装。
+   * 未入手のものも一覧に表示し、入手条件を隠さない(実績帳と同じ方針)
+   */
+  private renderCostumes(): HTMLElement {
+    const wrapper = document.createElement("div");
+    wrapper.className = "town-col";
+    if (this.column === 15) wrapper.classList.add("active");
+
+    const heading = document.createElement("div");
+    heading.className = "town-col-title";
+    heading.textContent = "身支度";
+    wrapper.appendChild(heading);
+
+    const unlockedCostumes = this.save?.unlockedCostumes ?? [];
+    const equipped = this.save?.equippedCostume;
+    const list = document.createElement("ul");
+    COSTUMES.forEach((costume: CostumeDef, index) => {
+      const unlocked = unlockedCostumes.includes(costume.id);
+      const li = document.createElement("li");
+      const state = costume.id === equipped ? "(装備中)" : unlocked ? "(入手済み)" : "(未入手)";
+      li.textContent = `${costume.name}${state}`;
+      if (this.column === 15 && index === this.costumeCursor) li.classList.add("selected");
+      list.appendChild(li);
+    });
+    wrapper.appendChild(list);
     return wrapper;
   }
 }

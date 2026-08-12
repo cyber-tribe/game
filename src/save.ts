@@ -1,6 +1,7 @@
 import { TUTORIAL_TIP_IDS, type TutorialTipId } from "./core/tutorial";
 import type { Actor, Item, MarkId, SkillId } from "./core/types";
 import { ACHIEVEMENTS, achievementDef } from "./entities/achievements";
+import { COSTUMES, DEFAULT_COSTUME_ID, type CostumeDef } from "./entities/costumes";
 import { DIFFICULTY_MODES, type DifficultyMode } from "./entities/difficulty";
 import { NIGHTLY_DREAM_ID } from "./entities/dungeons";
 import { MAX_RECENT_FUSION_MATERIALS, tryEvolve } from "./entities/evolution";
@@ -135,6 +136,10 @@ export interface SaveData {
    * 文字サイズ。既定は"normal"
    */
   fontSize: FontSize;
+  /** 衣装・見た目カスタマイズ(plan/costumes.md)。解放済みの衣装id一覧("default"は常に含む) */
+  unlockedCostumes: string[];
+  /** 現在身につけている衣装id。既定は"default" */
+  equippedCostume: string;
 }
 
 /** アクセシビリティ(plan/difficulty-modes.md)。メッセージログ・メニューの文字サイズ */
@@ -189,6 +194,8 @@ export function initialSave(): SaveData {
     nightlyDreamBestDepth: 0,
     villageStage: 1,
     fontSize: "normal",
+    unlockedCostumes: [DEFAULT_COSTUME_ID],
+    equippedCostume: DEFAULT_COSTUME_ID,
   };
 }
 
@@ -224,6 +231,11 @@ export function loadSave(): SaveData {
       nightlyDreamBestDepth: Math.max(0, numberOr(parsed.nightlyDreamBestDepth, 0)),
       villageStage: sanitizeVillageStage(parsed.villageStage),
       fontSize: parsed.fontSize === "large" ? "large" : "normal",
+      unlockedCostumes: sanitizeUnlockedCostumes(parsed.unlockedCostumes),
+      equippedCostume: sanitizeEquippedCostume(
+        parsed.equippedCostume,
+        sanitizeUnlockedCostumes(parsed.unlockedCostumes),
+      ),
     };
   } catch {
     // 壊れた保存データで起動できなくなるほうが困るので、黙って初期値に戻す
@@ -287,6 +299,41 @@ export function setDifficulty(current: SaveData, difficulty: DifficultyMode): Sa
 export function setFontSize(current: SaveData, fontSize: FontSize): SaveData {
   if (current.fontSize === fontSize) return current;
   const next: SaveData = { ...current, fontSize };
+  saveData(next);
+  return next;
+}
+
+function isCostumeUnlocked(costume: CostumeDef, save: SaveData): boolean {
+  if (costume.unlock === "always") return true;
+  switch (costume.unlock.kind) {
+    case "compendiumComplete":
+      return isCompendiumComplete(save);
+    case "villageStage":
+      return save.villageStage >= costume.unlock.stage;
+    case "nightlyDreamDepth":
+      return save.nightlyDreamBestDepth >= costume.unlock.depth;
+  }
+}
+
+/**
+ * 衣装(plan/costumes.md): 満たしている解放条件を確認し、新たに解放された
+ * ものを記録に加える。実績帳と同じ「一度解放すれば記録はロストしない」方針
+ */
+export function refreshUnlockedCostumes(current: SaveData): SaveData {
+  const newlyUnlocked = COSTUMES.filter(
+    (c) => !current.unlockedCostumes.includes(c.id) && isCostumeUnlocked(c, current),
+  ).map((c) => c.id);
+  if (newlyUnlocked.length === 0) return current;
+  const next: SaveData = { ...current, unlockedCostumes: [...current.unlockedCostumes, ...newlyUnlocked] };
+  saveData(next);
+  return next;
+}
+
+/** 衣装(plan/costumes.md): 解放済みの衣装だけを身につけられる */
+export function equipCostume(current: SaveData, id: string): SaveData {
+  if (current.equippedCostume === id) return current;
+  if (!current.unlockedCostumes.includes(id)) return current;
+  const next: SaveData = { ...current, equippedCostume: id };
   saveData(next);
   return next;
 }
@@ -386,6 +433,8 @@ export function recordRun(
         : current.nightlyDreamBestDepth,
     villageStage: current.villageStage,
     fontSize: current.fontSize,
+    unlockedCostumes: current.unlockedCostumes,
+    equippedCostume: current.equippedCostume,
   };
   // 依頼板(plan/quest-board.md): 受注中の依頼を判定し、達成していれば報酬を渡して外す
   const withQuests = resolveQuests(next, result);
@@ -1040,4 +1089,18 @@ function sanitizeDifficulty(value: unknown): DifficultyMode {
 
 function sanitizeVillageStage(value: unknown): VillageStage {
   return value === 1 || value === 2 || value === 3 || value === 4 ? value : 1;
+}
+
+const VALID_COSTUME_IDS = new Set(COSTUMES.map((c) => c.id));
+
+/** 衣装・見た目カスタマイズ(plan/costumes.md): 既知の衣装idだけを残し、"default"は必ず含める */
+function sanitizeUnlockedCostumes(value: unknown): string[] {
+  const known = Array.isArray(value)
+    ? value.filter((id): id is string => typeof id === "string" && VALID_COSTUME_IDS.has(id))
+    : [];
+  return known.includes(DEFAULT_COSTUME_ID) ? known : [DEFAULT_COSTUME_ID, ...known];
+}
+
+function sanitizeEquippedCostume(value: unknown, unlocked: string[]): string {
+  return typeof value === "string" && unlocked.includes(value) ? value : DEFAULT_COSTUME_ID;
 }
