@@ -1082,6 +1082,18 @@ export class Game {
     // 胞子を吹き飛ばして無効化する(そのフロア滞在中は解除されたまま)
     const room = this.floor.rooms.find((r) => roomContains(r, center));
     if (room?.spored) room.spored = false;
+
+    // 第三地方ボス(plan/region-boss-oomadoromi.md): 爆心と同じ部屋に予兆中の
+    // ボスがいれば、大技を解除する(クールダウンはそのまま消費済み扱い)
+    if (room) {
+      const chargingBoss = this.floor.actors.find(
+        (a) => a.alive && a.telegraphCharge && roomContains(room, a.pos),
+      );
+      if (chargingBoss) {
+        chargingBoss.telegraphCharge = false;
+        events.push({ type: "message", text: "大技の気配が霧散した!" });
+      }
+    }
   }
 
   private movePlayer(dir: Dir, events: GameEvent[]): boolean {
@@ -1955,6 +1967,17 @@ export class Game {
           this.damageActor(target, finalDamage, critical, events);
           break;
         }
+        case "boomAoeSleep": {
+          // 地方ボス(plan/region-boss-oomadoromi.md): 予兆を消費した大技。
+          // 隣接攻撃ではなく、自分のいる部屋の全アクターに睡眠を放つ
+          events.push({ type: "message", text: `${displayActorName(actor)}が胞子をまき散らした!` });
+          const room = this.floor.rooms.find((r) => roomContains(r, actor.pos));
+          if (room) {
+            const occupants = this.floor.actors.filter((a) => a.alive && roomContains(room, a.pos));
+            this.applySleepPulse(occupants, events);
+          }
+          break;
+        }
       }
 
       // 地方ボス(plan/region-boss-nushigaeru.md): 深みタイルの上にいる間、
@@ -2105,10 +2128,18 @@ export class Game {
       if (room.sporeTimer < SPORE_PULSE_INTERVAL) continue;
       room.sporeTimer = 0;
       events.push({ type: "message", text: "むわっと、胞子が満ちた……" });
-      for (const actor of occupants) {
-        if (!actor.alive || !this.rng.chance(SPORE_SLEEP_CHANCE)) continue;
-        addStatus(this.effectContext(events), actor, STATUS_SLEEP, SPORE_SLEEP_TURNS, "眠ってしまった");
-      }
+      this.applySleepPulse(occupants, events);
+    }
+  }
+
+  /**
+   * 部屋の在室者全員に睡眠を判定する(敵味方問わず)。plan/spore-grove.md の
+   * 胞子部屋パルスと、plan/region-boss-oomadoromi.md の大技(aoeSleep)で共有する
+   */
+  private applySleepPulse(occupants: readonly Actor[], events: GameEvent[]): void {
+    for (const actor of occupants) {
+      if (!actor.alive || !this.rng.chance(SPORE_SLEEP_CHANCE)) continue;
+      addStatus(this.effectContext(events), actor, STATUS_SLEEP, SPORE_SLEEP_TURNS, "眠ってしまった");
     }
   }
 

@@ -89,7 +89,7 @@ describe("entities/species.ts: ヌシガエル(第二地方ボス)", () => {
   });
 
   it("REGION_BOSS_ORDERに、おおねぼすけに続いて登録されている", () => {
-    expect(REGION_BOSS_ORDER).toEqual(["oonebosuke", "nushigaeru"]);
+    expect(REGION_BOSS_ORDER.indexOf("nushigaeru")).toBe(REGION_BOSS_ORDER.indexOf("oonebosuke") + 1);
   });
 });
 
