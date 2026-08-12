@@ -49,28 +49,94 @@ autosave.md`(`RunSnapshot`, `src/game.ts` / `src/save.ts`)と
   できる状態になる(`design/server-architecture.md` の原則2)。
 - ゲーム側はこの画面を開くところまでで完結し、Issueを実際に作成する
   (投稿ボタンを押す)かどうかはプレイヤーの判断に委ねる。
-- スクリーンショットは `dataURL` のままだと長すぎてURLの上限を超えるため、
-  本文には**技術情報(JSON、`BugReport` から `screenshotDataUrl` を
-  除いたもの)をそのまま埋め込み**、画像だけは別途ダウンロードさせて
-  「この画面に貼り付け(ドラッグ&ドロップ)してください」と一言添える。
 - **ボタンの表示・遷移先は隠さない。** 押せば `github.com` へ画面が
   切り替わることがそのまま見える(隠しようがない、という技術的な
   事実でもある)。行き先を偽ったり、確認なく別の場所へ送ったりしない。
 
+### 本文の組み立て方(URLの長さ制限への対応)
+
+新規Issue画面の事前入力は `?body=...` というURLのクエリ文字列で行う。
+`RunSnapshot` はフロア全体のタイル配列を含むため、ダイブ中の報告では
+簡単に数十KBを超え、**URLに直接載せるには大きすぎる**(ブラウザ・
+GitHub側どちらの制限に照らしても安全とは言えない)。そのため、
+URLに乗せる情報とクリップボードに乗せる情報を分ける。
+
+- **URLの `body` に直接載せるもの(数百文字程度で収まる範囲)**:
+  プレイヤーのコメント、`screen`、(ダイブ中なら)地方名・階・HP・
+  満腹度、`gameVersion`。**貼り付け待ちのプレースホルダー**
+  (`<!-- bug-report:paste-here -->` という目印のコメント行)も
+  本文の中にあらかじめ用意しておく。
+- **クリップボードにコピーするもの**: `BugReport` から
+  `floor.tiles`(フロア全体のタイル配列、最も大きい部分)を除いた
+  トリミング版を、ボタンを押した時点で `navigator.clipboard.
+  writeText()` によりコピーする。ボタン確認時に「貼り付け用のデータを
+  コピーしました。GitHubの画面で貼り付けてください」と一言添える。
+- **スクリーンショット**: 従来通り `dataURL` は載せず、画像として
+  ダウンロードさせ「この画面にドラッグ&ドロップしてください」と促す。
+- プレイヤーは、開いたGitHub画面でプレースホルダー行を選び、貼り付け
+  (Ctrl+V / Cmd+V)してから投稿する。**ひと手間増えるが、確実に動く
+  方法を優先する。**タイトル・拠点画面からの報告(ダイブ中の状態を
+  含まない)は元々小さいため、この手順が要らない場合が多い。
+
 ## サーバー側の処理(GitHub Actions)
 
-Issue作成をきっかけに、`.github/workflows/bug-report-triage.yml`
-(新規)が起動し、以下を自動で行う。
+### 起動条件
 
-- Issue本文からバグ報告用のJSONブロック(目印として
-  `<!-- bug-report:v1 -->` を前置する等)を取り出す。
-- 形式が正しければ、内容から自動でラベルを付ける(例:
-  `screen:dungeon` `difficulty:hard` など、`BugReport` の値をそのまま
-  ラベル化する)。
-- 読みやすい要約(階層・HP・直前の出来事)をコメントとして追記し、
-  開発側が生のJSONを読まずに把握できるようにする。
-- JSONが見つからない・壊れている場合は、その旨をコメントし
-  `needs-info` ラベルを付ける(通常の手動Issueとの区別のため)。
+```yaml
+# .github/workflows/bug-report-triage.yml (新規)
+on:
+  issues:
+    types: [opened]
+permissions:
+  issues: write
+jobs:
+  triage:
+    if: contains(github.event.issue.labels.*.name, 'bug-report')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            # 下記の処理をここに書く
+```
+
+`labels=bug-report,needs-triage` を新規Issue作成URLに含めておき
+(`plan/bug-report.md` の本文組み立て箇所で付与)、`bug-report` ラベルの
+無いIssue(通常の手動報告・要望等)には**このワークフローは一切反応
+しない**ようにする(`if:` によるジョブレベルの絞り込みで、無関係な
+Issueにまで処理が走らないようにする)。
+
+### 処理の流れ
+
+1. Issue本文から、プレースホルダー行(`<!-- bug-report:paste-here -->`)
+   の位置に貼り付けられた ```` ```json ... ``` ```` ブロックを正規表現で
+   取り出す。
+2. `JSON.parse` を試みる。**失敗した場合、または必須項目
+   (`createdAt` `gameVersion` `screen`)が欠けている場合**は、
+   - `needs-triage` ラベルを外し、`needs-info` ラベルを付ける
+   - 「データの貼り付けが見当たりませんでした。ボタンでコピーした
+     内容をIssue本文に貼り付けてから投稿し直してください」という
+     コメントを付けて、以降の処理を打ち切る。
+3. 解析に成功したら、値に応じてラベルを機械的に付ける
+   (`screen:${screen}`、`settings.difficulty` があれば
+   `difficulty:${difficulty}`)。`needs-triage` は外す。
+4. 読みやすい要約コメントを1件追記する(生のJSONを毎回読まずに
+   把握できるようにする)。書式の例:
+
+   ```
+   ## 自動要約
+   - バージョン: v0.x.x (commit abcdef)
+   - 発生画面: ダンジョン(なみだの滝つぼ 27階)
+   - HP: 18/40, 満腹度: 32
+   - 直近の出来事:
+     - ホネガラミの攻撃を受けた(-8)
+     - 眠りの状態異常を受けた
+   - 端末: Chrome, 1920x1080
+   ```
+
+5. Issueは**自動で閉じない**(`plan/community-leaderboard.md` の
+   リーダーボード投稿とは違い、開発側が調査・返信するためのIssueなので、
+   通常の手動Issueと同じくオープンのまま運用者の対応に委ねる)。
 
 権限は `GITHUB_TOKEN`(ワークフロー実行のたびに自動発行される、この
 リポジトリだけに効く一時トークン)に `issues: write` を与えるだけで
@@ -102,6 +168,17 @@ export interface BugReport {
   device: { userAgent: string; screenWidth: number; screenHeight: number };
   screenshotDataUrl: string;
 }
+
+/**
+ * Issue本文に貼り付ける版。BugReport から、フロア全体のタイル配列
+ * (floor.tiles)という最も大きい部分を除いたもの。クリップボードに
+ * コピーする対象はこちら。
+ */
+export type PastableBugReport = Omit<BugReport, "runSnapshot" | "screenshotDataUrl"> & {
+  runSnapshot?: Omit<RunSnapshot, "floor"> & {
+    floor: Omit<RunSnapshot["floor"], "tiles">;
+  };
+};
 ```
 
 ## 未決事項
@@ -110,6 +187,11 @@ export interface BugReport {
   以外に何を機械的に付けるか)
 - 直近イベント何件分を添付するか(戦闘ログの保持件数と揃えるのが自然)
 - スクリーンショットのドラッグ&ドロップを促す文言・UIの具体的な見せ方
-- JSONブロックの目印(`<!-- bug-report:v1 -->`)のバージョニング方針
-  (今後 `BugReport` の形が変わったときに `v2` を作るか、後方互換を
+- JSONブロックの目印(`<!-- bug-report:paste-here -->`)のバージョニング
+  方針(今後 `BugReport` の形が変わったときに `v2` を作るか、後方互換を
   保つか)
+- `navigator.clipboard.writeText()` が使えない環境(権限拒否・非対応
+  ブラウザ)への代替手段(画面上にテキストエリアで表示し手動選択・
+  コピーしてもらう、といった保険を用意するか)
+- `PastableBugReport` でもなお大きすぎるケース(仲間の数・持ち物が多い
+  終盤の状態等)への追加の切り詰め方針
