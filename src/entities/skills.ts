@@ -1,4 +1,4 @@
-import type { SkillId } from "../core/types";
+import type { Actor, SkillId } from "../core/types";
 
 export type { SkillId };
 
@@ -118,4 +118,9 @@ export function fullSkillSet(speciesId: string, extra: readonly SkillId[] = []):
   const set = new Set<SkillId>(extra);
   if (native) set.add(native);
   return [...set];
+}
+
+/** 夢あわせ(plan/monster-fusion.md)で得た特技を持っているか */
+export function hasSkill(actor: Actor, id: SkillId): boolean {
+  return actor.skills?.includes(id) ?? false;
 }
