@@ -76,6 +76,7 @@ import {
   NIGHTLY_DREAM_ID,
   REGION_SIZE,
   TRIAL_CHAMBER_ID,
+  TRUE_AWAKENING_ID,
   dungeonById,
   nightlyDreamStatMultiplier,
 } from "./entities/dungeons";
@@ -110,7 +111,8 @@ import {
   totalAttack,
   totalDefense,
 } from "./entities/player";
-import { REGION_BOSS_FLOORS, REGION_BOSS_ORDER, speciesById } from "./entities/species";
+import { HAJIME_NO_YUME_ID, REGION_BOSS_FLOORS, REGION_BOSS_ORDER, speciesById } from "./entities/species";
+import { type BondStage, bondStage } from "./entities/companionBond";
 import { itemDef } from "./items/catalog";
 import { type EffectContext, addStatus, applyEffect } from "./items/effects";
 import {
@@ -174,6 +176,13 @@ const REGEN_IF_UNHIT_AMOUNT = 2;
  * 出現確率に掛かる倍率。基準の確率自体は dungeon/populate.ts 側で定義する
  */
 const COMPENDIUM_COMPLETE_SHINING_MULTIPLIER = 1.5;
+/**
+ * 真の目覚め(plan/true-awakening.md)達成後の恒久ボーナス。図鑑コンプリート
+ * の1.5倍からさらに+0.5%(基準1%換算)上乗せし、合計2倍にする。
+ * 達成には図鑑コンプリートが前提条件のひとつなので、この倍率は
+ * COMPENDIUM_COMPLETE_SHINING_MULTIPLIERの代わりに使う(掛け合わせない)
+ */
+const TRUE_AWAKENING_SHINING_MULTIPLIER = 2;
 
 export type Command =
   | { type: "move"; dir: Dir }
@@ -241,6 +250,12 @@ export interface RunOptions {
    * 初回プレイヤーがこの階で足止めされてしまうため
    */
   deepest?: number;
+  /**
+   * 真の目覚め(plan/true-awakening.md)。SaveData.trueAwakeningClearedを
+   * そのまま渡す。true ならかがやきの夢のかけらの出現率がさらに上がる
+   * (compendiumCompleteの上乗せぶんとは別枠の恒久ボーナス)
+   */
+  trueAwakeningCleared?: boolean;
 }
 
 export type RunStatus = "playing" | "dead" | "cleared";
@@ -331,6 +346,35 @@ const MOUNTAIN_CORE_DIALOGUE: readonly string[] = [
 ];
 /** 松明: 見晴らしのはちまき(+1)より強い光源として、くらやみの階の暗さを大きく緩和する */
 const TORCH_VISION_BONUS = 2;
+
+/**
+ * 真の目覚め(plan/true-awakening.md): 「はじめの夢」との決着イベント。
+ * design/postgame.mdの「もう独りではない」と伝わる決着方針どおり、
+ * HPが0になっても通常のkillActor(討伐・ドロップ・経験値)処理には進まず、
+ * この専用イベントに分岐する。台詞の執筆はプランのスコープ外だったため、
+ * 実装時に新規に書いた
+ */
+const TRUE_AWAKENING_INTRO: readonly string[] = [
+  "はじめの夢「……だれも、いない。ずっと、そうだった」",
+  "はじめの夢「あなたも、いつか、いなくなる。みんな、そうだった」",
+];
+
+/**
+ * 締めの一言は、現在連れている仲間のうち最も絆(なじみ)が深い個体の段階で
+ * 出し分ける。仲間を1体も連れていない場合は別枠(TRUE_AWAKENING_FAREWELL_SOLO)
+ */
+const TRUE_AWAKENING_FAREWELL_SOLO = "ガルド「独りで来たけど……ここまで、独りじゃなかったよ」";
+const TRUE_AWAKENING_FAREWELL_BY_BOND_STAGE: Readonly<Record<BondStage, string>> = {
+  none: "ガルド「まだ知り合ったばかりの仲間だけど、ちゃんとここにいるよ」",
+  familiar: "ガルド「一緒に潜ってきた仲間が、ここにいる」",
+  close: "ガルド「ずっと並んで歩いてきた仲間が、ちゃんとここにいるよ」",
+  irreplaceable: "ガルド「かけがえのない仲間と、ここまで来た。もう独りじゃない」",
+};
+
+const TRUE_AWAKENING_CLOSING: readonly string[] = [
+  "はじめの夢は、ふっと軽くなったように溶けて消えていった。",
+  "山は、ゆっくりとした寝息に戻っていく。",
+];
 
 /** タルの飛距離 */
 const BARREL_RANGE = 8;
@@ -459,6 +503,9 @@ export class Game {
   /** 図鑑を全種「捕まえた」まで埋めているか(plan/monster-compendium.md) */
   private compendiumComplete = false;
 
+  /** 真の目覚め(plan/true-awakening.md)を達成済みか。かがやきの夢のかけら出現率の恒久ボーナスに使う */
+  private trueAwakeningCleared = false;
+
   /** 難易度モード(plan/difficulty-modes.md) */
   private difficulty: DifficultyMode = "normal";
 
@@ -530,6 +577,7 @@ export class Game {
     this.maxDepth = opts.maxDepth ?? this.dungeon.maxDepth ?? Number.POSITIVE_INFINITY;
     this.trainingFocus = opts.trainingFocus ?? "balance";
     this.compendiumComplete = opts.compendiumComplete ?? false;
+    this.trueAwakeningCleared = opts.trueAwakeningCleared ?? false;
     this.difficulty = opts.difficulty ?? "normal";
     this.player = createPlayer(1);
 
@@ -588,7 +636,10 @@ export class Game {
         ? REGION_BOSS_FLOORS[depth]
         : this.dungeon.id === TRIAL_CHAMBER_ID
           ? REGION_BOSS_ORDER[depth - 1]
-          : undefined;
+          : // 真の目覚め(plan/true-awakening.md): 最終階にだけ「はじめの夢」を配置する
+            this.dungeon.id === TRUE_AWAKENING_ID && depth === this.maxDepth
+            ? HAJIME_NO_YUME_ID
+            : undefined;
     const gimmick = bossSpeciesId
       ? undefined
       : pickFloorGimmick(
@@ -624,8 +675,11 @@ export class Game {
     const boostedItemDefId =
       charmDefId(this.player.inventory) === "dustLureSachet" ? "hokoraDust" : undefined;
     const shiningChanceMultiplier =
-      (this.compendiumComplete ? COMPENDIUM_COMPLETE_SHINING_MULTIPLIER : 1) *
-      SHINING_CHANCE_DIFFICULTY_MULTIPLIER[this.difficulty];
+      (this.trueAwakeningCleared
+        ? TRUE_AWAKENING_SHINING_MULTIPLIER
+        : this.compendiumComplete
+          ? COMPENDIUM_COMPLETE_SHINING_MULTIPLIER
+          : 1) * SHINING_CHANCE_DIFFICULTY_MULTIPLIER[this.difficulty];
     populateFloor(
       this.rng,
       this.floor,
@@ -812,6 +866,51 @@ export class Game {
       events.push({ type: "message", text: line });
     }
     events.push({ type: "mountainCoreCleared" });
+  }
+
+  /**
+   * 真の目覚め(plan/true-awakening.md): 「はじめの夢」のHPが0になった瞬間に
+   * killActorの代わりに呼ぶ。討伐・ドロップ・経験値は発生させず、絆(なじみ)
+   * に応じた締めの一言を挟んでダイブを踏破扱いで終える
+   */
+  private trueAwakeningEnding(target: Actor, events: GameEvent[]): void {
+    target.alive = false;
+    target.hp = 0;
+    events.push({ type: "die", actorId: target.id, kind: target.kind, speciesId: target.speciesId });
+    // summonEcho(地方ボス、plan/region-boss-kodamanonushi.md)で分身を出していた
+    // 場合、本体と同時に消す(killActorの同等処理を踏襲)
+    for (const echo of this.floor.actors) {
+      if (echo.id === target.id || echo.sharesHpWith !== target.id || !echo.alive) continue;
+      echo.alive = false;
+      echo.hp = 0;
+      events.push({ type: "die", actorId: echo.id, kind: echo.kind, speciesId: echo.speciesId });
+    }
+
+    for (const line of TRUE_AWAKENING_INTRO) {
+      events.push({ type: "message", text: line });
+    }
+    events.push({ type: "message", text: this.trueAwakeningFarewellLine() });
+    for (const line of TRUE_AWAKENING_CLOSING) {
+      events.push({ type: "message", text: line });
+    }
+
+    this.status = "cleared";
+    this.endReason = "「はじめの夢」に、もう独りではないと伝わった。";
+    events.push({ type: "message", text: this.endReason });
+    events.push({ type: "gameOver", reason: this.endReason });
+    events.push({ type: "trueAwakeningCleared" });
+  }
+
+  /** 現在連れている仲間のうち、最も絆(なじみ)が深い個体の段階に応じた締めの一言を返す */
+  private trueAwakeningFarewellLine(): string {
+    if (this.allies.length === 0) return TRUE_AWAKENING_FAREWELL_SOLO;
+    const stageRank: readonly BondStage[] = ["none", "familiar", "close", "irreplaceable"];
+    let best: BondStage = "none";
+    for (const ally of this.allies) {
+      const stage = bondStage(ally.bondSuccessCount ?? 0);
+      if (stageRank.indexOf(stage) > stageRank.indexOf(best)) best = stage;
+    }
+    return TRUE_AWAKENING_FAREWELL_BY_BOND_STAGE[best];
   }
 
   private descend(events: GameEvent[]): void {
@@ -1906,6 +2005,8 @@ export class Game {
         hpOwner.hp = 1;
         this.usedStubborn.add(hpOwner.id);
         events.push({ type: "message", text: `${displayActorName(hpOwner)}はふんばりこらえた!` });
+      } else if (hpOwner.speciesId === HAJIME_NO_YUME_ID) {
+        this.trueAwakeningEnding(hpOwner, events);
       } else {
         this.killActor(hpOwner, events);
       }

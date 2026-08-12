@@ -105,6 +105,13 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
     description: "道具を使わず、武器も持ち替えずに表の寝穴を完全踏破する。",
     title: "求道者",
   },
+  // 真の目覚め(隠し最終局面、plan/true-awakening.md)
+  {
+    id: "trueAwakening",
+    name: "はじめの夢との対話",
+    description: "図鑑コンプリート・全地方ボス撃破・実績多数達成の先にある、隠された局面「はじめの夢」に決着をつける。",
+    title: "最古の夢に寄り添う者",
+  },
 ];
 
 const BY_ID = new Map(ACHIEVEMENTS.map((a) => [a.id, a]));

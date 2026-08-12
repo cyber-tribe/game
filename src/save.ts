@@ -18,7 +18,7 @@ import {
   type VillageStage,
 } from "./entities/village";
 import { MAX_SKILLS, NATIVE_SKILL_BY_SPECIES, SKILLS, fullSkillSet } from "./entities/skills";
-import { SPECIES, speciesById } from "./entities/species";
+import { HAJIME_NO_YUME_ID, REGION_BOSS_ORDER, SPECIES, speciesById } from "./entities/species";
 import type { StoredMonster } from "./entities/storedMonster";
 import type { RunSnapshot, RunStatus } from "./game";
 import { ITEMS } from "./items/catalog";
@@ -245,6 +245,12 @@ export interface SaveData {
    * design/postgame.mdが前提とする「物語クリア」の直接判定に使う
    */
   storyCleared: boolean;
+  /**
+   * 真の目覚め(plan/true-awakening.md)。「はじめの夢」との決着イベントを
+   * 経験した時点でtrueになる。一度trueになったら戻らない(実績・かがやきの
+   * 夢のかけら出現率ボーナスの判定に使う恒久フラグ)
+   */
+  trueAwakeningCleared: boolean;
 }
 
 /** 腕試しの間(plan/hidden-dungeon.md)。踏破1回ぶんの記録 */
@@ -316,6 +322,7 @@ export function initialSave(): SaveData {
     lastPlayedAt: new Date().toISOString(),
     defeatedRegionBosses: [],
     storyCleared: false,
+    trueAwakeningCleared: false,
   };
 }
 
@@ -365,6 +372,7 @@ export function loadSave(slot: number = activeSlot): SaveData {
       lastPlayedAt: typeof parsed.lastPlayedAt === "string" ? parsed.lastPlayedAt : new Date(0).toISOString(),
       defeatedRegionBosses: sanitizeDefeatedRegionBosses(parsed.defeatedRegionBosses),
       storyCleared: parsed.storyCleared === true,
+      trueAwakeningCleared: parsed.trueAwakeningCleared === true,
     };
   } catch {
     // 壊れた保存データで起動できなくなるほうが困るので、黙って初期値に戻す
@@ -577,6 +585,8 @@ export function recordRun(
     defeatedRegionBosses?: string[];
     /** 山の芯(plan/mountain-core.md): このダイブで最終フロアの会話イベントを経験したか */
     mountainCoreCleared?: boolean;
+    /** 真の目覚め(plan/true-awakening.md): このダイブで「はじめの夢」との決着イベントを経験したか */
+    trueAwakeningCleared?: boolean;
   },
 ): SaveData {
   let nextHutUid = current.nextHutUid;
@@ -653,6 +663,7 @@ export function recordRun(
       new Set([...current.defeatedRegionBosses, ...(result.defeatedRegionBosses ?? [])]),
     ),
     storyCleared: current.storyCleared || (result.mountainCoreCleared ?? false),
+    trueAwakeningCleared: current.trueAwakeningCleared || (result.trueAwakeningCleared ?? false),
   };
   // 依頼板(plan/quest-board.md): 受注中の依頼を判定し、達成していれば報酬を渡して外す
   const withQuests = resolveQuests(next, result);
@@ -1080,9 +1091,33 @@ export function markSpeciesCaptured(current: SaveData, speciesId: string): SaveD
   return withAchievements;
 }
 
-/** 全種族を「捕まえた」まで埋めているか(かがやきの夢のかけらの出現率upの条件) */
+/**
+ * 全種族を「捕まえた」まで埋めているか(かがやきの夢のかけらの出現率upの条件)。
+ * 「はじめの夢」(plan/true-awakening.md)は判定対象から除く――isTrueAwakening
+ * Unlockedがこの関数を条件のひとつに使っており、かつ「はじめの夢」自体は
+ * その局面でしか出会えないため、含めてしまうと「図鑑を完成させないと局面に
+ * 入れないが、その局面でしか捕まえられない種族がいる」という循環になって
+ * しまう。「はじめの夢」ぶんは、文字どおりの完全制覇を望むプレイヤー向けの
+ * おまけの捕獲対象という位置づけにする
+ */
 export function isCompendiumComplete(current: SaveData): boolean {
-  return SPECIES.every((s) => current.compendium[s.id] === "captured");
+  return SPECIES.filter((s) => s.id !== HAJIME_NO_YUME_ID).every((s) => current.compendium[s.id] === "captured");
+}
+
+/**
+ * 真の目覚め(隠し最終局面、plan/true-awakening.md)。design/postgame.md
+ * どおり3系統のANDで判定する。3件目の実績数のしきい値は本文書の未決事項
+ * だったため、現状の実績総数(trueAwakening自身を除く15件)の6〜7割
+ * 程度を目安に、実装時の判断として10件とした
+ */
+const TRUE_AWAKENING_ACHIEVEMENT_THRESHOLD = 10;
+
+export function isTrueAwakeningUnlocked(save: SaveData): boolean {
+  return (
+    isCompendiumComplete(save) &&
+    REGION_BOSS_ORDER.every((id) => save.defeatedRegionBosses.includes(id)) &&
+    Object.keys(save.achievements).length >= TRUE_AWAKENING_ACHIEVEMENT_THRESHOLD
+  );
 }
 
 function sanitizeAchievements(value: unknown): Record<string, string> {
@@ -1161,6 +1196,9 @@ export function checkAchievements(current: SaveData, extraItems: readonly Stored
 
   // 装備図鑑(plan/equipment-compendium.md): 武器図鑑コンプリートの称号
   if (isWeaponCompendiumComplete(next)) next = unlockAchievement(next, "weaponCompendiumComplete");
+
+  // 真の目覚め(plan/true-awakening.md): 「はじめの夢」との決着イベントを経験した称号
+  if (next.trueAwakeningCleared) next = unlockAchievement(next, "trueAwakening");
 
   return next;
 }

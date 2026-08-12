@@ -69,7 +69,13 @@ export type GameEvent =
    * ことを通知する。セーブへの反映(SaveData.storyCleared)は
    * 呼び出し側(main.ts)が行う
    */
-  | { type: "mountainCoreCleared" };
+  | { type: "mountainCoreCleared" }
+  /**
+   * 真の目覚め(plan/true-awakening.md)。「はじめの夢」との決着イベントを
+   * 経験したことを通知する。セーブへの反映(SaveData.trueAwakeningCleared)は
+   * 呼び出し側(main.ts)が行う
+   */
+  | { type: "trueAwakeningCleared" };
 
 /** メッセージイベントを作るだけの短縮。呼び出し側の見通しのため */
 export function msg(text: string): GameEvent {

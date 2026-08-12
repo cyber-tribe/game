@@ -57,6 +57,15 @@ export const TRIAL_CHAMBER_ID = "trialChamber";
 export const LOST_AND_FOUND_VAULT_ID = "lostAndFoundVault";
 /** 山の芯(plan/mountain-core.md)。対近道屋の決着ダンジョン */
 export const MOUNTAIN_CORE_ID = "mountainCore";
+/**
+ * 真の目覚め(隠し最終局面、plan/true-awakening.md)。
+ * unlockはあえて"always"にしている(3条件のANDは`DungeonDef.unlock`の
+ * 型に乗らないため)。isDungeonUnlockedの結果を町の一覧表示にそのまま
+ * 使うと常時解放扱いになってしまうので、src/ui/town.tsではこのIDを
+ * 通常の一覧から明示的に除外し、専用の`isTrueAwakeningUnlocked(save)`
+ * (src/save.ts)で解放判定してから別枠で表示する
+ */
+export const TRUE_AWAKENING_ID = "trueAwakening";
 
 export const DUNGEONS: readonly DungeonDef[] = [
   {
@@ -107,6 +116,15 @@ export const DUNGEONS: readonly DungeonDef[] = [
     // 出現モンスタープールは第八地方(めざめの前庭・43〜48階)と同じものを
     // 流用し、floorOffsetで難度だけ底上げする(近道屋の裏穴と同じ仕組み)。
     // 1〜3階 + 42 = 43〜45階ぶんのテーブルを引く
+    floorOffset: 42,
+  },
+  {
+    id: TRUE_AWAKENING_ID,
+    name: "はじめの夢",
+    description: "ヨリシロがいちばん最初に見た夢。誰もいない頃の記憶に触れる、隠された局面。",
+    maxDepth: 3,
+    unlock: "always",
+    // 山の芯と同じく、第八地方相当のモンスターテーブルを流用する
     floorOffset: 42,
   },
 ];
