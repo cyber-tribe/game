@@ -107,12 +107,18 @@ export class InventoryMenu {
     const def = itemDef(item.defId);
 
     const choices: Choice[] = [];
-    if (def.category === "weapon" || def.category === "shield") {
+    if (
+      def.category === "weapon" ||
+      def.category === "shield" ||
+      def.category === "head" ||
+      def.category === "charm"
+    ) {
       choices.push({
         label: isEquipped(player.inventory, item.uid) ? "はずす" : "そうびする",
         run: () => emit({ type: "equip", uid: item.uid }),
       });
-    } else {
+    } else if (def.category !== "material") {
+      // 素材(ほこら粉・刻印石)はゲンドの工房専用で、ダンジョン内で「つかう」ことはできない
       choices.push({
         label: def.category === "food" ? "たべる" : def.category === "staff" ? "ふる" : "つかう",
         run: () => emit({ type: "use", uid: item.uid }),

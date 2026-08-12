@@ -1,5 +1,14 @@
 # 仲間への指示(構え)
 
+> **実装済み。** `src/core/types.ts`(`AllyStance` 型・`Actor.stance`/`holdPos`)・
+> `src/entities/ai.ts`(`decideAllyAction` の4分岐)・`src/game.ts`
+> (`setStance` コマンド)・`src/ui/stance.ts`(Tキーのメニュー)・
+> `src/view/hud.ts`(仲間欄の構え表示)。テストは `tests/stance.test.ts`。
+>
+> ④先陣を切れも含め、①〜④すべてを実装した(未決事項にあった「先送り案」は
+> 採らなかった)。構え変更の制約(クールダウン・満腹度消費)は設けず、
+> 未決事項に書かれていたとおり無条件で即時切替にしている。
+
 README の「これから」にある「仲間への指示」を仕様化する。現状の仲間AI
 (`src/entities/ai.ts` の `decideAllyAction`)は常に固定の1パターン
 (隣に敵がいれば殴る → 見えている敵がいれば追う → いなければ主のそばに

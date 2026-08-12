@@ -1,5 +1,40 @@
 # 主人公専用の装備・アイテム拡充
 
+> **実装済み。** `src/core/types.ts`(`ItemCategory` への `"head"`/`"charm"`/
+> `"tool"` 追加)・`src/items/inventory.ts`(`Inventory.headUid`/`charmUid`、
+> `equip`/`isEquipped`の拡張、`headBonus`/`headDefId`/`charmDefId`)・
+> `src/items/catalog.ts`(頭防具4種・装身具4種・道具3種)・
+> `src/entities/player.ts`(`totalDefense`への`headBonus`加算)・
+> `src/items/effects.ts`(`addStatus`での樽守りの笠の眠り耐性)・
+> `src/dungeon/visibility.ts`(`updateVisibility`の`extraRange`引数)・
+> `src/dungeon/populate.ts`(`populateFloor`の`boostedItemDefId`引数)・
+> `src/game.ts`(千里眼の輪の察知距離、満たされ石の満腹度減少緩和、
+> 樽なじみの腕輪の捕獲率+10%、身がわりの鈴の1ダイブ1回のHP1耐え、
+> 道具3種の専用アクション`useTool`)・`src/ui/menu.ts`(頭防具・装身具の
+> 装備メニュー)。テストは `tests/protagonist-equipment.test.ts`。
+>
+> 未決事項だった点は次のとおり決めた。
+> - 頭防具・装身具・道具の新規3Dモデルは作らず、頭防具は`shield`、
+>   装身具・道具は`herb`のモデルを流用した(毒罠が`trap_damage`のモデルを
+>   流用しているのと同じ考え方)。
+> - 「樽守りの笠」の眠り耐性は、厳密な「かかる確率-20ポイント」ではなく
+>   「20%の確率で眠り付与そのものに抵抗する」実装にした(`addStatus`側に
+>   一箇所だけ手を入れればよく、眠りを付与しうるすべての経路
+>   ―モンスターの通常攻撃・ねむりごな・マドロミの印など―に自動的に
+>   一貫して効く)。
+> - 「千里眼の輪」は、モンスターハウスの気配察知の判定距離を
+>   チェビシェフ距離1→2に広げる形で実装した。
+> - 「ほこら粉寄せの匂い袋」は、`populateFloor`に汎用の
+>   `boostedItemDefId`引数(重み3倍)を追加する形で実装した。ほこら粉
+>   自体は`plan/equipment-forging.md`側のアイテムなので、この機構は
+>   defIdを文字列で受け取るだけにして両機能を疎結合にしてある
+>   (このブランチの実装時点ではまだ`hokoraDust`が存在しないため、
+>   テストは既存アイテムで機構そのものを検証した)。
+> - 「樽の目利き」は、既存コードにタルの中身を隠す仕組み(未識別状態)が
+>   そもそも存在しない(タルの見た目は`caught`/`empty`/`bomb`で最初から
+>   区別されている)ため、「視界内のモンスター入りのタルの中身(種族名)を
+>   一覧表示する」効果として実装した。
+
 `design/protagonist.md` の方針(モンスターは種族・特技・特性・進化で個性を
 作り、ガルドは装備・技・レベルで個性を作る)に沿って、現状「武器・盾のみ」
 の装備を広げる。既存の `plan/equipment-forging.md`(強化値・印)は

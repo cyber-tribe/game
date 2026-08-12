@@ -10,6 +10,21 @@ export class Rng {
     this.state = (seed >>> 0) || 0x9e3779b9;
   }
 
+  /**
+   * 内部状態から直接復元する(ダイブ中オートセーブの復帰用)。
+   * シードからの再生成ではなく、続きの乱数列をそのまま引き継ぐ。
+   */
+  static fromState(state: number): Rng {
+    const rng = new Rng(1);
+    rng.state = state >>> 0;
+    return rng;
+  }
+
+  /** 現在の内部状態。スナップショットの保存に使う */
+  getState(): number {
+    return this.state;
+  }
+
   /** [0, 1) */
   next(): number {
     this.state = (this.state + 0x6d2b79f5) >>> 0;

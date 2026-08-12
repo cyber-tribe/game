@@ -11,7 +11,13 @@ export type ActionKey =
   | "zoomIn"
   | "zoomOut"
   | "liftBarrel"
-  | "throwBarrel";
+  | "throwBarrel"
+  /** 仲間への指示(構え)メニューを開く */
+  | "orders"
+  /** 樽守りの技メニューを開く */
+  | "arts"
+  /** フォトモード(plan/gallery-mode.md)の切り替え */
+  | "photoMode";
 
 /** テンキーはそのまま8方向に対応する。5は足踏み */
 const NUMPAD_DIRS: Record<string, Dir> = {
@@ -47,6 +53,9 @@ const ACTION_KEYS: Record<string, ActionKey> = {
   Minus: "zoomOut",
   KeyF: "liftBarrel",
   KeyG: "throwBarrel",
+  KeyT: "orders",
+  KeyC: "arts",
+  KeyP: "photoMode",
 };
 
 /**
@@ -65,6 +74,9 @@ export class Input {
   constructor(target: EventTarget = window) {
     target.addEventListener("keydown", (raw) => {
       const event = raw as KeyboardEvent;
+      // 命名ダイアログ(plan/companion-naming.md)のtext inputに入力中は、
+      // IMEでの日本語入力をそのまま使わせたいので、盤面側の入力処理を素通しする
+      if (document.activeElement instanceof HTMLInputElement) return;
       if (event.repeat) return;
       if (this.onKey?.(event.code, event.shiftKey)) {
         event.preventDefault();

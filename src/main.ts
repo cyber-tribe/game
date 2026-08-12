@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { Game, type Command } from "./game";
+import { Game, type Command, type RunSnapshot } from "./game";
 import type { GameEvent } from "./core/events";
 import { isFree, walkableAt } from "./core/types";
 import { chebyshev, eq } from "./core/grid";
@@ -10,10 +10,38 @@ import { Input } from "./view/input";
 import { Minimap } from "./view/minimap";
 import { Renderer } from "./view/renderer";
 import { Stage } from "./view/stage";
+import { ArtsMenu } from "./ui/arts";
 import { InventoryMenu } from "./ui/menu";
+import { NamingDialog } from "./ui/naming-dialog";
+import { StanceMenu } from "./ui/stance";
 import { TownScreen } from "./ui/town";
-import { loadSave, recordRun, saveData, type SaveData, type StoredItem } from "./save";
+import {
+  addKnownCheckpoint,
+  checkAchievements,
+  checkEquipmentCompendium,
+  clearRunSnapshot,
+  fromStored,
+  fuseMonsters,
+  isCompendiumComplete,
+  loadRunSnapshot,
+  loadSave,
+  markSpeciesCaptured,
+  markSpeciesSeen,
+  markTutorialTipSeen,
+  recordRun,
+  renameStoredMonster,
+  saveData,
+  saveRunSnapshot,
+  setEquippedTitle,
+  setTrainingFocus,
+  takeFromHut,
+  type SaveData,
+  type StoredItem,
+  type StoredMonster,
+} from "./save";
+import { TUTORIAL_TIPS, type TutorialTipId } from "./core/tutorial";
 import type { Item } from "./core/types";
+import type { TrainingFocus } from "./entities/player";
 
 const MAX_DEPTH = 10;
 
@@ -25,8 +53,12 @@ class App {
   private readonly minimap: Minimap;
   private readonly input = new Input();
   private readonly menu: InventoryMenu;
+  private readonly stanceMenu: StanceMenu;
+  private readonly artsMenu: ArtsMenu;
   private readonly town: TownScreen;
+  private readonly namingDialog: NamingDialog;
   private readonly canvas: HTMLCanvasElement;
+  private readonly uiRoot: HTMLElement;
 
   private game!: Game;
   private save: SaveData;
@@ -35,60 +67,163 @@ class App {
   private clock = new THREE.Clock();
   private elapsed = 0;
   private ended = false;
+  /** 記録の間(plan/records-hall.md)。このダイブ中に倒した・捕まえた数 */
+  private diveDefeats = 0;
+  private diveCaptures = 0;
+  /** フォトモード(plan/gallery-mode.md)。HUDを隠し、移動・行動を止めて画角だけ動かせる */
+  private photoMode = false;
 
   constructor() {
     this.canvas = document.querySelector<HTMLCanvasElement>("#scene")!;
+    this.uiRoot = document.querySelector<HTMLElement>("#ui")!;
     this.renderer = new Renderer(this.canvas);
     this.stage = new Stage(this.renderer.scene, this.assets);
     this.hud = new Hud(document.querySelector<HTMLElement>("#ui")!);
     this.minimap = new Minimap(document.querySelector<HTMLCanvasElement>("#minimap")!);
     this.menu = new InventoryMenu(document.querySelector<HTMLElement>("#menu")!);
+    this.stanceMenu = new StanceMenu(document.querySelector<HTMLElement>("#stance")!);
+    this.artsMenu = new ArtsMenu(document.querySelector<HTMLElement>("#arts")!);
     this.town = new TownScreen(document.querySelector<HTMLElement>("#town")!);
+    this.namingDialog = new NamingDialog(document.querySelector<HTMLElement>("#naming")!);
     this.save = loadSave();
 
-    this.input.onKey = (code) => this.town.handleKey(code) || this.menu.handleKey(code);
+    this.input.onKey = (code) =>
+      this.town.handleKey(code) ||
+      this.menu.handleKey(code) ||
+      this.stanceMenu.handleKey(code) ||
+      this.artsMenu.handleKey(code);
   }
 
   async start(): Promise<void> {
     await this.assets.loadAll(modelNames());
     document.querySelector<HTMLElement>("#loading")!.style.display = "none";
-    // 先に1階を組んでおく。拠点の裏で洞窟が見えているほうが雰囲気が出る
-    this.newRun([]);
-    this.showTown();
+
+    // ダイブ中オートセーブ(plan/mid-dive-autosave.md)が残っていれば、
+    // 拠点画面を経由せずそのままダイブの続きから再開する
+    const snapshot = loadRunSnapshot();
+    if (snapshot && snapshot.status === "playing") {
+      this.resumeRun(snapshot);
+    } else {
+      if (snapshot) clearRunSnapshot(); // 正規に終わったあとの残骸(あるはずはないが念のため)
+      // 先に1階を組んでおく。拠点の裏で洞窟が見えているほうが雰囲気が出る
+      this.newRun([]);
+      this.showTown();
+    }
     this.loop();
   }
 
-  /** 潜る前の拠点。倉庫から持ち込む道具を選ぶ */
+  /** 潜る前の拠点。倉庫から持ち込む道具・出発地点・鍛え方・仲間を選ぶ */
   private showTown(): void {
     this.hud.hideOverlay();
-    this.town.show(this.save, (carry, storage) => {
-      this.save = { ...this.save, storage };
-      saveData(this.save);
-      this.newRun(carry);
-    });
+    this.town.show(
+      this.save,
+      (carry, storage, startDepth, trainingFocus, bringAllyUids) => {
+        const { save: afterTake, taken } = takeFromHut(
+          setTrainingFocus({ ...this.save, storage }, trainingFocus),
+          bringAllyUids,
+        );
+        // 装備図鑑(plan/equipment-compendium.md): 出発時点で倉庫・持ち込み品を
+        // まとめて走査し、入手・強化・刻印の記録を確定させる
+        // 実績帳(plan/achievements.md): 続けて強化・刻印系の実績も確定させる
+        this.save = checkAchievements(checkEquipmentCompendium(afterTake, carry), carry);
+        saveData(this.save);
+        this.newRun(carry, startDepth, trainingFocus, taken);
+      },
+      (axisUid, foodUid) => {
+        const fused = fuseMonsters(this.save, axisUid, foodUid);
+        if (!fused) return;
+        this.save = fused.save;
+        this.town.refreshSave(this.save);
+      },
+      (uid, current) => {
+        this.namingDialog.show("名前を付け直す", current, (value) => {
+          const renamed = renameStoredMonster(this.save, uid, value);
+          if (!renamed) return;
+          this.save = renamed;
+          this.town.refreshSave(this.save);
+        });
+      },
+      (id) => {
+        this.save = setEquippedTitle(this.save, id);
+        this.town.refreshSave(this.save);
+      },
+    );
   }
 
-  private newRun(carry: readonly StoredItem[]): void {
-    const startingItems: Item[] = carry.map((stored, index) =>
-      stored.charges === undefined
-        ? { uid: index + 1, defId: stored.defId }
-        : { uid: index + 1, defId: stored.defId, charges: stored.charges },
-    );
+  private newRun(
+    carry: readonly StoredItem[],
+    startDepth = 1,
+    trainingFocus: TrainingFocus = "balance",
+    bringAllies: readonly StoredMonster[] = [],
+  ): void {
+    this.diveDefeats = 0;
+    this.diveCaptures = 0;
+    const startingItems: Item[] = carry.map((stored, index) => fromStored(stored, index + 1));
     this.game = new Game({
       seed: (Math.random() * 0xffffffff) >>> 0,
       maxDepth: MAX_DEPTH,
       startingItems,
+      startDepth,
+      trainingFocus,
+      bringAllies: [...bringAllies],
+      compendiumComplete: isCompendiumComplete(this.save),
     });
+    this.presentFloor();
+    this.hud.log(`地下${this.game.depth}階。最深記録は ${this.save.deepest} 階。`);
+    this.hud.log("洞窟に降りた。階段をさがそう。");
+    // 「移動と攻撃」だけは特定のGameEventに紐づかないので、ここで直接出す
+    this.showTutorialTip("moveAndAttack");
+  }
+
+  /**
+   * ダイブ中オートセーブ(plan/mid-dive-autosave.md)からの復帰。
+   * スナップショットは読み込んだ瞬間に消費し、以後の何度目かの再読み込みでは
+   * 復帰できないようにする(「1回限りのクラッシュ対策」であり、
+   * セーブ&ロードによるやり直しは想定していない)。
+   */
+  private resumeRun(snapshot: RunSnapshot): void {
+    // オートセーブは記録の間(plan/records-hall.md)の途中集計までは持たないため、
+    // 復帰後ぶんだけを数える(クラッシュ前の分は失われるが、致命的ではない)
+    this.diveDefeats = 0;
+    this.diveCaptures = 0;
+    this.game = new Game({ seed: 0, resume: snapshot });
+    clearRunSnapshot();
+    this.presentFloor();
+    this.hud.log("前回の続きから再開します。");
+  }
+
+  /** 新しいダイブ・復帰したダイブ、どちらでも共通の画面まわりの初期化 */
+  private presentFloor(): void {
     this.ended = false;
     this.lock = 0;
     this.menu.hide();
+    this.stanceMenu.hide();
+    this.artsMenu.hide();
     this.hud.hideOverlay();
     this.stage.enterFloor(this.game.floor);
     this.renderer.setFocus(this.game.player.pos, true);
     this.hud.update(this.game.player, this.game.depth, this.game.allyList);
     this.minimap.draw(this.game.floor, this.game.player);
-    this.hud.log(`地下1階。最深記録は ${this.save.deepest} 階。`);
-    this.hud.log("洞窟に降りた。階段をさがそう。");
+  }
+
+  /** その場方式のチュートリアルヒント。まだ見ていなければ表示して既読にする */
+  private showTutorialTip(id: TutorialTipId): void {
+    if (this.save.seenTutorialTips.includes(id)) return;
+    this.save = markTutorialTipSeen(this.save, id);
+    this.hud.log(TUTORIAL_TIPS[id]);
+  }
+
+  /**
+   * 仲間になった直後に名前をつけるか尋ねる(plan/companion-naming.md)。
+   * Escで「あとで」を選べ、ねむり小屋でいつでも改名できる
+   */
+  private promptNaming(actorId: number, speciesName: string): void {
+    const ally = this.game.allyList.find((a) => a.id === actorId);
+    if (!ally) return;
+    this.namingDialog.show(`${speciesName}に名前をつける?`, ally.nickname, (value) => {
+      ally.nickname = value;
+      this.hud.update(this.game.player, this.game.depth, this.game.allyList);
+    });
   }
 
   // ------------------------------------------------------------ ループ
@@ -122,13 +257,31 @@ class App {
         action = this.input.takeAction();
         continue;
       }
-      if (!this.ended && !this.menu.isOpen && !this.town.isOpen && this.lock <= 0) {
+      if (
+        !this.ended &&
+        !this.menu.isOpen &&
+        !this.stanceMenu.isOpen &&
+        !this.artsMenu.isOpen &&
+        !this.town.isOpen &&
+        !this.photoMode &&
+        this.lock <= 0
+      ) {
         this.handleAction(action);
       }
       action = this.input.takeAction();
     }
 
-    if (this.ended || this.menu.isOpen || this.town.isOpen || this.lock > 0) return;
+    if (
+      this.ended ||
+      this.menu.isOpen ||
+      this.stanceMenu.isOpen ||
+      this.artsMenu.isOpen ||
+      this.town.isOpen ||
+      this.photoMode ||
+      this.lock > 0
+    ) {
+      return;
+    }
 
     const dir = this.input.direction();
     if (dir === null) return;
@@ -154,15 +307,64 @@ class App {
       case "zoomOut":
         this.renderer.zoom(1.5);
         return true;
+      case "photoMode":
+        this.togglePhotoMode();
+        return true;
+      case "confirm":
+        if (this.photoMode) {
+          this.takePhoto();
+          return true;
+        }
+        return false;
       case "restart":
         if (this.ended) {
           this.showTown();
+          return true;
+        }
+        // 生きていてめざめの階段の上にいれば、そこで区切って持ち帰る
+        if (
+          !this.menu.isOpen &&
+          !this.stanceMenu.isOpen &&
+          !this.artsMenu.isOpen &&
+          !this.town.isOpen &&
+          !this.photoMode &&
+          eq(this.game.player.pos, this.game.floor.stairs)
+        ) {
+          this.submit({ type: "bank" });
           return true;
         }
         return false;
       default:
         return false;
     }
+  }
+
+  /**
+   * フォトモード(plan/gallery-mode.md)の切り替え。HUDを隠し、既存の
+   * カメラ操作(回転・ズーム)だけで画角を調整できるようにする。
+   * ターン制なので、そもそも入力しない限り時間は進まない。
+   */
+  private togglePhotoMode(): void {
+    if (this.photoMode) {
+      this.photoMode = false;
+      this.uiRoot.style.display = "";
+      return;
+    }
+    if (this.menu.isOpen || this.stanceMenu.isOpen || this.artsMenu.isOpen || this.town.isOpen || this.ended) {
+      return;
+    }
+    this.photoMode = true;
+    this.uiRoot.style.display = "none";
+  }
+
+  /** 描画結果をそのまま画像として端末に保存する(セーブデータには含めない) */
+  private takePhoto(): void {
+    this.renderer.render();
+    const dataUrl = this.canvas.toDataURL("image/png");
+    const link = document.createElement("a");
+    link.href = dataUrl;
+    link.download = `garudo-dungeon-${Date.now()}.png`;
+    link.click();
   }
 
   private handleAction(action: string): void {
@@ -178,6 +380,16 @@ class App {
         break;
       case "throwBarrel":
         this.submit({ type: "throwBarrel" });
+        break;
+      case "orders":
+        if (this.game.allyList.length === 0) {
+          this.hud.log("指示できる仲間がいない。");
+        } else {
+          this.stanceMenu.show(this.game.allyList, (cmd) => this.submit(cmd));
+        }
+        break;
+      case "arts":
+        this.artsMenu.show(this.game.player, (cmd) => this.submit(cmd));
         break;
       case "confirm":
         // 足元の状況に応じて、階段を降りるか拾うかを選ぶ
@@ -201,6 +413,20 @@ class App {
 
     for (const event of events) {
       if (event.type === "message") this.hud.log(event.text);
+      // めざめの階段は、ダイブの結果によらず足を踏み入れた瞬間に記録する
+      if (event.type === "checkpoint") this.save = addKnownCheckpoint(this.save, event.depth);
+      if (event.type === "tutorialTip") this.showTutorialTip(event.id);
+      if (event.type === "recruit") this.promptNaming(event.actorId, event.name);
+      // 記録の間(plan/records-hall.md): 倒した・捕まえた数を積み上げる
+      if (event.type === "die" && event.kind === "monster") this.diveDefeats++;
+      if (event.type === "capture") this.diveCaptures++;
+      // モンスター図鑑(plan/monster-compendium.md): 見た・捕まえたを記録する。
+      // 「知識は失われない」原則により、全滅した場合でも取り消さない
+      if (event.type === "monsterSighted") this.save = markSpeciesSeen(this.save, event.speciesId);
+      if (event.type === "recruit") {
+        const ally = this.game.allyList.find((a) => a.id === event.actorId);
+        if (ally?.speciesId) this.save = markSpeciesCaptured(this.save, ally.speciesId);
+      }
     }
 
     const changedFloor = this.game.depth !== beforeDepth;
@@ -219,6 +445,16 @@ class App {
     this.hud.update(this.game.player, this.game.depth, this.game.allyList);
     this.minimap.draw(this.game.floor, this.game.player);
 
+    // ダイブ中オートセーブ(plan/mid-dive-autosave.md)。1ターンが解決するたびに
+    // 現在の状態をまるごと書き出す。全滅・踏破・区切りで正規に終わったときは、
+    // 続きから再開する必要がなくなるので消す(finish側でも消すが、ここでも
+    // status の変化を漏れなく拾っておく)
+    if (this.game.status === "playing") {
+      saveRunSnapshot(this.game.toSnapshot());
+    } else {
+      clearRunSnapshot();
+    }
+
     const over = events.find((e): e is Extract<GameEvent, { type: "gameOver" }> =>
       e.type === "gameOver",
     );
@@ -228,19 +464,25 @@ class App {
   private finish(reason: string): void {
     this.ended = true;
     const cleared = this.game.status === "cleared";
-    // 踏破したときだけ、持っていたものを倉庫に持ち帰れる。倒れたら全部失う
+    // 踏破したときだけ、持っていたもの・生きて連れていた仲間を持ち帰れる。倒れたら全部失う
     const broughtBack = cleared ? this.game.player.inventory.items : [];
+    const broughtBackAllies = cleared ? [...this.game.allyList] : [];
     this.save = recordRun(this.save, {
       depth: this.game.depth,
       level: this.game.player.level,
       cleared,
       broughtBack,
+      broughtBackAllies,
+      // 倒した・捕まえた数は、全滅した回でも失わずに積み上げる
+      // (design/balance-philosophy.mdの「知識・記録はロストしない」原則)
+      defeats: this.diveDefeats,
+      captures: this.diveCaptures,
     });
     this.hud.showOverlay(
       cleared ? "だっしゅつ成功!" : "ちからつきた……",
       cleared
-        ? `${reason}  持ち帰った ${broughtBack.length} 個を倉庫にしまった。`
-        : `${reason}  持ち込んだ道具はすべて失った。`,
+        ? `${reason}  持ち帰った ${broughtBack.length} 個を倉庫に、${broughtBackAllies.length} 体をねむり小屋にしまった。`
+        : `${reason}  持ち込んだ道具・仲間はすべて失った。`,
       `Lv ${this.game.player.level} / ${this.game.turnCount} ターン ・ ` +
         `最深記録 ${this.save.deepest} 階 — R キーで拠点にもどる`,
     );
@@ -265,6 +507,11 @@ class App {
   /** 一番近いモンスターの隣に立ち、殴りかかるべき方向キーを返す */
   debugFightNearest(): { key: string; name: string } | { key: null; name: string } {
     const player = this.game.player;
+    // 「殴り合いの流れを見せる」だけのテストで運悪く力尽きると、後続のタル/仲間の
+    // 検証まで巻き添えで失敗する。ここは倒す側を見せたいので、プレイヤー側だけ
+    // 底上げしておく(モンスター側はそのまま — 撃破までの流れは変えない)。
+    player.maxHp = Math.max(player.maxHp, 999);
+    player.hp = player.maxHp;
     const floor = this.game.floor;
     const monsters = floor.actors.filter((a) => a.kind === "monster" && a.alive);
     if (monsters.length === 0) return { key: null, name: "モンスターがいない" };

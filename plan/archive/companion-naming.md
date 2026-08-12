@@ -1,0 +1,107 @@
+# 仲間の命名
+
+> **実装済み。** `src/core/types.ts`(`Actor.nickname`)・`src/entities/naming.ts`
+> (`displayActorName`/`sanitizeNickname`)・`src/ui/naming-dialog.ts`(命名
+> ダイアログ)・`src/view/input.ts`(text input入力中はキー処理を素通しする
+> ガード)・`src/main.ts`(recruitイベントでの命名プロンプト、ねむり小屋の
+> 改名配線)・`src/ui/town.ts`(ねむり小屋カラムでのNキー改名)・`src/save.ts`
+> (`renameStoredMonster`、`actorToStoredMonster`のnickname引き継ぎ)・
+> `src/dungeon/populate.ts`(`createAllyFromStored`でActor.nicknameに反映)・
+> `src/game.ts`(戦闘ログのメッセージを`displayActorName`経由に変更)。
+> テストは `tests/companion-naming.test.ts`。
+>
+> 入力方式は独自のキー読み取りにせず、素の`<input type="text">`を使う形に
+> した。ブラウザのIMEをそのまま使えるため、ひらがな入力の実装コストを
+> 大きく削れる。副作用として、盤面側のキー入力(`src/view/input.ts`)は
+> `document.activeElement`がinputのあいだ全面的に素通しするガードを追加した
+> (命名ダイアログはEnter/Escを自前でinput要素に直接listenする)。
+>
+> 未決事項だった点は次のとおり決めた。
+> - 文字数上限は8文字。使用可能文字種の制限は設けていない(inputの
+>   `maxLength`のみ)。
+> - 命名時のUIは、拠点の他の画面(`TownScreen`)と統一感のある簡素な
+>   モーダル(見出し・text input・ヒントのみ)にした。
+> - 「タルを開けた直後に尋ねる」演出は、既存の`recruit`イベント直後に
+>   ダイアログを出すだけに留め、専用の演出は追加していない。Escで
+>   即座に閉じられるため、テンポへの影響は小さいと判断した。
+> - `design/flavor-details.md`の`context: "withNamedAlly"`(NPCが名前を
+>   呼ぶせりふ)は実装していない(NPCせりふプール自体が別スコープのため)。
+> - `plan/gallery-mode.md`(図鑑ギャラリー個体表示)は、当該機能自体が
+>   未実装のため対応していない。実装時に`displayActorName`を使えば良い。
+
+`plan/monster-fusion.md` で `StoredMonster` に `nickname?: string` を
+用意していたが、実際にどこで・どうやって名前をつけるかは決めていなかった。
+ここで命名の流れと、名前をどこに反映するかを仕様化する。
+
+## 命名のタイミング
+
+1. **仲間になった直後**(タルから出て懐いた瞬間)に、名前をつけるか
+   その場で尋ねる。急かしたくないので**「あとで」を選べる**ようにし、
+   タルを開けた高揚感を操作で止めすぎないようにする。
+2. **ねむり小屋(`plan/monster-fusion.md`)でいつでも改名できる**。
+   最初に名付け損ねても、あとから何度でもつけ直せる(取り返しの
+   つかない選択にはしない)。
+3. 名前をつけなければ、これまで通り種族名がそのまま表示される
+   (`design/balance-philosophy.md` の「操作の複雑さを大きく崩さない」
+   方針。命名は完全に任意)。
+
+## 入力方法
+
+- ブラウザ実行が前提(README記載)なので、実機のキーボード入力を
+  そのまま使うテキスト入力欄でよい。将来の `design/localization.md`
+  で触れたモバイル配信(Capacitor経由)ではソフトウェアキーボードに
+  任せる。
+- 文字数の上限は8文字程度(`design/ui-flow.md` のHUD仲間欄・
+  `plan/gallery-mode.md` の図鑑ギャラリーの表示幅に収まる長さ)。
+- 使える文字種の制限は最小限にする(ひらがな・カタカナ・英数字程度)。
+  このゲームはオンライン要素を持たず(README・`plan/quest-board.md` 等
+  すべて `localStorage` 完結)、他プレイヤーの目に触れることが無いため、
+  不適切表現の検閲のような重い仕組みは不要と判断する。
+- 同じ名前を複数の仲間につけることは禁止しない(現実の飼い名と同様、
+  特に制約する理由がない)。
+
+## 表示への反映
+
+名前(nickname)が設定されている個体は、**種族名の代わりに名前を
+表示**し、種族名は括弧書きで添える程度に留める(例:「タロ(ぷるん)」)。
+反映箇所は以下の通り。
+
+| 箇所 | 出典 |
+|---|---|
+| HUDの仲間欄 | 既存実装(`src/view/hud.ts` の `ally-row`) |
+| ねむり小屋の一覧 | `plan/monster-fusion.md` |
+| 図鑑ギャラリーの個体表示 | `plan/gallery-mode.md`(種族解説自体は種族共通のまま、個体の見出しにだけ名前を出す) |
+| 戦闘ログのメッセージ(「◯◯が攻撃した」等) | 既存の `GameEvent` の表示テキスト生成部 |
+| 一部のNPCのせりふ | `design/flavor-details.md` のせりふプールで、連れている仲間の名前を差し込める文脈(`context: "withNamedAlly"`)を追加してもよい。物知りのおキヨが名前を呼んでくれる、といった一言に使う |
+
+## 進化・夢あわせとの関係
+
+- `plan/companion-evolution.md` の成熟(進化)で種族が変わっても、
+  **名前はそのまま引き継ぐ**。姿が変わっても同じ個体である、という
+  一貫性を保つ。
+- 夢あわせ(`plan/monster-fusion.md`)で「軸」にした個体の名前は残る。
+  「糧」にした個体の名前は、その個体自体が消えるため一緒に失われる
+  (糧側に名前をつけていた場合、消える前に一言確認を挟んでもよいが
+  必須にはしない)。
+
+## データ構造
+
+新規フィールドは不要。既存の `StoredMonster.nickname` をそのまま使う。
+ダイブ中に連れて歩く `Actor` 側にも同じ値を渡す必要があるため、
+`Actor` に `nickname?: string` を追加し、表示用のヘルパー関数
+(`src/items/inventory.ts` の `displayName` と同じ考え方)を
+`entities` 側にも1つ用意する。
+
+```ts
+export function displayActorName(actor: Actor): string {
+  return actor.nickname ? `${actor.nickname}(${actor.name})` : actor.name;
+}
+```
+
+## 未決事項
+
+- 文字数上限・使用可能文字種の最終確定
+- 命名時のUI(専用のテキスト入力ダイアログの見た目)
+- 「タルを開けた直後に尋ねる」演出が、既存のテンポ(README記載の
+  「1ターン分のイベントを同時に再生する」快適さ)を損なわないか
+  実装時に確認する

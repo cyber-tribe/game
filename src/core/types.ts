@@ -25,6 +25,8 @@ export interface Room {
   y: number;
   w: number;
   h: number;
+  /** 特殊な部屋の種別。無指定なら普通の部屋 */
+  kind?: "monsterHouse" | "shop";
 }
 
 export function roomContains(room: Room, p: Vec2): boolean {
@@ -40,7 +42,22 @@ export function roomCenter(room: Room): Vec2 {
 export const STATUS_SLEEP = "sleep";
 export const STATUS_CONFUSE = "confuse";
 export const STATUS_SEAL = "seal";
-export type StatusKind = typeof STATUS_SLEEP | typeof STATUS_CONFUSE | typeof STATUS_SEAL;
+/** 主の大槌(heavySingle)を振るった反動。次の1手を丸ごと失う */
+export const STATUS_RECOVER = "recover";
+/** 毒。行動は妨げないが、ターン経過でじわじわHPが減る */
+export const STATUS_POISON = "poison";
+/** 透明。モンスターに新たに発見されなくなる(プレイヤー専用) */
+export const STATUS_INVISIBLE = "invisible";
+/** おびえ。モンスターが戦わずに逃げ続ける */
+export const STATUS_FEAR = "fear";
+export type StatusKind =
+  | typeof STATUS_SLEEP
+  | typeof STATUS_CONFUSE
+  | typeof STATUS_SEAL
+  | typeof STATUS_RECOVER
+  | typeof STATUS_POISON
+  | typeof STATUS_INVISIBLE
+  | typeof STATUS_FEAR;
 
 export interface Status {
   kind: StatusKind;
@@ -72,7 +89,21 @@ export type AiKind =
   /** 距離を取って遠隔攻撃してくる */
   | "ranged"
   /** 体力が減ると逃げる */
-  | "coward";
+  | "coward"
+  /** 隣接した相手から盗みを試み、成功したら逃げる(plan/shops-and-thieves.md) */
+  | "thief"
+  /** 近道屋の出店の店主。万引きされるまでは動かず攻撃もしない */
+  | "shopkeeper"
+  /** 発見されるまでawareにならず、隣接されて初めて反応する。奇襲の初撃に補正が乗る(plan/monster-compendium.md) */
+  | "ambush"
+  /** 潜って移動し、一定間隔でプレイヤーの近くに不意に現れる(plan/monster-compendium.md) */
+  | "burrow"
+  /** 単体は非力だが、生成時に複数体まとまって配置される(plan/monster-compendium.md) */
+  | "swarm"
+  /** ほとんど自分から動かず、その場を固める。隣接されたときの反撃力が高い(plan/monster-compendium.md) */
+  | "guard"
+  /** 平常時は設置物(タル)として偽装している(plan/monster-compendium.md) */
+  | "mimic";
 
 export interface Species {
   id: string;
@@ -94,6 +125,16 @@ export interface Species {
   inflicts?: { kind: StatusKind; chance: number; turns: number };
   /** ranged 用の射程 */
   range?: number;
+  /** true なら、通常のHPダメージの代わりにプレイヤーの満腹度を削る(オイテケボシ。plan/monster-compendium.md) */
+  drainsSatiety?: boolean;
+  /** mimic AI が擬態する対象。今のところ "barrel" のみ */
+  mimicAs?: string;
+  /** swarm AI の同時出現数の範囲 [min, max] */
+  swarmSize?: [number, number];
+  /** true なら、被弾しなかったターンにわずかにHPが回復する(うるみぐま。plan/monster-compendium.md) */
+  regenIfUnhit?: boolean;
+  /** true なら、プレイヤーを初めて視認した瞬間、そのフロアの他のモンスターにも気づかせる(やまびこぎつね) */
+  alertsFloorOnSight?: boolean;
 }
 
 export interface Actor {
@@ -126,15 +167,114 @@ export interface Actor {
   aware?: boolean;
   /** 徘徊中の進行方向 */
   wanderDir?: Dir;
+  /**
+   * 「なだめの手つき」(plan/protagonist-arts.md)で受けた弱らせ量。
+   * 実際のHPは減らさず、樽の捕獲判定にだけ加算される。捕獲を試みると消費される
+   */
+  captureBonus?: number;
+  /** スリガラス(plan/shops-and-thieves.md)が盗んだ金額。持っている間だけ逃走状態になる */
+  stolenGold?: number;
+  /** 近道屋の出店の店主(aiKind: "shopkeeper")。万引きされて豹変したか */
+  angry?: boolean;
+  /**
+   * ambush AI が今ターン「初めて気づいて隣接した」直後で、次の1撃に奇襲補正が
+   * 乗る一時フラグ(plan/monster-compendium.md)。攻撃解決後すぐに消費される
+   */
+  ambushReady?: boolean;
+  /** 潜っている間の残りターン数(burrow AI。plan/monster-compendium.md) */
+  burrowTimer?: number;
+  /**
+   * かがやきの夢のかけら(plan/monster-compendium.md)。通常より一回り強く、
+   * 倒すと上質な素材を落とす低確率のレア個体
+   */
+  shining?: boolean;
+
+  // ---- 以下は ally のみ ----
+  /** 構え。plan/companion-orders.md 参照。既定は "free" */
+  stance?: AllyStance;
+  /** stance === "hold" のときの固定地点 */
+  holdPos?: Vec2;
+  /**
+   * 夢あわせ(plan/monster-fusion.md)で引き継いだ特技。最大 MAX_SKILLS 個。
+   * ねむり小屋から連れ出した仲間にのみ載る(タルで新しく捕まえた直後は空)
+   */
+  skills?: SkillId[];
+  /** プレイヤーがつけた名前。plan/companion-naming.md 参照。未設定なら種族名で表示する */
+  nickname?: string;
 }
 
 export function hasStatus(actor: Actor, kind: StatusKind): boolean {
   return actor.statuses.some((s) => s.kind === kind && s.turns > 0);
 }
 
+// ---------------------------------------------------------------- 仲間への指示(構え)
+
+/**
+ * 仲間の行動方針。plan/companion-orders.md 参照。
+ *
+ *  - free:     おまかせ(既定)。隣接する敵を攻撃、見えている敵を追い、いなければ主のそばへ
+ *  - guard:    そばにいろ。自分からは追わず、主の隣接圏内(距離1以内)を保つ
+ *  - hold:     そこで待て。指示した瞬間の座標に留まる
+ *  - vanguard: 先陣を切れ。未探索タイルや階段へ自律的に進む
+ */
+export type AllyStance = "free" | "guard" | "hold" | "vanguard";
+
+export const ALLY_STANCE_NAMES: Record<AllyStance, string> = {
+  free: "おまかせ",
+  guard: "そばにいろ",
+  hold: "そこで待て",
+  vanguard: "先陣を切れ",
+};
+
+/** 夢あわせ(plan/monster-fusion.md)で引き継げる特技。定義は entities/skills.ts */
+export type SkillId =
+  | "quickStart"
+  | "drowsyBreath"
+  | "longThrow"
+  | "stubborn"
+  | "softBody"
+  | "ambushStrike"
+  | "confusingClaw"
+  | "burrowEscape"
+  | "flutterDodge"
+  | "sealBite"
+  | "slowMend"
+  | "warnCall"
+  | "disguise";
+
 // ---------------------------------------------------------------- アイテム
 
-export type ItemCategory = "herb" | "scroll" | "staff" | "food" | "weapon" | "shield";
+export type ItemCategory =
+  | "herb"
+  | "scroll"
+  | "staff"
+  | "food"
+  | "weapon"
+  | "shield"
+  /** 素材。plan/equipment-forging.md 参照 */
+  | "material"
+  /** 頭防具。plan/protagonist-equipment.md 参照 */
+  | "head"
+  /** 装身具。plan/protagonist-equipment.md 参照 */
+  | "charm"
+  /** 1個=1回の消費アイテム(杖のような回数制ではない)。plan/protagonist-equipment.md 参照 */
+  | "tool";
+
+/**
+ * 印(plan/equipment-forging.md)。武器・盾に刻める、モンスター5種に対応した加護。
+ * idは対応する種族idと揃えてある(entities/species.ts参照)。
+ */
+export type MarkId = "purun" | "gajiri" | "tsubute" | "madoromi" | "honegarami";
+
+/**
+ * 武器の攻撃パターン。plan/protagonist-weapons.md 参照。
+ *  - single:      隣接1マス(既存の「なた」系。既定値)
+ *  - line2:       正面方向、2マス先まで直線(間の敵も巻き込む)
+ *  - arc3:        向いている方向を中心に、正面と斜め前2方向の計3マス
+ *  - quickSingle: 隣接1マス。会心率+15%、そのラン最初の1手は必ず会心
+ *  - heavySingle: 隣接1マス。振るった次の1手ぶん、行動が遅れる(STATUS_RECOVER)
+ */
+export type WeaponPattern = "single" | "line2" | "arc3" | "quickSingle" | "heavySingle";
 
 export interface ItemDef {
   id: string;
@@ -147,6 +287,8 @@ export interface ItemDef {
   power?: number;
   /** 武器なら攻撃力、盾なら守備力の加算値 */
   bonus?: number;
+  /** 武器の攻撃パターン。省略時は "single" */
+  attackPattern?: WeaponPattern;
   /** 杖の初期使用回数 */
   charges?: number;
   /** 出現しはじめる階層 */
@@ -163,16 +305,34 @@ export interface Item {
   defId: string;
   /** 杖の残り使用回数 */
   charges?: number;
+  /** 強化値(+n)。武器・盾のみ。plan/equipment-forging.md 参照 */
+  plus?: number;
+  /** 刻んだ印。武器・盾のみ、未刻印ならundefined */
+  markId?: MarkId;
+  /**
+   * 近道屋の出店(plan/shops-and-thieves.md)で、お金が足りないまま
+   * 持ち出した品。持ったまま店の部屋を出ると万引き扱いになる
+   */
+  unpaid?: boolean;
 }
 
 export interface GroundItem {
   item: Item;
   pos: Vec2;
+  /** 近道屋の出店(plan/shops-and-thieves.md)の売り物。買うか、払わず持ち出すかを選べる */
+  forSale?: { price: number };
+}
+
+/** 床に落ちている金貨の山。plan/shops-and-thieves.md 参照。踏むと自動で拾う */
+export interface GoldPile {
+  id: number;
+  pos: Vec2;
+  amount: number;
 }
 
 // ---------------------------------------------------------------- 罠
 
-export type TrapKind = "damage" | "sleep" | "alarm" | "pitfall";
+export type TrapKind = "damage" | "sleep" | "alarm" | "pitfall" | "poison";
 
 export interface Trap {
   pos: Vec2;
@@ -239,6 +399,8 @@ export interface FloorState {
   items: GroundItem[];
   traps: Trap[];
   barrels: Barrel[];
+  /** 床に落ちている金貨の山。plan/shops-and-thieves.md 参照 */
+  goldPiles: GoldPile[];
   /** そのフロアに乗っているギミック。無ければ「いつも通りの階」 */
   gimmick?: FloorGimmickKind;
 }

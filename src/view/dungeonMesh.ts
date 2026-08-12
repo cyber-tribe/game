@@ -10,7 +10,7 @@ import {
   tileAt,
 } from "../core/types";
 import { itemDef } from "../items/catalog";
-import { BARREL_MODELS } from "../modelList";
+import { BARREL_MODELS, TRAP_MODELS } from "../modelList";
 
 /** 見えているマス / 記憶しているだけのマス の明るさ */
 const LIT = new THREE.Color(1.0, 1.0, 1.0);
@@ -234,7 +234,7 @@ export class DungeonView {
       const shouldShow = trap.revealed && (tile?.explored ?? false);
       let view = this.trapViews.get(key);
       if (shouldShow && !view) {
-        view = this.assets.instantiate(`trap_${trap.kind}`).root;
+        view = this.assets.instantiate(TRAP_MODELS[trap.kind]).root;
         view.position.copy(toWorld(trap.pos));
         this.trapViews.set(key, view);
         this.trapGroup.add(view);

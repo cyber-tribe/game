@@ -11,46 +11,66 @@ import {
 } from "./core/grid";
 import type { GameEvent } from "./core/events";
 import {
+  ALLY_STANCE_NAMES,
   BARREL_NAMES,
   STATUS_CONFUSE,
+  STATUS_FEAR,
+  STATUS_INVISIBLE,
+  STATUS_POISON,
+  STATUS_RECOVER,
+  STATUS_SEAL,
   STATUS_SLEEP,
   type Actor,
+  type AllyStance,
   type Barrel,
   type BarrelKind,
   type FloorGimmickKind,
   type FloorState,
   type Item,
+  type ItemDef,
+  type Room,
+  type SkillId,
+  type StatusKind,
   type Trap,
+  type WeaponPattern,
   actorAt,
   barrelAt,
   hasStatus,
   isFree,
   isHostile,
+  roomContains,
   walkableAt,
 } from "./core/types";
+import { type ArtId, artDef } from "./entities/arts";
 import { generateFloor } from "./dungeon/generate";
 import { GIMMICK_MESSAGES, pickFloorGimmick } from "./dungeon/gimmicks";
 import {
   type IdSource,
   choosePlayerStart,
   createAlly,
+  createAllyFromStored,
   createBarrel,
   createItem,
   findFreeTile,
   populateFloor,
   spawnWanderingMonster,
 } from "./dungeon/populate";
-import { updateVisibility } from "./dungeon/visibility";
+import { displayActorName } from "./entities/naming";
+import type { StoredMonster } from "./entities/storedMonster";
+import { isVisible, updateVisibility } from "./dungeon/visibility";
 import {
+  GUARD_COUNTER_BONUS,
   buildDistanceField,
   canStep,
   decideAllyAction,
   decideMonsterAction,
 } from "./entities/ai";
+import { HOKORA_DUST_DEF_ID, MARK_STONE_DEF_ID, MARKS } from "./entities/forging";
 import {
   MAX_ALLIES,
   MAX_SATIETY,
   type PlayerState,
+  type TrainingFocus,
   createPlayer,
   gainExp,
   totalAttack,
@@ -59,8 +79,67 @@ import {
 import { speciesById } from "./entities/species";
 import { itemDef } from "./items/catalog";
 import { type EffectContext, addStatus, applyEffect } from "./items/effects";
-import { addItem, displayName, equip, findItem, isFull, removeItem } from "./items/inventory";
-import { computeDamage } from "./systems/combat";
+import {
+  addItem,
+  charmDefId,
+  displayName,
+  equip,
+  findItem,
+  headDefId,
+  isFull,
+  removeItem,
+  shieldMarkId,
+  weaponMarkId,
+} from "./items/inventory";
+import { attackOffsets, computeDamage } from "./systems/combat";
+
+/** 双樽鉤(quickSingle)の会心率の上乗せ分 */
+const QUICK_SINGLE_CRIT_BONUS = 0.15;
+/** 主の大槌(heavySingle)の反動。1ターン分の行動を失わせる(既存の状態異常と同じ off-by-one 消化) */
+const HEAVY_RECOVER_TURNS = 2;
+
+/** 毒罠にかかったときの持続ターン数 */
+const POISON_TRAP_TURNS = 8;
+/** 毒が1ターンごとに削るHP */
+const POISON_DAMAGE_PER_TURN = 2;
+
+/** 身構え(足踏み直後)による被ダメージ軽減率 */
+const GUARD_DAMAGE_REDUCTION = 0.2;
+
+/** 状態異常が明けたときにプレイヤーへ表示するメッセージ */
+const STATUS_END_MESSAGES: Record<StatusKind, string> = {
+  [STATUS_SLEEP]: "目が覚めた。",
+  [STATUS_CONFUSE]: "混乱がおさまった。",
+  [STATUS_SEAL]: "封じが解けた。",
+  [STATUS_RECOVER]: "体勢を立て直した。",
+  [STATUS_POISON]: "毒が抜けた。",
+  [STATUS_INVISIBLE]: "透明が解けた。",
+  [STATUS_FEAR]: "おびえがおさまった。",
+};
+
+/** attacker.inflicts で状態異常を付与したときのメッセージ */
+const STATUS_INFLICT_MESSAGES: Partial<Record<StatusKind, string>> = {
+  [STATUS_SLEEP]: "眠ってしまった",
+  [STATUS_CONFUSE]: "混乱した",
+  [STATUS_SEAL]: "封じられた",
+};
+
+// ---- plan/monster-compendium.md: 新しい特技・特性の各種係数 ----
+/** 特技「みだしのつめ」が混乱を付与する確率 */
+const CONFUSING_CLAW_CHANCE = 0.15;
+/** 特技「ふうじのキバ」が封じを付与する確率 */
+const SEAL_BITE_CHANCE = 0.15;
+/** 夢あわせで得た付与系特技(みだしのつめ・ふうじのキバ)が状態異常を持続させるターン数 */
+const INHERITED_INFLICT_TURNS = 3;
+/** 特技「はねひらり」が被弾を完全にかわす確率 */
+const FLUTTER_DODGE_CHANCE = 0.2;
+/** regenIfUnhit(うるみぐま)・特技「しずけさのいやし」が回復させるHP */
+const REGEN_IF_UNHIT_AMOUNT = 2;
+/**
+ * 図鑑コンプリート(plan/monster-compendium.md)時、かがやきの夢のかけらの
+ * 出現確率に掛かる倍率。基準の確率自体は dungeon/populate.ts 側で定義する
+ */
+const COMPENDIUM_COMPLETE_SHINING_MULTIPLIER = 1.5;
 
 export type Command =
   | { type: "move"; dir: Dir }
@@ -76,7 +155,13 @@ export type Command =
   /** 正面か足元のタルを持ち上げる。抱えていれば下ろす */
   | { type: "liftBarrel" }
   /** 抱えているタルを向いている方向へ投げる */
-  | { type: "throwBarrel" };
+  | { type: "throwBarrel" }
+  /** 仲間への指示(構え)。"all" なら連れている全員に一括で出す */
+  | { type: "setStance"; allyId: number | "all"; stance: AllyStance }
+  /** めざめの階段を使って、ここで区切ってダイブを成功させる */
+  | { type: "bank" }
+  /** 樽守りの技(plan/protagonist-arts.md)を繰り出す */
+  | { type: "useArt"; id: ArtId };
 
 export interface RunOptions {
   seed: number;
@@ -84,9 +169,54 @@ export interface RunOptions {
   startingItems?: Item[];
   /** この階の階段を降りるとクリア */
   maxDepth?: number;
+  /** 出発する階。既知のめざめの階段から選べる。省略時は1階 */
+  startDepth?: number;
+  /**
+   * ダイブ中オートセーブ(plan/mid-dive-autosave.md)からの復帰。
+   * 指定した場合、他のオプションは無視してスナップショットの状態をそのまま復元する。
+   */
+  resume?: RunSnapshot;
+  /**
+   * 鍛え方(plan/protagonist-training.md、アーカイブ済み)。
+   * このダイブ中、レベルアップのたびに自動で適用される。省略時は "balance"
+   */
+  trainingFocus?: TrainingFocus;
+  /**
+   * ねむり小屋(plan/monster-fusion.md、アーカイブ済み)から連れ出す仲間。
+   * MAX_ALLIES を超える分は無視する。省略時は0体(手ぶらで出発)。
+   */
+  bringAllies?: StoredMonster[];
+  /**
+   * モンスター図鑑(plan/monster-compendium.md)を「捕まえた」まで全種埋めて
+   * いるか。true ならかがやきの夢のかけらの出現率がわずかに上がる
+   */
+  compendiumComplete?: boolean;
 }
 
 export type RunStatus = "playing" | "dead" | "cleared";
+
+/**
+ * ダイブ中オートセーブのスナップショット。ターン解決のたびに書き出し、
+ * 復帰した瞬間に消費される「1回限りのクラッシュ対策」(plan/mid-dive-autosave.md)。
+ * `previousGimmick`・`monsterHouseWarned`・`firstStrikeAvailable` のような
+ * 演出寄りの内部状態は含めない(復帰時は初期値からやり直しても実害が小さいため)。
+ */
+export interface RunSnapshot {
+  rngState: number;
+  maxDepth: number;
+  depth: number;
+  floor: FloorState;
+  player: PlayerState;
+  allies: Actor[];
+  status: RunStatus;
+  turnCount: number;
+  endReason: string;
+  actorIdCounter: number;
+  itemUidCounter: number;
+  barrelIdCounter: number;
+  /** 鍛え方(plan/protagonist-training.md)。復帰後もこのダイブの方針を引き継ぐ */
+  trainingFocus: TrainingFocus;
+}
 
 /** 満腹度がこのターン数ぶん減る。100 / 0.2 = 500ターンもつ */
 const SATIETY_PER_TURN = 0.2;
@@ -101,7 +231,21 @@ const BARREL_RANGE = 8;
 const BARREL_DAMAGE = 8;
 /** 爆発タルの威力と巻き込む範囲 */
 const BOMB_DAMAGE = 22;
+/** スリガラス(plan/shops-and-thieves.md)が盗みを成功させる確率 */
+const THIEF_STEAL_CHANCE = 0.4;
 const BOMB_RADIUS = 1;
+
+/** 夢あわせ(plan/monster-fusion.md)で得た特技を持っているか */
+function hasSkill(actor: Actor, id: SkillId): boolean {
+  return actor.skills?.includes(id) ?? false;
+}
+
+/** posが、部屋の外縁からチェビシェフ距離rangeマス以内にあるか(部屋の中ならtrue) */
+function isNearRoom(room: Room, pos: Vec2, range: number): boolean {
+  const dx = Math.max(room.x - pos.x, 0, pos.x - (room.x + room.w - 1));
+  const dy = Math.max(room.y - pos.y, 0, pos.y - (room.y + room.h - 1));
+  return Math.max(dx, dy) <= range;
+}
 
 /**
  * 空のタルでモンスターを吸い込める確率。
@@ -130,19 +274,82 @@ export class Game {
   /** 直前のフロアに乗っていたギミック。連続で同じものを選ばないための記憶 */
   private previousGimmick?: FloorGimmickKind;
 
+  /** そのフロアのモンスターハウスについて、もう警告を出したか */
+  private monsterHouseWarned = false;
+
+  /**
+   * 近道屋の出店で万引きしたことがあるか(plan/shops-and-thieves.md)。
+   * 一度でもすると、そのラン中ずっと以後の出店の売値が割高になる
+   */
+  private shopWary = false;
+
+  /** 双樽鉤の「そのラン最初の1手は必ず会心」がまだ使われていないか */
+  private firstStrikeAvailable = true;
+
+  /** 特技「ふいうち」を、そのダイブで既に使った仲間のid(plan/monster-fusion.md) */
+  private readonly usedQuickStart = new Set<number>();
+  /** 特技「ふんばり」を、そのダイブで既に使った仲間のid */
+  private readonly usedStubborn = new Set<number>();
+  /** 特技「ふいのいちげき」を、そのダイブで既に使った仲間のid(plan/monster-compendium.md) */
+  private readonly usedAmbushStrike = new Set<number>();
+  /** 特技「とんずら」を、そのダイブで既に使った仲間のid */
+  private readonly usedBurrowEscape = new Set<number>();
+  /** このターン被弾したアクターのid。regenIfUnhit・特技「しずけさのいやし」の判定に使う */
+  private hitThisTurn = new Set<number>();
+  /** 遭遇済み(図鑑「見た」)として、このダイブで既に通知した種族id(plan/monster-compendium.md) */
+  private readonly sightedSpecies = new Set<string>();
+
+  /** このダイブの鍛え方(plan/protagonist-training.md)。レベルアップのたびに適用する */
+  private trainingFocus: TrainingFocus = "balance";
+
+  /** 図鑑を全種「捕まえた」まで埋めているか(plan/monster-compendium.md) */
+  private compendiumComplete = false;
+
   private actorIdCounter = 1;
   private itemUidCounter = 1;
   private barrelIdCounter = 1;
   private readonly ids: IdSource;
 
   constructor(opts: RunOptions) {
-    this.rng = new Rng(opts.seed);
-    this.maxDepth = opts.maxDepth ?? 10;
     this.ids = {
       nextActorId: () => ++this.actorIdCounter,
       nextItemUid: () => ++this.itemUidCounter,
       nextBarrelId: () => ++this.barrelIdCounter,
     };
+
+    if (opts.resume) {
+      const s = opts.resume;
+      this.rng = Rng.fromState(s.rngState);
+      this.maxDepth = s.maxDepth;
+      this.actorIdCounter = s.actorIdCounter;
+      this.itemUidCounter = s.itemUidCounter;
+      this.barrelIdCounter = s.barrelIdCounter;
+      this.player = s.player;
+      this.depth = s.depth;
+      this.floor = s.floor;
+      this.allies = s.allies;
+      this.status = s.status;
+      this.turnCount = s.turnCount;
+      this.endReason = s.endReason;
+      this.trainingFocus = s.trainingFocus;
+
+      // JSON化を経由すると、本来は同じオブジェクトを指していたはずの
+      // player/allies と floor.actors 内の対応する要素が別オブジェクトに
+      // なってしまう。以後のコードは「floor.actors 内の当人 === player/allies
+      // の要素」という前提で書かれているため、id を頼りに参照を統一し直す
+      const canonical = new Map<number, Actor>();
+      canonical.set(this.player.id, this.player);
+      for (const ally of this.allies) canonical.set(ally.id, ally);
+      this.floor.actors = this.floor.actors.map((a) => canonical.get(a.id) ?? a);
+
+      updateVisibility(this.floor, this.player.pos, this.visionExtraRange());
+      return;
+    }
+
+    this.rng = new Rng(opts.seed);
+    this.maxDepth = opts.maxDepth ?? 10;
+    this.trainingFocus = opts.trainingFocus ?? "balance";
+    this.compendiumComplete = opts.compendiumComplete ?? false;
     this.player = createPlayer(1);
 
     for (const item of opts.startingItems ?? []) {
@@ -151,20 +358,50 @@ export class Game {
       addItem(this.player.inventory, item);
     }
 
-    this.enterFloor(1);
+    // ねむり小屋(plan/monster-fusion.md)から連れ出した仲間を、盤面のアクターとして起こす。
+    // 実際の配置は enterFloor が行う(仲間は毎回プレイヤーの周りに並べ直される)
+    for (const stored of (opts.bringAllies ?? []).slice(0, MAX_ALLIES)) {
+      this.allies.push(createAllyFromStored(this.ids.nextActorId(), stored, this.player.pos));
+    }
+
+    const startDepth = Math.min(Math.max(1, Math.floor(opts.startDepth ?? 1)), this.maxDepth);
+    this.enterFloor(startDepth);
+  }
+
+  /** ダイブ中オートセーブ用のスナップショットを書き出す */
+  toSnapshot(): RunSnapshot {
+    return {
+      rngState: this.rng.getState(),
+      maxDepth: this.maxDepth,
+      depth: this.depth,
+      floor: this.floor,
+      player: this.player,
+      allies: this.allies,
+      status: this.status,
+      turnCount: this.turnCount,
+      endReason: this.endReason,
+      actorIdCounter: this.actorIdCounter,
+      itemUidCounter: this.itemUidCounter,
+      barrelIdCounter: this.barrelIdCounter,
+      trainingFocus: this.trainingFocus,
+    };
   }
 
   // ------------------------------------------------------------ フロア遷移
 
   private enterFloor(depth: number): void {
     this.depth = depth;
+    this.monsterHouseWarned = false;
     const gimmick = pickFloorGimmick(this.rng, depth, this.previousGimmick);
     this.previousGimmick = gimmick;
     this.floor = generateFloor(this.rng, { depth, gimmick });
     const start = choosePlayerStart(this.rng, this.floor);
     this.player.pos = start;
     this.floor.actors.push(this.player);
-    populateFloor(this.rng, this.floor, this.ids, start);
+    const boostedItemDefId =
+      charmDefId(this.player.inventory) === "dustLureSachet" ? "hokoraDust" : undefined;
+    const shiningChanceMultiplier = this.compendiumComplete ? COMPENDIUM_COMPLETE_SHINING_MULTIPLIER : 1;
+    populateFloor(this.rng, this.floor, this.ids, start, boostedItemDefId, this.shopWary, shiningChanceMultiplier);
 
     // 仲間は階段について来る。プレイヤーの周りの空いたマスに並べる
     for (const ally of this.allies) {
@@ -175,7 +412,7 @@ export class Game {
       this.floor.actors.push(ally);
     }
 
-    updateVisibility(this.floor, this.player.pos);
+    updateVisibility(this.floor, this.player.pos, this.visionExtraRange());
   }
 
   /** 指定位置の近くで、誰も立っていないマスを探す */
@@ -210,12 +447,30 @@ export class Game {
     }
   }
 
+  /**
+   * めざめの階段を使って、ここで区切ってダイブを成功させる
+   * (plan/checkpoint-select.md)。持ち物・仲間・所持金を持ち帰れる点は
+   * 通常の踏破と同じ。以後の深い階は次回以降のダイブに持ち越す。
+   */
+  private bankRun(events: GameEvent[]): boolean {
+    if (!eq(this.player.pos, this.floor.stairs)) {
+      events.push({ type: "message", text: "ここには階段がない。" });
+      return false;
+    }
+    this.status = "cleared";
+    this.endReason = `地下${this.depth}階のめざめの階段で区切って持ち帰った!`;
+    events.push({ type: "message", text: this.endReason });
+    events.push({ type: "gameOver", reason: this.endReason });
+    return true;
+  }
+
   // ------------------------------------------------------------ コマンド処理
 
   command(cmd: Command): GameEvent[] {
     const events: GameEvent[] = [];
     if (this.status !== "playing") return events;
 
+    this.hitThisTurn = new Set();
     const consumedTurn = this.resolvePlayerCommand(cmd, events);
 
     if (consumedTurn && this.status === "playing") {
@@ -224,16 +479,46 @@ export class Game {
       this.turnCount++;
     }
 
-    updateVisibility(this.floor, this.player.pos);
+    updateVisibility(this.floor, this.player.pos, this.visionExtraRange());
+    this.checkCompendiumSightings(events);
     return events;
+  }
+
+  /**
+   * 図鑑(plan/monster-compendium.md)の「見た」通知。プレイヤーの視界に
+   * 入った野生モンスターの種族を、そのダイブで初めて見た瞬間だけ通知する。
+   * 実際のセーブへの反映は呼び出し側(main.ts)が行う
+   */
+  private checkCompendiumSightings(events: GameEvent[]): void {
+    for (const actor of this.floor.actors) {
+      if (!actor.alive || actor.kind !== "monster" || !actor.speciesId) continue;
+      if (this.sightedSpecies.has(actor.speciesId)) continue;
+      if (!isVisible(this.floor, actor.pos)) continue;
+      this.sightedSpecies.add(actor.speciesId);
+      events.push({ type: "monsterSighted", speciesId: actor.speciesId });
+    }
+  }
+
+  /** 眠っていても使わせてよい行動か(眠りを治す道具の使用だけを許す) */
+  private wakesUpWith(cmd: Command): boolean {
+    if (cmd.type !== "use") return false;
+    const item = findItem(this.player.inventory, cmd.uid);
+    return item !== undefined && itemDef(item.defId).effect === "cureSleepConfuse";
   }
 
   private resolvePlayerCommand(cmd: Command, events: GameEvent[]): boolean {
     const player = this.player;
 
-    // 眠っている間は何をしようとしてもターンだけが過ぎる
-    if (hasStatus(player, STATUS_SLEEP)) {
+    // 眠っている間は何をしようとしてもターンだけが過ぎる。
+    // ただし「めざめ草」のような眠りを治す道具を使うことだけは例外にする
+    // (でなければ、眠りを治す道具そのものが眠っている間は一生使えなくなってしまう)
+    if (hasStatus(player, STATUS_SLEEP) && !this.wakesUpWith(cmd)) {
       events.push({ type: "message", text: "ガルドは眠っている……" });
+      return true;
+    }
+    // 主の大槌を振るった反動で、次の1手ぶん体勢が崩れている
+    if (hasStatus(player, STATUS_RECOVER)) {
+      events.push({ type: "message", text: "大槌を振り抜いた反動で、体勢を立て直している……" });
       return true;
     }
 
@@ -243,6 +528,7 @@ export class Game {
         return false;
 
       case "wait":
+        player.guarding = true;
         return true;
 
       case "move": {
@@ -266,6 +552,9 @@ export class Game {
         this.descend(events);
         return true;
       }
+
+      case "bank":
+        return this.bankRun(events);
 
       case "use":
         return this.useItem(cmd.uid, events);
@@ -293,7 +582,91 @@ export class Game {
 
       case "throwBarrel":
         return this.throwCarriedBarrel(events);
+
+      case "setStance":
+        return this.setAllyStance(cmd.allyId, cmd.stance, events);
+
+      case "useArt":
+        return this.useArt(cmd.id, events);
     }
+  }
+
+  // ------------------------------------------------------------ 仲間への指示
+
+  /** 構えを設定する。指示そのものはターンを消費しない */
+  private setAllyStance(
+    allyId: number | "all",
+    stance: AllyStance,
+    events: GameEvent[],
+  ): boolean {
+    const targets = allyId === "all" ? this.allies : this.allies.filter((a) => a.id === allyId);
+    if (targets.length === 0) return false;
+
+    for (const ally of targets) {
+      ally.stance = stance;
+      ally.holdPos = stance === "hold" ? { ...ally.pos } : undefined;
+    }
+
+    const label = allyId === "all" ? "全員" : targets[0]!.name;
+    events.push({
+      type: "message",
+      text: `${label}に「${ALLY_STANCE_NAMES[stance]}」を指示した。`,
+    });
+    return false;
+  }
+
+  // ------------------------------------------------------------ 樽守りの技
+
+  /**
+   * 技を繰り出す。習得済み・クールダウン明けなら1ターン消費して発動する。
+   * 「会心の樽投げ」「樽受け身」「抱え投げの奥義」は次の行動で効果を発揮する
+   * 予約フラグ、「なだめの手つき」はその場で相手に作用する即時効果。
+   * 「目覚ましの一喝」は地方ボス(plan/region-bosses.md、未実装)専用の
+   * 切り返しのため、現状は不発のメッセージだけを返す。
+   */
+  private useArt(id: ArtId, events: GameEvent[]): boolean {
+    const player = this.player;
+    const def = artDef(id);
+
+    if (player.level < def.unlockLevel) {
+      events.push({ type: "message", text: "まだ覚えていない技だ。" });
+      return false;
+    }
+    if ((player.artCooldowns[id] ?? 0) > 0) {
+      events.push({ type: "message", text: `「${def.name}」はまだ使えない。` });
+      return false;
+    }
+
+    events.push({ type: "message", text: `「${def.name}」を繰り出した!` });
+
+    switch (id) {
+      case "critBarrel":
+        player.critBarrelReady = true;
+        break;
+      case "pierce":
+        player.pierceReady = true;
+        break;
+      case "ukemi":
+        player.ukemiReady = true;
+        break;
+      case "soothe": {
+        const delta = dirDelta(player.facing);
+        const target = actorAt(this.floor, { x: player.pos.x + delta.x, y: player.pos.y + delta.y });
+        if (target && isHostile(player, target)) {
+          target.captureBonus = Math.min(1, (target.captureBonus ?? 0) + 0.4);
+          events.push({ type: "message", text: `${target.name}の勢いをそいだ!` });
+        } else {
+          events.push({ type: "message", text: "しかし何も起こらなかった。" });
+        }
+        break;
+      }
+      case "shout":
+        events.push({ type: "message", text: "しかし、それらしい気配はなかった。" });
+        break;
+    }
+
+    player.artCooldowns[id] = def.cooldownTurns;
+    return true;
   }
 
   // ------------------------------------------------------------ タル
@@ -337,6 +710,7 @@ export class Game {
       kind: barrel.kind,
     });
     events.push({ type: "message", text: `${BARREL_NAMES[barrel.kind]}を持ち上げた。` });
+    events.push({ type: "tutorialTip", id: "barrel" });
     return true;
   }
 
@@ -354,11 +728,17 @@ export class Game {
       return false;
     }
 
+    // 技の予約は、投げるタルの種類によらず「次に投げた時点」で消費する
+    const critForced = player.critBarrelReady;
+    const pierce = player.pierceReady;
+    player.critBarrelReady = false;
+    player.pierceReady = false;
+
     player.carrying = null;
     const delta = dirDelta(player.facing);
     const from = player.pos;
     let landing = from;
-    let hit: Actor | null = null;
+    const hits: Actor[] = [];
 
     for (let step = 1; step <= BARREL_RANGE; step++) {
       const p = { x: from.x + delta.x * step, y: from.y + delta.y * step };
@@ -368,8 +748,9 @@ export class Game {
       landing = p;
       const actor = actorAt(this.floor, p);
       if (actor && actor.id !== player.id) {
-        hit = actor;
-        break;
+        hits.push(actor);
+        // 「抱え投げの奥義」でなければ、最初に当たった相手で止まる
+        if (!pierce) break;
       }
     }
 
@@ -392,8 +773,34 @@ export class Game {
         this.releaseFromBarrel(barrel, landing, events);
         return true;
 
-      case "empty":
-        return this.resolveEmptyBarrel(barrel, landing, hit, events);
+      case "empty": {
+        // 貫通で複数体に当たった場合、手前の相手には通過ダメージだけを与え、
+        // 最後に当たった相手にだけダメージ+捕獲判定を行う(タルは1体しか収まらない)
+        const barrelDamage = this.barrelThrowDamage();
+        for (const passThrough of hits.slice(0, -1)) {
+          if (!passThrough.alive) continue;
+          const result = computeDamage(
+            this.rng,
+            barrelDamage,
+            passThrough.def,
+            critForced ? { forceCrit: true } : undefined,
+          );
+          events.push({
+            type: "message",
+            text: `${passThrough.name}を貫いた! ${result.damage}のダメージ!`,
+          });
+          this.damageActor(passThrough, result.damage, result.critical, events);
+          if (this.status !== "playing") return true;
+        }
+        const last = hits[hits.length - 1];
+        return this.resolveEmptyBarrel(
+          barrel,
+          landing,
+          last && last.alive ? last : null,
+          events,
+          critForced,
+        );
+      }
     }
   }
 
@@ -402,13 +809,19 @@ export class Game {
     landing: Vec2,
     hit: Actor | null,
     events: GameEvent[],
+    critForced = false,
   ): boolean {
     if (!hit) {
       this.dropBarrelNear(barrel, landing, events);
       return true;
     }
 
-    const { damage, critical } = computeDamage(this.rng, BARREL_DAMAGE, hit.def);
+    const { damage, critical } = computeDamage(
+      this.rng,
+      this.barrelThrowDamage(),
+      hit.def,
+      critForced ? { forceCrit: true } : undefined,
+    );
     events.push({ type: "message", text: `${hit.name}に${damage}のダメージ!` });
     this.damageActor(hit, damage, critical, events);
 
@@ -429,7 +842,14 @@ export class Game {
       return true;
     }
 
-    if (!this.rng.chance(captureChance(hit))) {
+    // 「なだめの手つき」で受けた弱らせ(captureBonus)は、この判定で消費する
+    const bonus = hit.captureBonus ?? 0;
+    hit.captureBonus = 0;
+    // 樽なじみの腕輪(plan/protagonist-equipment.md): 捕獲確率+10%
+    const charmBonus = charmDefId(this.player.inventory) === "barrelKinshipBracelet" ? 0.1 : 0;
+    const captured =
+      critForced || this.rng.chance(Math.min(0.9, captureChance(hit) + bonus + charmBonus));
+    if (!captured) {
       events.push({ type: "captureFailed", actorId: hit.id, name: hit.name });
       events.push({ type: "message", text: `${hit.name}は吸い込まれなかった。` });
       this.dropBarrelNear(barrel, landing, events);
@@ -482,6 +902,8 @@ export class Game {
     events.push({ type: "spawn", actorId: ally.id });
     events.push({ type: "recruit", actorId: ally.id, name: ally.name });
     events.push({ type: "message", text: `${ally.name}が仲間になった!` });
+    events.push({ type: "tutorialTip", id: "capture" });
+    if (this.allies.length === 2) events.push({ type: "tutorialTip", id: "allyOrders" });
   }
 
   /**
@@ -505,8 +927,8 @@ export class Game {
       events.push({
         type: "message",
         text: isThrower
-          ? `巻き込まれた! ${actor.name}に${damage}のダメージ!`
-          : `${actor.name}に${damage}のダメージ!`,
+          ? `巻き込まれた! ${displayActorName(actor)}に${damage}のダメージ!`
+          : `${displayActorName(actor)}に${damage}のダメージ!`,
       });
       this.damageActor(actor, damage, result.critical, events);
       if (this.status !== "playing") return;
@@ -531,7 +953,7 @@ export class Game {
     const target = actorAt(this.floor, to);
     if (target && target.id !== player.id) {
       if (isHostile(player, target)) {
-        this.attack(player, target, totalAttack(player), events);
+        this.resolvePlayerAttack(dir, events);
         return true;
       }
       // 仲間とは位置を入れ替える。通せんぼで足止めされては連れ歩けない
@@ -570,52 +992,290 @@ export class Game {
     events.push({ type: "move", actorId: player.id, from, to });
 
     this.checkTrap(to, events);
+    this.collectGold(to, events);
+    this.checkShoplifting(from, to, events);
     this.announceGround(to, events);
+    this.checkMonsterHouseWarning(to, events);
     return true;
+  }
+
+  /** 床に落ちている金貨(plan/shops-and-thieves.md)を、踏んだ瞬間に自動で拾う */
+  private collectGold(pos: Vec2, events: GameEvent[]): void {
+    const idx = this.floor.goldPiles.findIndex((g) => eq(g.pos, pos));
+    if (idx < 0) return;
+    const [pile] = this.floor.goldPiles.splice(idx, 1);
+    this.player.gold += pile!.amount;
+    events.push({ type: "message", text: `${pile!.amount}ゴールドを拾った。` });
+  }
+
+  /**
+   * 近道屋の出店(plan/shops-and-thieves.md)。未払いのまま持ち出した品を
+   * 持ったまま部屋の外へ出ると万引き扱いになり、店主が豹変する。
+   * 以後そのラン中は、新しく出会う出店すべてが最初から警戒状態(割高)になる
+   */
+  private checkShoplifting(from: Vec2, to: Vec2, events: GameEvent[]): void {
+    const shopRoom = this.floor.rooms.find((r) => r.kind === "shop");
+    if (!shopRoom || !roomContains(shopRoom, from) || roomContains(shopRoom, to)) return;
+    const hasUnpaid = this.player.inventory.items.some((i) => i.unpaid);
+    if (!hasUnpaid) return;
+
+    for (const item of this.player.inventory.items) item.unpaid = false;
+    this.shopWary = true;
+    const keeper = this.floor.actors.find(
+      (a) => a.alive && a.aiKind === "shopkeeper" && roomContains(shopRoom, a.pos),
+    );
+    if (keeper) keeper.angry = true;
+    events.push({ type: "message", text: "万引きだ! 店主が豹変した!" });
   }
 
   private announceGround(pos: Vec2, events: GameEvent[]): void {
     const ground = this.floor.items.find((gi) => eq(gi.pos, pos));
     if (ground) {
+      const price = ground.forSale ? `(${ground.forSale.price}ゴールド)` : "";
       events.push({
         type: "message",
-        text: `${itemDef(ground.item.defId).name}が落ちている。`,
+        text: `${itemDef(ground.item.defId).name}${price}が落ちている。`,
       });
     }
     if (eq(pos, this.floor.stairs)) {
       events.push({ type: "message", text: "階段がある。" });
+      // 足を踏み入れた瞬間に「既知」となる。ダイブの結果によらず記録されるべき
+      // 事実なので、保存は呼び出し側(main.ts)が checkpoint イベントを見て行う
+      events.push({ type: "checkpoint", depth: this.depth });
+      events.push({ type: "tutorialTip", id: "checkpoint" });
     }
+  }
+
+  /**
+   * モンスターハウス(plan/monster-house.md)の予告。部屋の外(通路側)から
+   * 隣接した時点で、1フロアにつき一度だけ気配のメッセージを出す。
+   * 部屋の中に入ってからでは手遅れなので、中にいる間は出さない。
+   * 千里眼の輪(plan/protagonist-equipment.md)を装備していれば、
+   * さらに1マス手前(距離2)から察知できる。
+   */
+  private checkMonsterHouseWarning(pos: Vec2, events: GameEvent[]): void {
+    if (this.monsterHouseWarned) return;
+    const room = this.floor.rooms.find((r) => r.kind === "monsterHouse");
+    if (!room || roomContains(room, pos)) return;
+
+    const range = headDefId(this.player.inventory) === "farsightRing" ? 2 : 1;
+    if (!isNearRoom(room, pos, range)) return;
+
+    this.monsterHouseWarned = true;
+    events.push({ type: "message", text: "――部屋の奥で何かがひしめいている気配がする。" });
+  }
+
+  /** 見晴らしのはちまき(plan/protagonist-equipment.md)ぶんの視界拡張 */
+  private visionExtraRange(): number {
+    return headDefId(this.player.inventory) === "lookoutHeadband" ? 1 : 0;
   }
 
   // ------------------------------------------------------------ 戦闘
 
-  private attack(attacker: Actor, target: Actor, attackPower: number, events: GameEvent[]): void {
+  /** 装備中の武器の定義。未装備なら null(素手扱い、パターンは "single") */
+  private equippedWeaponDef(): ItemDef | null {
+    const uid = this.player.inventory.weaponUid;
+    if (uid === null) return null;
+    const item = findItem(this.player.inventory, uid);
+    return item ? itemDef(item.defId) : null;
+  }
+
+  /**
+   * プレイヤーの近接攻撃。装備中の武器の attackPattern に応じて、
+   * 1体だけでなく複数マスを攻撃することがある(plan/protagonist-weapons.md)。
+   * 「dir 方向へ体当たりして初めて発動する」という既存の操作感は変えず、
+   * 当たり判定の形だけを武器ごとに変える。
+   */
+  private resolvePlayerAttack(dir: Dir, events: GameEvent[]): void {
+    const player = this.player;
+    const weapon = this.equippedWeaponDef();
+    const pattern: WeaponPattern = weapon?.attackPattern ?? "single";
+    const critBonus = pattern === "quickSingle" ? QUICK_SINGLE_CRIT_BONUS : 0;
+    let forceCrit = pattern === "quickSingle" && this.firstStrikeAvailable;
+
+    const seen = new Set<number>();
+    let hitAny = false;
+    for (const offset of attackOffsets(pattern, dir)) {
+      const pos = { x: player.pos.x + offset.x, y: player.pos.y + offset.y };
+      const target = actorAt(this.floor, pos);
+      if (!target || target.id === player.id || seen.has(target.id)) continue;
+      if (!isHostile(player, target)) continue;
+      seen.add(target.id);
+      hitAny = true;
+      this.attack(player, target, totalAttack(player), events, { critBonus, forceCrit });
+      forceCrit = false; // 強制会心はその手の最初の1体だけ
+    }
+    player.facing = dir;
+
+    if (hitAny && pattern === "quickSingle") this.firstStrikeAvailable = false;
+    if (hitAny && pattern === "heavySingle") {
+      addStatus(this.effectContext(events), player, STATUS_RECOVER, HEAVY_RECOVER_TURNS, "隙ができた");
+    }
+  }
+
+  /** スリガラス(plan/shops-and-thieves.md)の盗み。成功率は控えめにし、盗む額もほどほどに留める */
+  private attemptSteal(thief: Actor, target: Actor, events: GameEvent[]): void {
+    thief.facing = dirFromDelta(target.pos.x - thief.pos.x, target.pos.y - thief.pos.y);
+    events.push({ type: "attack", attackerId: thief.id, targetId: target.id });
+    const gold = this.player.gold;
+    if (gold <= 0 || !this.rng.chance(THIEF_STEAL_CHANCE)) {
+      events.push({ type: "message", text: `${displayActorName(thief)}は何も盗めなかった。` });
+      return;
+    }
+    const stolen = Math.max(1, Math.round(gold * this.rng.float(0.2, 0.5)));
+    this.player.gold -= stolen;
+    thief.stolenGold = stolen;
+    events.push({ type: "message", text: `${displayActorName(thief)}に${stolen}ゴールド盗まれた!` });
+  }
+
+  private attack(
+    attacker: Actor,
+    target: Actor,
+    attackPower: number,
+    events: GameEvent[],
+    combatOpts?: { critBonus?: number; forceCrit?: boolean },
+  ): void {
     attacker.facing = dirFromDelta(target.pos.x - attacker.pos.x, target.pos.y - attacker.pos.y);
     events.push({ type: "attack", attackerId: attacker.id, targetId: target.id });
-    events.push({ type: "message", text: `${attacker.name}のこうげき!` });
+    events.push({ type: "message", text: `${displayActorName(attacker)}のこうげき!` });
+    if (attacker.kind === "player" && target.kind === "monster") {
+      events.push({ type: "tutorialTip", id: "weakenThenThrow" });
+    }
+
+    // 不意打ち: まだ気づいていないモンスターへの攻撃は必ず会心になる
+    const sneakAttack = target.kind === "monster" && !target.aware;
+    if (sneakAttack) events.push({ type: "message", text: "不意打ち!" });
+
+    // 特技「ふいうち」(plan/monster-fusion.md)、またはガジリねずみの印
+    // (plan/equipment-forging.md): そのダイブで最初の1手は必ず会心
+    const hasQuickStartEffect =
+      (attacker.kind === "ally" && hasSkill(attacker, "quickStart")) ||
+      (attacker.kind === "player" && weaponMarkId(this.player.inventory) === "gajiri");
+    const quickStart = hasQuickStartEffect && !this.usedQuickStart.has(attacker.id);
+    if (hasQuickStartEffect) this.usedQuickStart.add(attacker.id);
+
+    // ambush・mimic AI(plan/monster-compendium.md): 隣接されるまで潜んでいた
+    // モンスターが、気づいた直後の1撃で会心になる
+    const ambushSurprise = attacker.ambushReady === true;
+    if (attacker.ambushReady) attacker.ambushReady = false;
+
+    // 特技「ふいのいちげき」(ambushStrike、plan/monster-compendium.md):
+    // そのランの最初の1撃のダメージ+50%
+    const hasAmbushStrikeEffect = attacker.kind === "ally" && hasSkill(attacker, "ambushStrike");
+    const ambushStrike = hasAmbushStrikeEffect && !this.usedAmbushStrike.has(attacker.id);
+    if (hasAmbushStrikeEffect) this.usedAmbushStrike.add(attacker.id);
 
     const defense = target.kind === "player" ? totalDefense(this.player) : target.def;
-    const { damage, critical } = computeDamage(this.rng, attackPower, defense);
+    const effectivePower = ambushStrike ? Math.round(attackPower * 1.5) : attackPower;
+    const { damage, critical } = computeDamage(this.rng, effectivePower, defense, {
+      ...combatOpts,
+      forceCrit: combatOpts?.forceCrit || sneakAttack || quickStart || ambushSurprise,
+    });
     if (critical) events.push({ type: "message", text: "会心の一撃!" });
-    events.push({ type: "message", text: `${target.name}に${damage}のダメージ!` });
-    this.damageActor(target, damage, critical, events);
+
+    // オイテケボシ(drainsSatiety、plan/monster-compendium.md): HPではなく
+    // プレイヤーの満腹度を削る特殊効果。防御・軽減の計算はそのまま流用する
+    const drainsSatiety =
+      target.kind === "player" && attacker.speciesId !== undefined && speciesById(attacker.speciesId).drainsSatiety;
+    if (drainsSatiety) {
+      const drained = Math.max(1, Math.round(damage / 2));
+      this.player.satiety = Math.max(0, this.player.satiety - drained);
+      events.push({ type: "message", text: `満腹度が${drained}減った!` });
+    } else {
+      const finalDamage = this.mitigateIncomingDamage(target, damage, events);
+      events.push({ type: "message", text: `${displayActorName(target)}に${finalDamage}のダメージ!` });
+      this.damageActor(target, finalDamage, critical, events);
+    }
 
     // 攻撃してきた相手には気づく
     if (target.kind === "monster") target.aware = true;
 
-    if (target.alive && attacker.inflicts && this.rng.chance(attacker.inflicts.chance)) {
-      addStatus(
-        this.effectContext(events),
-        target,
-        attacker.inflicts.kind,
-        attacker.inflicts.turns,
-        attacker.inflicts.kind === STATUS_SLEEP ? "眠ってしまった" : "混乱した",
-      );
+    // 特技「ねむりごな」、またはマドロミダケの印(plan/equipment-forging.md):
+    // 隣接する敵への攻撃に、眠り付与の確率+10%を上乗せする
+    const hasDrowsyEffect =
+      (attacker.kind === "ally" && hasSkill(attacker, "drowsyBreath")) ||
+      (attacker.kind === "player" && weaponMarkId(this.player.inventory) === "madoromi");
+    const drowsyBonus = hasDrowsyEffect ? 0.1 : 0;
+    const inflictChance = (attacker.inflicts?.chance ?? 0) + drowsyBonus;
+    // かなしばりの杖で封じられている間は、特技(状態異常の追加付与)が出せない
+    const sealed = hasStatus(attacker, STATUS_SEAL);
+    if (target.alive && inflictChance > 0 && !sealed && this.rng.chance(inflictChance)) {
+      const kind = attacker.inflicts?.kind ?? STATUS_SLEEP;
+      const turns = attacker.inflicts?.turns ?? 4;
+      addStatus(this.effectContext(events), target, kind, turns, STATUS_INFLICT_MESSAGES[kind] ?? "様子がおかしくなった");
     }
+
+    // 特技「みだしのつめ」「ふうじのキバ」(plan/monster-compendium.md): 種族の
+    // 素の inflicts を持たない個体でも、夢あわせで得た特技ぶんは独立して付与を狙える
+    if (target.alive && !sealed) {
+      if (hasSkill(attacker, "confusingClaw") && this.rng.chance(CONFUSING_CLAW_CHANCE)) {
+        addStatus(this.effectContext(events), target, STATUS_CONFUSE, INHERITED_INFLICT_TURNS, "混乱した");
+      }
+      if (target.alive && hasSkill(attacker, "sealBite") && this.rng.chance(SEAL_BITE_CHANCE)) {
+        addStatus(this.effectContext(events), target, STATUS_SEAL, INHERITED_INFLICT_TURNS, "封じられた");
+      }
+    }
+  }
+
+  /**
+   * 被ダメージへの軽減を適用する。プレイヤーには樽受け身(全無効・最優先)、
+   * 身構え(2割軽減)、ぷるんの印(plan/equipment-forging.md、5割の確率で1割軽減)、
+   * 仲間には特技「みをまもる」(5割の確率で1割軽減)を適用する。
+   */
+  private mitigateIncomingDamage(target: Actor, damage: number, events: GameEvent[]): number {
+    if (target.kind === "player") {
+      if (this.player.ukemiReady) {
+        this.player.ukemiReady = false;
+        events.push({ type: "message", text: "樽受け身で衝撃を受け流した!" });
+        return 0;
+      }
+      if (this.player.guarding) {
+        this.player.guarding = false;
+        events.push({ type: "message", text: "身構えていたので、ダメージをおさえた!" });
+        return Math.max(1, Math.floor(damage * (1 - GUARD_DAMAGE_REDUCTION)));
+      }
+      if (shieldMarkId(this.player.inventory) === "purun" && this.rng.chance(0.5)) {
+        events.push({ type: "message", text: "印の力で衝撃をやわらげた!" });
+        return Math.max(1, Math.floor(damage * 0.9));
+      }
+      return damage;
+    }
+
+    if (target.kind === "ally") {
+      // 特技「はねひらり」(flutterDodge、plan/monster-compendium.md): 確率で被弾を完全にかわす
+      if (hasSkill(target, "flutterDodge") && this.rng.chance(FLUTTER_DODGE_CHANCE)) {
+        events.push({ type: "message", text: `${displayActorName(target)}はひらりとかわした!` });
+        return 0;
+      }
+      // 特技「とんずら」(burrowEscape、plan/monster-compendium.md): 瀕死になる一撃を
+      // 1ラン1回だけ、とっさに離脱して避ける
+      if (
+        hasSkill(target, "burrowEscape") &&
+        !this.usedBurrowEscape.has(target.id) &&
+        target.hp - damage <= target.maxHp * 0.3
+      ) {
+        this.usedBurrowEscape.add(target.id);
+        events.push({ type: "message", text: `${displayActorName(target)}はとっさに離脱してダメージを避けた!` });
+        return 0;
+      }
+    }
+
+    if (target.kind === "ally" && hasSkill(target, "softBody") && this.rng.chance(0.5)) {
+      // 特技「みをまもる」: 確率5割で被弾ダメージを1割軽減する
+      events.push({ type: "message", text: `${displayActorName(target)}は衝撃をやわらげた!` });
+      return Math.max(1, Math.floor(damage * 0.9));
+    }
+    return damage;
+  }
+
+  /** タルを投げたときの基礎ダメージ。ツブテガエルの印(plan/equipment-forging.md)で+2 */
+  private barrelThrowDamage(): number {
+    return BARREL_DAMAGE + (weaponMarkId(this.player.inventory) === "tsubute" ? 2 : 0);
   }
 
   private damageActor(target: Actor, damage: number, critical: boolean, events: GameEvent[]): void {
     target.hp -= damage;
+    this.hitThisTurn.add(target.id);
     events.push({
       type: "damage",
       actorId: target.id,
@@ -629,37 +1289,72 @@ export class Game {
       sleep.turns = 0;
       events.push({ type: "statusEnd", actorId: target.id, kind: STATUS_SLEEP });
     }
-    if (target.hp <= 0) this.killActor(target, events);
+    if (target.hp <= 0) {
+      // 特技「ふんばり」、ホネガラミの印(plan/equipment-forging.md)、または
+      // 身がわりの鈴(plan/protagonist-equipment.md): HPが1残っていた状態
+      // からの致死ダメージを1ダイブ1回だけ耐える
+      const hpBeforeThisHit = target.hp + damage;
+      const hasStubbornEffect =
+        (target.kind === "ally" && hasSkill(target, "stubborn")) ||
+        (target.kind === "player" &&
+          (shieldMarkId(this.player.inventory) === "honegarami" ||
+            charmDefId(this.player.inventory) === "guardianBell"));
+      if (hpBeforeThisHit === 1 && hasStubbornEffect && !this.usedStubborn.has(target.id)) {
+        target.hp = 1;
+        this.usedStubborn.add(target.id);
+        events.push({ type: "message", text: `${displayActorName(target)}はふんばりこらえた!` });
+      } else {
+        this.killActor(target, events);
+      }
+    }
   }
 
   private killActor(target: Actor, events: GameEvent[]): void {
     target.alive = false;
     target.hp = 0;
-    events.push({ type: "die", actorId: target.id });
+    events.push({ type: "die", actorId: target.id, kind: target.kind });
 
     if (target.kind === "player") {
       this.status = "dead";
       this.endReason = `地下${this.depth}階で力尽きた……`;
       events.push({ type: "message", text: this.endReason });
       events.push({ type: "gameOver", reason: this.endReason });
+      events.push({ type: "tutorialTip", id: "death" });
       return;
     }
 
     if (target.kind === "ally") {
       this.allies = this.allies.filter((a) => a.id !== target.id);
-      events.push({ type: "message", text: `${target.name}は力尽きた……` });
+      events.push({ type: "message", text: `${displayActorName(target)}は力尽きた……` });
       return;
     }
 
-    events.push({ type: "message", text: `${target.name}をたおした!` });
+    events.push({ type: "message", text: `${displayActorName(target)}をたおした!` });
+    // スリガラス(plan/shops-and-thieves.md): 盗品を持ったまま倒すと、その場に落とす
+    if (target.aiKind === "thief" && target.stolenGold !== undefined) {
+      this.floor.goldPiles.push({
+        id: this.ids.nextItemUid(),
+        pos: { ...target.pos },
+        amount: target.stolenGold,
+      });
+      events.push({ type: "message", text: "盗まれた金を取り戻した!" });
+    }
+    // かがやきの夢のかけら(plan/monster-compendium.md): 倒すと上質な素材を1つ落とす
+    if (target.shining) {
+      const materialIds = [HOKORA_DUST_DEF_ID, ...MARKS.map((m) => MARK_STONE_DEF_ID[m.id])];
+      const defId = this.rng.pick(materialIds);
+      this.floor.items.push({ item: createItem(this.ids.nextItemUid(), defId), pos: { ...target.pos } });
+      events.push({ type: "message", text: "かがやく残り香から、上質な素材が現れた!" });
+    }
     const exp = target.exp ?? 0;
     if (exp > 0) {
-      const levels = gainExp(this.player, exp);
+      const levels = gainExp(this.player, exp, this.trainingFocus);
       events.push({ type: "message", text: `経験値を${exp}かくとく。` });
       for (let i = 0; i < levels; i++) {
         events.push({ type: "levelUp", actorId: this.player.id, level: this.player.level });
         events.push({ type: "message", text: `レベルが${this.player.level}に上がった!` });
       }
+      if (levels > 0) events.push({ type: "tutorialTip", id: "levelUp" });
     }
   }
 
@@ -681,10 +1376,28 @@ export class Game {
     }
     const [ground] = this.floor.items.splice(idx, 1);
     const item = ground!.item;
-    addItem(this.player.inventory, item);
     const name = itemDef(item.defId).name;
+    // 近道屋の出店(plan/shops-and-thieves.md)の売り物: 払えれば自動で購入する。
+    // 足りなければ、未払いのまま持ち出したことになる(店の外へ出ると万引き扱い)
+    if (ground!.forSale) {
+      const price = ground!.forSale.price;
+      if (this.player.gold >= price) {
+        this.player.gold -= price;
+        addItem(this.player.inventory, item);
+        events.push({ type: "pickup", actorId: this.player.id, itemUid: item.uid, name });
+        events.push({ type: "message", text: `${name}を${price}ゴールドで買った。` });
+      } else {
+        item.unpaid = true;
+        addItem(this.player.inventory, item);
+        events.push({ type: "pickup", actorId: this.player.id, itemUid: item.uid, name });
+        events.push({ type: "message", text: `お金が足りない……${name}をだまって持ち出した。` });
+      }
+      return true;
+    }
+    addItem(this.player.inventory, item);
     events.push({ type: "pickup", actorId: this.player.id, itemUid: item.uid, name });
     events.push({ type: "message", text: `${name}をひろった。` });
+    events.push({ type: "tutorialTip", id: "pickup" });
     return true;
   }
 
@@ -694,11 +1407,28 @@ export class Game {
     if (!item) return false;
     const def = itemDef(item.defId);
 
-    if (def.category === "weapon" || def.category === "shield") {
+    if (
+      def.category === "weapon" ||
+      def.category === "shield" ||
+      def.category === "head" ||
+      def.category === "charm"
+    ) {
       equip(inv, uid);
       events.push({ type: "equip", actorId: this.player.id, itemUid: uid, name: def.name });
       events.push({ type: "message", text: `${def.name}を装備した。` });
       return true;
+    }
+
+    if (def.category === "material") {
+      // ゲンドの工房(拠点)専用の素材。ダンジョン内で使い道はない
+      events.push({ type: "message", text: `「${def.name}」は素材だ。ここでは使えない。` });
+      return false;
+    }
+
+    if (def.category === "tool") {
+      const handled = this.useTool(item.defId, events);
+      if (handled) removeItem(inv, uid);
+      return handled;
     }
 
     if (def.category === "staff") {
@@ -724,6 +1454,56 @@ export class Game {
       removeItem(inv, uid);
     }
     return true;
+  }
+
+  /**
+   * 道具(plan/protagonist-equipment.md、category: "tool")の効果。
+   * 杖・草のような`effect`文字列(items/effects.ts)には乗らない、
+   * Gameクラス自身の状態(status・floor・allies)を直接操作する専用アクション。
+   */
+  private useTool(defId: string, events: GameEvent[]): boolean {
+    switch (defId) {
+      case "ashfireDust": {
+        // めざめの階段を使わずに、その場で安全に麓へ戻る。踏破と同じ扱い
+        // (持ち物・仲間を持ち帰れる)だが、checkpointイベントは出さないので
+        // 「めざめの階段を使った」扱いにはならない
+        this.status = "cleared";
+        this.endReason = "送り火の粉で、その場から麓へ戻った。";
+        events.push({ type: "message", text: this.endReason });
+        events.push({ type: "gameOver", reason: this.endReason });
+        return true;
+      }
+      case "barrelAppraisal": {
+        const found = this.floor.barrels
+          .filter((b) => b.kind === "caught" && b.speciesId && isVisible(this.floor, b.pos))
+          .map((b) => speciesById(b.speciesId!).name);
+        events.push({
+          type: "message",
+          text:
+            found.length > 0
+              ? `タルの中身を見分けた: ${found.join("、")}`
+              : "視界内にモンスター入りのタルは無かった。",
+        });
+        return true;
+      }
+      case "homesickRope": {
+        let recalled = 0;
+        for (const ally of this.allies) {
+          if (!ally.alive) continue;
+          const spot = this.freeSpotNear(this.player.pos);
+          if (!spot) continue;
+          ally.pos = spot;
+          recalled++;
+        }
+        events.push({
+          type: "message",
+          text: recalled > 0 ? "仲間を呼び寄せた!" : "呼び寄せる仲間がいない。",
+        });
+        return true;
+      }
+      default:
+        return false;
+    }
   }
 
   private throwItem(uid: number, events: GameEvent[]): boolean {
@@ -758,10 +1538,10 @@ export class Game {
         const healed = Math.min(hit.maxHp - hit.hp, def.power ?? 0);
         hit.hp += healed;
         events.push({ type: "heal", actorId: hit.id, amount: healed, hpAfter: hit.hp });
-        events.push({ type: "message", text: `${hit.name}のHPが${healed}回復した。` });
+        events.push({ type: "message", text: `${displayActorName(hit)}のHPが${healed}回復した。` });
       } else {
         const { damage, critical } = computeDamage(this.rng, 6, hit.def);
-        events.push({ type: "message", text: `${def.name}が${hit.name}に当たった!` });
+        events.push({ type: "message", text: `${def.name}が${displayActorName(hit)}に当たった!` });
         this.damageActor(hit, damage, critical, events);
       }
       return true;
@@ -823,6 +1603,11 @@ export class Game {
         this.descend(events);
         break;
       }
+      case "poison": {
+        events.push({ type: "message", text: "毒の針が刺さった!" });
+        addStatus(this.effectContext(events), this.player, STATUS_POISON, POISON_TRAP_TURNS, "毒を受けた");
+        break;
+      }
     }
   }
 
@@ -878,10 +1663,29 @@ export class Game {
           break;
         case "move":
           this.moveActor(actor, action.dir, events);
+          // スリガラス(plan/shops-and-thieves.md): 盗んだあと、プレイヤーの
+          // 視界から外れると、盗んだ金ごと消える
+          if (
+            actor.alive &&
+            actor.aiKind === "thief" &&
+            actor.stolenGold !== undefined &&
+            !isVisible(this.floor, actor.pos)
+          ) {
+            actor.alive = false;
+            this.floor.actors = this.floor.actors.filter((a) => a.id !== actor.id);
+          }
           break;
         case "attack": {
           const target = this.floor.actors.find((a) => a.id === action.targetId && a.alive);
-          if (target) this.attack(actor, target, actor.atk, events);
+          if (!target) break;
+          if (actor.aiKind === "thief" && actor.stolenGold === undefined) {
+            this.attemptSteal(actor, target, events);
+          } else {
+            // guard(plan/monster-compendium.md): 隣接されたときの反撃力が高い
+            const attackPower =
+              actor.aiKind === "guard" ? Math.round(actor.atk * GUARD_COUNTER_BONUS) : actor.atk;
+            this.attack(actor, target, attackPower, events);
+          }
           break;
         }
         case "ranged": {
@@ -889,12 +1693,13 @@ export class Game {
           if (!target) break;
           actor.facing = dirFromDelta(target.pos.x - actor.pos.x, target.pos.y - actor.pos.y);
           events.push({ type: "attack", attackerId: actor.id, targetId: target.id });
-          events.push({ type: "message", text: `${actor.name}が つぶてを投げた!` });
+          events.push({ type: "message", text: `${displayActorName(actor)}が つぶてを投げた!` });
           const defense =
             target.kind === "player" ? totalDefense(this.player) : target.def;
           const { damage, critical } = computeDamage(this.rng, actor.atk, defense);
-          events.push({ type: "message", text: `${target.name}に${damage}のダメージ!` });
-          this.damageActor(target, damage, critical, events);
+          const finalDamage = this.mitigateIncomingDamage(target, damage, events);
+          events.push({ type: "message", text: `${displayActorName(target)}に${finalDamage}のダメージ!` });
+          this.damageActor(target, finalDamage, critical, events);
           break;
         }
       }
@@ -916,6 +1721,8 @@ export class Game {
   private upkeep(events: GameEvent[]): void {
     this.tickStatuses(events);
     this.tickHunger(events);
+    this.tickArtCooldowns();
+    this.tickRegen();
 
     if (this.status !== "playing") return;
 
@@ -928,7 +1735,25 @@ export class Game {
     this.allies = this.allies.filter((a) => a.alive);
   }
 
+  /**
+   * 技のクールダウンを1ターンぶん減らす。「樽受け身」は発動から1ターンだけ
+   * 有効な予約なので、被弾で消費されなければここで期限切れにする。
+   */
+  private tickArtCooldowns(): void {
+    for (const id of Object.keys(this.player.artCooldowns) as ArtId[]) {
+      if (this.player.artCooldowns[id] > 0) this.player.artCooldowns[id]--;
+    }
+    this.player.ukemiReady = false;
+  }
+
   private tickStatuses(events: GameEvent[]): void {
+    // 毒はターン経過でじわじわHPを削る。行動そのものは妨げない
+    for (const actor of this.floor.actors) {
+      if (!actor.alive || !hasStatus(actor, STATUS_POISON)) continue;
+      this.damageActor(actor, POISON_DAMAGE_PER_TURN, false, events);
+      if (this.status !== "playing") return;
+    }
+
     for (const actor of this.floor.actors) {
       if (!actor.alive) continue;
       for (const status of actor.statuses) {
@@ -937,10 +1762,7 @@ export class Game {
         if (status.turns === 0) {
           events.push({ type: "statusEnd", actorId: actor.id, kind: status.kind });
           if (actor.kind === "player") {
-            events.push({
-              type: "message",
-              text: status.kind === STATUS_SLEEP ? "目が覚めた。" : "混乱がおさまった。",
-            });
+            events.push({ type: "message", text: STATUS_END_MESSAGES[status.kind] });
           }
         }
       }
@@ -949,14 +1771,20 @@ export class Game {
   }
 
   private tickHunger(events: GameEvent[]): void {
+    // 毒などですでにこのターン力尽きていれば、満腹度の処理は行わない
+    if (this.status !== "playing") return;
     const player = this.player;
     const before = player.satiety;
-    const rate = this.floor.gimmick === "feast" ? SATIETY_PER_TURN / 2 : SATIETY_PER_TURN;
+    const feastMultiplier = this.floor.gimmick === "feast" ? 0.5 : 1;
+    // 満たされ石(plan/protagonist-equipment.md): 満腹度の減りが2割ゆるやかになる
+    const charmMultiplier = charmDefId(player.inventory) === "fulfillingStone" ? 0.8 : 1;
+    const rate = SATIETY_PER_TURN * feastMultiplier * charmMultiplier;
     player.satiety = Math.max(0, player.satiety - rate);
 
     if (before > 20 && player.satiety <= 20) {
       events.push({ type: "hungerWarning", level: "low" });
       events.push({ type: "message", text: "おなかがへってきた……" });
+      events.push({ type: "tutorialTip", id: "hunger" });
     }
     if (before > 0 && player.satiety === 0) {
       events.push({ type: "hungerWarning", level: "empty" });
@@ -967,6 +1795,22 @@ export class Game {
       this.damageActor(player, 1, false, events);
     } else if (this.turnCount % REGEN_INTERVAL === 0 && player.hp < player.maxHp) {
       player.hp = Math.min(player.maxHp, player.hp + 1);
+    }
+  }
+
+  /**
+   * regenIfUnhit(うるみぐま)・特技「しずけさのいやし」(slowMend、
+   * plan/monster-compendium.md): このターン被弾しなかった対象を少しだけ回復する
+   */
+  private tickRegen(): void {
+    for (const actor of this.floor.actors) {
+      if (!actor.alive || actor.kind === "player") continue;
+      if (this.hitThisTurn.has(actor.id)) continue;
+      if (actor.hp >= actor.maxHp) continue;
+      const nativeRegen = actor.speciesId !== undefined && speciesById(actor.speciesId).regenIfUnhit === true;
+      const skillRegen = actor.kind === "ally" && hasSkill(actor, "slowMend");
+      if (!nativeRegen && !skillRegen) continue;
+      actor.hp = Math.min(actor.maxHp, actor.hp + REGEN_IF_UNHIT_AMOUNT);
     }
   }
 

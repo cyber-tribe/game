@@ -1,4 +1,5 @@
-import type { Item } from "../core/types";
+import type { Item, MarkId } from "../core/types";
+import { SHIELD_PLUS_BONUS, WEAPON_PLUS_BONUS, markDef } from "../entities/forging";
 import { itemDef } from "./catalog";
 
 export const INVENTORY_SIZE = 20;
@@ -9,10 +10,13 @@ export interface Inventory {
   /** 装備中の武器の uid。未装備なら null */
   weaponUid: number | null;
   shieldUid: number | null;
+  /** 頭防具・装身具の uid。plan/protagonist-equipment.md 参照 */
+  headUid: number | null;
+  charmUid: number | null;
 }
 
 export function createInventory(maxSize = INVENTORY_SIZE): Inventory {
-  return { items: [], maxSize, weaponUid: null, shieldUid: null };
+  return { items: [], maxSize, weaponUid: null, shieldUid: null, headUid: null, charmUid: null };
 }
 
 export function isFull(inv: Inventory): boolean {
@@ -31,6 +35,8 @@ export function removeItem(inv: Inventory, uid: number): Item | undefined {
   const [item] = inv.items.splice(idx, 1);
   if (inv.weaponUid === uid) inv.weaponUid = null;
   if (inv.shieldUid === uid) inv.shieldUid = null;
+  if (inv.headUid === uid) inv.headUid = null;
+  if (inv.charmUid === uid) inv.charmUid = null;
   return item;
 }
 
@@ -51,30 +57,75 @@ export function equip(inv: Inventory, uid: number): boolean {
     inv.shieldUid = inv.shieldUid === uid ? null : uid;
     return true;
   }
+  if (def.category === "head") {
+    inv.headUid = inv.headUid === uid ? null : uid;
+    return true;
+  }
+  if (def.category === "charm") {
+    inv.charmUid = inv.charmUid === uid ? null : uid;
+    return true;
+  }
   return false;
 }
 
 export function isEquipped(inv: Inventory, uid: number): boolean {
-  return inv.weaponUid === uid || inv.shieldUid === uid;
+  return inv.weaponUid === uid || inv.shieldUid === uid || inv.headUid === uid || inv.charmUid === uid;
 }
 
 export function weaponBonus(inv: Inventory): number {
   if (inv.weaponUid === null) return 0;
   const item = findItem(inv, inv.weaponUid);
-  return item ? (itemDef(item.defId).bonus ?? 0) : 0;
+  if (!item) return 0;
+  return (itemDef(item.defId).bonus ?? 0) + (item.plus ?? 0) * WEAPON_PLUS_BONUS;
 }
 
 export function shieldBonus(inv: Inventory): number {
   if (inv.shieldUid === null) return 0;
   const item = findItem(inv, inv.shieldUid);
+  if (!item) return 0;
+  return (itemDef(item.defId).bonus ?? 0) + (item.plus ?? 0) * SHIELD_PLUS_BONUS;
+}
+
+/** 装備中の武器に刻んである印。未刻印/未装備ならundefined */
+export function weaponMarkId(inv: Inventory): MarkId | undefined {
+  if (inv.weaponUid === null) return undefined;
+  return findItem(inv, inv.weaponUid)?.markId;
+}
+
+/** 装備中の盾に刻んである印。未刻印/未装備ならundefined */
+export function shieldMarkId(inv: Inventory): MarkId | undefined {
+  if (inv.shieldUid === null) return undefined;
+  return findItem(inv, inv.shieldUid)?.markId;
+}
+
+/** 装備中の頭防具の防御ボーナス(鉄兜のみ)。他の頭防具は数値に触れない方向の効果なので0 */
+export function headBonus(inv: Inventory): number {
+  if (inv.headUid === null) return 0;
+  const item = findItem(inv, inv.headUid);
   return item ? (itemDef(item.defId).bonus ?? 0) : 0;
 }
 
-/** 表示用の名前。杖は残り回数を、装備品は装備中である旨を添える */
+/** 装備中の頭防具のdefId。未装備ならnull */
+export function headDefId(inv: Inventory): string | null {
+  if (inv.headUid === null) return null;
+  return findItem(inv, inv.headUid)?.defId ?? null;
+}
+
+/** 装備中の装身具のdefId。未装備ならnull */
+export function charmDefId(inv: Inventory): string | null {
+  if (inv.charmUid === null) return null;
+  return findItem(inv, inv.charmUid)?.defId ?? null;
+}
+
+/** 表示用の名前。杖は残り回数、武器・盾は強化値と印、装備品は装備中である旨を添える */
 export function displayName(inv: Inventory, item: Item): string {
   const def = itemDef(item.defId);
   let name = def.name;
   if (def.category === "staff" && item.charges !== undefined) name += `[${item.charges}]`;
+  if (def.category === "weapon" || def.category === "shield") {
+    if (item.plus) name += `+${item.plus}`;
+    if (item.markId) name += `【${markDef(item.markId).name}】`;
+  }
   if (isEquipped(inv, item.uid)) name += " (装備中)";
   return name;
 }

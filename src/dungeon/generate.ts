@@ -115,6 +115,9 @@ function tryGenerate(
   const stairsRoom = chooseStairsRoom(rng, sections, rooms, sectionRoom, chosen, gimmick);
   const stairs = randomTileInRoom(rng, stairsRoom);
 
+  designateMonsterHouse(rng, depth, rooms, stairsRoom);
+  designateShop(rng, depth, rooms, stairsRoom);
+
   return {
     depth,
     width,
@@ -126,6 +129,7 @@ function tryGenerate(
     items: [],
     traps: [],
     barrels: [],
+    goldPiles: [],
     gimmick,
   };
 }
@@ -233,6 +237,49 @@ function chooseStairsRoom(
     .filter((sec) => (degree.get(key(sec)) ?? 0) === minDegree)
     .map((sec) => sectionRoom.get(key(sec))!);
   return rng.pick(candidates);
+}
+
+/** モンスターハウスの対象になる部屋の最低面積 */
+const MIN_MONSTER_HOUSE_AREA = 24;
+/** 3階から出現し、深いフロアほど確率が上がる(plan/monster-house.md) */
+function monsterHouseChance(depth: number): number {
+  if (depth < 3) return 0;
+  return Math.min(0.35, 0.08 + (depth - 3) * 0.015);
+}
+
+/**
+ * 一定確率で、広さのある部屋を1つだけモンスターハウスに指定する。
+ * 階段の部屋は安全地帯として除外する。地形(通路)には一切手を入れないので、
+ * 退路(既存のフラッドフィル到達可能性)は自動的に保たれる。
+ */
+function designateMonsterHouse(rng: Rng, depth: number, rooms: Room[], stairsRoom: Room): void {
+  if (!rng.chance(monsterHouseChance(depth))) return;
+  const candidates = rooms.filter(
+    (room) => room !== stairsRoom && room.w * room.h >= MIN_MONSTER_HOUSE_AREA,
+  );
+  if (candidates.length === 0) return;
+  rng.pick(candidates).kind = "monsterHouse";
+}
+
+/** 近道屋の出店の対象になる部屋の最低面積 */
+const MIN_SHOP_AREA = 12;
+/** 4階から出現する(plan/shops-and-thieves.md) */
+function shopChance(depth: number): number {
+  if (depth < 4) return 0;
+  return 0.2;
+}
+
+/**
+ * 一定確率で、部屋を1つだけ近道屋の出店に指定する。モンスターハウス・
+ * 階段の部屋とは重ねない(すでにどちらかの用途があれば対象から外れる)。
+ */
+function designateShop(rng: Rng, depth: number, rooms: Room[], stairsRoom: Room): void {
+  if (!rng.chance(shopChance(depth))) return;
+  const candidates = rooms.filter(
+    (room) => room !== stairsRoom && room.kind === undefined && room.w * room.h >= MIN_SHOP_AREA,
+  );
+  if (candidates.length === 0) return;
+  rng.pick(candidates).kind = "shop";
 }
 
 function digCorridor(tiles: Tile[], width: number, p: Vec2): void {

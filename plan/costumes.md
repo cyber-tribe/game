@@ -22,7 +22,7 @@
 | 普段着(既定) | 最初から |
 | 宵祭りの装束 | `design/village-festivals.md` の宵祭りに一定回数参加する |
 | おキヨお手製のはっぴ | `plan/monster-compendium.md` の図鑑を全種埋める |
-| 山を静めた者の羽織 | `design/story.md` 第三章クリア |
+| 山を静めた者の羽織 | `design/story.md` 第四章クリア |
 | 最古の夢へ寄り添う衣 | `design/postgame.md` の「真の目覚め」を終える |
 | 腕自慢のはちまき | `plan/hidden-dungeon.md` の腕試しの間を踏破する |
 

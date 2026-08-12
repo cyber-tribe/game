@@ -6,13 +6,20 @@ import {
   type BarrelKind,
   type FloorState,
   type Item,
+  type Room,
+  type SkillId,
   type Species,
   type TrapKind,
   actorAt,
   barrelAt,
   isWalkable,
+  roomContains,
+  roomOf,
 } from "../core/types";
-import { speciesForDepth } from "../entities/species";
+import { shopPrice } from "../entities/shop";
+import { fullSkillSet } from "../entities/skills";
+import { speciesById, speciesForDepth } from "../entities/species";
+import type { StoredMonster } from "../entities/storedMonster";
 import { itemsForDepth } from "../items/catalog";
 import { randomTileInRoom } from "./generate";
 
@@ -22,7 +29,7 @@ export interface IdSource {
   nextBarrelId(): number;
 }
 
-const TRAP_KINDS: readonly TrapKind[] = ["damage", "sleep", "alarm", "pitfall"];
+const TRAP_KINDS: readonly TrapKind[] = ["damage", "sleep", "alarm", "pitfall", "poison"];
 
 export function createMonster(id: number, species: Species, pos: Vec2): Actor {
   return {
@@ -65,6 +72,36 @@ export function createAlly(id: number, species: Species, pos: Vec2): Actor {
   actor.atk = Math.round(species.atk * 1.15);
   actor.exp = 0;
   actor.aware = true;
+  applySkills(actor, species, fullSkillSet(species.id));
+  return actor;
+}
+
+/** 特技一式をactorに反映する。とおなげ(longThrow)は遠隔射程+1に変換する */
+function applySkills(actor: Actor, species: Species, skills: SkillId[]): void {
+  actor.skills = skills;
+  actor.rangedRange = species.range;
+  if (skills.includes("longThrow") && actor.rangedRange !== undefined) {
+    actor.rangedRange += 1;
+  }
+}
+
+/**
+ * ねむり小屋(plan/monster-fusion.md)から連れ出した仲間を、盤面のアクターに
+ * 起こす。レベルに応じてステータスを底上げする(仲間自身の経験値蓄積・
+ * レベルアップはまだ実装されていないため、ここでの level は捕獲時や
+ * 夢あわせの結果のまま変わらない)。
+ */
+export function createAllyFromStored(id: number, stored: StoredMonster, pos: Vec2): Actor {
+  const species = speciesById(stored.speciesId);
+  const actor = createAlly(id, species, pos);
+  actor.level = stored.level;
+  const growth = Math.max(0, stored.level - 1) * 0.08;
+  actor.maxHp = Math.round(actor.maxHp * (1 + growth));
+  actor.hp = actor.maxHp;
+  actor.atk = Math.round(actor.atk * (1 + growth));
+  actor.def = Math.round(actor.def * (1 + growth));
+  applySkills(actor, species, fullSkillSet(species.id, stored.skills));
+  actor.nickname = stored.nickname;
   return actor;
 }
 
@@ -72,12 +109,24 @@ export function createAlly(id: number, species: Species, pos: Vec2): Actor {
 export function findFreeTile(
   rng: Rng,
   floor: FloorState,
-  opts: { roomsOnly?: boolean; avoid?: Vec2[]; minDistanceFrom?: { pos: Vec2; distance: number } } = {},
+  opts: {
+    roomsOnly?: boolean;
+    /** 指定すれば、この部屋の中だけを探す */
+    room?: Room;
+    avoid?: Vec2[];
+    minDistanceFrom?: { pos: Vec2; distance: number };
+  } = {},
 ): Vec2 | null {
+  // 通常の配置ではモンスターハウスの部屋を素通りする。専用の湧かせ枠
+  // (populateMonsterHouse)と混ざると、部屋に踏み込んだときの
+  // 「ほぼ全員が一斉に主人公を視認する」体験が薄まってしまうため
+  const normalRoomPool = floor.rooms.filter((r) => r.kind === undefined);
   for (let attempt = 0; attempt < 200; attempt++) {
-    const pos = opts.roomsOnly
-      ? randomTileInRoom(rng, rng.pick(floor.rooms))
-      : randomWalkable(rng, floor);
+    const pos = opts.room
+      ? randomTileInRoom(rng, opts.room)
+      : opts.roomsOnly
+        ? randomTileInRoom(rng, rng.pick(normalRoomPool.length > 0 ? normalRoomPool : floor.rooms))
+        : randomWalkable(rng, floor);
     if (!pos) continue;
     if (eq(pos, floor.stairs)) continue;
     if (actorAt(floor, pos)) continue;
@@ -101,15 +150,11 @@ function randomWalkable(rng: Rng, floor: FloorState): Vec2 | null {
   return null;
 }
 
-/** プレイヤーの開始地点。できるだけ階段から離れた部屋を選ぶ */
+/** プレイヤーの開始地点。できるだけ階段から離れた部屋を選ぶ。モンスターハウスは避ける */
 export function choosePlayerStart(rng: Rng, floor: FloorState): Vec2 {
   const candidates = floor.rooms.filter((room) => {
-    const inStairsRoom =
-      floor.stairs.x >= room.x &&
-      floor.stairs.x < room.x + room.w &&
-      floor.stairs.y >= room.y &&
-      floor.stairs.y < room.y + room.h;
-    return !inStairsRoom;
+    if (room.kind === "monsterHouse") return false;
+    return !roomContains(room, floor.stairs);
   });
   const room = candidates.length > 0 ? rng.pick(candidates) : rng.pick(floor.rooms);
   for (let i = 0; i < 50; i++) {
@@ -132,11 +177,35 @@ const PITFALL_GIMMICK_CHANCE = 0.5;
  * 深い階ほどモンスターと罠が増える。`floor.gimmick`(plan/floor-gimmicks.md)
  * に応じて出現数・出現内容を調整する。
  */
+/** ほこら粉寄せの匂い袋(plan/protagonist-equipment.md)を装備しているときの重み倍率 */
+const DUST_LURE_WEIGHT_MULTIPLIER = 3;
+
+/** かがやきの夢のかけら(plan/monster-compendium.md)の出現確率(通常の抽選への追加ロール) */
+const SHINING_CHANCE = 0.01;
+/** かがやきの夢のかけらのステータス倍率 */
+const SHINING_STAT_MULTIPLIER = 1.3;
+
+/** 生成した個体に、確率でかがやきの夢のかけらの補正をかける */
+function rollShining(rng: Rng, monster: Actor, shiningChanceMultiplier: number): void {
+  if (!rng.chance(SHINING_CHANCE * shiningChanceMultiplier)) return;
+  monster.shining = true;
+  monster.maxHp = Math.round(monster.maxHp * SHINING_STAT_MULTIPLIER);
+  monster.hp = monster.maxHp;
+  monster.atk = Math.round(monster.atk * SHINING_STAT_MULTIPLIER);
+  monster.def = Math.round(monster.def * SHINING_STAT_MULTIPLIER);
+}
+
 export function populateFloor(
   rng: Rng,
   floor: FloorState,
   ids: IdSource,
   playerStart: Vec2,
+  /** ほこら粉寄せの匂い袋を装備中なら "hokoraDust" を渡す。出現重みを底上げする */
+  boostedItemDefId?: string,
+  /** 万引き済みで警戒状態(plan/shops-and-thieves.md)なら true。売値が割高になる */
+  shopWary = false,
+  /** 図鑑コンプリート済みなら、かがやきの夢のかけらの出現確率に掛ける倍率(plan/monster-compendium.md) */
+  shiningChanceMultiplier = 1,
 ): void {
   const gimmick = floor.gimmick;
   const pool = speciesForDepth(floor.depth);
@@ -156,7 +225,28 @@ export function populateFloor(
     const species = rng.pickWeighted(pool, (s) => s.weight);
     const monster = createMonster(ids.nextActorId(), species, pos);
     if (gimmick === "alert") monster.aware = true;
+    rollShining(rng, monster, shiningChanceMultiplier);
     floor.actors.push(monster);
+
+    // swarm(plan/monster-compendium.md): 生成時に複数体まとまって配置される。
+    // 群れの残りは、最初の1体と同じ部屋の空きマスを探して置く(部屋がなければ諦める)
+    if (species.ai === "swarm" && species.swarmSize) {
+      const room = roomOf(floor, pos);
+      if (room) {
+        const [min, max] = species.swarmSize;
+        const extra = rng.int(min, max) - 1;
+        const placed = [pos];
+        for (let j = 0; j < extra; j++) {
+          const nearPos = findFreeTile(rng, floor, { room, avoid: placed });
+          if (!nearPos) break;
+          placed.push(nearPos);
+          const companion = createMonster(ids.nextActorId(), species, nearPos);
+          if (gimmick === "alert") companion.aware = true;
+          rollShining(rng, companion, shiningChanceMultiplier);
+          floor.actors.push(companion);
+        }
+      }
+    }
   }
 
   const itemPool = itemsForDepth(floor.depth);
@@ -166,7 +256,9 @@ export function populateFloor(
   for (let i = 0; i < itemCount; i++) {
     const pos = findFreeTile(rng, floor, { roomsOnly: true, avoid: [playerStart] });
     if (!pos) break;
-    const def = rng.pickWeighted(itemPool, (d) => d.weight);
+    const def = rng.pickWeighted(itemPool, (d) =>
+      d.id === boostedItemDefId ? d.weight * DUST_LURE_WEIGHT_MULTIPLIER : d.weight,
+    );
     floor.items.push({ item: createItem(ids.nextItemUid(), def.id, def.charges), pos });
   }
 
@@ -182,7 +274,96 @@ export function populateFloor(
     floor.traps.push({ pos, kind, revealed: false });
   }
 
+  const goldCount = rng.int(2, 5);
+  for (let i = 0; i < goldCount; i++) {
+    const pos = findFreeTile(rng, floor, { roomsOnly: true, avoid: [playerStart] });
+    if (!pos) break;
+    const amount = rng.int(5, 10 + floor.depth * 4);
+    floor.goldPiles.push({ id: ids.nextItemUid(), pos, amount });
+  }
+
   placeBarrels(rng, floor, ids, playerStart);
+  populateMonsterHouse(rng, floor, ids, shiningChanceMultiplier);
+  populateShop(rng, floor, ids, shopWary);
+}
+
+/**
+ * 近道屋の出店(plan/shops-and-thieves.md)の部屋があれば、店主と
+ * 売り物を置く。店主は万引きされるまで動かず攻撃もしない
+ */
+function populateShop(rng: Rng, floor: FloorState, ids: IdSource, wary: boolean): void {
+  const room = floor.rooms.find((r) => r.kind === "shop");
+  if (!room) return;
+
+  // 「しじまの階」ギミック中は野生モンスターが一切湧かない。店主は野生の
+  // モンスターではないが、既存のテスト前提(この階はkind:"monster"が0体)を
+  // 尊重し、売り物だけは変わらず置いたまま店主だけを省く
+  const keeperPos = floor.gimmick === "silence" ? null : findFreeTile(rng, floor, { room });
+  if (keeperPos) {
+    floor.actors.push({
+      id: ids.nextActorId(),
+      kind: "monster",
+      name: "近道屋の行商人",
+      model: "gajiri",
+      pos: keeperPos,
+      facing: 4,
+      hp: 999,
+      maxHp: 999,
+      atk: 30,
+      def: 10,
+      level: 1,
+      statuses: [],
+      alive: true,
+      aiKind: "shopkeeper",
+      aware: true,
+    });
+  }
+
+  const itemPool = itemsForDepth(floor.depth);
+  const goodsCount = rng.int(2, 4);
+  for (let i = 0; i < goodsCount; i++) {
+    const pos = findFreeTile(rng, floor, { room });
+    if (!pos) break;
+    const def = rng.pickWeighted(itemPool, (d) => d.weight);
+    const item = createItem(ids.nextItemUid(), def.id, def.charges);
+    floor.items.push({ item, pos, forSale: { price: shopPrice(def, item, wary) } });
+  }
+}
+
+/**
+ * モンスターハウス(plan/monster-house.md)の部屋があれば、通常のモンスター
+ * 予算とは別枠でまとめて湧かせる。全員 aware: false のまま部屋に置くだけで、
+ * 入室した瞬間ほぼ全員が同時にプレイヤーを視認する。ご褒美も部屋の中に置く。
+ *
+ * 「しじまの階」ギミック中は野生モンスターが一切湧かないので、
+ * モンスターハウスの中身も湧かせない(ご褒美だけは変わらず置く)。
+ */
+function populateMonsterHouse(rng: Rng, floor: FloorState, ids: IdSource, shiningChanceMultiplier: number): void {
+  const room = floor.rooms.find((r) => r.kind === "monsterHouse");
+  if (!room) return;
+
+  if (floor.gimmick !== "silence") {
+    const pool = speciesForDepth(floor.depth);
+    const monsterCount = Math.min(8, 5 + Math.floor(floor.depth / 10));
+    for (let i = 0; i < monsterCount; i++) {
+      const pos = findFreeTile(rng, floor, { room });
+      if (!pos) break;
+      const species = rng.pickWeighted(pool, (s) => s.weight);
+      const monster = createMonster(ids.nextActorId(), species, pos);
+      if (floor.gimmick === "alert") monster.aware = true;
+      rollShining(rng, monster, shiningChanceMultiplier);
+      floor.actors.push(monster);
+    }
+  }
+
+  const itemPool = itemsForDepth(floor.depth);
+  const rewardCount = rng.int(1, 2);
+  for (let i = 0; i < rewardCount; i++) {
+    const pos = findFreeTile(rng, floor, { room });
+    if (!pos) break;
+    const def = rng.pickWeighted(itemPool, (d) => d.weight);
+    floor.items.push({ item: createItem(ids.nextItemUid(), def.id, def.charges), pos });
+  }
 }
 
 /**

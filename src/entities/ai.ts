@@ -1,14 +1,37 @@
 import type { Rng } from "../core/rng";
-import { ALL_DIRS, type Dir, type Vec2, chebyshev, dirDelta, isDiagonal } from "../core/grid";
+import { ALL_DIRS, type Dir, type Vec2, chebyshev, dirDelta, eq, isDiagonal } from "../core/grid";
 import {
+  STATUS_FEAR,
+  STATUS_INVISIBLE,
+  STATUS_SEAL,
   type Actor,
+  type AllyStance,
   type FloorState,
+  type SkillId,
   actorAt,
   barrelAt,
+  hasStatus,
   isHostile,
   walkableAt,
 } from "../core/types";
 import { canSee } from "../dungeon/visibility";
+import { speciesById } from "./species";
+
+/** 夢あわせ(plan/monster-fusion.md)で得た特技を持っているか */
+function hasSkill(actor: Actor, id: SkillId): boolean {
+  return actor.skills?.includes(id) ?? false;
+}
+
+/** burrow AI が潜ってから次に現れるまでのターン数(plan/monster-compendium.md) */
+const BURROW_INTERVAL = 3;
+/** burrow AI が現れる際、targetからこの距離以内の空きマスを探す */
+const BURROW_SURFACE_RANGE = 2;
+/** guard AI の反撃力補正(plan/monster-compendium.md) */
+export const GUARD_COUNTER_BONUS = 1.3;
+/** かく乱のこだま(warnCall)が、周囲のモンスターの新規気づきを抑える確率 */
+const WARN_CALL_SUPPRESS_CHANCE = 0.4;
+/** かく乱のこだまが効く範囲(そのモンスターからの距離) */
+const WARN_CALL_RANGE = 4;
 
 export type MonsterAction =
   | { type: "wait" }
@@ -95,15 +118,64 @@ export function nearestVisibleFoe(floor: FloorState, self: Actor): Actor | null 
   return best;
 }
 
-/** 隣にいる敵のうち、いちばん体力の減っているもの */
-export function adjacentFoe(floor: FloorState, self: Actor): Actor | null {
-  let best: Actor | null = null;
+/**
+ * 隣にいる敵のうち、いちばん体力の減っているもの。
+ * avoidDisguised: true なら、「みをかくす」(disguise)持ちの仲間を、
+ * 他に候補がいる限り優先的に避ける(plan/monster-compendium.md)
+ */
+export function adjacentFoe(floor: FloorState, self: Actor, opts?: { avoidDisguised?: boolean }): Actor | null {
+  const candidates: Actor[] = [];
   for (const other of floor.actors) {
     if (!other.alive || !isHostile(self, other)) continue;
     if (chebyshev(self.pos, other.pos) !== 1) continue;
-    if (!best || other.hp < best.hp) best = other;
+    candidates.push(other);
+  }
+  const pool =
+    opts?.avoidDisguised && candidates.some((c) => !hasSkill(c, "disguise"))
+      ? candidates.filter((c) => !hasSkill(c, "disguise"))
+      : candidates;
+  let best: Actor | null = null;
+  for (const c of pool) {
+    if (!best || c.hp < best.hp) best = c;
   }
   return best;
+}
+
+/**
+ * とうめいの巻物・かく乱のこだま(warnCall、plan/monster-compendium.md)を
+ * 考慮した視認判定。まだ気づいていない相手には、周囲に「かく乱のこだま」を
+ * 持つ仲間がいると一定確率で気づけない
+ */
+function attemptSight(rng: Rng, floor: FloorState, monster: Actor, target: Actor): boolean {
+  if (hasStatus(target, STATUS_INVISIBLE)) return false;
+  if (!canSee(floor, monster.pos, target.pos) && nearestVisibleFoe(floor, monster) === null) return false;
+  if (monster.aware) return true;
+  if (nearbyWarnCallAlly(floor, monster) && rng.chance(WARN_CALL_SUPPRESS_CHANCE)) return false;
+  return true;
+}
+
+function nearbyWarnCallAlly(floor: FloorState, monster: Actor): boolean {
+  for (const a of floor.actors) {
+    if (!a.alive || a.kind !== "ally" || !hasSkill(a, "warnCall")) continue;
+    if (chebyshev(monster.pos, a.pos) <= WARN_CALL_RANGE) return true;
+  }
+  return false;
+}
+
+/** burrow AI が地上に現れる位置。targetの近くの空いている歩行可能マスを探す */
+function burrowSurfaceSpot(rng: Rng, floor: FloorState, near: Vec2): Vec2 | null {
+  const candidates: Vec2[] = [];
+  for (let dy = -BURROW_SURFACE_RANGE; dy <= BURROW_SURFACE_RANGE; dy++) {
+    for (let dx = -BURROW_SURFACE_RANGE; dx <= BURROW_SURFACE_RANGE; dx++) {
+      if (dx === 0 && dy === 0) continue;
+      const p = { x: near.x + dx, y: near.y + dy };
+      if (!walkableAt(floor, p)) continue;
+      if (actorAt(floor, p) !== undefined) continue;
+      if (barrelAt(floor, p) !== undefined) continue;
+      candidates.push(p);
+    }
+  }
+  return candidates.length > 0 ? rng.pick(candidates) : null;
 }
 
 /**
@@ -117,13 +189,79 @@ export function decideMonsterAction(
   target: Actor,
   distField: Int32Array,
 ): MonsterAction {
-  const sees = canSee(floor, monster.pos, target.pos) || nearestVisibleFoe(floor, monster) !== null;
-  if (sees) monster.aware = true;
+  // 近道屋の出店の店主(plan/shops-and-thieves.md): 万引きされて豹変するまでは
+  // 動かず攻撃もしない。豹変後も店を離れず、隣接した相手にだけ反撃する
+  if (monster.aiKind === "shopkeeper") {
+    if (!monster.angry) return { type: "wait" };
+    const adjacent = adjacentFoe(floor, monster);
+    return adjacent ? { type: "attack", targetId: adjacent.id } : { type: "wait" };
+  }
+
+  // スリガラス(plan/shops-and-thieves.md): 盗んだあとは戦わず逃げるだけになる
+  if (monster.aiKind === "thief" && monster.stolenGold !== undefined) {
+    const away = fleeDirection(floor, monster, target.pos);
+    return away !== null ? { type: "move", dir: away } : wander(rng, floor, monster);
+  }
+
+  // おびえの巻物: 戦わずに逃げ続ける。追跡・攻撃のどの判断よりも優先する
+  if (hasStatus(monster, STATUS_FEAR)) {
+    const away = fleeDirection(floor, monster, target.pos);
+    return away !== null ? { type: "move", dir: away } : wander(rng, floor, monster);
+  }
+
+  // ambush・mimic(plan/monster-compendium.md): 隣接されるまで完全に気づかず、
+  // 気づいた直後の1撃には奇襲補正が乗る(game.ts の attack が ambushReady を見る)。
+  // mimic はタルへの視覚的な擬態までは実装せず、この「隣接されるまで潜む」
+  // 挙動だけを流用する簡略化とする(アーカイブ注記参照)
+  if (monster.aiKind === "ambush" || monster.aiKind === "mimic") {
+    const wasAware = monster.aware;
+    const adjacent = adjacentFoe(floor, monster, { avoidDisguised: true });
+    if (adjacent) {
+      monster.aware = true;
+      if (!wasAware) monster.ambushReady = true;
+      return { type: "attack", targetId: adjacent.id };
+    }
+    return { type: "wait" };
+  }
+
+  // burrow(plan/monster-compendium.md): 追跡の距離場を使わず、一定間隔で
+  // 「潜る/現れる」を挟む。隣接していれば潜伏中でも応戦する
+  if (monster.aiKind === "burrow") {
+    const adjacent = adjacentFoe(floor, monster, { avoidDisguised: true });
+    if (adjacent) {
+      monster.aware = true;
+      return { type: "attack", targetId: adjacent.id };
+    }
+    const timer = monster.burrowTimer ?? BURROW_INTERVAL;
+    if (timer <= 0) {
+      const spot = burrowSurfaceSpot(rng, floor, target.pos);
+      if (spot) {
+        monster.pos = spot;
+        monster.aware = true;
+      }
+      monster.burrowTimer = BURROW_INTERVAL;
+    } else {
+      monster.burrowTimer = timer - 1;
+    }
+    return { type: "wait" };
+  }
+
+  // とうめいの巻物・かく乱のこだまを考慮した視認
+  const wasAware = monster.aware;
+  if (attemptSight(rng, floor, monster, target)) monster.aware = true;
+
+  // やまびこぎつね(alertsFloorOnSight): 初めて視認した瞬間、フロア中の
+  // 他のモンスターにも気づかせる(design/regions.md 第六地方)
+  if (!wasAware && monster.aware && monster.speciesId && speciesById(monster.speciesId).alertsFloorOnSight) {
+    for (const other of floor.actors) {
+      if (other.alive && other.kind === "monster") other.aware = true;
+    }
+  }
 
   if (!monster.aware) return wander(rng, floor, monster);
 
   // 隣に敵がいるなら、それが誰であれ殴る。仲間が割り込んでいれば仲間を殴る
-  const adjacent = adjacentFoe(floor, monster);
+  const adjacent = adjacentFoe(floor, monster, { avoidDisguised: true });
   if (adjacent) return { type: "attack", targetId: adjacent.id };
 
   // 逃げ腰のモンスターは瀕死になると距離を取る
@@ -132,8 +270,12 @@ export function decideMonsterAction(
     if (away !== null) return { type: "move", dir: away };
   }
 
+  // guard(plan/monster-compendium.md): ほとんど自分から動かず、その場を固める
+  if (monster.aiKind === "guard") return { type: "wait" };
+
+  // かなしばりの杖: 封じられている間は遠隔攻撃(特技)が使えず、近づくしかない
   const visible = nearestVisibleFoe(floor, monster);
-  if (monster.rangedRange !== undefined && visible) {
+  if (monster.rangedRange !== undefined && visible && !hasStatus(monster, STATUS_SEAL)) {
     const distance = chebyshev(monster.pos, visible.pos);
     if (distance <= monster.rangedRange && isStraightLine(monster.pos, visible.pos)) {
       return { type: "ranged", targetId: visible.id };
@@ -146,10 +288,8 @@ export function decideMonsterAction(
 }
 
 /**
- * 仲間の行動を決める。
- *
- * 敵が見えていれば向かっていき、いなければプレイヤーについてくる。
- * 近すぎるときは足を止める。そうしないとプレイヤーの周りで押し合いになる。
+ * 仲間の行動を決める。plan/companion-orders.md の「構え」で分岐する。
+ * 隣接する敵への反撃だけは構えによらず共通(自衛はする)。
  */
 export function decideAllyAction(
   rng: Rng,
@@ -162,6 +302,28 @@ export function decideAllyAction(
   const adjacent = adjacentFoe(floor, ally);
   if (adjacent) return { type: "attack", targetId: adjacent.id };
 
+  const stance: AllyStance = ally.stance ?? "free";
+  switch (stance) {
+    case "guard":
+      return guardAction(floor, ally, leader, leaderField);
+    case "hold":
+      return holdAction(floor, ally);
+    case "vanguard":
+      return vanguardAction(rng, floor, ally, foeField);
+    case "free":
+      return freeAction(rng, floor, ally, leader, foeField, leaderField);
+  }
+}
+
+/** おまかせ(既定)。敵が見えていれば向かっていき、いなければ主についてくる */
+function freeAction(
+  rng: Rng,
+  floor: FloorState,
+  ally: Actor,
+  leader: Actor,
+  foeField: Int32Array,
+  leaderField: Int32Array,
+): MonsterAction {
   const foe = nearestVisibleFoe(floor, ally);
   if (foe) {
     if (ally.rangedRange !== undefined) {
@@ -180,6 +342,76 @@ export function decideAllyAction(
   const dir = stepDownField(floor, ally.pos, leaderField);
   if (dir !== null) return { type: "move", dir };
   return rng.chance(0.3) ? wander(rng, floor, ally) : { type: "wait" };
+}
+
+/** そばにいろ。自分からは追わず、主の隣接圏内(距離1以内)を保つだけ */
+function guardAction(
+  floor: FloorState,
+  ally: Actor,
+  leader: Actor,
+  leaderField: Int32Array,
+): MonsterAction {
+  const distanceToLeader = chebyshev(ally.pos, leader.pos);
+  if (distanceToLeader <= 1) return { type: "wait" };
+  const dir = stepDownField(floor, ally.pos, leaderField);
+  if (dir !== null) return { type: "move", dir };
+  return { type: "wait" };
+}
+
+/** そこで待て。指示した瞬間の座標(holdPos)に留まる */
+function holdAction(floor: FloorState, ally: Actor): MonsterAction {
+  const point = ally.holdPos ?? ally.pos;
+  if (eq(ally.pos, point)) return { type: "wait" };
+  const field = buildDistanceField(floor, point);
+  const dir = stepDownField(floor, ally.pos, field);
+  return dir !== null ? { type: "move", dir } : { type: "wait" };
+}
+
+/**
+ * 先陣を切れ。敵が見えていれば主を待たずに応戦し、いなければ未探索タイル
+ * (見つからなければ階段)へ自律的に向かう。
+ */
+function vanguardAction(
+  rng: Rng,
+  floor: FloorState,
+  ally: Actor,
+  foeField: Int32Array,
+): MonsterAction {
+  const foe = nearestVisibleFoe(floor, ally);
+  if (foe) {
+    if (ally.rangedRange !== undefined) {
+      const distance = chebyshev(ally.pos, foe.pos);
+      if (distance <= ally.rangedRange && isStraightLine(ally.pos, foe.pos)) {
+        return { type: "ranged", targetId: foe.id };
+      }
+    }
+    const dir = stepDownField(floor, ally.pos, foeField);
+    if (dir !== null) return { type: "move", dir };
+  }
+
+  const target = nearestUnexploredTile(floor, ally.pos) ?? floor.stairs;
+  const field = buildDistanceField(floor, target);
+  const dir = stepDownField(floor, ally.pos, field);
+  return dir !== null ? { type: "move", dir } : wander(rng, floor, ally);
+}
+
+/** 主に見えている全アクター中でこの仲間だけが到達できる、最も近い未探索の歩行可能マス */
+function nearestUnexploredTile(floor: FloorState, from: Vec2): Vec2 | null {
+  const field = buildDistanceField(floor, from);
+  let best: Vec2 | null = null;
+  let bestDist = Number.POSITIVE_INFINITY;
+  for (let y = 0; y < floor.height; y++) {
+    for (let x = 0; x < floor.width; x++) {
+      if (floor.tiles[y * floor.width + x]!.explored) continue;
+      const p = { x, y };
+      if (!walkableAt(floor, p)) continue;
+      const d = field[y * floor.width + x]!;
+      if (d < 0 || d >= bestDist) continue;
+      bestDist = d;
+      best = p;
+    }
+  }
+  return best;
 }
 
 /** 距離場を1段下る方向を選ぶ */
