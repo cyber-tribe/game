@@ -201,6 +201,11 @@ export interface Actor {
   skills?: SkillId[];
   /** プレイヤーがつけた名前。plan/companion-naming.md 参照。未設定なら種族名で表示する */
   nickname?: string;
+  /**
+   * なじみ(plan/companion-bond-growth.md)。ねむり小屋から連れ出した仲間が
+   * それまでに積み上げた同伴成功回数。タルで新しく捕まえた直後は未設定
+   */
+  bondSuccessCount?: number;
 }
 
 export function hasStatus(actor: Actor, kind: StatusKind): boolean {

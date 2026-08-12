@@ -1,5 +1,41 @@
 # 仲間のなじみ成長
 
+> **実装済み。** `src/entities/companionBond.ts`(新規。`bondBonus`・
+> `bondStage`・`bondStageLabel`)・`src/entities/storedMonster.ts`
+> (`StoredMonster.bondSuccessCount`)・`src/core/types.ts`(`Actor.
+> bondSuccessCount`。ダイブ中だけ一時的に持ち運ぶための任意フィールド)・
+> `src/dungeon/populate.ts`(`createAllyFromStored`が、種族基礎値・
+> レベル成長の計算の後に、なじみボーナスを最後の一段としてmaxHp/atk/def
+> に掛ける)・`src/save.ts`(`actorToStoredMonster`が呼ばれるたびに
+> +1する。壊れたセーブデータのサニタイズ)・`src/ui/town.ts`(ねむり小屋
+> 一覧に段階名を添えて表示、記録の間に「もっとも連れ添った仲間」を追加)。
+> テストは `tests/companion-bond-growth.test.ts`(13件)。
+>
+> 実装にあたって次の判断をした。
+>
+> - **同伴成功のカウントは`actorToStoredMonster`の呼び出しそのものに
+>   +1する形にした。** このコメントが元々示すとおり、`actorToStoredMonster`
+>   は「生きて連れ帰った」個体にしか呼ばれないため、ここに素直に乗せる
+>   だけで本文の「踏破・チェックポイントで区切って持ち帰った回数」の
+>   定義をそのまま満たせる。新規にタルで捕まえて即持ち帰った個体は、
+>   その初回の帰還で1回とカウントする(初めての同伴成功として扱う)。
+> - **なじみボーナスは`createAllyFromStored`内で、種族基礎値・レベル
+>   成長の計算のあとに追加の掛け率として適用した。** 本文が「既存の
+>   計算とは独立した最後の一段」としていた設計をそのまま素直に実装
+>   できた。
+> - **成熟(`plan/companion-evolution.md`)は未実装のため、「成熟時に
+>   なじみを引き継ぐ」という本文の記述は現状は対応するイベント自体が
+>   存在せず、確認しようがない。** `StoredMonster`はオブジェクトの
+>   スプレッドで扱われるため、成熟実装時に`speciesId`だけ差し替える
+>   実装にすれば`bondSuccessCount`は自然に引き継がれるはずだが、
+>   実装時に改めて確認が必要。
+> - **記録の間の「もっとも連れ添った仲間」を、この実装を機に追加した。**
+>   `plan/archive/records-hall.md`のアーカイブ時に「対応する情報を
+>   仲間が持たない」という理由で見送られていた項目で、本文書の実装で
+>   前提が揃ったため合わせて実装した。
+> - **`plan/release-companion.md`の「なじみが進んだ個体を夢に還す際の
+>   専用演出」は見送った。** `release-companion.md`自体が未実装のため。
+
 仲間の成長は現状、`plan/monster-fusion.md` の夢あわせ(他の個体を糧に
 種族の枠内でレベル・特技を伸ばす)と `plan/companion-evolution.md` の
 成熟(種族そのものが変わる)の2つがあり、どちらも**他の個体を消費する**
