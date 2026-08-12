@@ -259,6 +259,10 @@ export interface SaveData {
    * 夢のかけら出現率ボーナスの判定に使う恒久フラグ)
    */
   trueAwakeningCleared: boolean;
+  /** サウンド再生(plan/audio-playback.md)。ミュート中かどうか */
+  audioMuted: boolean;
+  /** サウンド再生(plan/audio-playback.md)。マスター音量(0..1)。既定0.7 */
+  audioVolume: number;
 }
 
 /** 腕試しの間(plan/hidden-dungeon.md)。踏破1回ぶんの記録 */
@@ -282,6 +286,9 @@ export interface DiveRecords {
   /** タルで捕まえた累計数(夢に還した分も含む) */
   totalCaptures: number;
 }
+
+/** サウンド再生(plan/audio-playback.md)。マスター音量の既定値 */
+export const DEFAULT_AUDIO_VOLUME = 0.7;
 
 /** 一番最初の持ち物。手ぶらで放り出さない程度に */
 const STARTER: StoredItem[] = [
@@ -331,6 +338,8 @@ export function initialSave(): SaveData {
     defeatedRegionBosses: [],
     storyCleared: false,
     trueAwakeningCleared: false,
+    audioMuted: false,
+    audioVolume: DEFAULT_AUDIO_VOLUME,
   };
 }
 
@@ -381,6 +390,8 @@ export function loadSave(slot: number = activeSlot): SaveData {
       defeatedRegionBosses: sanitizeDefeatedRegionBosses(parsed.defeatedRegionBosses),
       storyCleared: parsed.storyCleared === true,
       trueAwakeningCleared: parsed.trueAwakeningCleared === true,
+      audioMuted: parsed.audioMuted === true,
+      audioVolume: clamp01(numberOr(parsed.audioVolume, DEFAULT_AUDIO_VOLUME)),
     };
   } catch {
     // 壊れた保存データで起動できなくなるほうが困るので、黙って初期値に戻す
@@ -501,6 +512,23 @@ export function setDifficulty(current: SaveData, difficulty: DifficultyMode): Sa
 export function setFontSize(current: SaveData, fontSize: FontSize): SaveData {
   if (current.fontSize === fontSize) return current;
   const next: SaveData = { ...current, fontSize };
+  saveData(next);
+  return next;
+}
+
+/** サウンド再生(plan/audio-playback.md)。ミュートの切り替え */
+export function setAudioMuted(current: SaveData, muted: boolean): SaveData {
+  if (current.audioMuted === muted) return current;
+  const next: SaveData = { ...current, audioMuted: muted };
+  saveData(next);
+  return next;
+}
+
+/** サウンド再生(plan/audio-playback.md)。マスター音量(0..1)を設定する */
+export function setAudioVolume(current: SaveData, volume: number): SaveData {
+  const clamped = clamp01(volume);
+  if (current.audioVolume === clamped) return current;
+  const next: SaveData = { ...current, audioVolume: clamped };
   saveData(next);
   return next;
 }
@@ -693,6 +721,8 @@ export function recordRun(
     ),
     storyCleared: current.storyCleared || (result.mountainCoreCleared ?? false),
     trueAwakeningCleared: current.trueAwakeningCleared || (result.trueAwakeningCleared ?? false),
+    audioMuted: current.audioMuted,
+    audioVolume: current.audioVolume,
   };
   // 依頼板(plan/quest-board.md): 受注中の依頼を判定し、達成していれば報酬を渡して外す
   const withQuests = resolveQuests(next, result);
@@ -1008,6 +1038,10 @@ function sanitizeStorage(value: unknown): StoredItem[] {
 
 function numberOr(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function clamp01(value: number): number {
+  return Math.min(1, Math.max(0, value));
 }
 
 function sanitizeRecords(value: unknown): DiveRecords {

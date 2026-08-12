@@ -10,6 +10,7 @@ import v7 from "./fixtures/save/v7-village-life.json";
 import v8 from "./fixtures/save/v8-lost-and-found-vault.json";
 import v9 from "./fixtures/save/v9-mountain-core.json";
 import v10 from "./fixtures/save/v10-true-awakening.json";
+import v11 from "./fixtures/save/v11-audio-playback.json";
 
 /**
  * セーブデータの後方互換チェック(plan/save-compat-testing.md)。
@@ -287,6 +288,25 @@ describe("save-compat: v10-true-awakening(真の目覚め導入後、現行の�
       expect(loaded.compendium).toEqual(v10.compendium);
       expect(loaded.achievements).toEqual(v10.achievements);
       expect(loaded.equippedTitle).toBe(v10.equippedTitle);
+    });
+  });
+
+  it("サウンド再生(plan/audio-playback.md)以前のセーブは、ミュート・音量が既定値で補われる", () => {
+    withMockedLocalStorage(v10, () => {
+      const loaded = loadSave();
+      expect(loaded.audioMuted).toBe(DEFAULTS.audioMuted);
+      expect(loaded.audioVolume).toBe(DEFAULTS.audioVolume);
+    });
+  });
+});
+
+describe("save-compat: v11-audio-playback(サウンド再生導入後、現行の全フィールド)", () => {
+  it("すべてのフィールドが保持される", () => {
+    withMockedLocalStorage(v11, () => {
+      const loaded = loadSave();
+      expect(loaded.audioMuted).toBe(v11.audioMuted);
+      expect(loaded.audioVolume).toBe(v11.audioVolume);
+      expect(loaded.trueAwakeningCleared).toBe(v11.trueAwakeningCleared);
     });
   });
 });

@@ -11,6 +11,7 @@ import { Minimap } from "./view/minimap";
 import { Renderer } from "./view/renderer";
 import { GalleryView } from "./view/gallery";
 import { Stage } from "./view/stage";
+import { AudioPlayer } from "./audio/player";
 import { ArtsMenu } from "./ui/arts";
 import { InventoryMenu } from "./ui/menu";
 import { NamingDialog } from "./ui/naming-dialog";
@@ -51,6 +52,8 @@ import {
   saveData,
   saveRunSnapshot,
   setActiveSlot,
+  setAudioMuted,
+  setAudioVolume,
   setDifficulty,
   setEquippedTitle,
   setFontSize,
@@ -64,11 +67,11 @@ import {
 } from "./save";
 import type { DifficultyMode } from "./entities/difficulty";
 import { costumeById } from "./entities/costumes";
-import { MAIN_CAVE_ID } from "./entities/dungeons";
+import { MAIN_CAVE_ID, REGION_SIZE, TRUE_AWAKENING_ID } from "./entities/dungeons";
 import { moodForDate } from "./entities/moods";
 import { todayKey } from "./entities/quests";
 import { STORY_CHAPTER_MESSAGES, storyChapter, storyChapterEventId } from "./entities/story";
-import { speciesById } from "./entities/species";
+import { REGION_BOSS_FLOORS, speciesById } from "./entities/species";
 import { buildBugReportUrl } from "./entities/bugReport";
 import { speciesLore } from "./entities/speciesLore";
 import { TUTORIAL_TIPS, type TutorialTipId } from "./core/tutorial";
@@ -99,6 +102,8 @@ class App {
   private readonly renderer: Renderer;
   private readonly assets = new Assets();
   private readonly stage: Stage;
+  /** サウンド再生(plan/audio-playback.md) */
+  private readonly audio = new AudioPlayer();
   private readonly hud: Hud;
   private readonly minimap: Minimap;
   private readonly input = new Input();
@@ -146,7 +151,7 @@ class App {
     this.canvas = document.querySelector<HTMLCanvasElement>("#scene")!;
     this.uiRoot = document.querySelector<HTMLElement>("#ui")!;
     this.renderer = new Renderer(this.canvas);
-    this.stage = new Stage(this.renderer.scene, this.assets);
+    this.stage = new Stage(this.renderer.scene, this.assets, this.audio);
     this.hud = new Hud(document.querySelector<HTMLElement>("#ui")!);
     this.minimap = new Minimap(document.querySelector<HTMLCanvasElement>("#minimap")!);
     this.menu = new InventoryMenu(document.querySelector<HTMLElement>("#menu")!);
@@ -166,6 +171,10 @@ class App {
       this.menu.handleKey(code) ||
       this.stanceMenu.handleKey(code) ||
       this.artsMenu.handleKey(code);
+
+    // サウンド再生(plan/audio-playback.md): ブラウザの自動再生制限を避けるため、
+    // AudioContextは最初の入力(キー入力)のタイミングで初めて作る
+    window.addEventListener("keydown", () => this.audio.resume(), { once: true });
   }
 
   async start(): Promise<void> {
@@ -190,6 +199,7 @@ class App {
     this.slotSelect.hide();
     this.save = loadSave();
     this.applyFontSize();
+    this.applyAudioSettings();
 
     // ダイブ中オートセーブ(plan/mid-dive-autosave.md)が残っていれば、
     // 拠点画面を経由せずそのままダイブの続きから再開する
@@ -208,6 +218,7 @@ class App {
   /** 潜る前の拠点。倉庫から持ち込む道具・出発地点・鍛え方・仲間を選ぶ */
   private showTown(): void {
     this.hud.hideOverlay();
+    this.audio.setBgm("village");
     // 依頼板(plan/quest-board.md): 日付が変わっていれば、受注していない残り枠を補充する
     this.save = refreshBoard(this.save, todayKey());
     // 衣装(plan/costumes.md): 拠点に戻るたびに、新たに満たした解放条件が無いか確認する
@@ -307,6 +318,16 @@ class App {
         saveData(this.save);
         this.town.refreshSave(this.save);
       },
+      (muted) => {
+        this.save = setAudioMuted(this.save, muted);
+        this.applyAudioSettings();
+        this.town.refreshSave(this.save);
+      },
+      (volume) => {
+        this.save = setAudioVolume(this.save, volume);
+        this.applyAudioSettings();
+        this.town.refreshSave(this.save);
+      },
     );
   }
 
@@ -403,6 +424,28 @@ class App {
     this.renderer.setFocus(this.game.player.pos, true);
     this.hud.update(this.game.player, this.game.depth, this.game.allyList);
     this.minimap.draw(this.game.floor, this.game.player);
+    this.updateDiveBgm();
+  }
+
+  /**
+   * サウンド再生(plan/audio-playback.md)。地方境界・地方ボスの階・真の目覚めの
+   * 局面をまたいだときにBGMを切り替える。同じidならAudioPlayer側で無視される
+   */
+  private updateDiveBgm(): void {
+    const bgm = this.bgmForDive(this.game.dungeonId, this.game.depth);
+    if (bgm) this.audio.setBgm(bgm);
+  }
+
+  private bgmForDive(dungeonId: string, depth: number): string | undefined {
+    if (dungeonId === TRUE_AWAKENING_ID) return "true-awakening";
+    if (dungeonId === MAIN_CAVE_ID) {
+      if (REGION_BOSS_FLOORS[depth]) return "boss";
+      const regionIndex = Math.floor((depth - 1) / REGION_SIZE);
+      return `region${regionIndex + 1}`;
+    }
+    // 他のダンジョン種別(夜ごとの夢・腕試しの間など)は本文書の対象外。
+    // 直前のBGMを維持する
+    return undefined;
   }
 
   /**
@@ -640,6 +683,12 @@ class App {
     document.body.dataset.fontSize = this.save.fontSize;
   }
 
+  /** サウンド再生(plan/audio-playback.md)。セーブされたミュート・音量をAudioPlayerへ反映する */
+  private applyAudioSettings(): void {
+    this.audio.setMuted(this.save.audioMuted);
+    this.audio.setMasterVolume(this.save.audioVolume);
+  }
+
   /**
    * フォトモード(plan/gallery-mode.md)の切り替え。HUDを隠し、既存の
    * カメラ操作(回転・ズーム)だけで画角を調整できるようにする。
@@ -766,6 +815,7 @@ class App {
       this.renderer.setFocus(this.game.player.pos, true);
       this.lock = 0.25;
       this.save.deepest = Math.max(this.save.deepest, this.game.depth);
+      this.updateDiveBgm();
     } else {
       this.stage.syncActors(this.game.floor);
       this.lock = this.stage.applyEvents(events, this.game.floor, this.input.direction() !== null);

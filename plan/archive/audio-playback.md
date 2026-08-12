@@ -1,3 +1,63 @@
+> **実装済み。** `src/audio/player.ts`(新規)に計画書どおりの
+> `AudioPlayer`クラスを実装(`resume`/`playSfx`/`setBgm`/`setMoodLayer`/
+> `setMuted`/`setMasterVolume`)。`AudioContext`はコンストラクタ引数
+> (`createContext`/`fetchAudio`)で差し替え可能にし、テスト
+> (`tests/audio-playback.test.ts`)ではフェイクの`AudioContext`相当
+> オブジェクトを注入して、実際のWeb Audio APIが無いnode環境でも
+> resume前後の挙動・バッファのキャッシュ・setBgmの同idスキップ・
+> setMoodLayerの二重起動防止を検証した。
+>
+> `resume()`は`src/main.ts`側の`window.addEventListener("keydown", ...,
+> { once: true })`から、最初のキー入力のタイミングで1回だけ呼ぶ。
+>
+> **SFXの接続**は計画書の指示どおり`src/view/stage.ts`の`applyEvents`
+> (既存のイベント再生ループ)に実装した。ただし`capture`/`levelUp`/
+> `checkpoint`/`hungerWarning`は元々このループでは(見た目に影響しない
+> ため)`default`扱いで無視されていたイベント種別だったので、新しく
+> caseを追加した。ボスの予兆は計画書が指す`"telegraph"`コマンドの
+> `message`イベント専用の新フィールドを増やす代わりに、`game.ts`が
+> 組み立てる文言が`――!`で終わることを確認して判定した(現行コードで
+> この語尾を使っているのはボス予兆のメッセージだけであることを確認済み)。
+>
+> **BGMの切り替え**は`src/main.ts`の`presentFloor()`(ダイブ開始・
+> オートセーブ復帰の共通経路)・`submit()`のフロア変更時・`showTown()`に
+> それぞれ実装。地方境界は`REGION_SIZE`(`plan/region-expansion.md`)から
+> `region${Math.floor((depth - 1) / REGION_SIZE) + 1}`で算出し、
+> `REGION_BOSS_FLOORS[depth]`があれば`boss`を優先する。表の寝穴
+> (`MAIN_CAVE_ID`)・真の目覚め(`TRUE_AWAKENING_ID`)以外のダンジョン
+> (夜ごとの夢・腕試しの間)は本文書の対象外のため、BGMを切り替えず
+> 直前の曲を維持する(意図的な範囲外)。
+>
+> **ヨリシロの気分レイヤー**(`setMoodLayer`)はエンジン側のAPIとしては
+> 実装したが、実際にどのタイミングでどの気分idのレイヤーを鳴らすか
+> という具体的な連携は、本文書に明記された呼び出しタイミング表に
+> 含まれていなかったため見送った(将来`mood-visual-effects.md`側や
+> 別文書で連携する余地として残す)。
+>
+> **設定の永続化**は`SaveData.audioMuted`/`audioVolume`(既定`false`/
+> `0.7`)を追加し、`setAudioMuted`/`setAudioVolume`(0..1にクランプ)を
+> `src/save.ts`に実装。`src/ui/town.ts`にはまだ独立した「設定画面」が
+> 無いため(`plan/settings-screen.md`が別途その置き場所を確定させる
+> 予定)、既存の`fontSize`の列(column 14)と同じパターンで、新しい
+> 列(column 18、「音」)として実装した。↑↓でミュート/音量の行を選び、
+> Enterでミュート切り替え・音量を10%刻みで循環させる。
+>
+> `public/audio/`には、計画書が明示的に許容している「プレースホルダー
+> 無音ファイル」として、`bgm/`(village・region1〜8・boss・
+> true-awakening)・`sfx/`(capture・levelUp・hungerWarning・
+> checkpoint・explosion・bossTelegraph)の空(0バイト)の`.ogg`を配置
+> した。実行環境に`ffmpeg`/`sox`等の音声エンコードツールが無かった
+> ための実務的な判断で、`decodeAudioData`が失敗しても`AudioPlayer`は
+> 例外を投げずに黙って再生をスキップする(ブラウザでのスモークテストで
+> コンソールエラー無しを確認済み)。本物の楽曲・効果音の制作は計画書
+> どおりスコープ外。
+>
+> テストは`tests/audio-playback.test.ts`(`AudioPlayer`の各メソッド・
+> `setAudioMuted`/`setAudioVolume`)、`tests/save-compat.test.ts`
+> (v10フィクスチャでの既定値補完・新規v11フィクスチャでの保持)で検証。
+> ブラウザでも拠点画面の「音」列でミュート切り替え・音量変更が
+> localStorageへ反映されることを確認済み。
+
 # サウンド再生の仕組み
 
 `design/audio-direction.md` が「実装(Web Audio APIでの再生方法など)は
