@@ -43,6 +43,11 @@ export const MAIN_CAVE_ID = "mainCave";
 export const MAIN_CAVE_MAX_DEPTH = 48;
 /** 1地方あたりの階数(plan/region-expansion.md)。地方境界は depth % REGION_SIZE === 0 */
 export const REGION_SIZE = 6;
+/**
+ * 第三章「仲間探し」の崩落イベント(plan/chapter3-collapse-event.md)。
+ * 骨積みの回廊(第四地方)最終階=24階
+ */
+export const CHAPTER3_COLLAPSE_DEPTH = REGION_SIZE * 4;
 export const NIGHTLY_DREAM_ID = "nightlyDream";
 /** 腕試しの間(plan/hidden-dungeon.md)。地方ボスの再戦だけで構成するボスラッシュ */
 export const TRIAL_CHAMBER_ID = "trialChamber";

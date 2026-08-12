@@ -297,6 +297,13 @@ class App {
     this.save = markVillageEventSeen(this.save, eventId);
     saveData(this.save);
     this.hud.log(STORY_CHAPTER_MESSAGES[chapter]);
+    // 第三章「仲間探し」の崩落イベント(plan/chapter3-collapse-event.md): 章突入時、
+    // モグラ婆から崩落を越えるための助言を追加で流す(design/story.mdの
+    // 「ゲンドかモグラ婆の助言を受け」を受けての判断。育ての親・倉庫番という
+    // 役割がら、仲間探しの助言役として自然だと判断した)
+    if (chapter === 3) {
+      this.hud.log("モグラ婆:「崩落の向こうへ進むには、瓦礫を砕ける仲間が要りそうだね」");
+    }
   }
 
   private newRun(
@@ -322,6 +329,7 @@ class App {
       compendiumComplete: isCompendiumComplete(this.save),
       difficulty,
       dungeonId,
+      deepest: this.save.deepest,
     });
     this.presentFloor();
     this.hud.log(`地下${this.game.depth}階。最深記録は ${this.save.deepest} 階。`);

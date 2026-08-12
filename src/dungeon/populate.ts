@@ -11,6 +11,7 @@ import {
   type SkillId,
   type Species,
   type TrapKind,
+  TILE_CORRIDOR,
   TILE_ROOM,
   TILE_WALL,
   actorAt,
@@ -371,6 +372,42 @@ function populateFieldObstacle(rng: Rng, floor: FloorState, playerStart: Vec2): 
   if (!pos) return;
   const requires = rng.pick(FIELD_SKILLS);
   floor.fieldObstacles.push({ pos, requires, opened: false });
+}
+
+const CARDINAL_DELTAS: readonly Vec2[] = [
+  { x: 0, y: -1 },
+  { x: 0, y: 1 },
+  { x: -1, y: 0 },
+  { x: 1, y: 0 },
+];
+
+/**
+ * 第三章「仲間探し」の崩落イベント(plan/chapter3-collapse-event.md)。
+ * めざめの階段のある部屋のうち、通路へ抜ける「出口」タイル(部屋タイルで
+ * 通路タイルに隣接するもの)を1つ選び、固定でFieldObstacle(requires:
+ * "break")を配置する。通常のランダム生成のfieldObstaclesとは別枠の、
+ * 物語上意味を持つ固定配置として扱う(既存の解決ロジックをそのまま使う)。
+ * 出口が見つからなければ何もしない(部屋の形によっては起こりうる)
+ */
+export function placeChapter3CollapseObstacle(floor: FloorState): void {
+  const stairsRoom = roomOf(floor, floor.stairs);
+  if (!stairsRoom) return;
+  for (let y = stairsRoom.y; y < stairsRoom.y + stairsRoom.h; y++) {
+    for (let x = stairsRoom.x; x < stairsRoom.x + stairsRoom.w; x++) {
+      const pos = { x, y };
+      if (eq(pos, floor.stairs)) continue;
+      const tile = tileAt(floor, pos);
+      if (!tile || tile.kind !== TILE_ROOM) continue;
+      const isExit = CARDINAL_DELTAS.some((d) => {
+        const neighbor = tileAt(floor, { x: x + d.x, y: y + d.y });
+        return neighbor?.kind === TILE_CORRIDOR;
+      });
+      if (!isExit) continue;
+      if (floor.fieldObstacles.some((o) => eq(o.pos, pos))) continue;
+      floor.fieldObstacles.push({ pos, requires: "break", opened: false });
+      return;
+    }
+  }
 }
 
 /**
