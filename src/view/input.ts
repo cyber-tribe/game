@@ -103,23 +103,39 @@ export class Input {
         event.preventDefault();
         return;
       }
-      this.held.add(event.code);
-      const action = ACTION_KEYS[event.code];
-      if (action) {
-        this.pending.push(action);
-        event.preventDefault();
-      }
-      if (event.code.startsWith("Arrow") || event.code.startsWith("Numpad")) {
+      this.press(event.code);
+      if (
+        event.code.startsWith("Arrow") ||
+        event.code.startsWith("Numpad") ||
+        ACTION_KEYS[event.code]
+      ) {
         event.preventDefault();
       }
     });
 
     target.addEventListener("keyup", (raw) => {
-      this.held.delete((raw as KeyboardEvent).code);
+      this.release((raw as KeyboardEvent).code);
     });
 
     // 画面外に出たあいだのキーは押しっぱなし扱いにしない
     window.addEventListener("blur", () => this.held.clear());
+  }
+
+  /**
+   * タッチ操作(plan/touch-controls.md)から、キーボードと同じ`held`/
+   * `pending`へ直接注入するための入口。キーコードの中身を問わない
+   * `direction()`等の実装はそのままに、仮想パッド・ボタンをキーボードと
+   * 同じコード("ArrowUp"・"Space"等)で表現するだけで済む
+   */
+  press(code: string): void {
+    this.held.add(code);
+    const action = ACTION_KEYS[code];
+    if (action) this.pending.push(action);
+  }
+
+  /** タッチの指を離した・ボタンを離したときに呼ぶ */
+  release(code: string): void {
+    this.held.delete(code);
   }
 
   /** 今押されている方向。押されていなければ null */

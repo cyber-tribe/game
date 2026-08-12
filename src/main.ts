@@ -17,6 +17,7 @@ import { InventoryMenu } from "./ui/menu";
 import { NamingDialog } from "./ui/naming-dialog";
 import { StairsConfirmModal } from "./ui/stairs-confirm";
 import { StanceMenu } from "./ui/stance";
+import { TouchControls } from "./ui/touch-controls";
 import { TownScreen } from "./ui/town";
 import { SlotSelectScreen } from "./ui/slot-select";
 import {
@@ -161,6 +162,9 @@ class App {
     this.stanceMenu = new StanceMenu(document.querySelector<HTMLElement>("#stance")!);
     this.artsMenu = new ArtsMenu(document.querySelector<HTMLElement>("#arts")!);
     this.stairsConfirm = new StairsConfirmModal(document.querySelector<HTMLElement>("#stairsConfirm")!);
+    // タッチ操作(plan/touch-controls.md): Inputへ直接press/releaseするだけの
+    // 入力ソースなので、以後参照する必要が無く、フィールドには保持しない
+    new TouchControls(document.querySelector<HTMLElement>("#touch")!, this.canvas, this.input);
     this.town = new TownScreen(document.querySelector<HTMLElement>("#town")!);
     this.namingDialog = new NamingDialog(document.querySelector<HTMLElement>("#naming")!);
     this.slotSelect = new SlotSelectScreen(document.querySelector<HTMLElement>("#slotSelect")!);
