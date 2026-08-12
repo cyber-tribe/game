@@ -1,5 +1,36 @@
 # 章立て(ストーリーフラグ)
 
+> **実装済み。** `src/entities/story.ts`(新規。`StoryChapter`・
+> `storyChapter`・`STORY_CHAPTER_MESSAGES`・`storyChapterEventId`)・
+> `src/entities/village.ts`(`VillageNpcDef.appearsFromDeepest` →
+> `appearsFromChapter`に変更、`visibleVillageNpcs`の引数を
+> `deepest: number`から`chapter: StoryChapter`に変更。「目覚めたおたま」の
+> 出現条件を`storyChapter>=2`に差し替え済み)・`src/ui/town.ts`
+> (`currentStoryChapter()`ヘルパーを新設し、3箇所の`visibleVillageNpcs`
+> 呼び出しをこれ経由に変更)・`src/main.ts`
+> (`checkStoryChapterTransition`。拠点帰還のたびに新しい章への突入を
+> 検知し、`seenVillageEvents`で1回だけ導入メッセージを流す)。
+>
+> テストは `tests/story-chapters.test.ts`(新規8件)。既存の
+> `tests/village-life.test.ts`も新シグネチャに合わせて更新した。
+> `npx tsc --noEmit`・`npx vitest run`(597件全て通過)・
+> `npm run build`を確認済み。
+>
+> 実装にあたって次の判断をした。
+>
+> - **`SaveData.storyCleared`はまだ追加していない。** `plan/mountain-
+>   core.md`が本来この文書の`storyChapter`が参照するフィールドを
+>   新設する予定だが、その文書自体が未実装のため、当面は
+>   `storyChapter(deepest, false)`のように`false`を直接渡す形にした
+>   (`src/ui/town.ts`の`currentStoryChapter()`・`src/main.ts`の
+>   `checkStoryChapterTransition`の両方にコメントで明記)。`plan/
+>   mountain-core.md`実装時に`SaveData.storyCleared`を追加し、この
+>   2箇所の`false`を`this.save.storyCleared`に差し替えるだけで
+>   接続できる設計にしてある。
+> - **第三章の「仲間探し」イベント(`plan/chapter3-collapse-event.md`)は
+>   本PRのスコープ外のまま。** 章の遷移メッセージだけを実装し、崩落の
+>   固定配置自体は別途扱う(本文の未決事項どおり)。
+
 `design/story.md` の全6章構成(序章・第一〜第四章・終章)を、初めて
 `plan/`側の実装可能な仕組みに落とす。これまでの複数の文書
 (`plan/archive/village-development.md`・`plan/archive/multiple-
