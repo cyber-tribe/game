@@ -49,7 +49,16 @@ describe("sanitizeNickname", () => {
 });
 
 function stored(overrides: Partial<StoredMonster> = {}): StoredMonster {
-  return { uid: 1, speciesId: "gajiri", level: 1, exp: 0, skills: [], bondSuccessCount: 0, ...overrides };
+  return {
+    uid: 1,
+    speciesId: "gajiri",
+    level: 1,
+    exp: 0,
+    skills: [],
+    bondSuccessCount: 0,
+    recentFusionMaterials: [],
+    ...overrides,
+  };
 }
 
 describe("save.ts: actorToStoredMonsterはnicknameを引き継ぐ", () => {

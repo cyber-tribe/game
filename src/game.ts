@@ -1291,6 +1291,11 @@ export class Game {
       }
     }
 
+    if (target.kind === "ally" && hasSkill(target, "steadfastBody")) {
+      // 特技「ゆるがぬからだ」(plan/companion-evolution.md): 「みをまもる」の常時発動版
+      events.push({ type: "message", text: `${displayActorName(target)}は衝撃をやわらげた!` });
+      return Math.max(1, Math.floor(damage * 0.9));
+    }
     if (target.kind === "ally" && hasSkill(target, "softBody") && this.rng.chance(0.5)) {
       // 特技「みをまもる」: 確率5割で被弾ダメージを1割軽減する
       events.push({ type: "message", text: `${displayActorName(target)}は衝撃をやわらげた!` });

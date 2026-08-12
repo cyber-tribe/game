@@ -20,4 +20,9 @@ export interface StoredMonster {
    * 生きて持ち帰った回数。夢あわせで軸にすると引き継ぎ、糧にすると消える
    */
   bondSuccessCount: number;
+  /**
+   * 成熟(plan/companion-evolution.md)。直近の夢あわせで糧に選んだ種族idの履歴
+   * (新しい順ではなく古い順。MAX_RECENT_FUSION_MATERIALS件だけ保持)
+   */
+  recentFusionMaterials: string[];
 }

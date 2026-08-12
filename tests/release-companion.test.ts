@@ -3,7 +3,16 @@ import { HOKORA_DUST_DEF_ID } from "../src/entities/forging";
 import { RELEASE_COMPANION_HOKORA_DUST, initialSave, releaseCompanion, type StoredMonster } from "../src/save";
 
 function stored(overrides: Partial<StoredMonster> = {}): StoredMonster {
-  return { uid: 1, speciesId: "gajiri", level: 1, exp: 0, skills: [], bondSuccessCount: 0, ...overrides };
+  return {
+    uid: 1,
+    speciesId: "gajiri",
+    level: 1,
+    exp: 0,
+    skills: [],
+    bondSuccessCount: 0,
+    recentFusionMaterials: [],
+    ...overrides,
+  };
 }
 
 describe("save.ts: 夢に還す(releaseCompanion)", () => {

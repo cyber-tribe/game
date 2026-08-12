@@ -206,6 +206,12 @@ export interface Actor {
    * それまでに積み上げた同伴成功回数。タルで新しく捕まえた直後は未設定
    */
   bondSuccessCount?: number;
+  /**
+   * 成熟(plan/companion-evolution.md)。ねむり小屋から連れ出した仲間が
+   * それまでに積み上げた直近の夢あわせの糧履歴。タルで新しく捕まえた
+   * 直後は未設定(ダイブ中は夢あわせを行えないため、この値自体は変化しない)
+   */
+  recentFusionMaterials?: string[];
 }
 
 export function hasStatus(actor: Actor, kind: StatusKind): boolean {
@@ -245,7 +251,9 @@ export type SkillId =
   | "sealBite"
   | "slowMend"
   | "warnCall"
-  | "disguise";
+  | "disguise"
+  // ---- ここから plan/companion-evolution.md ----
+  | "steadfastBody";
 
 // ---------------------------------------------------------------- アイテム
 
