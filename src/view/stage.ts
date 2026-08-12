@@ -8,6 +8,7 @@ import type { Actor, FloorState } from "../core/types";
 import { tileAt } from "../core/types";
 import { toWorld } from "./renderer";
 import { BARREL_MODELS } from "../modelList";
+import { speciesById } from "../entities/species";
 
 /** 1マス動くのにかける時間。短いほどきびきびするが、短すぎると何が起きたか読めない */
 export const MOVE_TIME = 0.15;
@@ -80,7 +81,9 @@ export class Stage {
       if (!actor.alive) continue;
       present.add(actor.id);
       if (!this.views.has(actor.id)) {
-        const view = new ActorView(this.assets.instantiate(actor.model), actor.pos, actor.facing);
+        // 小ネタ・遊び心(plan/flavor-and-dialogue.md): 種族ごとの待機仕草の再生速度
+        const idleSpeedMul = actor.speciesId ? (speciesById(actor.speciesId).idleSpeedMul ?? 1) : 1;
+        const view = new ActorView(this.assets.instantiate(actor.model), actor.pos, actor.facing, idleSpeedMul);
         this.actorRoot.add(view.root);
         this.views.set(actor.id, view);
       }

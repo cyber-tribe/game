@@ -20,6 +20,8 @@ export const SPECIES: readonly Species[] = [
     minFloor: 1,
     maxFloor: 9,
     weight: 10,
+    // 小ネタ・遊び心(plan/flavor-and-dialogue.md): ゆっくり揺れる
+    idleSpeedMul: 0.6,
   },
   {
     id: "gajiri",
@@ -33,6 +35,8 @@ export const SPECIES: readonly Species[] = [
     minFloor: 1,
     weight: 8,
     fieldSkill: "squeeze",
+    // 小ネタ・遊び心(plan/flavor-and-dialogue.md): きょろきょろ、忙しない
+    idleSpeedMul: 1.4,
   },
   {
     id: "tsubute",
@@ -73,6 +77,8 @@ export const SPECIES: readonly Species[] = [
     minFloor: 6,
     weight: 4,
     fieldSkill: "break",
+    // 小ネタ・遊び心(plan/flavor-and-dialogue.md): ほとんど動かない
+    idleSpeedMul: 0.3,
   },
   {
     // plan/shops-and-thieves.md: 近道屋の強欲さが夢に映り込んでできた、

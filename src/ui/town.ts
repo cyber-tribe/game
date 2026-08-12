@@ -27,7 +27,8 @@ import {
   dungeonById,
   isDungeonUnlocked,
 } from "../entities/dungeons";
-import { FESTIVAL_SHOP_OFFERS, YOIMATSURI_NPC_LINES, isYoimatsuri } from "../entities/festivals";
+import { dialogueContext, dialoguePoolFor } from "../entities/dialogue";
+import { FESTIVAL_SHOP_OFFERS, isYoimatsuri } from "../entities/festivals";
 import { moodForDate } from "../entities/moods";
 import { MAX_ALLIES, type TrainingFocus } from "../entities/player";
 import { todayKey } from "../entities/quests";
@@ -126,6 +127,17 @@ export class TownScreen {
   private npcTalkMessage: string | null = null;
   /** 宵祭りの出店(plan/yoimatsuri-festival.md)。品揃え一覧上のカーソル位置 */
   private festivalShopCursor = 0;
+  /**
+   * NPCのせりふプール(plan/flavor-and-dialogue.md)。直前に表示した
+   * lines上のインデックスをNPCごとに覚えておき、同じ文言が連続しない
+   * ようにする。セーブしない、セッション内だけの状態
+   */
+  private readonly lastDialogueLineIndex = new Map<string, number>();
+  /** 現在表示中の抽選済みの一言。表示中のNPCが変わるまで固定する(描画のたびに再抽選しない) */
+  private currentDialogueLine: string | null = null;
+  private currentDialogueNpcId: string | null = null;
+  /** 小ネタ・遊び心(plan/flavor-and-dialogue.md): ゲンドの工房で+9まで鍛えた直後だけ出る一言 */
+  private workshopMaxPlusNotice: string | null = null;
   private depart:
     | ((
         carry: StoredItem[],
@@ -212,6 +224,7 @@ export class TownScreen {
     this.fusionAxisUid = null;
     this.releaseConfirmUid = null;
     this.favoriteNotice = null;
+    this.workshopMaxPlusNotice = null;
     this.workshopCursor = 0;
     this.workshopMarkTarget = null;
     this.workshopMarkChoices = null;
@@ -1010,18 +1023,22 @@ export class TownScreen {
       case "ArrowUp":
       case "KeyW":
         this.workshopCursor = wrap(this.workshopCursor - 1, targets.length);
+        this.workshopMaxPlusNotice = null;
         break;
       case "ArrowDown":
       case "KeyS":
         this.workshopCursor = wrap(this.workshopCursor + 1, targets.length);
+        this.workshopMaxPlusNotice = null;
         break;
       case "ArrowLeft":
       case "KeyA":
         this.column = 4;
+        this.workshopMaxPlusNotice = null;
         break;
       case "ArrowRight":
       case "KeyD":
         this.column = 6;
+        this.workshopMaxPlusNotice = null;
         break;
       case "Enter":
       case "NumpadEnter":
@@ -1053,6 +1070,11 @@ export class TownScreen {
     if (this.countMaterial(HOKORA_DUST_DEF_ID) < cost) return;
     this.consumeMaterial(HOKORA_DUST_DEF_ID, cost);
     target.plus = plus + 1;
+    // 小ネタ・遊び心(plan/flavor-and-dialogue.md): ゲンドの+9装備を見せたときの専用の一言。
+    // DialoguePoolの仕組みには乗せない、独立したイベント的な一言
+    if (target.plus >= MAX_PLUS) {
+      this.workshopMaxPlusNotice = "ゲンド「おお、こいつは……見事なもんだ。ここまで仕上げたのは大したもんだぜ」";
+    }
   }
 
   /**
@@ -1270,6 +1292,8 @@ export class TownScreen {
         desc.textContent = markId
           ? `${markDef(markId).name}の刻印石2個+ほこら粉${OVERLAY_STONE_DUST_COST}個を消費して、重ね刻みの砥石を1個作る。`
           : "";
+      } else if (this.workshopMaxPlusNotice !== null) {
+        desc.textContent = this.workshopMaxPlusNotice;
       } else {
         const target = this.workshopTargets()[this.workshopCursor];
         const plus = target?.plus ?? 0;
@@ -1334,9 +1358,16 @@ export class TownScreen {
         : "";
     } else if (this.column === 16) {
       const npc = visibleVillageNpcs(this.currentStoryChapter())[this.npcIndex];
-      // 宵祭り(plan/yoimatsuri-festival.md): 通常の役職の一言を、宵祭りの日だけ専用の一言に差し替える
-      const festivalLine = npc && isYoimatsuri(todayKey()) ? YOIMATSURI_NPC_LINES[npc.id] : undefined;
-      desc.textContent = this.npcTalkMessage ?? festivalLine ?? (npc ? npc.role : "");
+      // NPCのせりふプール(plan/flavor-and-dialogue.md): 表示中のNPCが変わった
+      // ときだけ抽選し直す(描画のたびに再抽選すると文言がちらつくため)
+      if (npc && this.currentDialogueNpcId !== npc.id) {
+        this.currentDialogueNpcId = npc.id;
+        this.currentDialogueLine = this.rollDialogueLine(npc.id) ?? null;
+      } else if (!npc) {
+        this.currentDialogueNpcId = null;
+        this.currentDialogueLine = null;
+      }
+      desc.textContent = this.npcTalkMessage ?? this.currentDialogueLine ?? (npc ? npc.role : "");
     } else if (this.column === 17) {
       const offer = FESTIVAL_SHOP_OFFERS[this.festivalShopCursor];
       desc.textContent = offer ? itemDef(offer.defId).description : "";
@@ -1345,6 +1376,18 @@ export class TownScreen {
       desc.textContent = selected ? itemDef(selected.defId).description : "";
     }
     box.appendChild(desc);
+
+    // 小ネタ・遊び心(plan/flavor-and-dialogue.md): アイテムのflavorTextを、機能説明とは別の行に添える
+    if (this.column === 0 || this.column === 1) {
+      const selected = (this.column === 0 ? this.storage : this.carry)[this.cursor[this.column]];
+      const flavorText = selected ? itemDef(selected.defId).flavorText : undefined;
+      if (flavorText) {
+        const flavor = document.createElement("p");
+        flavor.className = "town-flavor";
+        flavor.textContent = flavorText;
+        box.appendChild(flavor);
+      }
+    }
 
     const hint = document.createElement("p");
     hint.className = "town-hint";
@@ -1954,6 +1997,27 @@ export class TownScreen {
     });
     wrapper.appendChild(list);
     return wrapper;
+  }
+
+  /**
+   * NPCのせりふプール(plan/flavor-and-dialogue.md)。絆段階・気分・宵祭りの
+   * 状態からcontextを決め、対応するlinesから直前と違う1件を抽選する。
+   * 該当するプールが無ければundefined(呼び出し側でnpc.roleにフォールバックする)
+   */
+  private rollDialogueLine(npcId: string): string | undefined {
+    if (!this.save) return undefined;
+    const context = dialogueContext(this.save, npcId);
+    const pool = dialoguePoolFor(npcId, context);
+    if (!pool || pool.lines.length === 0) return undefined;
+    if (pool.lines.length === 1) {
+      this.lastDialogueLineIndex.set(npcId, 0);
+      return pool.lines[0];
+    }
+    const last = this.lastDialogueLineIndex.get(npcId);
+    let index = Math.floor(Math.random() * pool.lines.length);
+    if (index === last) index = (index + 1) % pool.lines.length;
+    this.lastDialogueLineIndex.set(npcId, index);
+    return pool.lines[index];
   }
 
   /**

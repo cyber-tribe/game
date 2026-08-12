@@ -241,6 +241,12 @@ export interface Species {
    * quagmire.md)の上にいる間、毎ターンSTATUS_INVISIBLEを自身に付与する
    */
   hidesInQuagmire?: boolean;
+  /**
+   * 小ネタ・遊び心(plan/flavor-and-dialogue.md)。待機仕草(idleアニメーション)
+   * の再生速度に掛ける倍率。既定1。新規クリップは作らず、既存のidleの
+   * 再生速度・タイミングだけで個性を出す
+   */
+  idleSpeedMul?: number;
 }
 
 /** あうんの呼吸(plan/ally-field-gimmicks.md)。障害物が要求する仲間の性質 */
@@ -446,6 +452,8 @@ export interface ItemDef {
   weight: number;
   /** 一行説明 */
   description: string;
+  /** 小ネタ・遊び心(plan/flavor-and-dialogue.md)。機能説明とは別の、雰囲気だけの一行。省略可能で、少しずつ埋めていく */
+  flavorText?: string;
 }
 
 export interface Item {

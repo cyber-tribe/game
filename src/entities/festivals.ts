@@ -23,13 +23,3 @@ export const FESTIVAL_SHOP_OFFERS: readonly FestivalShopOffer[] = [
   { defId: "markStoneGajiri", price: 120 },
   { defId: "markStoneTsubute", price: 120 },
 ];
-
-/** 宵祭りの日だけ、各NPCの通常会話(役職の一言)を差し替える専用の一言。絆の進行には影響しないフレーバーのみ */
-export const YOIMATSURI_NPC_LINES: Readonly<Record<string, string>> = {
-  mogurababa: "モグラ婆「今夜は宵祭りだね。提灯の灯りが、いつもより山を優しく見せる」",
-  gendo: "ゲンド「宵祭りの夜は、樽づくりの手も少しゆるむってもんだ」",
-  otone: "オトネ「今夜くらいは、村のみんなでゆっくりするといい」",
-  okiyo: "おキヨ「宵祭りの灯りに照らされた夢のかけらは、また違って見えるんだよ」",
-  pochi: "ポチ「今日は宵祭りだ! 提灯、見に行こうよ!」",
-  otama: "おたま「灯りがきれい……なんだか、ずっと前にも見た気がする」",
-};
