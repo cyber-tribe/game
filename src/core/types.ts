@@ -179,9 +179,18 @@ export interface Species {
      * "summonTorrent"は状態異常ではなく、自分のいる部屋の外周タイルへ一時的に
      * 奔流(plan/waterfall-torrent.md)を呼び込む(plan/region-boss-fuchinonushi.md)。
      * "summonEcho"は状態異常でも地形でもなく、HPを共有する分身を2体まで
-     * 召喚する(plan/region-boss-kodamanonushi.md、Actor.sharesHpWith参照)
+     * 召喚する(plan/region-boss-kodamanonushi.md、Actor.sharesHpWith参照)。
+     * "summonMirror"は本体そっくりの幻影を3体召喚する。当てると即消える
+     * 幻影で、本体を選び当てる駆け引きになる(plan/region-boss-
+     * misemonononushi.md、Actor.mirrorOf参照)
      */
-    effect?: "targetedStrike" | "aoeSleep" | "aoeSeal" | "summonTorrent" | "summonEcho";
+    effect?:
+      | "targetedStrike"
+      | "aoeSleep"
+      | "aoeSeal"
+      | "summonTorrent"
+      | "summonEcho"
+      | "summonMirror";
   };
   /** 地方ボスを撃破すると確定ドロップする、その地方限定の素材のdefId */
   bossGuaranteedDrop?: string;
@@ -262,6 +271,17 @@ export interface Actor {
    * ミラーに過ぎない
    */
   sharesHpWith?: number;
+  /**
+   * 地方ボス(plan/region-boss-misemonononushi.md)。設定されていれば、この
+   * アクターは幻影であり、本物のactor idを指す。幻影を攻撃してもダメージは
+   * 発生せず即座に消え、代わりに本体(mirrorOfが指すActor)が反撃する
+   */
+  mirrorOf?: number;
+  /**
+   * 地方ボス(plan/region-boss-misemonononushi.md)。本体側にだけ設定する。
+   * 幻影を呼び出してからの残りターン数。0になると幻影が自然に消える
+   */
+  mirrorTurnsLeft?: number;
 
   // ---- 以下は ally のみ ----
   /** 構え。plan/companion-orders.md 参照。既定は "free" */

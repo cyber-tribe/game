@@ -1,3 +1,35 @@
+> **実装済み。**
+> `src/core/types.ts`(`Actor.mirrorOf?: number` / `Actor.mirrorTurnsLeft?:
+> number` を追加。`Species.bossTelegraph.effect` に `"summonMirror"` を
+> 追加)、`src/entities/ai.ts`(`MonsterAction` に `{ type: "summonMirror" }`
+> を追加。`decideMonsterAction` の冒頭で `monster.mirrorOf !== undefined`
+> のときは常に`{ type: "wait" }`を返すガードを追加し、幻影が自分からは
+> 一切行動しないようにした。ボス分岐で`effect === "summonMirror"`の
+> ときは`summonMirror`を返す)、`src/entities/species.ts`
+> (`misemonoNoNushi` を追加、`REGION_BOSS_FLOORS[42]` /
+> `REGION_BOSS_ORDER` に登録)、`src/items/catalog.ts`
+> (`misemonoNoOmen` を追加)、`src/game.ts` に実装した。
+> テストは `tests/region-boss-misemonononushi.test.ts`(13件)。
+>
+> `src/game.ts` の実装詳細:
+> - `"summonMirror"`ケース: `freeSpotNear`で本体の周囲に幻影を1体ずつ
+>   生成しては即座に`floor.actors`へ積む(3体まとめて座標計算してから
+>   一括で積むと、まだ配置していない座標同士が衝突する恐れがあるため、
+>   1体ごとに配置→登録を繰り返す形にした)。`actor.mirrorTurnsLeft`を
+>   5にセットする。
+> - `resolvePlayerAttack`のヒット判定ループに、対象が`mirrorOf`を
+>   持つ幻影だった場合の分岐(即座に`floor.actors`から除去・
+>   「――そっちは幻だった!」・本体からプレイヤーへの反撃1回)を追加。
+>   本体への命中時は、命中処理の直後に`mirrorOf === target.id`の
+>   幻影を全除去する処理を追加。
+> - `tickMirrors`を新設し、`upkeep()`から毎ターン呼んで
+>   `mirrorTurnsLeft`を減らし、0になったら残っている幻影を自然消滅
+>   させる(膠着状態を防ぐ安全弁)。
+>
+> モデルは新規制作せず、第七地方雑魚最上位種`kazaridaruma`と同じ
+> `honegarami`を流用した。HP・攻撃力・防御力は`kazaridaruma`
+> (HP80・atk24・def26)を基準に共通仕様で算出した(HP152・atk31・def34)。
+
 # 第七地方ボス: 見世物のぬし
 
 `plan/archive/region-bosses.md` の共通仕様の上に、第七地方(わすれられた

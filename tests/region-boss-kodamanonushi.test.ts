@@ -85,8 +85,8 @@ describe("entities/species.ts: こだまの主(第六地方ボス)", () => {
     expect(species.bossTelegraph?.effect).toBe("summonEcho");
   });
 
-  it("REGION_BOSS_ORDERの最後に登録されている", () => {
-    expect(REGION_BOSS_ORDER[REGION_BOSS_ORDER.length - 1]).toBe("kodamaNoNushi");
+  it("REGION_BOSS_ORDERに、淵の主に続いて登録されている", () => {
+    expect(REGION_BOSS_ORDER.indexOf("kodamaNoNushi")).toBe(REGION_BOSS_ORDER.indexOf("fuchiNoNushi") + 1);
   });
 });
 
