@@ -4612,6 +4612,98 @@ def nadakaze_animations():
     ]
 
 
+# =================================================================== しおれざくら
+
+SHIORESAKURA_JOINTS = {
+    "base": (0.0, 0.0, 0.075),
+    "mid": (0.0, 0.0, 0.190),
+    "top": (0.0, 0.0, 0.300),
+}
+SHIORESAKURA_RADII = {"base": 0.185, "mid": 0.185, "top": 0.095}
+SHIORESAKURA_BONES = [("base", "mid"), ("mid", "top")]
+
+
+def build_shioresakura():
+    """
+    涙で色あせた花。purunと同じ縦2本の骨組みをそのまま流用し、頭の
+    周りに萎れた花びらを6枚まとわせる。花びらは半分ほど下向きに
+    垂れさせ、「打たれるたびに力を失っていく」萎れた姿にする。
+    配色は第五地方(なみだの滝つぼ)の、涙で色あせた沈んだ青・藍色系。
+    """
+    body = C.build_skinned("shioresakura", SHIORESAKURA_JOINTS, SHIORESAKURA_BONES,
+                           SHIORESAKURA_RADII, root="base", subsurf=2)
+    stem = C.make_material("shiore_stem", (0.30, 0.34, 0.30), roughness=0.7)
+    C.assign_material(body, stem)
+
+    petal_mat = C.make_material("shiore_petal", (0.44, 0.46, 0.62), roughness=0.6)
+    petal_dark = C.make_material("shiore_petal_dark", (0.32, 0.34, 0.50), roughness=0.65)
+    petals = []
+    for i, angle_deg in enumerate([0.0, 60.0, 120.0, 180.0, 240.0, 300.0]):
+        angle = math.radians(angle_deg)
+        # 半分は下向きに垂らして萎れた印象を強める
+        droop = 0.055 if i % 2 == 0 else 0.020
+        cx, cy = math.cos(angle) * 0.145, math.sin(angle) * 0.145
+        petal = C.uv_sphere(f"shiore_petal{i}", (cx, cy, 0.300 - droop), 0.098,
+                            segments=16, rings=12, scale=(1.0, 1.0, 0.30))
+        C.assign_material(petal, petal_mat if i % 2 == 0 else petal_dark)
+        petals.append(petal)
+    body = C.join([body] + petals, "shioresakura")
+
+    extras = []
+    for side in (-1.0, 1.0):
+        extras += eyeball(f"shiore_eye{side}", (0.075 * side, -0.170, 0.205), 0.038,
+                          look=(0.2 * side, -1.0, 0.0),
+                          white=(0.78, 0.80, 0.86), dark=(0.14, 0.14, 0.22))
+    mouth = C.uv_sphere("shiore_mouth", (0.0, -0.195, 0.140), 0.032,
+                        segments=14, rings=10, scale=(1.3, 0.5, 0.55))
+    C.assign_material(mouth, C.make_material("shiore_mouth_m", (0.20, 0.22, 0.32), roughness=0.3))
+    extras.append(mouth)
+
+    mesh = C.join([body] + extras, "shioresakura")
+    armature = C.build_armature("shioresakura", C.mirrored(SHIORESAKURA_JOINTS),
+                                SHIORESAKURA_BONES, mesh, root="base")
+    return [mesh, armature], armature
+
+
+def shioresakura_animations():
+    lower, upper = "base-mid", "mid-top"
+    squash = {"scale": (1.22, 0.72, 1.22)}
+    stretch = {"scale": (0.86, 1.28, 0.86)}
+    neutral = {"scale": (1.0, 1.0, 1.0)}
+    return [
+        ("idle", [
+            (1, {lower: neutral, upper: neutral}),
+            (18, {lower: {"scale": (1.04, 0.95, 1.04)}, upper: {"scale": (0.97, 1.05, 0.97)}}),
+            (36, {lower: neutral, upper: neutral}),
+        ]),
+        ("walk", [
+            (1, {lower: neutral, upper: neutral}),
+            (4, {lower: squash, upper: stretch}),
+            (9, {lower: {**stretch, "loc": (0, 0.10, 0)}, upper: squash}),
+            (14, {lower: {"scale": (1.1, 0.85, 1.1)}, upper: neutral}),
+            (20, {lower: neutral, upper: neutral}),
+        ]),
+        # 瀕死になるほど攻撃力が増す性質どおり、散り際に大きく身を反らせる
+        ("attack", [
+            (1, {lower: neutral, upper: neutral}),
+            (4, {lower: squash, upper: stretch}),
+            (9, {lower: {"scale": (0.8, 1.35, 0.8), "loc": (0, 0.06, 0)}, upper: {"scale": (1.18, 0.78, 1.18)}}),
+            (18, {lower: neutral, upper: neutral}),
+        ]),
+        ("hit", [
+            (1, {lower: neutral, upper: neutral}),
+            (4, {lower: {"scale": (1.3, 0.66, 1.3)}, upper: {"scale": (0.88, 1.16, 0.88)}}),
+            (14, {lower: neutral, upper: neutral}),
+        ]),
+        # 散る花びらのように、輪郭を潰しながら崩れ落ちる
+        ("die", [
+            (1, {lower: neutral, upper: neutral}),
+            (10, {lower: {"scale": (1.35, 0.5, 1.35)}, upper: {"scale": (1.25, 0.55, 1.25)}}),
+            (24, {lower: {"scale": (1.5, 0.06, 1.5)}, upper: {"scale": (1.4, 0.08, 1.4)}}),
+        ]),
+    ]
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -4651,6 +4743,7 @@ MONSTERS = {
     "shizukuuo": (build_shizukuuo, shizukuuo_animations),
     "urumiguma": (build_urumiguma, urumiguma_animations),
     "nadakaze": (build_nadakaze, nadakaze_animations),
+    "shioresakura": (build_shioresakura, shioresakura_animations),
 }
 
 
