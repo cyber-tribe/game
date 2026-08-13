@@ -1,3 +1,9 @@
+> **実装済み(コード変更なし)。** `src/entities/species.ts`の`id:
+> "nadakaze"`エントリを確認し、本文書のデータ表(AI/maxHp/atk/def/exp/
+> weight/出現階/range/奔流付近射程ボーナス)がすべて一致することを検証
+> した。差分なし。本文書はコードを伴わない記録用の文書のため、追加の実装
+> は行わない。
+
 # なだかぜ(nadakaze)のモンスター実装
 
 `src/entities/species.ts`にすでに実装済みの内容を、正式なplanとして
