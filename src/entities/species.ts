@@ -901,13 +901,14 @@ export const SPECIES: readonly Species[] = [
     // 水面に映る古い姿。ゆめまよいの影と同系統なので同じmadoromiモデルを流用する
     id: "mizukagami",
     name: "みずかがみ",
-    model: "madoromi",
+    model: "mizukagami",
     maxHp: 34,
     atk: 20,
     def: 9,
     exp: 30,
     ai: "mimic",
-    // タルではなくアイテムに擬態する水辺版(mimicAsはデータのみで見た目までは再現しない)
+    // タルではなくアイテムに擬態する水辺版(mimicAsはデータのみで見た目までは再現しない)。
+    // 専用モデル(plan/models/archive/model-mizukagami.md)
     mimicAs: "item",
     minFloor: 27,
     weight: 3,
