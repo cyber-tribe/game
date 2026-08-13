@@ -1,3 +1,9 @@
+> **実装済み(コード変更なし)。** `src/entities/species.ts`の`id:
+> "yamabikogitsune"`エントリを確認し、本文書のデータ表(AI/maxHp/atk/def/
+> exp/weight/出現階/range/`alertsFloorOnSight`)がすべて一致することを
+> 検証した。差分なし。本文書はコードを伴わない記録用の文書のため、追加の
+> 実装は行わない。
+
 # やまびこぎつね(yamabikogitsune)のモンスター実装
 
 `src/entities/species.ts`にすでに実装済みの内容を、正式なplanとして
