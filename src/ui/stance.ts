@@ -1,6 +1,7 @@
 import type { Command } from "../game";
 import { ALLY_STANCE_NAMES } from "../entities/displayNames";
 import type { AllyActor, AllyStance } from "../core/types";
+import { wrap } from "./util";
 
 const STANCES: readonly AllyStance[] = ["free", "guard", "hold", "vanguard"];
 
@@ -151,9 +152,4 @@ export class StanceMenu {
     hint.textContent = "↑↓ 選ぶ / Enter 決定 / Esc もどる";
     this.root.appendChild(hint);
   }
-}
-
-function wrap(value: number, length: number): number {
-  if (length <= 0) return 0;
-  return ((value % length) + length) % length;
 }

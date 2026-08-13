@@ -1,6 +1,7 @@
 import type { Command } from "../game";
 import { artsForLevel } from "../entities/arts";
 import type { PlayerState } from "../entities/player";
+import { wrap } from "./util";
 
 /**
  * 樽守りの技(plan/protagonist-arts.md、アーカイブ済み)メニュー。
@@ -114,9 +115,4 @@ export class ArtsMenu {
     hint.textContent = "↑↓ 選ぶ / Enter 繰り出す / Esc もどる";
     this.root.appendChild(hint);
   }
-}
-
-function wrap(value: number, length: number): number {
-  if (length <= 0) return 0;
-  return ((value % length) + length) % length;
 }
