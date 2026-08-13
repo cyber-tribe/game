@@ -951,10 +951,10 @@ export const SPECIES: readonly Species[] = [
     weight: 3,
   },
   {
-    // 跳ね返る声を追いかける小さな生き物。tsubuteモデルを流用する
+    // 跳ね返る声を追いかける小さな生き物。専用モデル(plan/models/archive/model-kaerukodama.md)
     id: "kaerukodama",
     name: "かえるこだま",
-    model: "tsubute",
+    model: "kaerukodama",
     maxHp: 30,
     atk: 17,
     def: 8,
