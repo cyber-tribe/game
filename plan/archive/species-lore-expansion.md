@@ -1,5 +1,31 @@
 # モンスター生態解説文を図鑑ギャラリーへ実装する
 
+> **実装済み。** 本文書「追加する63件」のブロックをそのまま
+> `src/entities/speciesLore.ts` の `SPECIES_LORE` に貼った(62件の
+> 文字列リテラルキー + `[HAJIME_NO_YUME_ID]` の計算プロパティキー1件で
+> 合計63件)。変換規則(太字・AI注記・メタな言い回しの除去)は既に
+> 適用済みの文面だったため、追加のスクリプト変換は不要だった。
+>
+> 実装完了時点(`origin/main` 909f1f7)で `src/entities/species.ts` の
+> 種族id(`HAJIME_NO_YUME_ID` 定数参照の「はじめの夢」を含む)は
+> 68件。既存5件+新規63件=68件で、`species.ts` の全idが
+> `SPECIES_LORE` でカバーされていることをスクリプトで突き合わせて確認した
+> (未カバーのidは0件)。並行で進んでいた`plan/model-akubitokage.md`
+> (あくびとかげの3Dモデル追加、`species.ts`の`model`フィールドと
+> `tools/models/`のみ変更)は、rebase・マージ直前の再確認時点でも
+> `species.ts`のid一覧(68件)に変更は無かった。
+>
+> ファイル先頭のコメントを、全68種をカバーした旨に更新した。
+>
+> テストは`tests/gallery-mode.test.ts`に追加。新規追加種族の一部
+> (地方ボス・はじめの夢を含む)の解説文有無に加え、`SPECIES`の全idが
+> 解説文を持つこと・`SPECIES_LORE`の全キーが実在の種族idであることを
+> 相互に検証する2件を追加した(既存の「未記載として扱う」テストは
+> 対象種族に解説文が付いたため、内容を差し替えた)。
+>
+> `npx tsc --noEmit`・`npx vitest run`(1101件全て通過)・
+> `npm run build`を確認済み。
+
 `design/characters.md` は全68種(通常出現60種・配合限定9種・地方ボス8種・
 隠し最終局面1体)の生態設定を作り込んだが、実際に画面へ表示している
 `src/entities/speciesLore.ts` の `SPECIES_LORE` には、最初期の5種
