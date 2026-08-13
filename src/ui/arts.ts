@@ -1,7 +1,7 @@
 import type { Command } from "../game";
 import { artsForLevel } from "../entities/arts";
 import type { PlayerState } from "../entities/player";
-import { wrap } from "./util";
+import { createMenuDesc, createMenuHint, createMenuList, createMenuTitle, wrap } from "./util";
 
 /**
  * 樽守りの技(plan/protagonist-arts.md、アーカイブ済み)メニュー。
@@ -79,10 +79,7 @@ export class ArtsMenu {
     this.root.replaceChildren();
     if (!player) return;
 
-    const title = document.createElement("h3");
-    title.className = "menu-title";
-    title.textContent = "技";
-    this.root.appendChild(title);
+    this.root.appendChild(createMenuTitle("技"));
 
     const known = artsForLevel(player.level);
     if (known.length === 0) {
@@ -91,9 +88,7 @@ export class ArtsMenu {
       empty.textContent = "まだ覚えている技がない。";
       this.root.appendChild(empty);
     } else {
-      const list = document.createElement("ul");
-      list.setAttribute("role", "list");
-      list.className = "menu-list";
+      const list = createMenuList();
       known.forEach((art, index) => {
         const cooldown = player.artCooldowns[art.id] ?? 0;
         const li = document.createElement("li");
@@ -104,15 +99,9 @@ export class ArtsMenu {
       });
       this.root.appendChild(list);
 
-      const desc = document.createElement("div");
-      desc.className = "menu-desc";
-      desc.textContent = known[this.cursor]?.description ?? "";
-      this.root.appendChild(desc);
+      this.root.appendChild(createMenuDesc(known[this.cursor]?.description ?? ""));
     }
 
-    const hint = document.createElement("div");
-    hint.className = "menu-hint";
-    hint.textContent = "↑↓ 選ぶ / Enter 繰り出す / Esc もどる";
-    this.root.appendChild(hint);
+    this.root.appendChild(createMenuHint("↑↓ 選ぶ / Enter 繰り出す / Esc もどる"));
   }
 }
