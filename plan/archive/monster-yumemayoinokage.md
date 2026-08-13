@@ -1,3 +1,13 @@
+> **実装済み(コード変更なし)。** `src/entities/species.ts`の`id:
+> "yumemayoinokage"`エントリを確認し、本文書のデータ表(AI/maxHp/atk/def/
+> exp/weight/出現階/タルへの擬態)がすべて一致することを検証した
+> (`ai: "mimic"`、`mimicAs: "barrel"`)。差分なし。なお同エントリのコード
+> コメントには、タルへの擬態は`mimicAs: "barrel"`というデータ上の設定に
+> 留め、専用の見た目までは再現していない(既存モデルの流用)旨の注記が
+> あるが、これは3Dモデル面の実装範囲の話であり、本文書のデータ表(AI/
+> maxHp/atk/def/exp/weight/出現階)そのものに食い違いはない。本文書は
+> コードを伴わない記録用の文書のため、追加の実装は行わない。
+
 # ゆめまよいの影(yumemayoinokage)のモンスター実装
 
 `src/entities/species.ts`にすでに実装済みの内容を、正式なplanとして
