@@ -1989,6 +1989,228 @@ def nebosukegaeru_animations():
     ]
 
 
+# =================================================================== まどろみぐも
+
+# plan/archive/model-madoromigumo.md: 現在流用しているtsubuteの「胴の芯+そこから
+# 伸びる肢」という関節構成の"種類"を踏襲する。
+#
+# 【試作の失敗、繰り返し】まどろみぐもは蜘蛛らしい多脚のシルエットが要になる
+# ため、最初は「胴の芯となる1つのSkinメッシュに、複数対の脚をまとめてぶら
+# 下げる」構成を何通りも試した(単一関節に4対、4関節の鎖に1対ずつ、3対を
+# Zの高さでずらす、脚を2対に減らしてnukarumigani並みに離す、太さを変える、
+# など)。だが対の数を問わず、脚が「胴と同じ1枚のSkinケージ」の一部として
+# 生成される限り、根元でヒレ状/水かき状に融合してしまうとわかった
+# (subsurf=0の生のSkinケージを確認したところ、脚の断面が最初から平たい
+# 三角形のくさび形になっており、Subdivisionの強さの問題ではなく、太い胴と
+# 細い脚が同じケージ内で解決される際の根本的な限界だった)。
+# 【対策】胴(head-body-waist-abdomen)はこれまでどおり単一のSkinメッシュに
+# するが、脚は胴のケージに含めず、脚1本ごとに独立した小さなSkinチェーン
+# (root-knee-footの3関節)として別々にビルドする。purun/madoromiのような
+# 分岐のない一本の鎖は太さが変わってもきれいな丸いカプセル形になることを
+# 踏まえたもの。各脚の根元(root)を胴の表面にわずかに埋め込む位置に置き、
+# join()で胴と結合することで、Skinケージを共有せずに継ぎ目なく生えて見える
+# 脚を作る。アーマチュア(関節とボーン)はこれまでどおり胴と脚をまとめた
+# 1つの骨格として組み、自動ウェイトで全体に紐づける(ボーンの木構造さえ
+# 正しければ、メッシュがどのSkin呼び出し由来かはウェイト付けに影響しない)。
+# この方式は脚どうしの干渉が原理的に起きないため、4対8本の蜘蛛らしい脚数を
+# 安全に実現できる。
+MADOROMIGUMO_HALF = {
+    "head": (0.0, -0.180, 0.078),
+    "body": (0.0, -0.010, 0.115),
+    "waist": (0.0, 0.110, 0.100),
+    "abdomen": (0.0, 0.210, 0.110),
+}
+MADOROMIGUMO_RADII_HALF = {
+    "head": 0.058, "body": 0.140, "waist": 0.032, "abdomen": 0.120,
+}
+MADOROMIGUMO_BODY_BONES_HALF = [
+    ("body", "head"), ("body", "waist"), ("waist", "abdomen"),
+]
+
+# 脚4対(前から順にA〜D)。付け根(leg*)は胴の表面よりやや内側に置いて
+# 埋め込み、Zは軽く波打たせて(高い→低い→高い→低い)横から見たときの
+# シルエットに単調さが出ないようにする。footは前後にずらして扇状に開く。
+MADOROMIGUMO_LEGS = {
+    "A": {"root": (0.075, -0.145, 0.145), "knee": (0.230, -0.175, 0.160),
+          "foot": (0.330, -0.235, 0.020)},
+    "B": {"root": (0.080, -0.035, 0.095), "knee": (0.235, -0.050, 0.115),
+          "foot": (0.335, -0.075, 0.016)},
+    "C": {"root": (0.080, 0.075, 0.145), "knee": (0.235, 0.095, 0.160),
+          "foot": (0.335, 0.135, 0.020)},
+    "D": {"root": (0.075, 0.185, 0.095), "knee": (0.230, 0.225, 0.115),
+          "foot": (0.330, 0.290, 0.016)},
+}
+MADOROMIGUMO_LEG_RADII = {"root": 0.034, "knee": 0.025, "foot": 0.014}
+
+
+def _madoromigumo_full_skeleton():
+    """胴+脚すべてを含む、アーマチュア用の統合済み関節・ボーン一覧を返す。"""
+    joints = dict(MADOROMIGUMO_HALF)
+    radii = dict(MADOROMIGUMO_RADII_HALF)
+    bones = list(MADOROMIGUMO_BODY_BONES_HALF)
+    for leg, pts in MADOROMIGUMO_LEGS.items():
+        for side in ("L", "R"):
+            sign = -1.0 if side == "L" else 1.0
+            root_name, knee_name, foot_name = f"leg{leg}.{side}", f"knee{leg}.{side}", f"foot{leg}.{side}"
+            rx, ry, rz = pts["root"]
+            kx, ky, kz = pts["knee"]
+            fx, fy, fz = pts["foot"]
+            joints[root_name] = Vector((rx * sign, ry, rz))
+            joints[knee_name] = Vector((kx * sign, ky, kz))
+            joints[foot_name] = Vector((fx * sign, fy, fz))
+            radii[root_name] = MADOROMIGUMO_LEG_RADII["root"]
+            radii[knee_name] = MADOROMIGUMO_LEG_RADII["knee"]
+            radii[foot_name] = MADOROMIGUMO_LEG_RADII["foot"]
+            bones.append(("body", root_name))
+            bones.append((root_name, knee_name))
+            bones.append((knee_name, foot_name))
+    return joints, radii, bones
+
+
+def build_madoromigumo():
+    """
+    まどろみの隙間に糸を張る蜘蛛。隣接するまで気配を消し、油断したところに
+    噛みつく(ambush)。周囲に溶け込むよう、平たく低いシルエットにし、
+    配色も第3地方(まどろみの茸林)らしい湿った土色を基調にした目立たない
+    ものにする。腹部の背にだけ、胞子の淡い黄土色の斑紋を置く。
+    """
+    joints, radii, bones = _madoromigumo_full_skeleton()
+
+    # 胴(head-body-waist-abdomen)だけを1枚のSkinメッシュにする(脚は含めない)
+    body_bones = C.mirrored_bones(MADOROMIGUMO_BODY_BONES_HALF)
+    body = C.build_skinned("madoromigumo", joints, body_bones, radii, root="body", subsurf=2)
+
+    skin = C.make_material("madoromi_gumo_skin", (0.28, 0.21, 0.15), roughness=0.80)
+    mark = C.make_material("madoromi_gumo_mark", (0.70, 0.60, 0.36), roughness=0.55)
+    # 斑紋は腹部(waistより後ろ)の背側だけに限る。tsubuteの背/腹の塗り分け
+    # (高さだけで切る)と違い、この体はabdomenとbodyがほぼ同じ高さのため、
+    # 体の前後位置(Y)と高さ(Z)を組み合わせて、腰の先の腹部上面だけを
+    # 切り出す(位置ベースの分類。高さだけでは腹部を切り出せない形状)。
+    C.assign_materials_by_region(
+        body, [skin, mark],
+        lambda c: 1 if (c.y > 0.16 and c.z > 0.075) else 0,
+    )
+    mark_faces = sum(1 for p in body.data.polygons if p.material_index == 1)
+    total_faces = len(body.data.polygons)
+    print(f"madoromigumo: 腹部の斑紋 {mark_faces}/{total_faces} "
+          f"({mark_faces / total_faces:.1%})")
+
+    leg_mat = C.make_material("madoromi_gumo_leg", (0.24, 0.18, 0.13), roughness=0.85)
+    extras = []
+
+    # 脚1本ごとに独立したSkinチェーンとしてビルドする(胴のケージとは共有
+    # しない)。root-knee-footの3関節だけの分岐のない鎖なので、太さが胴より
+    # ずっと細くてもSkinモディファイアがきれいな丸いカプセル状に解決する。
+    for leg, pts in MADOROMIGUMO_LEGS.items():
+        for side in ("L", "R"):
+            sign = -1.0 if side == "L" else 1.0
+            root_name, knee_name, foot_name = f"leg{leg}.{side}", f"knee{leg}.{side}", f"foot{leg}.{side}"
+            leg_joints = {
+                root_name: joints[root_name],
+                knee_name: joints[knee_name],
+                foot_name: joints[foot_name],
+            }
+            leg_bones = [(root_name, knee_name), (knee_name, foot_name)]
+            leg_radii = {
+                root_name: MADOROMIGUMO_LEG_RADII["root"],
+                knee_name: MADOROMIGUMO_LEG_RADII["knee"],
+                foot_name: MADOROMIGUMO_LEG_RADII["foot"],
+            }
+            leg_obj = C.build_skinned(f"madoromi_leg{leg}{side}", leg_joints, leg_bones,
+                                      leg_radii, root=root_name, subsurf=0)
+            C.assign_material(leg_obj, leg_mat)
+            extras.append(leg_obj)
+
+    # 目。ただし「気配を消す」設定に合わせ、白目を明るくしすぎず、くすんだ色で
+    # まとめて目立たなくする(tsubuteのような明瞭な白目にはしない)。三角形数の
+    # 予算(既存モデルの1,800〜7,500程度)に収めるため1対だけに絞る。
+    eye_white = (0.52, 0.49, 0.43)
+    eye_dark = (0.08, 0.07, 0.06)
+    for side in (-1.0, 1.0):
+        extras += eyeball(f"madoromi_eye_main{side}", (0.028 * side, -0.235, 0.086), 0.018,
+                          look=(0.25 * side, -1.0, 0.05), white=eye_white, dark=eye_dark)
+
+    # 牙。radius_bottom(-Z側)を細く、radius_top(+Z側)を太くして、回転させず
+    # そのまま下向きの牙にする(cone()をrotation_eulerで傾けると原点中心に
+    # 回ってしまうため、mabutamushiの反省を踏まえ最初から向きを作り込む)。
+    fang_mat = C.make_material("madoromi_fang", (0.62, 0.58, 0.48), roughness=0.35)
+    for side in (-1.0, 1.0):
+        fang = C.cone(f"madoromi_fang{side}", (0.020 * side, -0.243, 0.050),
+                     0.003, 0.015, 0.045, segments=8)
+        C.assign_material(fang, fang_mat)
+        extras.append(fang)
+
+    mesh = C.join([body] + extras, "madoromigumo")
+    armature = C.build_armature("madoromigumo", joints, bones, mesh, root="body")
+    return [mesh, armature], armature
+
+
+def madoromigumo_animations():
+    head = "body-head"
+    abdomen = "waist-abdomen"
+    legA_L, legA_R = "body-legA.L", "body-legA.R"
+    legB_L, legB_R = "body-legB.L", "body-legB.R"
+    legC_L, legC_R = "body-legC.L", "body-legC.R"
+    legD_L, legD_R = "body-legD.L", "body-legD.R"
+    return [
+        # 気配を消して潜む。ほぼ静止したまま、腹だけがわずかに上下する
+        ("idle", [
+            (1, {abdomen: (0, 0, 0)}),
+            (28, {abdomen: (-3, 0, 0), legB_L: (2, 0, 2), legB_R: (-2, 0, -2)}),
+            (56, {abdomen: (0, 0, 0)}),
+        ]),
+        # 対角の脚(A・C / B・D)を互い違いに踏み出す
+        ("walk", [
+            (1, {legA_L: (22, 0, 6), legA_R: (-22, 0, -6),
+                 legC_L: (22, 0, 6), legC_R: (-22, 0, -6),
+                 legB_L: (-20, 0, -6), legB_R: (20, 0, 6),
+                 legD_L: (-20, 0, -6), legD_R: (20, 0, 6), head: (3, 0, 0)}),
+            (5, {legA_L: (0, 0, 0), legA_R: (0, 0, 0),
+                 legC_L: (0, 0, 0), legC_R: (0, 0, 0),
+                 legB_L: (0, 0, 0), legB_R: (0, 0, 0),
+                 legD_L: (0, 0, 0), legD_R: (0, 0, 0), head: (0, 0, 0)}),
+            (9, {legA_L: (-20, 0, -6), legA_R: (20, 0, 6),
+                 legC_L: (-20, 0, -6), legC_R: (20, 0, 6),
+                 legB_L: (22, 0, 6), legB_R: (-22, 0, -6),
+                 legD_L: (22, 0, 6), legD_R: (-22, 0, -6), head: (-3, 0, 0)}),
+            (13, {legA_L: (0, 0, 0), legA_R: (0, 0, 0),
+                  legC_L: (0, 0, 0), legC_R: (0, 0, 0),
+                  legB_L: (0, 0, 0), legB_R: (0, 0, 0),
+                  legD_L: (0, 0, 0), legD_R: (0, 0, 0), head: (0, 0, 0)}),
+        ]),
+        # 潜んでいた姿勢から前脚を突き出し、首を打ちつけるように噛みつく
+        # (ambushStrike=ふいのいちげき)
+        ("attack", [
+            (1, {head: (0, 0, 0), legA_L: (0, 0, 0), legA_R: (0, 0, 0)}),
+            (4, {head: (-18, 0, 0), legA_L: (-30, 0, -10), legA_R: (30, 0, 10)}),
+            (8, {head: (26, 0, 0), legA_L: (34, 0, 8), legA_R: (-34, 0, -8)}),
+            (18, {head: (0, 0, 0), legA_L: (0, 0, 0), legA_R: (0, 0, 0)}),
+        ]),
+        ("hit", [
+            (1, {head: (0, 0, 0), abdomen: (0, 0, 0)}),
+            (4, {head: (16, 0, 0), abdomen: (-10, 0, 0),
+                 legB_L: (-14, 0, 10), legB_R: (14, 0, -10)}),
+            (14, {head: (0, 0, 0), abdomen: (0, 0, 0)}),
+        ]),
+        # 脚を内側へ丸め込みながら息絶える、死んだ蜘蛛特有の姿勢
+        ("die", [
+            (1, {head: (0, 0, 0)}),
+            (10, {head: (20, 0, 0), abdomen: (10, 0, 0),
+                  legA_L: (-40, 0, -30), legA_R: (40, 0, 30),
+                  legB_L: (-46, 0, -26), legB_R: (46, 0, 26),
+                  legC_L: (-46, 0, 26), legC_R: (46, 0, -26),
+                  legD_L: (-40, 0, 30), legD_R: (40, 0, -30)}),
+            (24, {head: (30, 0, 0), abdomen: (18, 0, 0),
+                  legA_L: (-70, 0, -46), legA_R: (70, 0, 46),
+                  legB_L: (-78, 0, -40), legB_R: (78, 0, 40),
+                  legC_L: (-78, 0, 40), legC_R: (78, 0, -40),
+                  legD_L: (-70, 0, 46), legD_R: (70, 0, -46)}),
+        ]),
+    ]
+
+
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -2006,6 +2228,7 @@ MONSTERS = {
     "kinokootoko": (build_kinokootoko, kinokootoko_animations),
     "houshitobi": (build_houshitobi, houshitobi_animations),
     "nebosukegaeru": (build_nebosukegaeru, nebosukegaeru_animations),
+    "madoromigumo": (build_madoromigumo, madoromigumo_animations),
 }
 
 
