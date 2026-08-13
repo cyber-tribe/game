@@ -611,6 +611,17 @@ class App {
     requestAnimationFrame(this.loop);
   };
 
+  /** menu.ts/stance.ts/arts.ts/stairsConfirm/town.tsのいずれかのモーダルが開いているか */
+  private anyModalOpen(): boolean {
+    return (
+      this.menu.isOpen ||
+      this.stanceMenu.isOpen ||
+      this.artsMenu.isOpen ||
+      this.stairsConfirm.isOpen ||
+      this.town.isOpen
+    );
+  }
+
   private step(dt: number): void {
     this.lock = Math.max(0, this.lock - dt);
 
@@ -623,11 +634,7 @@ class App {
       }
       if (
         !this.ended &&
-        !this.menu.isOpen &&
-        !this.stanceMenu.isOpen &&
-        !this.artsMenu.isOpen &&
-        !this.stairsConfirm.isOpen &&
-        !this.town.isOpen &&
+        !this.anyModalOpen() &&
         !this.photoMode &&
         !this.helpVisible &&
         this.lock <= 0
@@ -637,17 +644,7 @@ class App {
       action = this.input.takeAction();
     }
 
-    if (
-      this.ended ||
-      this.menu.isOpen ||
-      this.stanceMenu.isOpen ||
-      this.artsMenu.isOpen ||
-      this.stairsConfirm.isOpen ||
-      this.town.isOpen ||
-      this.photoMode ||
-      this.helpVisible ||
-      this.lock > 0
-    ) {
+    if (this.ended || this.anyModalOpen() || this.photoMode || this.helpVisible || this.lock > 0) {
       return;
     }
 
@@ -707,11 +704,7 @@ class App {
         }
         // 生きていてめざめの階段の上にいれば、そこで区切って持ち帰る
         if (
-          !this.menu.isOpen &&
-          !this.stanceMenu.isOpen &&
-          !this.artsMenu.isOpen &&
-          !this.stairsConfirm.isOpen &&
-          !this.town.isOpen &&
+          !this.anyModalOpen() &&
           !this.photoMode &&
           !this.helpVisible &&
           eq(this.game.player.pos, this.game.floor.stairs)
@@ -735,15 +728,7 @@ class App {
       this.hud.hideOverlay();
       return;
     }
-    if (
-      this.menu.isOpen ||
-      this.stanceMenu.isOpen ||
-      this.artsMenu.isOpen ||
-      this.stairsConfirm.isOpen ||
-      this.town.isOpen ||
-      this.photoMode ||
-      this.ended
-    ) {
+    if (this.anyModalOpen() || this.photoMode || this.ended) {
       return;
     }
     this.helpVisible = true;
@@ -784,15 +769,7 @@ class App {
       this.uiRoot.style.display = "";
       return;
     }
-    if (
-      this.menu.isOpen ||
-      this.stanceMenu.isOpen ||
-      this.artsMenu.isOpen ||
-      this.stairsConfirm.isOpen ||
-      this.town.isOpen ||
-      this.helpVisible ||
-      this.ended
-    ) {
+    if (this.anyModalOpen() || this.helpVisible || this.ended) {
       return;
     }
     this.photoMode = true;

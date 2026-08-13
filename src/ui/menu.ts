@@ -3,6 +3,7 @@ import type { PlayerState } from "../entities/player";
 import { t } from "../i18n";
 import { itemDef } from "../items/catalog";
 import { displayName, isEquipped } from "../items/inventory";
+import { wrap } from "./util";
 
 type Choice = { label: string; run: () => void };
 
@@ -188,9 +189,4 @@ export class InventoryMenu {
     hint.textContent = t("menu.hint");
     this.root.appendChild(hint);
   }
-}
-
-function wrap(value: number, length: number): number {
-  if (length <= 0) return 0;
-  return ((value % length) + length) % length;
 }

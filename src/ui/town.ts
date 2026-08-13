@@ -49,6 +49,7 @@ import {
   visibleVillageNpcs,
   type VillageNpcId,
 } from "../entities/village";
+import { wrap } from "./util";
 
 /** ダンジョンに持ち込める数。全部持って行けたら倉庫に預ける意味がない */
 export const CARRY_LIMIT = 8;
@@ -2426,11 +2427,6 @@ export class TownScreen {
     wrapper.appendChild(list);
     return wrapper;
   }
-}
-
-function wrap(value: number, length: number): number {
-  if (length <= 0) return 0;
-  return ((value % length) + length) % length;
 }
 
 /** ねむり小屋の一覧表示用の名前。src/entities/naming.ts の displayActorName と同じ考え方 */
