@@ -1791,9 +1791,70 @@ def houshitobi_animations():
 
 
 
+# =========================================================================== こだまうさぎ
+
+KODAMAUSAGI_JOINTS = {
+    "base": (0.0, 0.0, 0.075),
+    "mid": (0.0, 0.008, 0.175),
+    "top": (0.0, 0.012, 0.260)
+}
+KODAMAUSAGI_RADII = {"base": 0.195, "mid": 0.165, "top": 0.082}
+KODAMAUSAGI_BONES = [("base", "mid"), ("mid", "top")]
+
+
+def build_kodamausagi():
+    """
+    繰り返す木霊。群れで現れる(swarm AI)ため、単体は簡略化した小さな
+    シルエットにする。ぷるんと同じ縦2本の骨組みをそのまま流用し、
+    丸く詰まった体に耳だけを足して、一目でぷるんと見分けられる形にする。
+    配色は第六地方(こだまの尾根)の岩肌の灰色と乾いた土色。
+    """
+    body = C.build_skinned("kodamausagi", KODAMAUSAGI_JOINTS, KODAMAUSAGI_BONES,
+                           KODAMAUSAGI_RADII, root="base", subsurf=2)
+    # 底を平らに均して、床に乗っている感じを出す(ぷるんと同じ処理)
+    for vert in body.data.vertices:
+        if vert.co.z < 0.02:
+            vert.co.z = 0.02 - (0.02 - vert.co.z) * 0.25
+
+    rock = C.make_material("kodamausagi_rock", (0.52, 0.50, 0.47), roughness=0.75)
+    earth = C.make_material("kodamausagi_earth", (0.62, 0.50, 0.36), roughness=0.7)
+    C.assign_materials_by_region(body, [rock, earth], lambda c: 1 if c.z > 0.19 else 0)
+
+    extras = []
+    for side in (-1.0, 1.0):
+        extras += eyeball(f"kodamausagi_eye{side}", (0.058 * side, -0.145, 0.220), 0.034,
+                          look=(0.2 * side, -1.0, 0.05))
+    mouth = C.uv_sphere("kodamausagi_mouth", (0.0, -0.168, 0.148), 0.028,
+                        segments=14, rings=10, scale=(1.3, 0.5, 0.55))
+    C.assign_material(mouth, C.make_material("kodamausagi_mouth_m", (0.30, 0.22, 0.17), roughness=0.3))
+    extras.append(mouth)
+
+    # 耳。cone()はZ軸沿いにしか作れないので回転はかけず、根元(半径大)を
+    # 頭の高さに置いて真上へ伸ばすだけにする(honegaramiの歯・
+    # ashiatodoriの爪と同じ、回転を使わない貼り付け方)。細く長く、
+    # 根元を寄せて、群れの中でも「うさぎ」と分かるシルエットにする
+    ear_mat = C.make_material("kodamausagi_ear", (0.66, 0.54, 0.40), roughness=0.68)
+    for side in (-1.0, 1.0):
+        ear = C.cone(f"kodamausagi_ear{side}", (0.036 * side, 0.014, 0.275),
+                     0.026, 0.004, 0.205, segments=10)
+        C.assign_material(ear, ear_mat)
+        extras.append(ear)
+
+    mesh = C.join([body] + extras, "kodamausagi")
+    armature = C.build_armature("kodamausagi", C.mirrored(KODAMAUSAGI_JOINTS),
+                                KODAMAUSAGI_BONES, mesh, root="base")
+    return [mesh, armature], armature
+
+
+def kodamausagi_animations():
+    """既存5クリップの構成をそのまま流用する(骨の名前がぷるんと同じため、そのまま使える)。"""
+    return purun_animations()
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
+    "kodamausagi": (build_kodamausagi, kodamausagi_animations),
     "akubitokage": (build_akubitokage, akubitokage_animations),
     "gajiri": (build_gajiri, gajiri_animations),
     "mabutamushi": (build_mabutamushi, mabutamushi_animations),

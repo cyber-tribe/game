@@ -568,7 +568,7 @@ export const SPECIES: readonly Species[] = [
   {
     id: "kodamausagi",
     name: "こだまうさぎ",
-    model: "purun",
+    model: "kodamausagi",
     maxHp: 22,
     atk: 18,
     def: 8,
