@@ -111,7 +111,7 @@ export function gainExp(
     player.level++;
     levelsGained++;
     player.maxHp += 6;
-    player.hp += 6;
+    player.hp = player.maxHp;
     if (focus === "offense") {
       player.atk += 3;
     } else if (focus === "defense") {
