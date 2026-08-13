@@ -597,9 +597,10 @@ export const SPECIES: readonly Species[] = [
     inflicts: { kind: "confuse", chance: 0.25, turns: 3 },
   },
   {
+    // 飾られたまま忘れられた縁起物。専用モデル(plan/models/archive/model-kazaridaruma.md)
     id: "kazaridaruma",
     name: "かざりだるま",
-    model: "honegarami",
+    model: "kazaridaruma",
     maxHp: 80,
     atk: 24,
     def: 26,
