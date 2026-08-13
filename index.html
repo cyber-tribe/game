@@ -38,7 +38,16 @@
         font-family: "Hiragino Sans", "Noto Sans JP", "Yu Gothic", system-ui, sans-serif;
         -webkit-font-smoothing: antialiased;
       }
-      #app { position: relative; width: 100vw; height: 100vh; }
+      /*
+       * モバイルSafari対応。100vhはアドレスバー/タブバーが畳まれた状態の
+       * 「最大」の高さを指すため、実際にそれらが表示されている(ページ読込
+       * 直後・タブ切替直後 等)あいだは#appが実際の可視領域より大きくなり、
+       * 下部に置いている仮想パッド・アクションボタン群が画面外(可視領域の
+       * 外)へはみ出して操作できなくなる。動的ビューポート単位(dvh、実際に
+       * 見えている高さに追従する)を使い、対応していない古いブラウザ向けに
+       * 100vhを先に書いてフォールバックにする
+       */
+      #app { position: relative; width: 100vw; height: 100vh; height: 100dvh; }
       #scene { display: block; width: 100%; height: 100%; }
 
       #ui { position: absolute; inset: 0; pointer-events: none; }
