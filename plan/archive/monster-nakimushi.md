@@ -1,3 +1,14 @@
+> **実装済み(コード変更なし)。** `src/entities/species.ts`の`id:
+> "nakimushi"`エントリを確認し、本文書のデータ表(AI/maxHp/atk/def/exp/
+> weight/出現階/swarmSize)がすべて一致することを検証した。差分なし。
+> なお由来文にある「仲間が倒されるたびに残ったものの声が大きくなる」
+> (群れ内連携でのatk上昇)は実装されておらず、素の`swarm`挙動のみ
+> (`species.ts`のコード注記にも明記されている)。ただしこれは新たな
+> 不一致ではなく、`plan/archive/monster-roster-expansion-species.md`側の
+> アーカイブノートで「群れ内連携は実装しなかった」と既に検討済み・
+> 記録済みの簡略化のため、本文書では追加の指摘はしない。本文書自体は
+> コードを伴わない記録用の文書のため、追加の実装は行わない。
+
 # なきむし(nakimushi)のモンスター実装
 
 `src/entities/species.ts`にすでに実装済みの内容を、正式なplanとして
