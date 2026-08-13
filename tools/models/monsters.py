@@ -5015,6 +5015,128 @@ def namidaguma_animations():
     ]
 
 
+# ======================================================================= ねむりモグラ
+
+NEMURIMOGURA_HALF = {
+    "hip": (0.0, 0.13, 0.19),
+    "chest": (0.0, -0.01, 0.20),
+    "neck": (0.0, -0.11, 0.185),
+    "snout": (0.0, -0.24, 0.14),
+    "tail1": (0.0, 0.175, 0.155),
+    "tail2": (0.0, 0.195, 0.15),
+    "tail3": (0.0, 0.21, 0.145),
+    "ear.L": (0.058, -0.115, 0.225),
+    "hipF.L": (0.105, -0.045, 0.125),
+    "footF.L": (0.135, -0.075, 0.03),
+    "hipB.L": (0.10, 0.115, 0.135),
+    "footB.L": (0.10, 0.145, 0.02),
+}
+NEMURIMOGURA_RADII_HALF = {
+    "hip": 0.155, "chest": 0.165, "neck": 0.125, "snout": 0.052,
+    "tail1": 0.038, "tail2": 0.032, "tail3": 0.024,
+    "ear.L": 0.030,
+    "hipF.L": 0.058, "footF.L": 0.066,
+    "hipB.L": 0.048, "footB.L": 0.034,
+}
+NEMURIMOGURA_BONES_HALF = [
+    ("chest", "hip"), ("chest", "neck"), ("neck", "snout"),
+    ("hip", "tail1"), ("tail1", "tail2"), ("tail2", "tail3"),
+    ("neck", "ear.L"),
+    ("chest", "hipF.L"), ("hipF.L", "footF.L"),
+    ("hip", "hipB.L"), ("hipB.L", "footB.L"),
+]
+
+
+def build_nemurimogura():
+    """
+    攻撃に眠りが確定でまとわりつくようになったモグラ。gajiriと同じ
+    関節構成をベースに、体を丸く縮め、耳を小さく、尻尾を短く埋もれさせ、
+    掘削に適した大きな前足に作り替える。オオマドロミの力を宿す証として、
+    背に淡い胞子色の斑点を散らし、常に半分閉じた眠たげな目にする。
+    配色は第三地方(まどろみの茸林)の、湿った土色と胞子の淡い黄土色。
+    """
+    joints = C.mirrored(NEMURIMOGURA_HALF)
+    radii = C.mirrored_radii(NEMURIMOGURA_RADII_HALF)
+    bones = C.mirrored_bones(NEMURIMOGURA_BONES_HALF)
+
+    body = C.build_skinned("nemurimogura", joints, bones, radii, root="chest", subsurf=2)
+    soil = C.make_material("nemurimogura_soil", (0.28, 0.22, 0.16), roughness=0.8)
+    belly = C.make_material("nemurimogura_belly", (0.40, 0.34, 0.24), roughness=0.75)
+    ear_in = C.make_material("nemurimogura_ear", (0.62, 0.46, 0.42), roughness=0.75)
+
+    # 耳だけを内側の色にする。gajiriと同じく、高さで切ると背中まで
+    # 巻き込むので耳の関節からの距離で判定する
+    ears = [Vector(joints["ear.L"]), Vector(joints["ear.R"])]
+    C.assign_materials_by_region(
+        body, [soil, belly, ear_in],
+        lambda c: 2 if min((c - e).length for e in ears) < 0.045
+        else (1 if c.z < 0.135 else 0),
+    )
+
+    extras = []
+    spore = C.make_material("nemurimogura_spore", (0.78, 0.70, 0.42), roughness=0.6)
+    for i, (x, y, z, r) in enumerate([
+        (0.06, -0.02, 0.245, 0.028), (-0.07, 0.05, 0.235, 0.024),
+        (0.03, 0.16, 0.225, 0.022), (-0.04, 0.24, 0.205, 0.020),
+    ]):
+        spot = C.uv_sphere(f"nemurimogura_spore{i}", (x, y, z), r,
+                           segments=10, rings=8, scale=(1.0, 1.0, 0.4))
+        C.assign_material(spot, spore)
+        extras.append(spot)
+    for side in (-1.0, 1.0):
+        # 常に半分閉じた眠たげな目
+        eye = C.uv_sphere(f"nemurimogura_eye{side}", (0.058 * side, -0.185, 0.175), 0.024,
+                          segments=14, rings=10, scale=(1.0, 0.55, 0.35))
+        C.assign_material(eye, C.make_material(f"nemurimogura_eye{side}_m", EYE_DARK, roughness=0.3))
+        extras.append(eye)
+    nose = C.uv_sphere("nemurimogura_nose", (0.0, -0.275, 0.135), 0.024,
+                       segments=12, rings=8, scale=(1.0, 0.7, 0.7))
+    C.assign_material(nose, C.make_material("nemurimogura_nose_m", (0.72, 0.52, 0.52), roughness=0.4))
+    extras.append(nose)
+
+    mesh = C.join([body] + extras, "nemurimogura")
+    armature = C.build_armature("nemurimogura", joints, bones, mesh, root="chest")
+    return [mesh, armature], armature
+
+
+def nemurimogura_animations():
+    neck = "chest-neck"
+    hipF_L, hipF_R = "chest-hipF.L", "chest-hipF.R"
+    hipB_L, hipB_R = "hip-hipB.L", "hip-hipB.R"
+    return [
+        # 眠たげに、ゆっくりと体を揺らす
+        ("idle", [
+            (1, {neck: (0, 0, 0)}),
+            (36, {neck: (3, 0, 2)}),
+            (72, {neck: (0, 0, 0)}),
+        ]),
+        # 土を掻くように、前足を大きく使って進む
+        ("walk", [
+            (1, {hipF_L: (16, 0, 0), hipF_R: (-16, 0, 0), hipB_L: (-14, 0, 0), hipB_R: (14, 0, 0)}),
+            (8, {hipF_L: (-16, 0, 0), hipF_R: (16, 0, 0), hipB_L: (14, 0, 0), hipB_R: (-14, 0, 0)}),
+            (16, {hipF_L: (16, 0, 0), hipF_R: (-16, 0, 0), hipB_L: (-14, 0, 0), hipB_R: (14, 0, 0)}),
+        ]),
+        # 前足を大きく掻き出し、眠りをまとわりつかせる
+        ("attack", [
+            (1, {neck: (0, 0, 0), hipF_L: (0, 0, 0), hipF_R: (0, 0, 0)}),
+            (5, {neck: (-10, 0, 0), hipF_L: (-24, 0, 14), hipF_R: (-24, 0, -14)}),
+            (10, {neck: (14, 0, 0), hipF_L: (28, 0, -10), hipF_R: (28, 0, 10)}),
+            (18, {neck: (0, 0, 0), hipF_L: (0, 0, 0), hipF_R: (0, 0, 0)}),
+        ]),
+        ("hit", [
+            (1, {neck: (0, 0, 0)}),
+            (4, {neck: (14, 0, 0), hipF_L: (-10, 0, 8), hipF_R: (-10, 0, -8)}),
+            (14, {neck: (0, 0, 0), hipF_L: (0, 0, 0), hipF_R: (0, 0, 0)}),
+        ]),
+        # 眠りに沈むように、体を丸めて消える
+        ("die", [
+            (1, {neck: (0, 0, 0)}),
+            (10, {neck: (10, 0, 0), hipF_L: (16, 0, 0), hipF_R: (16, 0, 0)}),
+            (24, {neck: (24, 0, 0), hipF_L: (36, 0, 0), hipF_R: (36, 0, 0)}),
+        ]),
+    ]
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -5058,6 +5180,7 @@ MONSTERS = {
     "mizukagami": (build_mizukagami, mizukagami_animations),
     "nakimushi": (build_nakimushi, nakimushi_animations),
     "namidaguma": (build_namidaguma, namidaguma_animations),
+    "nemurimogura": (build_nemurimogura, nemurimogura_animations),
 }
 
 
