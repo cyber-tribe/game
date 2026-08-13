@@ -1851,6 +1851,144 @@ def kodamausagi_animations():
     return purun_animations()
 
 
+# =================================================================== ねぼすけがえる
+
+# ツブテガエルの遠い親戚(design/characters.md)。「元にする骨格: 現在流用している
+# tsubuteと同じ関節構成をベースに」という計画書の指示どおり、TSUBUTE_HALFと
+# 同じ関節の"種類"(hip/chest/head/armF/handF/kneeB/ankleB/footB)を踏襲しつつ、
+# より深く眠る・小柄で華奢な個体として座標だけをゼロから設計し直す。
+# 石を投げるツブテガエルと違い、ねぼすけがえるは何も持たない
+# (起こされると跳ねて反撃するだけで、遠隔攻撃はしない)。
+#
+# 最初の試作では位置・太さの両方を単純に約0.7〜0.85倍に縮小したところ、
+# プレビューで四肢がほぼ判別できない一塊の団子になってしまった
+# (デバッグ用に関節ごとに色分けして描画すると、四肢のジオメトリ自体は
+# 存在するが、体格を縮めたことで既定の光源セットに対して相対的に大きく
+# 平坦なライティングになり、微妙な凹凸が潰れて見えることが分かった)。
+# maxHp22はtsubute(14)より高いという計画書の指示("ステータスに見合う
+# 大きさに調整する")とも整合するよう、全体サイズはtsubuteとほぼ同等
+# (関節位置は1.08倍)にしたまま、太さだけを細く(半径0.82倍)して、
+# 華奢さは「小さくする」のではなく「四肢を細く長く見せる」ことで表現する。
+# これにより関節が親の半径をはっきり超えて突き出すようになった。
+NEBOSUKE_HALF = {
+    "hip": (0.0, 0.108, 0.184),
+    "chest": (0.0, -0.054, 0.205),
+    "head": (0.0, -0.216, 0.194),
+    "armF.L": (0.151, -0.151, 0.097),
+    "handF.L": (0.173, -0.216, 0.022),
+    "kneeB.L": (0.205, 0.108, 0.205),
+    "ankleB.L": (0.184, -0.043, 0.065),
+    "footB.L": (0.173, -0.151, 0.024),
+}
+NEBOSUKE_RADII_HALF = {
+    "hip": 0.1353, "chest": 0.1435, "head": 0.1189,
+    "armF.L": 0.0312, "handF.L": 0.0344,
+    "kneeB.L": 0.0615, "ankleB.L": 0.0410, "footB.L": 0.0369,
+}
+NEBOSUKE_BONES_HALF = [
+    ("chest", "hip"), ("chest", "head"),
+    ("chest", "armF.L"), ("armF.L", "handF.L"),
+    ("hip", "kneeB.L"), ("kneeB.L", "ankleB.L"), ("ankleB.L", "footB.L"),
+]
+
+
+def build_nebosukegaeru():
+    """
+    ツブテガエルの遠い親戚だが、ずんぐりしたtsubuteよりひと回り小さく
+    華奢な体つき。まぶたが重く垂れた眠たげな目が、ふだんは動かず眠って
+    いる生態を表す。第3地方(まどろみの茸林)のテーマに合わせ、湿った
+    土色の背と、胞子を思わせる淡い黄土色の腹の2トーンに塗り分ける。
+    """
+    joints = C.mirrored(NEBOSUKE_HALF)
+    radii = C.mirrored_radii(NEBOSUKE_RADII_HALF)
+    bones = C.mirrored_bones(NEBOSUKE_BONES_HALF)
+
+    body = C.build_skinned("nebosukegaeru", joints, bones, radii, root="chest", subsurf=2)
+    soil = C.make_material("nebosuke_soil", (0.30, 0.22, 0.15), roughness=0.85)
+    spore = C.make_material("nebosuke_spore", (0.80, 0.70, 0.44), roughness=0.6)
+    # tsubuteと同じく、真下を向いた面だけを腹色にする(高さだけで切ると
+    # 横腹に水平の不自然な線が入るため)
+    C.assign_materials_by_region(
+        body, [soil, spore],
+        lambda c: 1 if (c.z < 0.115 and abs(c.x) < 0.15) else 0,
+    )
+    counts = [0, 0]
+    for poly in body.data.polygons:
+        counts[poly.material_index] += 1
+    total = sum(counts)
+    print(f"nebosukegaeru: 土色{counts[0]} 胞子色{counts[1]} / 計{total} "
+          f"({[f'{c / total:.1%}' for c in counts]})")
+
+    extras = []
+    for side in (-1.0, 1.0):
+        # まぶたが重く垂れた眠たげな目
+        extras += eyeball(f"nebosuke_eye{side}", (0.095 * side, -0.232, 0.300), 0.051,
+                          look=(0.2 * side, -0.85, -0.1), squash=0.42,
+                          white=(0.88, 0.86, 0.76), dark=(0.10, 0.08, 0.06))
+        # まぶた自体を、目の上半分に被せる土色の薄いドームとして追加する。
+        # squashだけでは離れて見ると眠たげさが伝わりにくいため、tsubuteの
+        # 大きく見開いた目との違いをはっきりさせる
+        lid = C.uv_sphere(f"nebosuke_lid{side}", (0.095 * side, -0.225, 0.316), 0.052,
+                          segments=14, rings=10, scale=(1.0, 0.85, 0.55))
+        C.assign_material(lid, soil)
+        extras.append(lid)
+    mouth = C.box("nebosuke_mouth", (0.0, -0.324, 0.157), (0.168, 0.040, 0.018), bevel=0.008)
+    C.assign_material(mouth, C.make_material("nebosuke_mouth_m", (0.18, 0.24, 0.14), roughness=0.5))
+    extras.append(mouth)
+
+    mesh = C.join([body] + extras, "nebosukegaeru")
+    armature = C.build_armature("nebosukegaeru", joints, bones, mesh, root="chest")
+    return [mesh, armature], armature
+
+
+def nebosukegaeru_animations():
+    head = "chest-head"
+    armL, armR = "chest-armF.L", "chest-armF.R"
+    legL, legR = "hip-kneeB.L", "hip-kneeB.R"
+    return [
+        # ふだんは動かず深く眠っている。tsubuteの活発な首振りと違い、
+        # ごく僅かな寝息だけのほとんど静止したモーションにする
+        ("idle", [
+            (1, {head: (2, 0, 0)}),
+            (48, {head: (5, 0, 0)}),
+            (96, {head: (2, 0, 0)}),
+        ]),
+        # 眠ったまま、それでも逃げ足の速さを感じさせる小刻みな跳びはね
+        ("walk", [
+            (1, {legL: (0, 0, 0), legR: (0, 0, 0), head: (0, 0, 0)}),
+            (4, {legL: (40, 0, 0), legR: (40, 0, 0), head: (14, 0, 0)}),
+            (8, {legL: (-30, 0, 0), legR: (-30, 0, 0), head: (-14, 0, 0),
+                 armL: (-24, 0, 0), armR: (-24, 0, 0)}),
+            (13, {legL: (0, 0, 0), legR: (0, 0, 0), head: (0, 0, 0)}),
+        ]),
+        # 起こされて跳ねて反撃する。石は投げず、深くしゃがんでから
+        # 全身で相手に飛びかかる大きな一跳ね
+        ("attack", [
+            (1, {legL: (0, 0, 0), legR: (0, 0, 0), head: (0, 0, 0),
+                 armL: (0, 0, 0), armR: (0, 0, 0)}),
+            (4, {legL: (52, 0, 0), legR: (52, 0, 0), head: (18, 0, 0),
+                 armL: (30, 0, 0), armR: (30, 0, 0)}),
+            (8, {legL: (-64, 0, 0), legR: (-64, 0, 0), head: (-26, 0, 0),
+                 armL: (-58, 0, 0), armR: (-58, 0, 0)}),
+            (14, {legL: (10, 0, 0), legR: (10, 0, 0), head: (6, 0, 0),
+                  armL: (-10, 0, 0), armR: (-10, 0, 0)}),
+            (20, {legL: (0, 0, 0), legR: (0, 0, 0), head: (0, 0, 0),
+                  armL: (0, 0, 0), armR: (0, 0, 0)}),
+        ]),
+        ("hit", [
+            (1, {head: (0, 0, 0)}),
+            (4, {head: (20, 0, 0), armL: (-24, 0, 18), armR: (-24, 0, -18)}),
+            (14, {head: (0, 0, 0)}),
+        ]),
+        ("die", [
+            (1, {head: (0, 0, 0)}),
+            (10, {head: (24, 0, 0), legL: (-36, 0, 0), legR: (-36, 0, 0)}),
+            (24, {head: (36, 0, 0), legL: (-72, 0, 0), legR: (-72, 0, 0),
+                  armL: (-64, 0, 26), armR: (-64, 0, -26)}),
+        ]),
+    ]
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -1867,6 +2005,7 @@ MONSTERS = {
     "wasuremizuchi": (build_wasuremizuchi, wasuremizuchi_animations),
     "kinokootoko": (build_kinokootoko, kinokootoko_animations),
     "houshitobi": (build_houshitobi, houshitobi_animations),
+    "nebosukegaeru": (build_nebosukegaeru, nebosukegaeru_animations),
 }
 
 
