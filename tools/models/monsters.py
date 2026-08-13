@@ -3557,6 +3557,66 @@ def kageboushi_animations():
     ]
 
 
+# =================================================================== ちょうちんおくり
+
+CHOUCHINOKURI_JOINTS = {
+    "base": (0.0, 0.0, 0.065),
+    "mid": (0.0, 0.0, 0.185),
+    "top": (0.0, 0.0, 0.305),
+}
+CHOUCHINOKURI_RADII = {"base": 0.115, "mid": 0.200, "top": 0.095}
+CHOUCHINOKURI_BONES = [("base", "mid"), ("mid", "top")]
+
+
+def build_chouchinokuri():
+    """
+    消えかけた祭りの灯り。purunと同じ縦2本の骨組みをそのまま流用するが、
+    半径を両端で絞り中央で膨らませ、提灯らしい俵形のシルエットにする。
+    群れ配置(swarm AI)に合わせ、単体は簡略化した小さなシルエットに
+    とどめる。配色は第七地方(わすれられた祭りの跡)の、くすんだ紅色に
+    金色の上下の口輪、内側からにじむ橙色の灯り。
+    """
+    body = C.build_skinned("chouchinokuri", CHOUCHINOKURI_JOINTS, CHOUCHINOKURI_BONES,
+                           CHOUCHINOKURI_RADII, root="base", subsurf=2)
+    paper = C.make_material("chouchinokuri_paper", (0.56, 0.22, 0.20), roughness=0.55)
+    # 提灯の骨(縦の張り骨)を、正面から見た角度で細い縞に塗り分ける
+    glow_strip = C.make_material("chouchinokuri_strip", (0.80, 0.42, 0.20), roughness=0.4,
+                                 emission=0.6)
+
+    def classify(c):
+        angle = math.atan2(c.x, -c.y)
+        return 1 if (math.sin(angle * 6.0) > 0.72) else 0
+
+    C.assign_materials_by_region(body, [paper, glow_strip], classify)
+
+    extras = []
+    gold = C.make_material("chouchinokuri_gold", (0.70, 0.56, 0.28), roughness=0.35, metallic=0.3)
+    for cz in (0.075, 0.300):
+        ring = C.uv_sphere(f"chouchinokuri_ring{cz}", (0.0, 0.0, cz), 0.070,
+                           segments=18, rings=8, scale=(1.0, 1.0, 0.35))
+        C.assign_material(ring, gold)
+        extras.append(ring)
+    ember = C.uv_sphere("chouchinokuri_ember", (0.0, 0.0, 0.185), 0.080,
+                        segments=16, rings=12)
+    C.assign_material(ember, C.make_material("chouchinokuri_ember_m", (0.95, 0.62, 0.24),
+                                             roughness=0.3, emission=1.6))
+    extras.append(ember)
+    for side in (-1.0, 1.0):
+        extras += eyeball(f"chouchinokuri_eye{side}", (0.075 * side, -0.185, 0.205), 0.032,
+                          look=(0.15 * side, -1.0, 0.0),
+                          white=(0.85, 0.72, 0.55), dark=(0.12, 0.07, 0.05))
+
+    mesh = C.join([body] + extras, "chouchinokuri")
+    armature = C.build_armature("chouchinokuri", C.mirrored(CHOUCHINOKURI_JOINTS),
+                                CHOUCHINOKURI_BONES, mesh, root="base")
+    return [mesh, armature], armature
+
+
+def chouchinokuri_animations():
+    """既存5クリップの構成をそのまま流用する(骨の名前がぷるんと同じため、そのまま使える)。"""
+    return purun_animations()
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -3586,6 +3646,7 @@ MONSTERS = {
     "honedatami": (build_honedatami, honedatami_animations),
     "kazaridaruma": (build_kazaridaruma, kazaridaruma_animations),
     "kageboushi": (build_kageboushi, kageboushi_animations),
+    "chouchinokuri": (build_chouchinokuri, chouchinokuri_animations),
 }
 
 

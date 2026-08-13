@@ -1030,10 +1030,10 @@ export const SPECIES: readonly Species[] = [
     weight: 3,
   },
   {
-    // 消えかけた祭りの灯り。purunモデルを流用する
+    // 消えかけた祭りの灯り。専用モデル(plan/models/archive/model-chouchinokuri.md)
     id: "chouchinokuri",
     name: "ちょうちんおくり",
-    model: "purun",
+    model: "chouchinokuri",
     // 「倒すと周囲が一瞬照らされ視界が広がる」は視界演出フックが必要になるため
     // 実装せず、swarmとしての基本挙動のみとした(アーカイブ注記参照)
     maxHp: 18,
