@@ -1,3 +1,15 @@
+> **実装済み。** `src/entities/player.ts`の`gainExp`のレベルアップ判定
+> ループ内、`player.hp += 6`を`player.hp = player.maxHp`に置き換えた
+> (計画書どおり、`player.maxHp += 6`を先に適用した直後に代入するため、
+> 複数レベル同時に上がる場合も各回でそのつどmaxHpまで回復し、最終的に
+> 最新のmaxHpまで全回復される)。既存の`tests/protagonist-training.test.ts`・
+> `tests/game.test.ts`はHPを直接検証していなかったため無改修のまま通過。
+> 新規`tests/levelup-full-heal.test.ts`(3件)で、HPが減っている状態からの
+> 全回復・複数レベル同時上昇時の全回復・レベルが上がらない場合はHPが
+> 変化しないことを検証した。
+>
+> `npx tsc --noEmit` / `npx vitest run`(1132件)/ `npm run build`いずれもgreen。
+
 # レベルアップ時にHPを全回復する
 
 ## 現状
