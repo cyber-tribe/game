@@ -1,3 +1,9 @@
+> **実装済み(コード変更なし)。** `src/entities/species.ts`の`id:
+> "kaerukodama"`エントリを確認し、本文書のデータ表(AI/maxHp/atk/def/exp/
+> weight/備考)がすべて一致することを検証した(反撃20%は
+> `counterDamageRatio: 0.2`に対応)。差分なし。本文書はコードを伴わない
+> 記録用の文書のため、追加の実装は行わない。
+
 # かえるこだま(kaerukodama)のモンスター実装
 
 `src/entities/species.ts`にすでに実装済みの内容を、正式なplanとして
