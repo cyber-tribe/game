@@ -13,6 +13,7 @@ import v10 from "./fixtures/save/v10-true-awakening.json";
 import v11 from "./fixtures/save/v11-audio-playback.json";
 import v12 from "./fixtures/save/v12-settings-screen.json";
 import v13 from "./fixtures/save/v13-tarukurabe-minigame.json";
+import v14 from "./fixtures/save/v14-i18n-foundation.json";
 import { withMockedLocalStorage } from "./helpers/localStorage";
 
 /**
@@ -329,6 +330,25 @@ describe("save-compat: v13-tarukurabe-minigame(樽比べ導入後、現行の全
       expect(loaded.tarukurabeBestScore).toBe(v13.tarukurabeBestScore);
       expect(loaded.messageSpeed).toBe(v13.messageSpeed);
       expect(loaded.achievements.tarukurabePerfect).toBe(v13.achievements.tarukurabePerfect);
+    });
+  });
+
+  it("多言語対応の土台(plan/i18n-foundation.md)以前のセーブは、localeが既定値で補われる", () => {
+    withMockedLocalStorage(v13, () => {
+      const loaded = loadSave();
+      expect(loaded.locale).toBe(DEFAULTS.locale);
+    });
+  });
+});
+
+describe("save-compat: v14-i18n-foundation(多言語対応の土台導入後、現行の全フィールド)", () => {
+  it("すべてのフィールドが保持される", () => {
+    withMockedLocalStorage(v14, () => {
+      const loaded = loadSave();
+      expect(loaded.locale).toBe(v14.locale);
+      expect(loaded.tarukurabeBestScore).toBe(v14.tarukurabeBestScore);
+      expect(loaded.messageSpeed).toBe(v14.messageSpeed);
+      expect(loaded.achievements.tarukurabePerfect).toBe(v14.achievements.tarukurabePerfect);
     });
   });
 });

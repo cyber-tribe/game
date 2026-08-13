@@ -1,5 +1,6 @@
 import type { Command } from "../game";
 import type { PlayerState } from "../entities/player";
+import { t } from "../i18n";
 import { itemDef } from "../items/catalog";
 import { displayName, isEquipped } from "../items/inventory";
 
@@ -114,18 +115,18 @@ export class InventoryMenu {
       def.category === "charm"
     ) {
       choices.push({
-        label: isEquipped(player.inventory, item.uid) ? "はずす" : "そうびする",
+        label: isEquipped(player.inventory, item.uid) ? t("menu.unequip") : t("menu.equip"),
         run: () => emit({ type: "equip", uid: item.uid }),
       });
     } else if (def.category !== "material") {
       // 素材(ほこら粉・刻印石)はゲンドの工房専用で、ダンジョン内で「つかう」ことはできない
       choices.push({
-        label: def.category === "food" ? "たべる" : def.category === "staff" ? "ふる" : "つかう",
+        label: def.category === "food" ? t("menu.eat") : def.category === "staff" ? t("menu.wave") : t("menu.use"),
         run: () => emit({ type: "use", uid: item.uid }),
       });
     }
-    choices.push({ label: "なげる", run: () => emit({ type: "throw", uid: item.uid }) });
-    choices.push({ label: "おく", run: () => emit({ type: "drop", uid: item.uid }) });
+    choices.push({ label: t("menu.throw"), run: () => emit({ type: "throw", uid: item.uid }) });
+    choices.push({ label: t("menu.drop"), run: () => emit({ type: "drop", uid: item.uid }) });
     return choices;
   }
 
@@ -138,13 +139,13 @@ export class InventoryMenu {
 
     const title = document.createElement("h3");
     title.className = "menu-title";
-    title.textContent = `もちもの  ${items.length} / ${player.inventory.maxSize}`;
+    title.textContent = t("ui.menu.inventory", { count: items.length, max: player.inventory.maxSize });
     this.root.appendChild(title);
 
     if (items.length === 0) {
       const empty = document.createElement("div");
       empty.className = "menu-empty";
-      empty.textContent = "何も持っていない。";
+      empty.textContent = t("menu.empty");
       this.root.appendChild(empty);
     }
 
@@ -184,7 +185,7 @@ export class InventoryMenu {
 
     const hint = document.createElement("div");
     hint.className = "menu-hint";
-    hint.textContent = "↑↓ 選ぶ / Enter 決定 / Esc もどる";
+    hint.textContent = t("menu.hint");
     this.root.appendChild(hint);
   }
 }

@@ -2,6 +2,7 @@ import * as THREE from "three";
 import type { DamageFx } from "./stage";
 import { displayActorName } from "../entities/naming";
 import { MAX_SATIETY, type PlayerState, expToNext } from "../entities/player";
+import { t } from "../i18n";
 import {
   ALLY_STANCE_NAMES,
   BARREL_NAMES,
@@ -65,11 +66,14 @@ export class Hud {
     this.logEl = must(root, "#log");
     this.fxLayer = must(root, "#fx");
     this.overlayEl = must(root, "#overlay");
+    // 多言語対応の土台(plan/i18n-foundation.md): HTML側に直書きしていた見出しをt()で差し替える
+    must(root, "#hud-hp-label").textContent = t("ui.hud.hp");
+    must(root, "#hud-satiety-label").textContent = t("ui.hud.satiety");
   }
 
   update(player: PlayerState, depth: number, allies: readonly Actor[] = []): void {
-    this.depthEl.textContent = `地下 ${depth} 階`;
-    this.levelEl.textContent = `Lv ${player.level}`;
+    this.depthEl.textContent = t("hud.depth", { depth });
+    this.levelEl.textContent = t("hud.level", { level: player.level });
 
     const hpRatio = Math.max(0, player.hp) / player.maxHp;
     this.hpTextEl.textContent = `${Math.max(0, player.hp)} / ${player.maxHp}`;
@@ -83,7 +87,7 @@ export class Hud {
       satietyRatio <= 0 ? "danger" : satietyRatio < 0.2 ? "warn" : "ok";
 
     const next = expToNext(player);
-    this.expEl.textContent = next === null ? "経験値 最大" : `次のLvまで ${next}`;
+    this.expEl.textContent = next === null ? t("hud.expMax") : t("hud.expToNext", { next });
 
     const statuses = activeStatusLabels(player);
     this.statusEl.textContent = statuses.join(" / ");
@@ -91,7 +95,7 @@ export class Hud {
 
     // 抱えているタル。何を持っているかで投げた結果がまるで変わるので常に出す
     if (player.carrying) {
-      this.carryEl.textContent = `かかえ中: ${BARREL_NAMES[player.carrying.kind]}`;
+      this.carryEl.textContent = t("hud.carrying", { name: BARREL_NAMES[player.carrying.kind] });
       this.carryEl.dataset.kind = player.carrying.kind;
       this.carryEl.style.display = "block";
     } else {
@@ -111,7 +115,7 @@ export class Hud {
 
     const title = document.createElement("div");
     title.className = "allies-title";
-    title.textContent = "なかま";
+    title.textContent = t("hud.alliesTitle");
     this.alliesEl.appendChild(title);
 
     for (const ally of allies) {
@@ -137,7 +141,7 @@ export class Hud {
 
       const stance = document.createElement("div");
       stance.className = "ally-stance";
-      stance.textContent = `構え: ${ALLY_STANCE_NAMES[ally.stance ?? "free"]}`;
+      stance.textContent = t("hud.stance", { name: ALLY_STANCE_NAMES[ally.stance ?? "free"] });
 
       row.append(name, hp);
       this.alliesEl.append(row, bar, stance);
@@ -219,7 +223,7 @@ export class Hud {
     const box = document.createElement("div");
     box.className = "overlay-box";
     const h = document.createElement("h2");
-    h.textContent = "操作説明";
+    h.textContent = t("hud.keyHelpTitle");
     box.appendChild(h);
     for (const line of lines) {
       const p = document.createElement("p");
@@ -228,7 +232,7 @@ export class Hud {
     }
     const hint = document.createElement("p");
     hint.className = "hint";
-    hint.textContent = "Hでとじる";
+    hint.textContent = t("hud.keyHelpHint");
     box.appendChild(hint);
     this.overlayEl.appendChild(box);
     this.overlayEl.style.display = "flex";
