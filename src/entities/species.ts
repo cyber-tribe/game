@@ -682,31 +682,8 @@ export function speciesForDepth(depth: number): Species[] {
  * 地方ボス(plan/region-bosses.md)。表の寝穴(MAIN_CAVE_ID)で、その階の
  * 地方の最終階(6階目)にだけ専用に配置する種族id。design/regions.mdの
  * 8地方(6階ごと、48階)は`plan/region-expansion.md`で実装済み。
- * 表の寝穴の全8地方ぶん、実装済み
+ * 単一の情報源は entities/regions.ts の REGIONS(adr/0012参照)。
+ * 既存の呼び出し側(このモジュールからimportしているファイル)を
+ * 変更せずに済むよう、ここでは re-export するだけにする
  */
-export const REGION_BOSS_FLOORS: Readonly<Record<number, string>> = {
-  6: "oonebosuke",
-  12: "nushigaeru",
-  18: "oomadoromi",
-  24: "honezukaNoNushi",
-  30: "fuchiNoNushi",
-  36: "kodamaNoNushi",
-  42: "misemonoNoNushi",
-  48: "horikuiNoNushi",
-};
-
-/**
- * 地方ボスを地方の順番どおりに並べたもの(plan/hidden-dungeon.mdの
- * 腕試しの間で使う)。REGION_BOSS_FLOORSの値と同じ集合だが、
- * 表の寝穴の具体的な階数とは切り離した「出現順」だけの一覧にする
- */
-export const REGION_BOSS_ORDER: readonly string[] = [
-  "oonebosuke",
-  "nushigaeru",
-  "oomadoromi",
-  "honezukaNoNushi",
-  "fuchiNoNushi",
-  "kodamaNoNushi",
-  "misemonoNoNushi",
-  "horikuiNoNushi",
-];
+export { REGION_BOSS_FLOORS, REGION_BOSS_ORDER } from "./regions";

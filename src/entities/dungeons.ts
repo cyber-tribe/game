@@ -35,7 +35,7 @@ export interface DungeonDef {
   satietyDrainMul?: number;
 }
 
-import { REGION_BOSS_ORDER } from "./species";
+import { REGION_BOSS_ORDER } from "./regions";
 
 export const MAIN_CAVE_ID = "mainCave";
 /**
