@@ -4902,6 +4902,119 @@ def nakimushi_animations():
     ]
 
 
+# ========================================================================= なみだぐま
+
+NAMIDAGUMA_HALF = {
+    "hip": (0.0, 0.115, 0.195),
+    "chest": (0.0, -0.055, 0.215),
+    "head": (0.0, -0.225, 0.205),
+    "armF.L": (0.155, -0.155, 0.10),
+    "handF.L": (0.175, -0.220, 0.025),
+    "kneeB.L": (0.21, 0.115, 0.21),
+    "ankleB.L": (0.185, -0.045, 0.065),
+    "footB.L": (0.175, -0.155, 0.022),
+}
+NAMIDAGUMA_RADII_HALF = {
+    "hip": 0.185, "chest": 0.195, "head": 0.165,
+    "armF.L": 0.058, "handF.L": 0.062,
+    "kneeB.L": 0.095, "ankleB.L": 0.068, "footB.L": 0.058,
+}
+NAMIDAGUMA_BONES_HALF = [
+    ("chest", "hip"), ("chest", "head"),
+    ("chest", "armF.L"), ("armF.L", "handF.L"),
+    ("hip", "kneeB.L"), ("kneeB.L", "ankleB.L"), ("ankleB.L", "footB.L"),
+]
+
+
+def build_namidaguma():
+    """
+    こらえきれずにこぼれた涙が底力に変わる姿。tsubuteと同じ関節構成を
+    ベースに、四肢を太く張り出させ、正面から迫る力強いがっしりした
+    熊の体格に作り替える。頭に丸い耳と突き出た鼻面を足し、眉間を
+    寄せた険しい表情にする。片頬にだけ、こらえきれず伝った涙の筋を
+    残す。配色は第五地方(なみだの滝つぼ)の、涙と滝つぼを思わせる
+    沈んだ青・藍色系。
+    """
+    joints = C.mirrored(NAMIDAGUMA_HALF)
+    radii = C.mirrored_radii(NAMIDAGUMA_RADII_HALF)
+    bones = C.mirrored_bones(NAMIDAGUMA_BONES_HALF)
+
+    body = C.build_skinned("namidaguma", joints, bones, radii, root="chest", subsurf=2)
+    fur = C.make_material("namidaguma_fur", (0.22, 0.26, 0.38), roughness=0.75)
+    paw = C.make_material("namidaguma_paw", (0.13, 0.16, 0.26), roughness=0.7)
+    C.assign_materials_by_region(body, [fur, paw], lambda c: 1 if c.z < 0.075 else 0)
+
+    extras = []
+    for side in (-1.0, 1.0):
+        # 頭頂の丸い耳
+        ear = C.uv_sphere(f"namidaguma_ear{side}", (0.115 * side, -0.180, 0.315), 0.055,
+                          segments=14, rings=10, scale=(1.0, 0.7, 0.85))
+        C.assign_material(ear, fur)
+        extras.append(ear)
+        # 眉間を寄せた険しい眉
+        brow = C.uv_sphere(f"namidaguma_brow{side}", (0.075 * side, -0.320, 0.255), 0.042,
+                           segments=12, rings=8, scale=(1.0, 0.6, 0.4))
+        C.assign_material(brow, paw)
+        extras.append(brow)
+        extras += eyeball(f"namidaguma_eye{side}", (0.070 * side, -0.325, 0.220), 0.030,
+                          look=(0.2 * side, -1.0, -0.1),
+                          white=(0.70, 0.74, 0.82), dark=(0.10, 0.12, 0.20))
+    # こらえきれず伝った涙の筋(左頬にだけ残す)
+    tear = C.uv_sphere("namidaguma_tear", (-0.062, -0.300, 0.165), 0.020,
+                       segments=10, rings=8, scale=(0.7, 0.7, 1.8))
+    C.assign_material(tear, C.make_material("namidaguma_tear_m", (0.60, 0.70, 0.84), roughness=0.2))
+    extras.append(tear)
+    # 突き出た鼻面
+    snout = C.uv_sphere("namidaguma_snout", (0.0, -0.365, 0.185), 0.052,
+                        segments=14, rings=10, scale=(0.85, 1.1, 0.7))
+    C.assign_material(snout, paw)
+    extras.append(snout)
+    mouth = C.uv_sphere("namidaguma_mouth", (0.0, -0.400, 0.150), 0.028,
+                        segments=12, rings=8, scale=(1.1, 0.6, 0.55))
+    C.assign_material(mouth, C.make_material("namidaguma_mouth_m", (0.08, 0.06, 0.10), roughness=0.4))
+    extras.append(mouth)
+
+    mesh = C.join([body] + extras, "namidaguma")
+    armature = C.build_armature("namidaguma", joints, bones, mesh, root="chest")
+    return [mesh, armature], armature
+
+
+def namidaguma_animations():
+    head = "chest-head"
+    armL, armR = "chest-armF.L", "chest-armF.R"
+    legL, legR = "hip-kneeB.L", "hip-kneeB.R"
+    return [
+        ("idle", [
+            (1, {head: (0, 0, 0)}),
+            (30, {head: (2, 0, 1), armL: (0, 0, 2), armR: (0, 0, -2)}),
+            (60, {head: (0, 0, 0), armL: (0, 0, 0), armR: (0, 0, 0)}),
+        ]),
+        # 重い体を踏みしめるように歩く
+        ("walk", [
+            (1, {legL: (0, 0, 16), legR: (0, 0, -16), armL: (0, 0, -10), armR: (0, 0, 10)}),
+            (9, {legL: (0, 0, -16), legR: (0, 0, 16), armL: (0, 0, 10), armR: (0, 0, -10)}),
+            (18, {legL: (0, 0, 16), legR: (0, 0, -16), armL: (0, 0, -10), armR: (0, 0, 10)}),
+        ]),
+        # 底力を振り絞り、正面から力強く叩きつける
+        ("attack", [
+            (1, {head: (0, 0, 0), armL: (0, 0, 0), armR: (0, 0, 0)}),
+            (5, {head: (-14, 0, 0), armL: (-30, 0, 16), armR: (-30, 0, -16)}),
+            (10, {head: (20, 0, 0), armL: (36, 0, -10), armR: (36, 0, 10)}),
+            (20, {head: (0, 0, 0), armL: (0, 0, 0), armR: (0, 0, 0)}),
+        ]),
+        ("hit", [
+            (1, {head: (0, 0, 0)}),
+            (4, {head: (16, 0, 0), armL: (-12, 0, 10), armR: (-12, 0, -10)}),
+            (14, {head: (0, 0, 0), armL: (0, 0, 0), armR: (0, 0, 0)}),
+        ]),
+        ("die", [
+            (1, {head: (0, 0, 0)}),
+            (10, {head: (0, 0, 10), legL: (0, 0, -20), legR: (0, 0, 20)}),
+            (24, {head: (0, 0, 22), legL: (0, 0, -46), legR: (0, 0, 46)}),
+        ]),
+    ]
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -4944,6 +5057,7 @@ MONSTERS = {
     "shioresakura": (build_shioresakura, shioresakura_animations),
     "mizukagami": (build_mizukagami, mizukagami_animations),
     "nakimushi": (build_nakimushi, nakimushi_animations),
+    "namidaguma": (build_namidaguma, namidaguma_animations),
 }
 
 

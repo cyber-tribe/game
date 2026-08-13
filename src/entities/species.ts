@@ -202,7 +202,8 @@ export const SPECIES: readonly Species[] = [
     // 重ねて育った姿。HPが減るほど攻撃力が上がる
     id: "namidaguma",
     name: "なみだぐま",
-    model: "tsubute",
+    // 専用モデル(plan/models/archive/model-namidaguma.md)
+    model: "namidaguma",
     maxHp: 36,
     atk: 21,
     def: 9,
