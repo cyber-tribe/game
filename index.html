@@ -484,9 +484,10 @@
       .town-col-title {
         margin: 0 0 7px; font-size: 12px; font-weight: 400; color: var(--dim); letter-spacing: 0.08em;
         padding-bottom: 7px; border-bottom: 1px solid var(--edge);
+        cursor: pointer;
       }
       .town-col ul { list-style: none; margin: 0; padding: 0; }
-      .town-col li { padding: 4px 8px; border-radius: 5px; font-size: 13.5px; }
+      .town-col li { padding: 4px 8px; border-radius: 5px; font-size: 13.5px; cursor: pointer; }
       .town-col li.empty { color: #5c6788; font-size: 12px; }
       .town-col li.selected {
         background: rgba(127, 190, 255, 0.20);
@@ -501,6 +502,16 @@
       .town-hint { margin: 10px 0 0; font-size: 11px; color: #6b789e; text-align: right; }
       .town-mood { margin: 4px 0 10px; font-size: 11px; color: #9aa8cc; }
       .town-flavor { margin: 4px 0 0; font-size: 11px; color: #8a94b8; font-style: italic; }
+      /* タッチ操作向け(#308): どの列にいてもSpaceで潜れるのと同じ操作を、
+         キーボードが無くても行えるようにする常時表示のボタン。.town-boxが
+         自前でスクロールするので、position:stickyでその下端に張り付ける */
+      .town-depart-button {
+        position: sticky; bottom: 0; left: 0;
+        display: block; width: 100%; margin-top: 16px;
+        padding: 10px; font-size: 14px; letter-spacing: 0.08em;
+        color: #05060c; background: #7fd6ff; border: none; border-radius: 8px;
+        cursor: pointer;
+      }
 
       /* ------------------------------------------------ 命名(plan/companion-naming.md) */
       #naming {

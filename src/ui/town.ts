@@ -1581,6 +1581,17 @@ export class TownScreen {
     }
     box.appendChild(hint);
 
+    // タッチ操作向け(#308): 「Space もぐる」はどの列にいても効く共通操作だが、
+    // キーボードが無いと押しようが無い。常時表示のボタンとして1つ置いておく
+    // (ダンジョン内の「決定」ボタンは#townの不透明な背景の下に隠れて押せないため、
+    // このTownScreen自身のDOM内に別途用意する)
+    const departButton = document.createElement("button");
+    departButton.type = "button";
+    departButton.className = "town-depart-button";
+    departButton.textContent = "もぐる";
+    departButton.addEventListener("click", () => this.departNow());
+    box.appendChild(departButton);
+
     this.root.appendChild(box);
     // 列が増えて横スクロールが要るようになったため、選んでいる列を必ず見える位置に運ぶ
     columns.querySelector(".town-col.active")?.scrollIntoView({ block: "nearest", inline: "nearest" });
@@ -1601,10 +1612,43 @@ export class TownScreen {
     const heading = document.createElement("h3");
     heading.className = "town-col-title";
     heading.textContent = label;
+    // タッチ操作向け(#308): 見出しをタップすると、矢印キーでの列移動と同じく
+    // その列へフォーカスを移す(まだ中身の一覧が無い列でも列だけは切り替えられる)
+    heading.addEventListener("click", () => {
+      if (this.column === column) return;
+      this.column = column;
+      this.render();
+    });
     wrapper.appendChild(heading);
 
     build(wrapper);
     return wrapper;
+  }
+
+  /**
+   * タッチ操作向け(#308): 列内の一覧アイテムをタップしたときの共通処理。
+   *
+   * - まだその列にいなければ、列を切り替えるだけにとどめる(←→キーで列を
+   *   移ったときと同じ状態にする)。誤操作でいきなり確定操作が走らないように。
+   * - 既にその列にいて、タップしたアイテムに既にカーソルが合っているなら、
+   *   Enterキーと同じ確定操作(handleKey側が列ごとに知っている: 転送・
+   *   選択解除・購入 等)を行う。
+   * - それ以外(その列にいるがカーソルは別のアイテム上)は、↑↓キーで
+   *   そこまでカーソルを動かしたのと同じ状態にする(moveCursorToが実際の
+   *   フィールドを書き換える)。
+   */
+  private tapItem(column: TownColumn, wasSelected: boolean, moveCursorTo: () => void): void {
+    if (this.column !== column) {
+      this.column = column;
+      this.render();
+      return;
+    }
+    if (wasSelected) {
+      this.handleKey("Enter");
+      return;
+    }
+    moveCursorTo();
+    this.render();
   }
 
   private renderList(label: string, items: StoredItem[], column: 0 | 1): HTMLElement {
@@ -1626,7 +1670,9 @@ export class TownScreen {
           def.category === "staff" && item.charges !== undefined
             ? `${def.name}[${item.charges}]`
             : def.name;
-        if (this.column === column && index === this.cursor[column]) li.classList.add("selected");
+        const selected = this.column === column && index === this.cursor[column];
+        if (selected) li.classList.add("selected");
+        li.addEventListener("click", () => this.tapItem(column, selected, () => { this.cursor[column] = index; }));
         list.appendChild(li);
       });
       wrapper.appendChild(list);
@@ -1643,7 +1689,9 @@ export class TownScreen {
       this.checkpoints().forEach((depth, index) => {
         const li = document.createElement("li");
         li.textContent = depth === 1 ? "表の寝穴の入口(1階)" : `めざめの階段(地下${depth}階)`;
-        if (this.column === 2 && index === this.startDepthIndex) li.classList.add("selected");
+        const selected = this.column === 2 && index === this.startDepthIndex;
+        if (selected) li.classList.add("selected");
+        li.addEventListener("click", () => this.tapItem(2, selected, () => { this.startDepthIndex = index; }));
         list.appendChild(li);
       });
       wrapper.appendChild(list);
@@ -1660,7 +1708,9 @@ export class TownScreen {
       TRAINING_FOCI.forEach((focus, index) => {
         const li = document.createElement("li");
         li.textContent = TRAINING_FOCUS_LABELS[focus];
-        if (this.column === 3 && index === this.trainingFocusIndex) li.classList.add("selected");
+        const selected = this.column === 3 && index === this.trainingFocusIndex;
+        if (selected) li.classList.add("selected");
+        li.addEventListener("click", () => this.tapItem(3, selected, () => { this.trainingFocusIndex = index; }));
         list.appendChild(li);
       });
       wrapper.appendChild(list);
@@ -1695,7 +1745,17 @@ export class TownScreen {
               : base;
         if (this.bringUids.includes(m.uid)) li.classList.add("chosen");
         if (m.uid === this.fusionAxisUid) li.classList.add("axis");
-        if (this.column === 4 && index === this.hutCursor) li.classList.add("selected");
+        const selected = this.column === 4 && index === this.hutCursor;
+        if (selected) li.classList.add("selected");
+        // 夢に還す確認中(releaseConfirmUid)は、矢印キーでのカーソル移動も
+        // 止めているのに合わせ、タップでのカーソル移動も無効にする
+        li.addEventListener("click", () => {
+          if (this.releaseConfirmUid !== null) return;
+          this.tapItem(4, selected, () => {
+            this.favoriteNotice = null;
+            this.hutCursor = index;
+          });
+        });
         list.appendChild(li);
       });
       wrapper.appendChild(list);
@@ -1722,7 +1782,9 @@ export class TownScreen {
         let text = `${def.name}+${item.plus ?? 0}`;
         for (const markId of item.markIds ?? []) text += `【${markDef(markId).name}】`;
         li.textContent = text;
-        if (this.column === 5 && index === this.workshopCursor) li.classList.add("selected");
+        const selected = this.column === 5 && index === this.workshopCursor;
+        if (selected) li.classList.add("selected");
+        li.addEventListener("click", () => this.tapItem(5, selected, () => { this.workshopCursor = index; this.workshopMaxPlusNotice = null; }));
         list.appendChild(li);
       });
       wrapper.appendChild(list);
@@ -1734,7 +1796,16 @@ export class TownScreen {
         this.workshopMarkChoices.forEach((markId, index) => {
           const li = document.createElement("li");
           li.textContent = markDef(markId).name;
-          if (index === this.workshopMarkCursor) li.classList.add("selected");
+          const selected = index === this.workshopMarkCursor;
+          if (selected) li.classList.add("selected");
+          li.addEventListener("click", () => {
+            if (selected) {
+              this.confirmImprint();
+              return;
+            }
+            this.workshopMarkCursor = index;
+            this.render();
+          });
           sub.appendChild(li);
         });
         wrapper.appendChild(sub);
@@ -1747,7 +1818,16 @@ export class TownScreen {
         this.workshopSynthesisChoices.forEach((markId, index) => {
           const li = document.createElement("li");
           li.textContent = `${markDef(markId).name}の刻印石×2 → 重ね刻みの砥石`;
-          if (index === this.workshopSynthesisCursor) li.classList.add("selected");
+          const selected = index === this.workshopSynthesisCursor;
+          if (selected) li.classList.add("selected");
+          li.addEventListener("click", () => {
+            if (selected) {
+              this.confirmSynthesis();
+              return;
+            }
+            this.workshopSynthesisCursor = index;
+            this.render();
+          });
           sub.appendChild(li);
         });
         wrapper.appendChild(sub);
@@ -1816,7 +1896,9 @@ export class TownScreen {
         const label = status === "captured" ? "捕まえた" : status === "seen" ? "見た" : "未確認";
         const li = document.createElement("li");
         li.textContent = status ? `${species.name}: ${label}` : `???: ${label}`;
-        if (this.column === 7 && index === this.compendiumCursor) li.classList.add("selected");
+        const selected = this.column === 7 && index === this.compendiumCursor;
+        if (selected) li.classList.add("selected");
+        li.addEventListener("click", () => this.tapItem(7, selected, () => { this.compendiumCursor = index; }));
         list.appendChild(li);
       });
       wrapper.appendChild(list);
@@ -1846,7 +1928,9 @@ export class TownScreen {
         li.textContent = unlockedAt
           ? `${equipped}${def.name}: ${def.description}(達成)`
           : `${def.name}: ${def.description}(未達成)`;
-        if (this.column === 8 && index === this.achievementCursor) li.classList.add("selected");
+        const selected = this.column === 8 && index === this.achievementCursor;
+        if (selected) li.classList.add("selected");
+        li.addEventListener("click", () => this.tapItem(8, selected, () => { this.achievementCursor = index; }));
         list.appendChild(li);
       });
       wrapper.appendChild(list);
@@ -1906,7 +1990,9 @@ export class TownScreen {
       DIFFICULTY_MODES.forEach((mode, index) => {
         const li = document.createElement("li");
         li.textContent = DIFFICULTY_NAMES[mode];
-        if (this.column === 10 && index === this.difficultyIndex) li.classList.add("selected");
+        const selected = this.column === 10 && index === this.difficultyIndex;
+        if (selected) li.classList.add("selected");
+        li.addEventListener("click", () => this.tapItem(10, selected, () => { this.difficultyIndex = index; }));
         list.appendChild(li);
       });
       wrapper.appendChild(list);
@@ -1951,9 +2037,10 @@ export class TownScreen {
         const li = document.createElement("li");
         if (isDungeonUnlocked(dungeon, deepest, villageStage, foundPassageCount, defeatedRegionBosses)) {
           li.textContent = dungeon.name;
-          if (this.column === 12 && unlocked[this.dungeonIndex]?.id === dungeon.id) {
-            li.classList.add("selected");
-          }
+          const selected = this.column === 12 && unlocked[this.dungeonIndex]?.id === dungeon.id;
+          if (selected) li.classList.add("selected");
+          const unlockedIndex = unlocked.findIndex((d) => d.id === dungeon.id);
+          li.addEventListener("click", () => this.tapItem(12, selected, () => { this.dungeonIndex = unlockedIndex; }));
         } else if (dungeon.unlock !== "always" && "minDeepest" in dungeon.unlock) {
           li.textContent = `${dungeon.name}(未解放: 最深${dungeon.unlock.minDeepest}階到達で解放)`;
         } else if (dungeon.unlock !== "always" && "minVillageStage" in dungeon.unlock) {
@@ -1969,18 +2056,20 @@ export class TownScreen {
         const trueAwakening = dungeonById(TRUE_AWAKENING_ID);
         const li = document.createElement("li");
         li.textContent = trueAwakening.name;
-        if (this.column === 12 && unlocked[this.dungeonIndex]?.id === trueAwakening.id) {
-          li.classList.add("selected");
-        }
+        const selected = this.column === 12 && unlocked[this.dungeonIndex]?.id === trueAwakening.id;
+        if (selected) li.classList.add("selected");
+        const unlockedIndex = unlocked.findIndex((d) => d.id === trueAwakening.id);
+        li.addEventListener("click", () => this.tapItem(12, selected, () => { this.dungeonIndex = unlockedIndex; }));
         list.appendChild(li);
       }
       if (isTarukurabeDay(todayKey())) {
         const tarukurabe = dungeonById(TARUKURABE_ID);
         const li = document.createElement("li");
         li.textContent = `${tarukurabe.name}(自己ベスト: ${this.save?.tarukurabeBestScore ?? 0}点)`;
-        if (this.column === 12 && unlocked[this.dungeonIndex]?.id === tarukurabe.id) {
-          li.classList.add("selected");
-        }
+        const selected = this.column === 12 && unlocked[this.dungeonIndex]?.id === tarukurabe.id;
+        if (selected) li.classList.add("selected");
+        const unlockedIndex = unlocked.findIndex((d) => d.id === tarukurabe.id);
+        li.addEventListener("click", () => this.tapItem(12, selected, () => { this.dungeonIndex = unlockedIndex; }));
         list.appendChild(li);
       }
       wrapper.appendChild(list);
@@ -2028,7 +2117,9 @@ export class TownScreen {
           row.status === "active"
             ? `[受注中] ${def.name}(${reward})`
             : `${def.name}(${reward})`;
-        if (this.column === 11 && index === this.questCursor) li.classList.add("selected");
+        const selected = this.column === 11 && index === this.questCursor;
+        if (selected) li.classList.add("selected");
+        li.addEventListener("click", () => this.tapItem(11, selected, () => { this.questCursor = index; }));
         list.appendChild(li);
       });
       wrapper.appendChild(list);
@@ -2064,7 +2155,15 @@ export class TownScreen {
       if (save && canDevelopVillage(stage, save.deepest, save.gold)) {
         const ready = document.createElement("p");
         ready.className = "selected";
-        ready.textContent = "Enterで発展させられる!";
+        ready.textContent = "タップ(またはEnter)で発展させられる!";
+        ready.addEventListener("click", () => {
+          if (this.column !== 13) {
+            this.column = 13;
+            this.render();
+            return;
+          }
+          this.handleKey("Enter");
+        });
         wrapper.appendChild(ready);
       }
     });
@@ -2086,6 +2185,17 @@ export class TownScreen {
         const li = document.createElement("li");
         li.textContent = size === "normal" ? "文字サイズ: ふつう" : "文字サイズ: 大きめ";
         if (size === fontSize) li.classList.add("selected");
+        // Enterは常に2択を入れ替えるだけなので、既に選ばれている方をタップしても
+        // 何もしない(押すたびに逆へ切り替わってしまうのを避ける)
+        li.addEventListener("click", () => {
+          if (this.column !== 14) {
+            this.column = 14;
+            this.render();
+            return;
+          }
+          if (size === fontSize) return;
+          this.handleKey("Enter");
+        });
         list.appendChild(li);
       });
       wrapper.appendChild(list);
@@ -2119,7 +2229,9 @@ export class TownScreen {
         const li = document.createElement("li");
         const state = costume.id === equipped ? "(装備中)" : unlocked ? "(入手済み)" : "(未入手)";
         li.textContent = `${costume.name}${state}`;
-        if (this.column === 15 && index === this.costumeCursor) li.classList.add("selected");
+        const selected = this.column === 15 && index === this.costumeCursor;
+        if (selected) li.classList.add("selected");
+        li.addEventListener("click", () => this.tapItem(15, selected, () => { this.costumeCursor = index; }));
         list.appendChild(li);
       });
       wrapper.appendChild(list);
@@ -2164,7 +2276,14 @@ export class TownScreen {
         const label = bondStageLabel(bondStage(level));
         const li = document.createElement("li");
         li.textContent = label ? `${npc.name}(${label})` : npc.name;
-        if (this.column === 16 && index === this.npcIndex) li.classList.add("selected");
+        const selected = this.column === 16 && index === this.npcIndex;
+        if (selected) li.classList.add("selected");
+        li.addEventListener("click", () =>
+          this.tapItem(16, selected, () => {
+            this.npcIndex = index;
+            this.npcTalkMessage = null;
+          }),
+        );
         list.appendChild(li);
       });
       wrapper.appendChild(list);
@@ -2185,7 +2304,9 @@ export class TownScreen {
         FESTIVAL_SHOP_OFFERS.forEach((offer, index) => {
           const li = document.createElement("li");
           li.textContent = `${itemDef(offer.defId).name} — ${offer.price}G`;
-          if (this.column === 17 && index === this.festivalShopCursor) li.classList.add("selected");
+          const selected = this.column === 17 && index === this.festivalShopCursor;
+          if (selected) li.classList.add("selected");
+          li.addEventListener("click", () => this.tapItem(17, selected, () => { this.festivalShopCursor = index; }));
           list.appendChild(li);
         });
       } else {
@@ -2209,12 +2330,16 @@ export class TownScreen {
 
       const muteLi = document.createElement("li");
       muteLi.textContent = `ミュート: ${muted ? "オン" : "オフ"}`;
-      if (this.column === 18 && this.audioSettingsCursor === 0) muteLi.classList.add("selected");
+      const muteSelected = this.column === 18 && this.audioSettingsCursor === 0;
+      if (muteSelected) muteLi.classList.add("selected");
+      muteLi.addEventListener("click", () => this.tapItem(18, muteSelected, () => { this.audioSettingsCursor = 0; }));
       list.appendChild(muteLi);
 
       const volumeLi = document.createElement("li");
       volumeLi.textContent = `音量: ${Math.round(volume * 100)}%`;
-      if (this.column === 18 && this.audioSettingsCursor === 1) volumeLi.classList.add("selected");
+      const volumeSelected = this.column === 18 && this.audioSettingsCursor === 1;
+      if (volumeSelected) volumeLi.classList.add("selected");
+      volumeLi.addEventListener("click", () => this.tapItem(18, volumeSelected, () => { this.audioSettingsCursor = 1; }));
       list.appendChild(volumeLi);
 
       wrapper.appendChild(list);
@@ -2232,6 +2357,9 @@ export class TownScreen {
           li.textContent = TUTORIAL_TIPS[id];
           list.appendChild(li);
         }
+        // タッチ操作向け(#308): 一覧をタップするとEnter/Escと同じく閉じる
+        // (このサブビュー表示中はhandleKeyの先頭で列を問わず捕まえている)
+        list.addEventListener("click", () => this.handleKey("Enter"));
         wrapper.appendChild(list);
         return;
       }
@@ -2244,6 +2372,7 @@ export class TownScreen {
           li.textContent = line;
           list.appendChild(li);
         }
+        list.addEventListener("click", () => this.handleKey("Enter"));
         wrapper.appendChild(list);
         return;
       }
@@ -2262,23 +2391,31 @@ export class TownScreen {
 
       const speedLi = document.createElement("li");
       speedLi.textContent = t("ui.settings.messageSpeedLabel", { value: speedLabel[speed] });
-      if (this.column === 19 && this.settingsCursor === 0) speedLi.classList.add("selected");
+      const speedSelected = this.column === 19 && this.settingsCursor === 0;
+      if (speedSelected) speedLi.classList.add("selected");
+      speedLi.addEventListener("click", () => this.tapItem(19, speedSelected, () => { this.settingsCursor = 0; }));
       list.appendChild(speedLi);
 
       const tipsLi = document.createElement("li");
       tipsLi.textContent = t("ui.settings.tutorialTips");
-      if (this.column === 19 && this.settingsCursor === 1) tipsLi.classList.add("selected");
+      const tipsSelected = this.column === 19 && this.settingsCursor === 1;
+      if (tipsSelected) tipsLi.classList.add("selected");
+      tipsLi.addEventListener("click", () => this.tapItem(19, tipsSelected, () => { this.settingsCursor = 1; }));
       list.appendChild(tipsLi);
 
       const keysLi = document.createElement("li");
       keysLi.textContent = t("ui.settings.keyReference");
-      if (this.column === 19 && this.settingsCursor === 2) keysLi.classList.add("selected");
+      const keysSelected = this.column === 19 && this.settingsCursor === 2;
+      if (keysSelected) keysLi.classList.add("selected");
+      keysLi.addEventListener("click", () => this.tapItem(19, keysSelected, () => { this.settingsCursor = 2; }));
       list.appendChild(keysLi);
 
       const localeLi = document.createElement("li");
       const currentLocale = this.save?.locale ?? "ja";
       localeLi.textContent = t("ui.settings.localeLabel", { value: localeLabel[currentLocale] ?? currentLocale });
-      if (this.column === 19 && this.settingsCursor === 3) localeLi.classList.add("selected");
+      const localeSelected = this.column === 19 && this.settingsCursor === 3;
+      if (localeSelected) localeLi.classList.add("selected");
+      localeLi.addEventListener("click", () => this.tapItem(19, localeSelected, () => { this.settingsCursor = 3; }));
       list.appendChild(localeLi);
 
       wrapper.appendChild(list);
