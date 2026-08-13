@@ -121,15 +121,12 @@ import { itemDef } from "./items/catalog";
 import { type EffectContext, addStatus, applyEffect } from "./items/effects";
 import {
   addItem,
-  charmDefId,
   displayName,
   equip,
   findItem,
-  headDefId,
+  hasEquipEffect,
   isFull,
   removeItem,
-  shieldMarkIds,
-  weaponMarkIds,
 } from "./items/inventory";
 import { attackOffsets, computeDamage } from "./systems/combat";
 import { BOSS_MOVES, SPORE_SLEEP_CHANCE, SPORE_SLEEP_TURNS, type BossMoveContext } from "./systems/bossMoves";
@@ -701,8 +698,7 @@ export class Game {
     this.player.pos = start;
     this.floor.actors.push(this.player);
     if (this.floor.rooms.some((r) => r.kind === "shop")) this.shopSeenThisRun = true;
-    const boostedItemDefId =
-      charmDefId(this.player.inventory) === "dustLureSachet" ? "hokoraDust" : undefined;
+    const boostedItemDefId = hasEquipEffect(this.player.inventory, "dustLureBoost") ? "hokoraDust" : undefined;
     const shiningChanceMultiplier =
       (this.trueAwakeningCleared
         ? TRUE_AWAKENING_SHINING_MULTIPLIER
@@ -1402,7 +1398,7 @@ export class Game {
     const bonus = hit.captureBonus ?? 0;
     hit.captureBonus = 0;
     // 樽なじみの腕輪(plan/protagonist-equipment.md): 捕獲確率+10%
-    const charmBonus = charmDefId(this.player.inventory) === "barrelKinshipBracelet" ? 0.1 : 0;
+    const charmBonus = hasEquipEffect(this.player.inventory, "barrelKinship") ? 0.1 : 0;
     const captured =
       critForced || this.rng.chance(Math.min(0.9, captureChance(hit) + bonus + charmBonus));
     if (!captured) {
@@ -1702,7 +1698,7 @@ export class Game {
     const room = this.floor.rooms.find((r) => r.kind === "monsterHouse");
     if (!room || roomContains(room, pos)) return;
 
-    const range = headDefId(this.player.inventory) === "farsightRing" ? 2 : 1;
+    const range = hasEquipEffect(this.player.inventory, "farsight") ? 2 : 1;
     if (!isNearRoom(room, pos, range)) return;
 
     this.monsterHouseWarned = true;
@@ -1711,7 +1707,7 @@ export class Game {
 
   /** 見晴らしのはちまき(plan/protagonist-equipment.md)・松明(plan/region-darkness.md)ぶんの視界拡張。単純に加算する */
   private visionExtraRange(): number {
-    const headband = headDefId(this.player.inventory) === "lookoutHeadband" ? 1 : 0;
+    const headband = hasEquipEffect(this.player.inventory, "lookout") ? 1 : 0;
     const torch = this.torchTurnsLeft > 0 ? TORCH_VISION_BONUS : 0;
     return headband + torch;
   }
@@ -1858,7 +1854,7 @@ export class Game {
     // (plan/equipment-forging.md): そのダイブで最初の1手は必ず会心
     const hasQuickStartEffect =
       (attacker.kind === "ally" && hasSkill(attacker, "quickStart")) ||
-      (attacker.kind === "player" && weaponMarkIds(this.player.inventory).includes("gajiri"));
+      (attacker.kind === "player" && hasEquipEffect(this.player.inventory, "quickStrike"));
     const quickStart = hasQuickStartEffect && !this.oncePerRun.hasUsed("quickStart", attacker.id);
     if (hasQuickStartEffect) this.oncePerRun.markUsed("quickStart", attacker.id);
 
@@ -1928,7 +1924,7 @@ export class Game {
     // 隣接する敵への攻撃に、眠り付与の確率+10%を上乗せする
     const hasDrowsyEffect =
       (attacker.kind === "ally" && hasSkill(attacker, "drowsyBreath")) ||
-      (attacker.kind === "player" && weaponMarkIds(this.player.inventory).includes("madoromi"));
+      (attacker.kind === "player" && hasEquipEffect(this.player.inventory, "drowsyBonus"));
     const drowsyBonus = hasDrowsyEffect ? 0.1 : 0;
     const inflictChance = (attacker.inflicts?.chance ?? 0) + drowsyBonus;
     // かなしばりの杖で封じられている間は、特技(状態異常の追加付与)が出せない
@@ -1985,7 +1981,7 @@ export class Game {
         events.push({ type: "message", text: "身構えていたので、ダメージをおさえた!" });
         return Math.max(1, Math.floor(damage * (1 - GUARD_DAMAGE_REDUCTION)));
       }
-      if (shieldMarkIds(this.player.inventory).includes("purun") && this.rng.chance(0.5)) {
+      if (hasEquipEffect(this.player.inventory, "damageReduction") && this.rng.chance(0.5)) {
         events.push({ type: "message", text: "印の力で衝撃をやわらげた!" });
         return Math.max(1, Math.floor(damage * 0.9));
       }
@@ -2026,7 +2022,7 @@ export class Game {
 
   /** タルを投げたときの基礎ダメージ。ツブテガエルの印(plan/equipment-forging.md)で+2 */
   private barrelThrowDamage(): number {
-    return BARREL_DAMAGE + (weaponMarkIds(this.player.inventory).includes("tsubute") ? 2 : 0);
+    return BARREL_DAMAGE + (hasEquipEffect(this.player.inventory, "barrelDamageBonus") ? 2 : 0);
   }
 
   private damageActor(target: Actor, damage: number, critical: boolean, events: GameEvent[]): void {
@@ -2056,9 +2052,7 @@ export class Game {
       const hpBeforeThisHit = hpOwner.hp + damage;
       const hasStubbornEffect =
         (hpOwner.kind === "ally" && hasSkill(hpOwner, "stubborn")) ||
-        (hpOwner.kind === "player" &&
-          (shieldMarkIds(this.player.inventory).includes("honegarami") ||
-            charmDefId(this.player.inventory) === "guardianBell"));
+        (hpOwner.kind === "player" && hasEquipEffect(this.player.inventory, "revivalWard"));
       if (hpBeforeThisHit === 1 && hasStubbornEffect && !this.oncePerRun.hasUsed("stubborn", hpOwner.id)) {
         hpOwner.hp = 1;
         this.oncePerRun.markUsed("stubborn", hpOwner.id);
@@ -2760,7 +2754,7 @@ export class Game {
     const before = player.satiety;
     const feastMultiplier = this.floor.gimmick === "feast" ? 0.5 : 1;
     // 満たされ石(plan/protagonist-equipment.md): 満腹度の減りが2割ゆるやかになる
-    const charmMultiplier = charmDefId(player.inventory) === "fulfillingStone" ? 0.8 : 1;
+    const charmMultiplier = hasEquipEffect(player.inventory, "satietyEase") ? 0.8 : 1;
     // 忘れ物蔵(plan/lost-and-found-vault.md): 満腹度の減りがやや早い(長居できない蔵)
     const dungeonMultiplier = this.dungeon.satietyDrainMul ?? 1;
     const rate =

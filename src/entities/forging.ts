@@ -1,4 +1,4 @@
-import type { MarkId } from "../core/types";
+import type { EquipEffectId, MarkId } from "../core/types";
 
 /** 装備の強化値・印(plan/equipment-forging.md) */
 export const MAX_PLUS = 9;
@@ -32,6 +32,8 @@ export interface MarkDef {
   name: string;
   slot: "weapon" | "shield";
   description: string;
+  /** 装備している間、常時付与される受動効果(core/types.ts参照) */
+  grants?: EquipEffectId[];
 }
 
 export const MARKS: readonly MarkDef[] = [
@@ -40,30 +42,35 @@ export const MARKS: readonly MarkDef[] = [
     name: "ぷるんの印",
     slot: "shield",
     description: "被弾ダメージを確率5割で1割軽減する。",
+    grants: ["damageReduction"],
   },
   {
     id: "gajiri",
     name: "ガジリねずみの印",
     slot: "weapon",
     description: "そのランの最初の1手を必ず会心の一撃にする。",
+    grants: ["quickStrike"],
   },
   {
     id: "tsubute",
     name: "ツブテガエルの印",
     slot: "weapon",
     description: "タルを投げたときのダメージ+2。",
+    grants: ["barrelDamageBonus"],
   },
   {
     id: "madoromi",
     name: "マドロミダケの印",
     slot: "weapon",
     description: "攻撃時、眠り付与の確率+10%。",
+    grants: ["drowsyBonus"],
   },
   {
     id: "honegarami",
     name: "ホネガラミの印",
     slot: "shield",
     description: "HPが1残っていれば、致死ダメージを1回だけ耐える(1ラン1回)。",
+    grants: ["revivalWard"],
   },
 ];
 
