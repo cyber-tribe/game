@@ -87,6 +87,7 @@ import type { StoredMonster } from "./entities/storedMonster";
 import { isVisible, updateVisibility } from "./dungeon/visibility";
 import {
   GUARD_COUNTER_BONUS,
+  type MonsterAction,
   buildDistanceField,
   canStep,
   decideAllyAction,
@@ -1813,6 +1814,42 @@ export class Game {
       events.push({ type: "tutorialTip", id: "weakenThenThrow" });
     }
 
+    const { forceCrit, ambushStrike } = this.resolveAttackModifiers(attacker, target, events);
+    if (this.tryEvade(target, events)) return;
+
+    const defense = target.kind === "player" ? totalDefense(this.player) : target.def;
+    // 地方ごとの成熟系統(plan/companion-evolution-expansion.md): なみだぐまは
+    // HPが減るほど攻撃力が上がる(HP満タンで+0%、HP0近くで最大値に近づく)
+    const lowHpBonusMax = attacker.speciesId ? speciesById(attacker.speciesId).lowHpAtkBonusMax ?? 0 : 0;
+    const hpRatio = attacker.maxHp > 0 ? Math.max(0, attacker.hp) / attacker.maxHp : 1;
+    const lowHpMultiplier = 1 + lowHpBonusMax * (1 - hpRatio);
+    const effectivePower = Math.round((ambushStrike ? attackPower * 1.5 : attackPower) * lowHpMultiplier);
+    const { damage, critical } = computeDamage(this.rng, effectivePower, defense, {
+      ...combatOpts,
+      forceCrit: combatOpts?.forceCrit || forceCrit,
+    });
+    if (critical) events.push({ type: "message", text: "会心の一撃!" });
+
+    this.applyAttackDamage(attacker, target, damage, critical, events);
+
+    // 攻撃してきた相手には気づく
+    if (target.kind === "monster") target.aware = true;
+
+    this.applyOnHitStatuses(attacker, target, events);
+    this.applyEchoAttacks(attacker, target, effectivePower, events);
+  }
+
+  /**
+   * attackの前半: 会心を強制するかどうかに関わる特技・状態を判定し、
+   * 消費が必要なもの(1ラン1回・予兆的中で解除するもの)はここで消費する。
+   * ambushStrike(ダメージ+50%)は会心強制には関わらないが、同じタイミングで
+   * 消費判定するため、呼び出し側の実効威力計算に使えるよう一緒に返す
+   */
+  private resolveAttackModifiers(
+    attacker: Actor,
+    target: Actor,
+    events: GameEvent[],
+  ): { forceCrit: boolean; ambushStrike: boolean } {
     // 不意打ち: まだ気づいていないモンスターへの攻撃は必ず会心になる
     const sneakAttack = target.kind === "monster" && !target.aware;
     if (sneakAttack) events.push({ type: "message", text: "不意打ち!" });
@@ -1836,28 +1873,28 @@ export class Game {
     const ambushStrike = hasAmbushStrikeEffect && !this.oncePerRun.hasUsed("ambushStrike", attacker.id);
     if (hasAmbushStrikeEffect) this.oncePerRun.markUsed("ambushStrike", attacker.id);
 
-    // 地方ごとの成熟系統(plan/companion-evolution-expansion.md): かすみウツボは
-    // 確率で攻撃をまるごと回避する
+    return { forceCrit: sneakAttack || quickStart || ambushSurprise, ambushStrike };
+  }
+
+  /**
+   * 地方ごとの成熟系統(plan/companion-evolution-expansion.md): かすみウツボは
+   * 確率で攻撃をまるごと回避する。回避した場合はtrueを返し、呼び出し側は
+   * ダメージ計算そのものをスキップする
+   */
+  private tryEvade(target: Actor, events: GameEvent[]): boolean {
     const evadeChance = target.speciesId ? speciesById(target.speciesId).evadeChance ?? 0 : 0;
-    if (evadeChance > 0 && this.rng.chance(evadeChance)) {
-      events.push({ type: "message", text: `${displayActorName(target)}はひらりと攻撃をかわした!` });
-      if (target.kind === "monster") target.aware = true;
-      return;
-    }
+    if (evadeChance <= 0 || !this.rng.chance(evadeChance)) return false;
+    events.push({ type: "message", text: `${displayActorName(target)}はひらりと攻撃をかわした!` });
+    if (target.kind === "monster") target.aware = true;
+    return true;
+  }
 
-    const defense = target.kind === "player" ? totalDefense(this.player) : target.def;
-    // 地方ごとの成熟系統(plan/companion-evolution-expansion.md): なみだぐまは
-    // HPが減るほど攻撃力が上がる(HP満タンで+0%、HP0近くで最大値に近づく)
-    const lowHpBonusMax = attacker.speciesId ? speciesById(attacker.speciesId).lowHpAtkBonusMax ?? 0 : 0;
-    const hpRatio = attacker.maxHp > 0 ? Math.max(0, attacker.hp) / attacker.maxHp : 1;
-    const lowHpMultiplier = 1 + lowHpBonusMax * (1 - hpRatio);
-    const effectivePower = Math.round((ambushStrike ? attackPower * 1.5 : attackPower) * lowHpMultiplier);
-    const { damage, critical } = computeDamage(this.rng, effectivePower, defense, {
-      ...combatOpts,
-      forceCrit: combatOpts?.forceCrit || sneakAttack || quickStart || ambushSurprise,
-    });
-    if (critical) events.push({ type: "message", text: "会心の一撃!" });
-
+  /**
+   * attackの本体: 確定した基礎ダメージを実際に適用する。オイテケボシ
+   * (drainsSatiety)は例外で、HPではなくプレイヤーの満腹度を削って終わる
+   * (ヨロイオイテケの反撃ダメージも適用しない)
+   */
+  private applyAttackDamage(attacker: Actor, target: Actor, damage: number, critical: boolean, events: GameEvent[]): void {
     // オイテケボシ(drainsSatiety、plan/monster-compendium.md): HPではなく
     // プレイヤーの満腹度を削る特殊効果。防御・軽減の計算はそのまま流用する
     const drainsSatiety =
@@ -1866,26 +1903,27 @@ export class Game {
       const drained = Math.max(1, Math.round(damage / 2));
       this.player.satiety = Math.max(0, this.player.satiety - drained);
       events.push({ type: "message", text: `満腹度が${drained}減った!` });
-    } else {
-      const finalDamage = this.mitigateIncomingDamage(target, damage, events);
-      events.push({ type: "message", text: `${displayActorName(target)}に${finalDamage}のダメージ!` });
-      this.damageActor(target, finalDamage, critical, events);
-
-      // 地方ごとの成熟系統(plan/companion-evolution-expansion.md): ヨロイオイテケは
-      // 被弾するたび、受けたダメージの一部を攻撃者に返す。プランの原案は
-      // 「相手の満腹度を削り返す」だったが、満腹度はプレイヤー専用のステータスで
-      // 攻撃者(モンスター)には存在しないため、ダメージ反射に差し替えた
-      const counterRatio = target.speciesId ? speciesById(target.speciesId).counterDamageRatio ?? 0 : 0;
-      if (counterRatio > 0 && attacker.alive) {
-        const counter = Math.max(1, Math.round(finalDamage * counterRatio));
-        events.push({ type: "message", text: `${displayActorName(target)}が身を固めて${counter}のダメージを返した!` });
-        this.damageActor(attacker, counter, false, events);
-      }
+      return;
     }
 
-    // 攻撃してきた相手には気づく
-    if (target.kind === "monster") target.aware = true;
+    const finalDamage = this.mitigateIncomingDamage(target, damage, events);
+    events.push({ type: "message", text: `${displayActorName(target)}に${finalDamage}のダメージ!` });
+    this.damageActor(target, finalDamage, critical, events);
 
+    // 地方ごとの成熟系統(plan/companion-evolution-expansion.md): ヨロイオイテケは
+    // 被弾するたび、受けたダメージの一部を攻撃者に返す。プランの原案は
+    // 「相手の満腹度を削り返す」だったが、満腹度はプレイヤー専用のステータスで
+    // 攻撃者(モンスター)には存在しないため、ダメージ反射に差し替えた
+    const counterRatio = target.speciesId ? speciesById(target.speciesId).counterDamageRatio ?? 0 : 0;
+    if (counterRatio > 0 && attacker.alive) {
+      const counter = Math.max(1, Math.round(finalDamage * counterRatio));
+      events.push({ type: "message", text: `${displayActorName(target)}が身を固めて${counter}のダメージを返した!` });
+      this.damageActor(attacker, counter, false, events);
+    }
+  }
+
+  /** attackの後半: 命中した攻撃者側の特技による状態異常の追加付与を判定する */
+  private applyOnHitStatuses(attacker: Actor, target: Actor, events: GameEvent[]): void {
     // 特技「ねむりごな」、またはマドロミダケの印(plan/equipment-forging.md):
     // 隣接する敵への攻撃に、眠り付与の確率+10%を上乗せする
     const hasDrowsyEffect =
@@ -1911,19 +1949,22 @@ export class Game {
         addStatus(this.effectContext(events), target, STATUS_SEAL, INHERITED_INFLICT_TURNS, "封じられた");
       }
     }
+  }
 
-    // 地方ごとの成熟系統(plan/companion-evolution-expansion.md): こだまぎつねは
-    // 命中のたび確率で追加の1撃を同じ相手に放つ(最大2回まで反響)
+  /**
+   * 地方ごとの成熟系統(plan/companion-evolution-expansion.md): こだまぎつねは
+   * 命中のたび確率で追加の1撃を同じ相手に放つ(最大2回まで反響)
+   */
+  private applyEchoAttacks(attacker: Actor, target: Actor, effectivePower: number, events: GameEvent[]): void {
     const echoChance = attacker.speciesId ? speciesById(attacker.speciesId).echoAttackChance ?? 0 : 0;
-    if (echoChance > 0) {
-      for (let echo = 0; echo < ECHO_ATTACK_MAX && target.alive && this.rng.chance(echoChance); echo++) {
-        events.push({ type: "message", text: `${displayActorName(attacker)}のこうげきがこだました!` });
-        const echoDefense = target.kind === "player" ? totalDefense(this.player) : target.def;
-        const { damage: echoDamage, critical: echoCritical } = computeDamage(this.rng, effectivePower, echoDefense);
-        const finalEchoDamage = this.mitigateIncomingDamage(target, echoDamage, events);
-        events.push({ type: "message", text: `${displayActorName(target)}に${finalEchoDamage}のダメージ!` });
-        this.damageActor(target, finalEchoDamage, echoCritical, events);
-      }
+    if (echoChance <= 0) return;
+    for (let echo = 0; echo < ECHO_ATTACK_MAX && target.alive && this.rng.chance(echoChance); echo++) {
+      events.push({ type: "message", text: `${displayActorName(attacker)}のこうげきがこだました!` });
+      const echoDefense = target.kind === "player" ? totalDefense(this.player) : target.def;
+      const { damage: echoDamage, critical: echoCritical } = computeDamage(this.rng, effectivePower, echoDefense);
+      const finalEchoDamage = this.mitigateIncomingDamage(target, echoDamage, events);
+      events.push({ type: "message", text: `${displayActorName(target)}に${finalEchoDamage}のダメージ!` });
+      this.damageActor(target, finalEchoDamage, echoCritical, events);
     }
   }
 
@@ -2421,25 +2462,10 @@ export class Game {
    * しておけば、各自が自然といちばん近い相手へ向かう。
    */
   private runActors(events: GameEvent[]): void {
-    const alive = (a: Actor) => a.alive;
-    const friendlyPositions = this.floor.actors
-      .filter((a) => alive(a) && a.kind !== "monster")
-      .map((a) => a.pos);
-    const foePositions = this.floor.actors
-      .filter((a) => alive(a) && a.kind === "monster")
-      .map((a) => a.pos);
-
-    const towardsFriendly = buildDistanceField(this.floor, friendlyPositions);
-    const towardsFoe =
-      foePositions.length > 0 ? buildDistanceField(this.floor, foePositions) : null;
-    // プレイヤーへ向かう距離場は仲間だけが使う。仲間は最大2体で、連れていない
-    // ことのほうが多いので、実際に必要になるまで作らない
-    let leaderField: Int32Array | null = null;
-    const towardsLeader = (): Int32Array =>
-      (leaderField ??= buildDistanceField(this.floor, this.player.pos));
+    const { towardsFriendly, towardsFoe, towardsLeader } = this.buildActionDistanceFields();
 
     // 行動中に配列が変化しても安全なようにコピーしてから回す
-    const movers = this.floor.actors.filter((a) => alive(a) && a.kind !== "player");
+    const movers = this.floor.actors.filter((a) => a.alive && a.kind !== "player");
 
     for (const actor of movers) {
       if (!actor.alive || this.status !== "playing") continue;
@@ -2470,111 +2496,155 @@ export class Game {
               this.mood.awareDistanceMul ?? 1,
             );
 
-      switch (action.type) {
-        case "wait":
-          break;
-        case "move":
-          this.moveActor(actor, action.dir, events);
-          // スリガラス(plan/shops-and-thieves.md): 盗んだあと、プレイヤーの
-          // 視界から外れると、盗んだ金ごと消える
-          if (
-            actor.alive &&
-            actor.aiKind === "thief" &&
-            actor.stolenGold !== undefined &&
-            !isVisible(this.floor, actor.pos)
-          ) {
-            actor.alive = false;
-            this.floor.actors = this.floor.actors.filter((a) => a.id !== actor.id);
-          }
-          break;
-        case "attack": {
-          const target = this.floor.actors.find((a) => a.id === action.targetId && a.alive);
-          if (!target) break;
-          if (actor.aiKind === "thief" && actor.stolenGold === undefined) {
-            this.attemptSteal(actor, target, events);
-          } else {
-            // 地方ボス(plan/region-bosses.md): 予兆を消費した一撃は大技として、
-            // 通常のダメージ計算にmultiplierを掛けたぶんだけ底上げする
-            const bossTelegraph =
-              action.empowered && actor.speciesId ? speciesById(actor.speciesId).bossTelegraph : undefined;
-            // guard(plan/monster-compendium.md): 隣接されたときの反撃力が高い
-            const attackPower = bossTelegraph
-              ? Math.round(actor.atk * bossTelegraph.multiplier)
-              : actor.aiKind === "guard"
-                ? Math.round(actor.atk * GUARD_COUNTER_BONUS)
-                : actor.atk;
-            this.attack(actor, target, attackPower, events);
-            if (bossTelegraph) {
-              events.push({ type: "message", text: `${displayActorName(actor)}の大技が炸裂した!` });
-            }
-          }
-          break;
-        }
-        case "telegraph": {
-          // 地方ボス(plan/region-bosses.md): この手は攻撃せず、警告メッセージだけ出す。
-          // 既存のGameEvent(message)の枠組みで実装し、新規UIは増やさない
-          const target = this.floor.actors.find((a) => a.id === action.targetId && a.alive);
-          const telegraph = actor.speciesId ? speciesById(actor.speciesId).bossTelegraph : undefined;
-          if (target && telegraph) {
-            actor.facing = dirFromDelta(target.pos.x - actor.pos.x, target.pos.y - actor.pos.y);
-            events.push({ type: "message", text: `${displayActorName(actor)}は${telegraph.message}――!` });
-            // 地方ボス(plan/region-boss-horikuinonushi.md): groundSpikesだけは、
-            // 予兆ターンの時点で床にひび割れ(crackWarning)を立てて危険地帯を可視化する
-            if (telegraph.effect === "groundSpikes") {
-              const positions = this.markGroundSpikeWarnings(target.pos);
-              if (positions.length > 0) events.push({ type: "crackWarning", positions });
-            }
-          }
-          break;
-        }
-        case "ranged": {
-          const target = this.floor.actors.find((a) => a.id === action.targetId && a.alive);
-          if (!target) break;
-          actor.facing = dirFromDelta(target.pos.x - actor.pos.x, target.pos.y - actor.pos.y);
-          events.push({ type: "attack", attackerId: actor.id, targetId: target.id });
-          events.push({ type: "message", text: `${displayActorName(actor)}が つぶてを投げた!` });
-          const defense =
-            target.kind === "player" ? totalDefense(this.player) : target.def;
-          const { damage, critical } = computeDamage(this.rng, actor.atk, defense);
-          const finalDamage = this.mitigateIncomingDamage(target, damage, events);
-          events.push({ type: "message", text: `${displayActorName(target)}に${finalDamage}のダメージ!` });
-          this.damageActor(target, finalDamage, critical, events);
-          break;
-        }
-        case "bossMove": {
-          // 地方ボス(plan/region-bosses.md): 予兆を消費した大技本体。種類ごとの
-          // 実装は systems/bossMoves.ts の BOSS_MOVES レジストリに集約している
-          BOSS_MOVES[action.moveId].execute(this.bossMoveContext(actor, events));
-          if (this.status !== "playing") return;
-          break;
-        }
-        case "burrowSurface": {
-          // burrow(plan/monster-compendium.md): 潜伏から地上へ現れる。teleportイベントを
-          // 出さずに座標だけ書き換えると、表示側(ActorView)が古い位置のまま取り残され、
-          // 次に動いたときに離れた本来の位置まで一気に「飛ぶ」ように見えてしまう(#180)
-          const from = actor.pos;
-          actor.pos = action.to;
-          events.push({ type: "teleport", actorId: actor.id, from, to: action.to });
-          break;
-        }
-      }
+      if (this.executeMonsterAction(actor, action, events)) return;
+      this.tickQuagmireInvisibility(actor);
+    }
+  }
 
-      // 地方ボス(plan/region-boss-nushigaeru.md): 深みタイルの上にいる間、
-      // 毎ターンSTATUS_INVISIBLEを付与し直す。深みタイルを離れれば次の
-      // upkeepで自然にturnsが尽きて解ける
-      if (
-        actor.alive &&
-        actor.speciesId &&
-        speciesById(actor.speciesId).hidesInQuagmire &&
-        tileAt(this.floor, actor.pos)?.quagmire
-      ) {
-        // upkeepのtickStatusesが同じcommand内で直後に走りturnsを1減らすため、
-        // 2を設定して次ターン開始時点でも生存させる(1だとその場で0になり消える)
-        const existing = actor.statuses.find((s) => s.kind === STATUS_INVISIBLE);
-        if (existing) existing.turns = 2;
-        else actor.statuses.push({ kind: STATUS_INVISIBLE, turns: 2 });
+  /**
+   * runActorsが使う距離場をまとめて用意する。towardsLeaderだけ遅延評価に
+   * しているのは、プレイヤーへ向かう距離場は仲間だけが使い、仲間は最大2体で
+   * 連れていないことのほうが多いため、実際に必要になるまで作らないため
+   */
+  private buildActionDistanceFields(): {
+    towardsFriendly: Int32Array;
+    towardsFoe: Int32Array | null;
+    towardsLeader: () => Int32Array;
+  } {
+    const alive = (a: Actor) => a.alive;
+    const friendlyPositions = this.floor.actors
+      .filter((a) => alive(a) && a.kind !== "monster")
+      .map((a) => a.pos);
+    const foePositions = this.floor.actors
+      .filter((a) => alive(a) && a.kind === "monster")
+      .map((a) => a.pos);
+
+    const towardsFriendly = buildDistanceField(this.floor, friendlyPositions);
+    const towardsFoe =
+      foePositions.length > 0 ? buildDistanceField(this.floor, foePositions) : null;
+    let leaderField: Int32Array | null = null;
+    const towardsLeader = (): Int32Array =>
+      (leaderField ??= buildDistanceField(this.floor, this.player.pos));
+
+    return { towardsFriendly, towardsFoe, towardsLeader };
+  }
+
+  /**
+   * runActorsの1アクターぶんの行動実行。決定済みのMonsterActionを実際の
+   * イベント・状態変化に変換する。戻り値trueは、大技でゲームオーバーに
+   * なったなどの理由でrunActors自体を即座に打ち切るべきことを示す
+   * (呼び出し側でreturnする)
+   */
+  private executeMonsterAction(actor: Actor, action: MonsterAction, events: GameEvent[]): boolean {
+    switch (action.type) {
+      case "wait":
+        break;
+      case "move":
+        this.moveActor(actor, action.dir, events);
+        // スリガラス(plan/shops-and-thieves.md): 盗んだあと、プレイヤーの
+        // 視界から外れると、盗んだ金ごと消える
+        if (
+          actor.alive &&
+          actor.aiKind === "thief" &&
+          actor.stolenGold !== undefined &&
+          !isVisible(this.floor, actor.pos)
+        ) {
+          actor.alive = false;
+          this.floor.actors = this.floor.actors.filter((a) => a.id !== actor.id);
+        }
+        break;
+      case "attack": {
+        const target = this.floor.actors.find((a) => a.id === action.targetId && a.alive);
+        if (!target) break;
+        if (actor.aiKind === "thief" && actor.stolenGold === undefined) {
+          this.attemptSteal(actor, target, events);
+        } else {
+          // 地方ボス(plan/region-bosses.md): 予兆を消費した一撃は大技として、
+          // 通常のダメージ計算にmultiplierを掛けたぶんだけ底上げする
+          const bossTelegraph =
+            action.empowered && actor.speciesId ? speciesById(actor.speciesId).bossTelegraph : undefined;
+          // guard(plan/monster-compendium.md): 隣接されたときの反撃力が高い
+          const attackPower = bossTelegraph
+            ? Math.round(actor.atk * bossTelegraph.multiplier)
+            : actor.aiKind === "guard"
+              ? Math.round(actor.atk * GUARD_COUNTER_BONUS)
+              : actor.atk;
+          this.attack(actor, target, attackPower, events);
+          if (bossTelegraph) {
+            events.push({ type: "message", text: `${displayActorName(actor)}の大技が炸裂した!` });
+          }
+        }
+        break;
+      }
+      case "telegraph": {
+        // 地方ボス(plan/region-bosses.md): この手は攻撃せず、警告メッセージだけ出す。
+        // 既存のGameEvent(message)の枠組みで実装し、新規UIは増やさない
+        const target = this.floor.actors.find((a) => a.id === action.targetId && a.alive);
+        const telegraph = actor.speciesId ? speciesById(actor.speciesId).bossTelegraph : undefined;
+        if (target && telegraph) {
+          actor.facing = dirFromDelta(target.pos.x - actor.pos.x, target.pos.y - actor.pos.y);
+          events.push({ type: "message", text: `${displayActorName(actor)}は${telegraph.message}――!` });
+          // 地方ボス(plan/region-boss-horikuinonushi.md): groundSpikesだけは、
+          // 予兆ターンの時点で床にひび割れ(crackWarning)を立てて危険地帯を可視化する
+          if (telegraph.effect === "groundSpikes") {
+            const positions = this.markGroundSpikeWarnings(target.pos);
+            if (positions.length > 0) events.push({ type: "crackWarning", positions });
+          }
+        }
+        break;
+      }
+      case "ranged": {
+        const target = this.floor.actors.find((a) => a.id === action.targetId && a.alive);
+        if (!target) break;
+        actor.facing = dirFromDelta(target.pos.x - actor.pos.x, target.pos.y - actor.pos.y);
+        events.push({ type: "attack", attackerId: actor.id, targetId: target.id });
+        events.push({ type: "message", text: `${displayActorName(actor)}が つぶてを投げた!` });
+        const defense =
+          target.kind === "player" ? totalDefense(this.player) : target.def;
+        const { damage, critical } = computeDamage(this.rng, actor.atk, defense);
+        const finalDamage = this.mitigateIncomingDamage(target, damage, events);
+        events.push({ type: "message", text: `${displayActorName(target)}に${finalDamage}のダメージ!` });
+        this.damageActor(target, finalDamage, critical, events);
+        break;
+      }
+      case "bossMove": {
+        // 地方ボス(plan/region-bosses.md): 予兆を消費した大技本体。種類ごとの
+        // 実装は systems/bossMoves.ts の BOSS_MOVES レジストリに集約している
+        BOSS_MOVES[action.moveId].execute(this.bossMoveContext(actor, events));
+        if (this.status !== "playing") return true;
+        break;
+      }
+      case "burrowSurface": {
+        // burrow(plan/monster-compendium.md): 潜伏から地上へ現れる。teleportイベントを
+        // 出さずに座標だけ書き換えると、表示側(ActorView)が古い位置のまま取り残され、
+        // 次に動いたときに離れた本来の位置まで一気に「飛ぶ」ように見えてしまう(#180)
+        const from = actor.pos;
+        actor.pos = action.to;
+        events.push({ type: "teleport", actorId: actor.id, from, to: action.to });
+        break;
       }
     }
+    return false;
+  }
+
+  /**
+   * 地方ボス(plan/region-boss-nushigaeru.md): 深みタイルの上にいる間、毎ターン
+   * STATUS_INVISIBLEを付与し直す。深みタイルを離れれば次のupkeepで自然にturnsが尽きて解ける
+   */
+  private tickQuagmireInvisibility(actor: Actor): void {
+    if (
+      !actor.alive ||
+      !actor.speciesId ||
+      !speciesById(actor.speciesId).hidesInQuagmire ||
+      !tileAt(this.floor, actor.pos)?.quagmire
+    ) {
+      return;
+    }
+    // upkeepのtickStatusesが同じcommand内で直後に走りturnsを1減らすため、
+    // 2を設定して次ターン開始時点でも生存させる(1だとその場で0になり消える)
+    const existing = actor.statuses.find((s) => s.kind === STATUS_INVISIBLE);
+    if (existing) existing.turns = 2;
+    else actor.statuses.push({ kind: STATUS_INVISIBLE, turns: 2 });
   }
 
   private moveActor(actor: Actor, dir: Dir, events: GameEvent[]): void {
