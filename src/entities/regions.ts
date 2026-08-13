@@ -16,18 +16,36 @@ export interface RegionDef {
   floors: readonly [number, number];
   /** この地方のボスの種族id。地方の最終階(floors[1])にだけ配置する */
   bossSpeciesId: string;
+  /**
+   * モンスターハウス出現率に掛ける乗数(plan/bonepile-corridor.md)。
+   * 未指定の地方は1(補正なし)。骨積みの回廊(第四地方)固有
+   */
+  monsterHouseRateMul?: number;
 }
 
 export const REGIONS: readonly RegionDef[] = [
   { index: 1, name: "うたたねの参道", floors: [1, 6], bossSpeciesId: "oonebosuke" },
   { index: 2, name: "忘れ潮の湿地", floors: [7, 12], bossSpeciesId: "nushigaeru" },
   { index: 3, name: "まどろみの茸林", floors: [13, 18], bossSpeciesId: "oomadoromi" },
-  { index: 4, name: "骨積みの回廊", floors: [19, 24], bossSpeciesId: "honezukaNoNushi" },
+  {
+    index: 4,
+    name: "骨積みの回廊",
+    floors: [19, 24],
+    bossSpeciesId: "honezukaNoNushi",
+    monsterHouseRateMul: 1.5,
+  },
   { index: 5, name: "なみだの滝つぼ", floors: [25, 30], bossSpeciesId: "fuchiNoNushi" },
   { index: 6, name: "こだまの尾根", floors: [31, 36], bossSpeciesId: "kodamaNoNushi" },
   { index: 7, name: "わすれられた祭りの跡", floors: [37, 42], bossSpeciesId: "misemonoNoNushi" },
   { index: 8, name: "めざめの前庭", floors: [43, 48], bossSpeciesId: "horikuiNoNushi" },
 ];
+
+/** 地方番号から RegionDef を引く。未知の番号は例外(呼び出し側のバグを示す) */
+export function regionByIndex(index: number): RegionDef {
+  const found = REGIONS.find((r) => r.index === index);
+  if (!found) throw new Error(`unknown region index: ${index}`);
+  return found;
+}
 
 /**
  * 地方ボス(plan/region-bosses.md)。表の寝穴で、その階の地方の最終階

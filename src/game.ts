@@ -115,6 +115,7 @@ import {
   totalDefense,
 } from "./entities/player";
 import { HAJIME_NO_YUME_ID, REGION_BOSS_FLOORS, REGION_BOSS_ORDER, speciesById } from "./entities/species";
+import { REGIONS, regionByIndex } from "./entities/regions";
 import { type BondStage, bondStage } from "./entities/companionBond";
 import { itemDef } from "./items/catalog";
 import { type EffectContext, addStatus, applyEffect } from "./items/effects";
@@ -308,9 +309,6 @@ const SPORE_PULSE_INTERVAL = 8;
 const SPORE_SLEEP_CHANCE = 0.6;
 const SPORE_SLEEP_TURNS = 3;
 
-/** 第四地方(骨積みの回廊)固有ギミック(plan/bonepile-corridor.md): モンスターハウス出現率の乗数 */
-const BONEPILE_MONSTER_HOUSE_MULTIPLIER = 1.5;
-
 /** 地方ボス(plan/region-boss-honezuka.md): 大技(aoeSeal)の封じ確率・持続ターン */
 const HONEZUKA_SEAL_CHANCE = 0.6;
 const HONEZUKA_SEAL_TURNS = 3;
@@ -329,6 +327,28 @@ const MIRROR_AUTO_DISPEL_TURNS = 5;
 
 /** 第八地方(めざめの前庭)固有ギミック(plan/dream-garden-mosaic.md): 抽選対象の地方番号(第二〜第七地方) */
 const MOSAIC_CANDIDATE_REGIONS = [2, 3, 4, 5, 6, 7];
+
+/**
+ * 地方固有の地形ギミック配置フック(plan/wetland-quagmire.md・plan/spore-grove.md・
+ * plan/waterfall-torrent.md・plan/festival-mirage.md)。地方番号→フロア生成後に
+ * 呼ぶ配置関数。フックを持たない地方(第一・第四・第六・第八)はここには現れない
+ * (第四地方はモンスターハウス倍率のみ、第六地方は別メソッドの物音ギミック、
+ * 第八地方はモザイク抽選そのもの)
+ */
+const REGION_GIMMICK_PLACERS: Readonly<
+  Record<number, (rng: Rng, floor: FloorState, ids: IdSource) => void>
+> = {
+  2: (rng, floor) => placeQuagmireTiles(rng, floor),
+  3: (rng, floor) => placeSporeRooms(rng, floor),
+  5: (rng, floor) => placeTorrentTiles(rng, floor),
+  7: (rng, floor, ids) => {
+    placeDecoyStairs(rng, floor);
+    placeDecoyBarrels(rng, floor, ids);
+  },
+};
+
+/** 第四地方(骨積みの回廊)。モンスターハウス出現率の乗数は regions.ts のデータに持たせている */
+const BONEPILE_REGION = regionByIndex(4);
 
 /** 地方ボス(plan/region-boss-horikuinonushi.md): 大技(groundSpikes)の威力 */
 const GROUND_SPIKES_DAMAGE = 26;
@@ -674,8 +694,9 @@ export class Game {
           (this.dungeon.monsterHouseRateMul ?? 1) *
           (this.mood.monsterHouseRateMul ?? 1) *
           // 第四地方(骨積みの回廊)固有ギミック(plan/bonepile-corridor.md): 19〜24階はモンスターハウスが出やすい
-          (this.dungeon.id === MAIN_CAVE_ID && this.regionGimmickApplies(depth, 19, 24, 4)
-            ? BONEPILE_MONSTER_HOUSE_MULTIPLIER
+          (this.dungeon.id === MAIN_CAVE_ID &&
+          this.regionGimmickApplies(depth, BONEPILE_REGION.floors[0], BONEPILE_REGION.floors[1], BONEPILE_REGION.index)
+            ? (BONEPILE_REGION.monsterHouseRateMul ?? 1)
             : 1),
       shopChanceMultiplier: bossSpeciesId
         ? 0
@@ -723,25 +744,16 @@ export class Game {
       placeSecretPassage(this.rng, this.floor, `region${regionIndex + 1}`);
     }
 
-    // 第二地方(忘れ潮の湿地)固有ギミック(plan/wetland-quagmire.md): 7〜12階に深みタイルを配置する
-    if (this.dungeon.id === MAIN_CAVE_ID && this.regionGimmickApplies(depth, 7, 12, 2)) {
-      placeQuagmireTiles(this.rng, this.floor);
-    }
-
-    // 第三地方(まどろみの茸林)固有ギミック(plan/spore-grove.md): 13〜18階に胞子部屋を配置する
-    if (this.dungeon.id === MAIN_CAVE_ID && this.regionGimmickApplies(depth, 13, 18, 3)) {
-      placeSporeRooms(this.rng, this.floor);
-    }
-
-    // 第五地方(なみだの滝つぼ)固有ギミック(plan/waterfall-torrent.md): 25〜30階に奔流タイルを配置する
-    if (this.dungeon.id === MAIN_CAVE_ID && this.regionGimmickApplies(depth, 25, 30, 5)) {
-      placeTorrentTiles(this.rng, this.floor);
-    }
-
-    // 第七地方(わすれられた祭りの跡)固有ギミック(plan/festival-mirage.md): 37〜42階に偽の階段・偽のタルを配置する
-    if (this.dungeon.id === MAIN_CAVE_ID && this.regionGimmickApplies(depth, 37, 42, 7)) {
-      placeDecoyStairs(this.rng, this.floor);
-      placeDecoyBarrels(this.rng, this.floor, this.ids);
+    // 地方固有の地形ギミック(plan/wetland-quagmire.md 等): 地方の階層範囲内、または
+    // 第八地方のモザイク抽選(plan/dream-garden-mosaic.md)でその地方番号が選ばれていれば、
+    // REGION_GIMMICK_PLACERS に登録された地方ごとの配置フックを呼ぶ
+    if (this.dungeon.id === MAIN_CAVE_ID) {
+      for (const region of REGIONS) {
+        const place = REGION_GIMMICK_PLACERS[region.index];
+        if (place && this.regionGimmickApplies(depth, region.floors[0], region.floors[1], region.index)) {
+          place(this.rng, this.floor, this.ids);
+        }
+      }
     }
 
     // 第三章「仲間探し」の崩落イベント(plan/chapter3-collapse-event.md): 骨積みの
