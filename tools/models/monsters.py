@@ -4047,6 +4047,139 @@ def yumemayoinokage_animations():
     ]
 
 
+# ================================================================= ヨリシロの残響
+
+# ヨリシロ自身の記憶そのもの。honegarami・yamabikooni・misemonoNoNushiと
+# 同じ人型骨組みをベースに、物語終盤にふさわしい、これまでで最も大きく
+# 力強いシルエットにする。第八地方(めざめの前庭)のテーマ「第一〜第七
+# 地方の色が淡く混ざり合った、統一感のない配色」を、高さで5段に区切った
+# 色帯(各地方の代表色を淡くしたもの)で表現し、胸には全ての記憶が
+# 集まる核として発光する紋章を持たせる。
+YORISHIRONOZANKYO_HALF = {
+    "hip": (0.0, 0.0, 0.390),
+    "chest": (0.0, 0.0, 0.655),
+    "neck": (0.0, 0.0, 0.795),
+    "head": (0.0, -0.016, 0.935),
+    "crown": (0.0, 0.0, 1.045),
+    "shoulder.L": (0.205, 0.0, 0.700),
+    "elbow.L": (0.292, 0.019, 0.510),
+    "hand.L": (0.302, -0.036, 0.340),
+    "thigh.L": (0.118, 0.0, 0.375),
+    "knee.L": (0.126, 0.0, 0.190),
+    "foot.L": (0.132, -0.041, 0.026),
+}
+YORISHIRONOZANKYO_RADII_HALF = {
+    "hip": 0.152, "chest": 0.168, "neck": 0.070, "head": 0.178, "crown": 0.046,
+    "shoulder.L": 0.082, "elbow.L": 0.064, "hand.L": 0.074,
+    "thigh.L": 0.090, "knee.L": 0.072, "foot.L": 0.077,
+}
+YORISHIRONOZANKYO_BONES_HALF = [
+    ("hip", "chest"), ("chest", "neck"), ("neck", "head"), ("head", "crown"),
+    ("chest", "shoulder.L"), ("shoulder.L", "elbow.L"), ("elbow.L", "hand.L"),
+    ("hip", "thigh.L"), ("thigh.L", "knee.L"), ("knee.L", "foot.L"),
+]
+
+
+def build_yorishironozankyo():
+    """
+    ヨリシロ自身の記憶そのもの。出現率は極めて低いが、他のどの種族より
+    HP・攻撃・防御が高い。honegarami・yamabikooni・misemonoNoNushiと
+    同じ人型骨組みを、これまでで最も大きく育てる。配色は高さで5段に
+    区切った色帯で、第一〜第七地方の代表色を淡く混ぜ合わせて表現し、
+    統一感のない、記憶が幾重にも重なった見た目にする。胸には全ての
+    記憶が集まる核として発光する紋章を持たせる。
+    """
+    joints = C.mirrored(YORISHIRONOZANKYO_HALF)
+    radii = C.mirrored_radii(YORISHIRONOZANKYO_RADII_HALF)
+    bones = C.mirrored_bones(YORISHIRONOZANKYO_BONES_HALF)
+
+    body = C.build_skinned("yorishironozankyo", joints, bones, radii, root="hip", subsurf=2)
+    bands = [
+        C.make_material("zankyo_band0", (0.44, 0.40, 0.46), roughness=0.7),   # 記憶の底(灰紫)
+        C.make_material("zankyo_band1", (0.36, 0.52, 0.56), roughness=0.65),  # 忘れ潮の湿地(水色)
+        C.make_material("zankyo_band2", (0.46, 0.56, 0.40), roughness=0.65),  # まどろみの茸林(緑)
+        C.make_material("zankyo_band3", (0.56, 0.42, 0.46), roughness=0.65),  # なみだの滝つぼ(紅紫)
+        C.make_material("zankyo_band4", (0.58, 0.50, 0.34), roughness=0.6),   # こだまの尾根・祭りの跡(土金)
+    ]
+
+    def classify(c):
+        t = max(0.0, min(1.0, c.z / 1.045))
+        return min(4, int(t * 5))
+
+    C.assign_materials_by_region(body, bands, classify)
+
+    extras = []
+    glow = C.make_material("zankyo_eye", (0.85, 0.90, 0.96), roughness=0.25, emission=1.8)
+    for side in (-1.0, 1.0):
+        eye = C.uv_sphere(f"zankyo_eye{side}", (0.070 * side, -0.155, 0.945), 0.028,
+                          segments=14, rings=10, scale=(1.0, 0.6, 0.8))
+        C.assign_material(eye, glow)
+        extras.append(eye)
+
+    # 胸に、全ての記憶が集まる核として発光する紋章を持たせる
+    core_ring = C.uv_sphere("zankyo_core_ring", (0.0, -0.155, 0.660), 0.075,
+                            segments=18, rings=13, scale=(1.0, 0.30, 1.0))
+    C.assign_material(core_ring, C.make_material("zankyo_core_ring_m", (0.72, 0.66, 0.50),
+                                                 roughness=0.4, metallic=0.2))
+    extras.append(core_ring)
+    core = C.uv_sphere("zankyo_core", (0.0, -0.170, 0.660), 0.048,
+                       segments=16, rings=12, scale=(1.0, 0.28, 1.0))
+    C.assign_material(core, C.make_material("zankyo_core_m", (0.90, 0.86, 0.72),
+                                            roughness=0.25, emission=2.4))
+    extras.append(core)
+
+    mesh = C.join([body] + extras, "yorishironozankyo")
+    armature = C.build_armature("yorishironozankyo", joints, bones, mesh, root="hip")
+    return [mesh, armature], armature
+
+
+def yorishironozankyo_animations():
+    hipc, neck = "hip-chest", "neck-head"
+    armL, armR = "chest-shoulder.L", "chest-shoulder.R"
+    foreL, foreR = "shoulder.L-elbow.L", "shoulder.R-elbow.R"
+    legL, legR = "hip-thigh.L", "hip-thigh.R"
+    shinL, shinR = "thigh.L-knee.L", "thigh.R-knee.R"
+    return [
+        # 記憶そのものとして、静かに、しかし途方もない存在感で佇む
+        ("idle", [
+            (1, {hipc: (0, 0, 0), armL: (0, 0, 10), armR: (0, 0, -10)}),
+            (30, {hipc: (2, 0, 2), neck: (-3, 0, 0), armL: (-5, 0, 13), armR: (-5, 0, -13)}),
+            (60, {hipc: (0, 0, 0), armL: (0, 0, 10), armR: (0, 0, -10)}),
+        ]),
+        ("walk", [
+            (1, {legL: (18, 0, 0), legR: (-18, 0, 0), shinL: (-8, 0, 0), shinR: (6, 0, 0),
+                 armL: (-14, 0, 8), armR: (14, 0, -8)}),
+            (10, {legL: (0, 0, 0), legR: (0, 0, 0), armL: (0, 0, 8), armR: (0, 0, -8)}),
+            (19, {legL: (-18, 0, 0), legR: (18, 0, 0), shinL: (6, 0, 0), shinR: (-8, 0, 0),
+                  armL: (14, 0, 8), armR: (-14, 0, -8)}),
+            (28, {legL: (0, 0, 0), legR: (0, 0, 0), armL: (0, 0, 8), armR: (0, 0, -8)}),
+        ]),
+        # 物語終盤にふさわしい、両腕を大きく振りかぶる圧倒的な一撃
+        ("attack", [
+            (1, {armR: (0, 0, -10), foreR: (0, 0, 0), armL: (0, 0, 10), foreL: (0, 0, 0),
+                 hipc: (0, 0, 0)}),
+            (8, {armR: (-145, 0, -28), foreR: (-38, 0, 0), armL: (-46, 0, 36), foreL: (-13, 0, 0),
+                 hipc: (-13, 0, -17), neck: (-6, 0, 0)}),
+            (14, {armR: (80, 0, 19), foreR: (13, 0, 0), armL: (34, 0, -7), foreL: (0, 0, 0),
+                  hipc: (21, 0, 19), neck: (-11, 0, 0)}),
+            (26, {armR: (0, 0, -10), foreR: (0, 0, 0), armL: (0, 0, 10), foreL: (0, 0, 0),
+                  hipc: (0, 0, 0)}),
+        ]),
+        ("hit", [
+            (1, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+            (5, {hipc: (-11, 0, 0), neck: (-11, 0, 0), armL: (-15, 0, 17), armR: (-15, 0, -17)}),
+            (18, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+        ]),
+        # 記憶が薄れるように、大きく傾いて崩れ落ちる
+        ("die", [
+            (1, {hipc: (0, 0, 0)}),
+            (13, {hipc: (-15, 0, 6), neck: (-21, 0, 0), armL: (-35, 0, 35), armR: (-35, 0, -35)}),
+            (32, {hipc: (-88, 0, 19), neck: (-40, 0, 0), legL: (54, 0, 0), legR: (48, 0, 0),
+                  armL: (-78, 0, 54), armR: (-78, 0, -54)}),
+        ]),
+    ]
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -4081,6 +4214,7 @@ MONSTERS = {
     "yaguramori": (build_yaguramori, yaguramori_animations),
     "misemonoNoNushi": (build_misemonoNoNushi, misemonoNoNushi_animations),
     "yumemayoinokage": (build_yumemayoinokage, yumemayoinokage_animations),
+    "yorishironozankyo": (build_yorishironozankyo, yorishironozankyo_animations),
 }
 
 

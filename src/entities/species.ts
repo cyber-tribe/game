@@ -628,9 +628,10 @@ export const SPECIES: readonly Species[] = [
     weight: 4,
   },
   {
+    // ヨリシロ自身の記憶そのもの。専用モデル(plan/models/archive/model-yorishironozankyo.md)
     id: "yorishironozankyo",
     name: "ヨリシロの残響",
-    model: "honegarami",
+    model: "yorishironozankyo",
     maxHp: 160,
     atk: 45,
     def: 32,
