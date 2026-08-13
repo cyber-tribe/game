@@ -170,7 +170,8 @@ export const SPECIES: readonly Species[] = [
     // 夢あわせを重ねて育った姿。攻撃に眠りが確定でまとわりつく
     id: "nemurimogura",
     name: "ねむりモグラ",
-    model: "gajiri",
+    // 専用モデル(plan/models/archive/model-nemurimogura.md)
+    model: "nemurimogura",
     maxHp: 52,
     atk: 23,
     def: 11,
