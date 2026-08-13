@@ -511,7 +511,8 @@ export const SPECIES: readonly Species[] = [
   {
     id: "oitekeboshi",
     name: "オイテケボシ",
-    model: "madoromi",
+    // 専用モデル(plan/models/archive/model-oitekeboshi.md)
+    model: "oitekeboshi",
     maxHp: 30,
     atk: 16,
     def: 6,

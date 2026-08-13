@@ -5247,6 +5247,102 @@ def nushigaeru_animations():
     ]
 
 
+# ====================================================================== オイテケボシ
+
+OITEKEBOSHI_JOINTS = {
+    "root": (0.0, 0.0, 0.05),
+    "stem": (0.0, 0.0, 0.20),
+    "capbase": (0.0, 0.0, 0.30),
+    "captop": (0.0, 0.0, 0.38),
+}
+OITEKEBOSHI_RADII = {"root": 0.09, "stem": 0.075, "capbase": 0.22, "captop": 0.05}
+OITEKEBOSHI_BONES = [("root", "stem"), ("stem", "capbase"), ("capbase", "captop")]
+
+
+def build_oitekeboshi():
+    """
+    置き去りにされた未練。madoromiと同じ関節構成をベースに、傘の縁に
+    尖った突起を並べて星形の輪郭を作る。HPではなく満腹度を削る由来
+    として、大きく開いた口に小さな牙を並べる。配色は第四地方
+    (骨積みの回廊)の、積み重なった骨を思わせる白骨色・くすんだ灰色。
+    目は未練の残り火として淡く発光させる。
+    """
+    body = C.build_skinned("oitekeboshi", OITEKEBOSHI_JOINTS, OITEKEBOSHI_BONES,
+                           OITEKEBOSHI_RADII, root="root", subsurf=2)
+    bone = C.make_material("oiteke_bone", (0.72, 0.68, 0.60), roughness=0.65)
+    ash = C.make_material("oiteke_ash", (0.42, 0.42, 0.44), roughness=0.7)
+    C.assign_materials_by_region(body, [bone, ash], lambda c: 1 if c.z > 0.285 else 0)
+
+    extras = []
+    # 傘の縁に並べた星形の突起
+    for i, angle_deg in enumerate([0.0, 60.0, 120.0, 180.0, 240.0, 300.0]):
+        angle = math.radians(angle_deg)
+        px, py = math.cos(angle) * 0.205, math.sin(angle) * 0.205
+        spike = C.cone(f"oiteke_spike{i}", (px, py, 0.235), 0.052, 0.006, 0.09)
+        C.assign_material(spike, ash)
+        extras.append(spike)
+
+    glow = C.make_material("oiteke_eye", (0.62, 0.72, 0.80), roughness=0.25, emission=1.5)
+    for side in (-1.0, 1.0):
+        eye = C.uv_sphere(f"oiteke_eye{side}", (0.048 * side, -0.078, 0.155), 0.026,
+                          segments=14, rings=10, scale=(1.0, 0.7, 0.9))
+        C.assign_material(eye, glow)
+        extras.append(eye)
+    mouth = C.uv_sphere("oiteke_mouth", (0.0, -0.082, 0.098), 0.038,
+                        segments=14, rings=10, scale=(1.1, 0.55, 0.65))
+    C.assign_material(mouth, C.make_material("oiteke_mouth_m", (0.10, 0.09, 0.10), roughness=0.4))
+    extras.append(mouth)
+    # 満腹度を削る由来を示す、口元に並んだ小さな牙
+    fang_mat = C.make_material("oiteke_fang", (0.88, 0.85, 0.78), roughness=0.4)
+    for i, fx in enumerate([-0.026, -0.009, 0.009, 0.026]):
+        fang = C.cone(f"oiteke_fang{i}", (fx, -0.098, 0.118), 0.009, 0.001, 0.026)
+        C.assign_material(fang, fang_mat)
+        extras.append(fang)
+
+    mesh = C.join([body] + extras, "oitekeboshi")
+    armature = C.build_armature("oitekeboshi", OITEKEBOSHI_JOINTS, OITEKEBOSHI_BONES,
+                                mesh, root="root")
+    return [mesh, armature], armature
+
+
+def oitekeboshi_animations():
+    lower, upper = "root-stem", "stem-capbase"
+    top = "capbase-captop"
+    return [
+        # 未練が漂うように、絶えずゆらゆらと揺れる
+        ("idle", [
+            (1, {lower: (0, 0, 0), upper: (0, 0, 0)}),
+            (24, {lower: (3, 0, 2), upper: (-3, 0, 0), top: (2, 0, 0)}),
+            (48, {lower: (0, 0, 0), upper: (0, 0, 0), top: (0, 0, 0)}),
+        ]),
+        ("walk", [
+            (1, {lower: (0, 0, -8), upper: (0, 0, 6)}),
+            (9, {lower: (5, 0, 0), upper: (-4, 0, 0)}),
+            (18, {lower: (0, 0, 8), upper: (0, 0, -6)}),
+            (27, {lower: (5, 0, 0), upper: (-4, 0, 0)}),
+            (36, {lower: (0, 0, -8), upper: (0, 0, 6)}),
+        ]),
+        # 大きく口を開け、満腹度を吸い取るように吐き出す
+        ("attack", [
+            (1, {upper: (0, 0, 0), top: (0, 0, 0)}),
+            (5, {upper: (-14, 0, 0), top: (-10, 0, 0)}),
+            (10, {upper: (20, 0, 0), top: (16, 0, 0)}),
+            (20, {upper: (0, 0, 0), top: (0, 0, 0)}),
+        ]),
+        ("hit", [
+            (1, {lower: (0, 0, 0)}),
+            (4, {lower: (-16, 0, 0), upper: (-14, 0, 0)}),
+            (14, {lower: (0, 0, 0), upper: (0, 0, 0)}),
+        ]),
+        # 置き去りの未練が、輪郭をほどいて消える
+        ("die", [
+            (1, {lower: (0, 0, 0)}),
+            (10, {lower: (-30, 0, 10), upper: (-18, 0, 0)}),
+            (24, {lower: (-78, 0, 22), upper: (-32, 0, 0)}),
+        ]),
+    ]
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -5292,6 +5388,7 @@ MONSTERS = {
     "namidaguma": (build_namidaguma, namidaguma_animations),
     "nemurimogura": (build_nemurimogura, nemurimogura_animations),
     "nushigaeru": (build_nushigaeru, nushigaeru_animations),
+    "oitekeboshi": (build_oitekeboshi, oitekeboshi_animations),
 }
 
 
