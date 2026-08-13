@@ -3617,6 +3617,105 @@ def chouchinokuri_animations():
     return purun_animations()
 
 
+# =================================================================== わたあめのおばけ
+
+WATAAMENOOBAKE_JOINTS = {
+    "base": (0.0, 0.0, 0.035),
+    "mid": (0.0, 0.0, 0.145),
+    "top": (0.0, 0.0, 0.235),
+}
+# purunとは正反対に、根元(base)を細く絞り先端(top)を膨らませる。
+# 幽霊らしい先細りの尾と、わたあめらしいふくらんだ頭を1本の骨組みで作る
+WATAAMENOOBAKE_RADII = {"base": 0.035, "mid": 0.145, "top": 0.155}
+WATAAMENOOBAKE_BONES = [("base", "mid"), ("mid", "top")]
+
+
+def build_wataamenoobake():
+    """
+    甘い匂いに誘われる夢。purunと同じ縦2本の骨組みをそのまま流用するが、
+    半径をpurunとは逆に根元を細く先端を太くし、幽霊らしい先細りの尾と
+    わたあめらしいふくらんだ頭のシルエットにする。coward AIに合わせ、
+    小柄で軽く、逃げ足の速さを感じさせる。周囲に小さな綿雲の房を
+    まとわせ、触れるとほどけて散る綿あめの質感を出す。配色は第七地方
+    (わすれられた祭りの跡)の、くすんだ紅色を淡くした桃色と金色の煌めき。
+    """
+    body = C.build_skinned("wataamenoobake", WATAAMENOOBAKE_JOINTS, WATAAMENOOBAKE_BONES,
+                           WATAAMENOOBAKE_RADII, root="base", subsurf=2)
+    fluff = C.make_material("wataame_fluff", (0.78, 0.52, 0.56), roughness=0.85)
+    C.assign_material(body, fluff)
+
+    puffs = []
+    for i, (px, py, pz, pr) in enumerate([
+        (0.0, -0.02, 0.255, 0.075),
+        (0.095, 0.03, 0.220, 0.062),
+        (-0.095, 0.03, 0.220, 0.062),
+        (0.0, 0.09, 0.195, 0.058),
+        (0.055, -0.01, 0.290, 0.050),
+        (-0.055, -0.01, 0.290, 0.050),
+    ]):
+        puff = C.uv_sphere(f"wataame_puff{i}", (px, py, pz), pr, segments=14, rings=10)
+        C.assign_material(puff, fluff)
+        puffs.append(puff)
+    body = C.join([body] + puffs, "wataamenoobake")
+
+    extras = []
+    for side in (-1.0, 1.0):
+        extras += eyeball(f"wataame_eye{side}", (0.052 * side, -0.140, 0.210), 0.030,
+                          look=(0.2 * side, -1.0, 0.05),
+                          white=(0.92, 0.86, 0.82), dark=(0.14, 0.09, 0.10))
+    sparkle_mat = C.make_material("wataame_sparkle", (0.82, 0.66, 0.30), roughness=0.3, emission=1.4)
+    for sx, sy, sz in [(0.130, 0.06, 0.270), (-0.115, 0.08, 0.310), (0.02, -0.05, 0.335)]:
+        sparkle = C.uv_sphere(f"wataame_sparkle{sx}_{sz}", (sx, sy, sz), 0.016,
+                              segments=10, rings=8)
+        C.assign_material(sparkle, sparkle_mat)
+        extras.append(sparkle)
+
+    mesh = C.join([body] + extras, "wataamenoobake")
+    armature = C.build_armature("wataamenoobake", C.mirrored(WATAAMENOOBAKE_JOINTS),
+                                WATAAMENOOBAKE_BONES, mesh, root="base")
+    return [mesh, armature], armature
+
+
+def wataamenoobake_animations():
+    lower, upper = "base-mid", "mid-top"
+    squash = {"scale": (1.24, 0.66, 1.24)}
+    stretch = {"scale": (0.80, 1.32, 0.80)}
+    neutral = {"scale": (1.0, 1.0, 1.0)}
+    return [
+        # ふわふわと軽く漂う、地に足の付かない待機
+        ("idle", [
+            (1, {lower: neutral, upper: neutral}),
+            (16, {lower: {"scale": (1.05, 0.94, 1.05)}, upper: {"scale": (0.96, 1.06, 0.96)}}),
+            (32, {lower: neutral, upper: neutral}),
+        ]),
+        # coward AIらしく、素早く逃げるように弾む
+        ("walk", [
+            (1, {lower: neutral, upper: neutral}),
+            (3, {lower: squash, upper: stretch}),
+            (7, {lower: {**stretch, "loc": (0, 0.11, 0)}, upper: squash}),
+            (11, {lower: {"scale": (1.1, 0.85, 1.1)}, upper: neutral}),
+            (15, {lower: neutral, upper: neutral}),
+        ]),
+        ("attack", [
+            (1, {lower: neutral, upper: neutral}),
+            (4, {lower: squash, upper: stretch}),
+            (9, {lower: {"scale": (0.82, 1.3, 0.82)}, upper: {"scale": (1.14, 0.8, 1.14)}}),
+            (18, {lower: neutral, upper: neutral}),
+        ]),
+        ("hit", [
+            (1, {lower: neutral, upper: neutral}),
+            (4, {lower: {"scale": (1.28, 0.68, 1.28)}, upper: {"scale": (0.85, 1.2, 0.85)}}),
+            (14, {lower: neutral, upper: neutral}),
+        ]),
+        # 触れるとほどけて散る綿あめのように、輪郭を崩しながら薄れ消える
+        ("die", [
+            (1, {lower: neutral, upper: neutral}),
+            (10, {lower: {"scale": (1.4, 0.4, 1.4)}, upper: {"scale": (1.3, 0.5, 1.3)}}),
+            (24, {lower: {"scale": (1.6, 0.05, 1.6)}, upper: {"scale": (1.5, 0.06, 1.5)}}),
+        ]),
+    ]
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -3647,6 +3746,7 @@ MONSTERS = {
     "kazaridaruma": (build_kazaridaruma, kazaridaruma_animations),
     "kageboushi": (build_kageboushi, kageboushi_animations),
     "chouchinokuri": (build_chouchinokuri, chouchinokuri_animations),
+    "wataamenoobake": (build_wataamenoobake, wataamenoobake_animations),
 }
 
 
