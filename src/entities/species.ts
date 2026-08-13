@@ -917,9 +917,10 @@ export const SPECIES: readonly Species[] = [
     // 泣きやまない小さな夢。tsubuteモデルを流用する
     id: "nakimushi",
     name: "なきむし",
-    model: "tsubute",
+    model: "nakimushi",
     // 「倒されるたび残りの個体の攻撃力が上がる」は群れ内の連携バフの
-    // 仕組みが必要になるため実装せず、swarmとしての基本挙動のみとした(アーカイブ注記参照)
+    // 仕組みが必要になるため実装せず、swarmとしての基本挙動のみとした
+    // (アーカイブ注記参照)。専用モデル(plan/models/archive/model-nakimushi.md)
     maxHp: 16,
     atk: 13,
     def: 5,
