@@ -123,6 +123,15 @@ export class SlotSelectScreen {
         row.appendChild(detail);
       }
 
+      // タッチ操作向け(#274): この画面はキー入力しか受け付けておらず、
+      // タップしても何も起きなかった。タップした枠をそのまま選ぶ
+      // (キーボードの「↑↓で選んでEnter」を1回のタップにまとめた形)
+      row.addEventListener("click", () => {
+        if (this.confirmingDelete) return;
+        this.cursor = i;
+        this.onSelect?.(i);
+      });
+
       list.appendChild(row);
     });
     box.appendChild(list);
