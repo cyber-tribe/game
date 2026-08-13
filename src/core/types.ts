@@ -285,6 +285,13 @@ export interface Actor {
   /** monster のみ */
   speciesId?: string;
   model: string;
+  /**
+   * 装備した武器の見た目(plan/equipped-weapon-visual.md)。武器を持つのは
+   * 主人公のみで、他のkindでは常にundefined。view層(Stage/ActorView)が
+   * 武器アイテムの中身を知らなくても手に追従させられるよう、装備状態から
+   * 導出したモデル名だけをここに載せる(items/inventory.tsのequippedWeaponModel参照)
+   */
+  equippedWeaponModel?: string;
   pos: Vec2;
   facing: Dir;
   hp: number;
