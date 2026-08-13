@@ -64,6 +64,12 @@ export class Stage {
   private readonly views = new Map<number, ActorView>();
   /** 倒れて消える途中のアクター。消えるまで views から外さない */
   private readonly dying = new Map<number, number>();
+  /**
+   * 各アクターの手に今つけている武器モデル名(plan/equipped-weapon-visual.md)。
+   * 未装備(素手)は null。actor.equippedWeaponModel との差分だけを見て
+   * つけ替えるための控え
+   */
+  private readonly weaponModelByActor = new Map<number, string | null>();
   private readonly actorRoot = new THREE.Group();
 
   /** 被弾表示。HUD 側が毎フレーム拾って画面に出す */
@@ -86,6 +92,7 @@ export class Stage {
     for (const view of this.views.values()) view.dispose();
     this.views.clear();
     this.dying.clear();
+    this.weaponModelByActor.clear();
     this.actorRoot.clear();
     for (const fx of this.effects) fx.object.removeFromParent();
     this.effects.length = 0;
@@ -115,13 +122,33 @@ export class Stage {
         this.actorRoot.add(view.root);
         this.views.set(actor.id, view);
       }
+      this.syncWeapon(actor);
     }
     for (const [id, view] of this.views) {
       if (present.has(id) || this.dying.has(id)) continue;
       view.dispose();
       this.views.delete(id);
+      this.weaponModelByActor.delete(id);
     }
     this.updateActorVisibility(floor);
+  }
+
+  /**
+   * 装備中の武器モデルを手に追従させる(plan/equipped-weapon-visual.md)。
+   * syncActors は毎ターン呼ばれるので、equip・drop・売却などによる
+   * actor.equippedWeaponModel の変化はここで拾われる
+   */
+  private syncWeapon(actor: Actor): void {
+    const view = this.views.get(actor.id);
+    if (!view) return;
+    const wanted = actor.equippedWeaponModel ?? null;
+    if (this.weaponModelByActor.get(actor.id) === wanted) return;
+    if (wanted !== null && !this.assets.has(wanted)) {
+      this.assets.loadInBackground([wanted]);
+      return;
+    }
+    view.setWeapon(wanted !== null ? this.assets.instantiate(wanted).root : null);
+    this.weaponModelByActor.set(actor.id, wanted);
   }
 
   /** 見えていないマスのモンスターは描かない */

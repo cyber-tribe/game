@@ -105,6 +105,16 @@ export function headBonus(inv: Inventory): number {
   return item ? (itemDef(item.defId).bonus ?? 0) : 0;
 }
 
+/**
+ * 装備中の武器のモデル名(plan/equipped-weapon-visual.md)。未装備(素手)なら
+ * null。view層(Stage)が武器を手に追従させるかどうかの判定にそのまま使う
+ */
+export function equippedWeaponModel(inv: Inventory): string | null {
+  if (inv.weaponUid === null) return null;
+  const item = findItem(inv, inv.weaponUid);
+  return item ? itemDef(item.defId).model : null;
+}
+
 /** 装備中の頭防具のdefId。未装備ならnull */
 export function headDefId(inv: Inventory): string | null {
   if (inv.headUid === null) return null;

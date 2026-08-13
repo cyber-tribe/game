@@ -8,6 +8,13 @@ export type ClipName = "idle" | "walk" | "attack" | "hit" | "die";
 const ONE_SHOT: ReadonlySet<ClipName> = new Set(["attack", "hit", "die"]);
 
 /**
+ * 装備した武器を追従させるボーン(plan/equipped-weapon-visual.md)。
+ * tools/models/common.py の bone_name(parent, child) の命名規則により、
+ * "elbow.R-hand.R" は原点が肘・ローカルY+方向が手側にあたる(garudo.glb限定)
+ */
+const WEAPON_BONE_NAME = "elbow.R-hand.R";
+
+/**
  * 盤面のアクター1体ぶんの表示。
  *
  * ゲーム側はマス目単位で一瞬のうちに解決されるので、見た目のほうで
@@ -36,6 +43,9 @@ export class ActorView {
 
   /** 頭上に抱えているもの。タルを持ち上げているあいだ付いてまわる */
   private carried: THREE.Object3D | null = null;
+
+  /** 装備中の武器(plan/equipped-weapon-visual.md)。素手なら null */
+  private weapon: THREE.Object3D | null = null;
 
   /** 被弾演出のために複製した、このインスタンス専用のマテリアル */
   private readonly ownMaterials: THREE.MeshStandardMaterial[] = [];
@@ -189,6 +199,31 @@ export class ActorView {
 
   get carriedObject(): THREE.Object3D | null {
     return this.carried;
+  }
+
+  /**
+   * 装備中の武器を右手のボーンに追従させる。null を渡すと素手に戻す。
+   *
+   * 武器モデルは店・持ち物メニューと共通の既存アセットをそのまま流用しており
+   * (plan/equipped-weapon-visual.md)、「手」そのものを指す専用ノードは
+   * モデル側に無い。ボーンの原点(肘)から手側へ、ボーン自身の長さ(0.135)より
+   * やや手前の位置にオフセットする形で見積もっている。回転は、モデルに焼き込まれた
+   * 「床に浮かせて見せる」向き(GLBノードの transform)を打ち消し、ボーン自身の
+   * 姿勢(前腕方向)にモデルの元の姿勢をそのまま重ねる形にした。ヘッドレスbrowserで
+   * idle/attack両方のスクリーンショットを確認し、明らかな貫通・浮遊は無いことを
+   * 見た上でscale/position(0.55倍、肘から0.06)に調整したが、実機での最終確認は
+   * していない。同じローカル回転をどのクリップでも固定で使うため、クリップごとの
+   * 前腕の向きによって見え方の自然さに多少の差が出る(plan参照、既知の限界)
+   */
+  setWeapon(object: THREE.Object3D | null): void {
+    this.weapon?.removeFromParent();
+    this.weapon = object;
+    if (!object) return;
+    const hand = this.root.getObjectByName(WEAPON_BONE_NAME) ?? this.root;
+    object.position.set(0, 0.06, 0);
+    object.rotation.set(Math.PI / 2, 0, 0);
+    object.scale.setScalar(0.55);
+    hand.add(object);
   }
 
   get isMoving(): boolean {

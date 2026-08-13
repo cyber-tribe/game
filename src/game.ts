@@ -127,6 +127,7 @@ import {
   addItem,
   displayName,
   equip,
+  equippedWeaponModel,
   findItem,
   hasEquipEffect,
   isFull,
@@ -652,6 +653,7 @@ export class Game {
       this.floor.actors = this.floor.actors.map((a) => canonical.get(a.id) ?? a);
 
       updateVisibility(this.floor, this.player.pos, this.visionExtraRange());
+      this.syncEquippedWeaponModel();
       return;
     }
 
@@ -678,8 +680,20 @@ export class Game {
       this.allies.push(createAllyFromStored(this.ids.nextActorId(), stored, this.player.pos));
     }
 
+    this.syncEquippedWeaponModel();
     const startDepth = Math.min(Math.max(1, Math.floor(opts.startDepth ?? 1)), this.maxDepth);
     this.enterFloor(startDepth);
+  }
+
+  /**
+   * 装備した武器を手に持たせる(plan/equipped-weapon-visual.md)。
+   * view層(Stage)はアイテム定義を知らないので、装備状態から見た目用の
+   * モデル名だけを導出してActorに載せておく。command() の中で毎ターン
+   * 呼ぶことで、equip・drop・売却などweaponUidが変わりうるすべての経路を
+   * 個別に追わずに済む
+   */
+  private syncEquippedWeaponModel(): void {
+    this.player.equippedWeaponModel = equippedWeaponModel(this.player.inventory) ?? undefined;
   }
 
   /** ダイブ中オートセーブ用のスナップショットを書き出す */
@@ -1136,6 +1150,7 @@ export class Game {
     this.hitThisTurn = new Set();
     const posBeforeCommand = { ...this.player.pos };
     const consumedTurn = this.resolvePlayerCommand(cmd, events);
+    this.syncEquippedWeaponModel();
 
     if (consumedTurn && this.status === "playing") {
       this.runActors(events);
