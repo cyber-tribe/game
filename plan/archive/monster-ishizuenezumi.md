@@ -1,3 +1,10 @@
+> **実装済み(コード変更なし)。** `src/entities/species.ts`の`id:
+> "ishizuenezumi"`エントリを確認し、本文書のデータ表(AI/maxHp/atk/def/
+> exp/weight/配合元)がすべて一致することを検証した。差分なし(`weight:
+> 0`・`minFloor: Number.POSITIVE_INFINITY`は配合限定で野生出現しないため
+> の値で、本文書の「配合限定」という位置づけと整合している)。本文書は
+> コードを伴わない記録用の文書のため、追加の実装は行わない。
+
 # いしずえねずみ(ishizuenezumi)のモンスター実装
 
 `src/entities/species.ts`にすでに実装済みの内容を、正式なplanとして
