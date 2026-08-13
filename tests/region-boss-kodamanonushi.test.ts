@@ -95,7 +95,7 @@ describe("entities/ai.ts: こだまの主の大技(decideMonsterAction)", () => 
     const field = new Int32Array(floor.width * floor.height).fill(0);
 
     const action = decideMonsterAction(rng, floor, boss, target, field);
-    expect(action).toEqual({ type: "summonEcho" });
+    expect(action).toEqual({ type: "bossMove", moveId: "summonEcho" });
     expect(boss.telegraphCharge).toBe(false);
   });
 

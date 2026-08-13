@@ -91,7 +91,7 @@ describe("entities/ai.ts: ホネヅカのぬしの大技(decideMonsterAction)", 
     expect(boss.telegraphCharge).toBe(true);
   });
 
-  it("予兆済みの次の隣接した手は、隣接攻撃ではなくboomAoeSealになる", () => {
+  it("予兆済みの次の隣接した手は、隣接攻撃ではなくaoeSealになる", () => {
     const rng = new Rng(1);
     const floor = emptyFloor();
     const boss = bossActor({ telegraphCharge: true, telegraphCooldown: 5 });
@@ -100,7 +100,7 @@ describe("entities/ai.ts: ホネヅカのぬしの大技(decideMonsterAction)", 
     const field = new Int32Array(floor.width * floor.height).fill(0);
 
     const action = decideMonsterAction(rng, floor, boss, target, field);
-    expect(action).toEqual({ type: "boomAoeSeal" });
+    expect(action).toEqual({ type: "bossMove", moveId: "aoeSeal" });
     expect(boss.telegraphCharge).toBe(false);
   });
 });
@@ -132,7 +132,7 @@ describe("game.ts: 地方ボスの階(depth 24、表の寝穴)", () => {
   });
 });
 
-describe("game.ts: 大技(boomAoeSeal)が部屋全体を封じることがある", () => {
+describe("game.ts: 大技(aoeSeal)が部屋全体を封じることがある", () => {
   it("予兆済みのボスに隣接した状態で行動させると、プレイヤーが封じられることがある", () => {
     let sealed = false;
     for (let seed = 1; seed <= 30 && !sealed; seed++) {

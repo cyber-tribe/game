@@ -57,7 +57,6 @@ import {
   createAllyFromStored,
   createBarrel,
   createItem,
-  createMonster,
   findFreeTile,
   placeChapter3CollapseObstacle,
   placeDecoyBarrels,
@@ -132,6 +131,7 @@ import {
   weaponMarkIds,
 } from "./items/inventory";
 import { attackOffsets, computeDamage } from "./systems/combat";
+import { BOSS_MOVES, SPORE_SLEEP_CHANCE, SPORE_SLEEP_TURNS, type BossMoveContext } from "./systems/bossMoves";
 
 /** 双樽鉤(quickSingle)の会心率の上乗せ分 */
 const QUICK_SINGLE_CRIT_BONUS = 0.15;
@@ -304,26 +304,18 @@ const REGEN_INTERVAL = 8;
 /** このターンごとにモンスターが1体湧く */
 const SPAWN_INTERVAL = 45;
 
-/** 第三地方(まどろみの茸林)固有ギミック(plan/spore-grove.md): 胞子部屋のパルス間隔・睡眠確率・持続ターン */
+/**
+ * 第三地方(まどろみの茸林)固有ギミック(plan/spore-grove.md): 胞子部屋のパルス間隔。
+ * 睡眠確率・持続ターン(SPORE_SLEEP_CHANCE/TURNS)は地方ボス(plan/region-boss-
+ * oomadoromi.md)の大技(aoeSleep)と値を共有するため systems/bossMoves.ts にある
+ */
 const SPORE_PULSE_INTERVAL = 8;
-const SPORE_SLEEP_CHANCE = 0.6;
-const SPORE_SLEEP_TURNS = 3;
-
-/** 地方ボス(plan/region-boss-honezuka.md): 大技(aoeSeal)の封じ確率・持続ターン */
-const HONEZUKA_SEAL_CHANCE = 0.6;
-const HONEZUKA_SEAL_TURNS = 3;
 
 /** 第五地方(なみだの滝つぼ)固有ギミック(plan/waterfall-torrent.md): 奔流タイルの連鎖上限 */
 const TORRENT_PUSH_LIMIT = 4;
 
-/** 地方ボス(plan/region-boss-fuchinonushi.md): 大技(summonTorrent)で設置する奔流タイルの持続ターン */
-const SUMMON_TORRENT_DURATION = 3;
-
 /** 第六地方(こだまの尾根)固有ギミック(plan/echoing-ridge.md): 物音を立てる行動で気づかせる範囲 */
 const ECHO_ALERT_RANGE = 6;
-
-/** 地方ボス(plan/region-boss-misemonononushi.md): 大技(summonMirror)の幻影が自然に消えるまでのターン数 */
-const MIRROR_AUTO_DISPEL_TURNS = 5;
 
 /** 第八地方(めざめの前庭)固有ギミック(plan/dream-garden-mosaic.md): 抽選対象の地方番号(第二〜第七地方) */
 const MOSAIC_CANDIDATE_REGIONS = [2, 3, 4, 5, 6, 7];
@@ -349,9 +341,6 @@ const REGION_GIMMICK_PLACERS: Readonly<
 
 /** 第四地方(骨積みの回廊)。モンスターハウス出現率の乗数は regions.ts のデータに持たせている */
 const BONEPILE_REGION = regionByIndex(4);
-
-/** 地方ボス(plan/region-boss-horikuinonushi.md): 大技(groundSpikes)の威力 */
-const GROUND_SPIKES_DAMAGE = 26;
 
 /** 地方ごとの成熟系統(plan/companion-evolution-expansion.md): こだまぎつねの反響攻撃の最大追加回数 */
 const ECHO_ATTACK_MAX = 2;
@@ -2552,88 +2541,11 @@ export class Game {
           this.damageActor(target, finalDamage, critical, events);
           break;
         }
-        case "boomAoeSleep": {
-          // 地方ボス(plan/region-boss-oomadoromi.md): 予兆を消費した大技。
-          // 隣接攻撃ではなく、自分のいる部屋の全アクターに睡眠を放つ
-          events.push({ type: "message", text: `${displayActorName(actor)}が胞子をまき散らした!` });
-          const room = this.floor.rooms.find((r) => roomContains(r, actor.pos));
-          if (room) {
-            const occupants = this.floor.actors.filter((a) => a.alive && roomContains(room, a.pos));
-            this.applyRoomWideStatus(occupants, STATUS_SLEEP, SPORE_SLEEP_CHANCE, SPORE_SLEEP_TURNS, "眠ってしまった", events);
-          }
-          break;
-        }
-        case "boomAoeSeal": {
-          // 地方ボス(plan/region-boss-honezuka.md): 予兆を消費した大技。
-          // 隣接攻撃ではなく、自分のいる部屋の全アクターに封じを放つ
-          events.push({ type: "message", text: `${displayActorName(actor)}の骨が一斉に鳴り響いた!` });
-          const room = this.floor.rooms.find((r) => roomContains(r, actor.pos));
-          if (room) {
-            const occupants = this.floor.actors.filter((a) => a.alive && roomContains(room, a.pos));
-            this.applyRoomWideStatus(occupants, STATUS_SEAL, HONEZUKA_SEAL_CHANCE, HONEZUKA_SEAL_TURNS, "封じられた", events);
-          }
-          break;
-        }
-        case "summonTorrent": {
-          // 地方ボス(plan/region-boss-fuchinonushi.md): 予兆を消費した大技。
-          // 隣接攻撃ではなく、自分のいる部屋の外周タイルへ一時的に奔流を呼び込む
-          events.push({ type: "message", text: `${displayActorName(actor)}が奔流を呼び込んだ!` });
-          const room = this.floor.rooms.find((r) => roomContains(r, actor.pos));
-          if (room) {
-            actor.summonedTorrentTiles ??= [];
-            const cx = room.x + (room.w >> 1);
-            const cy = room.y + (room.h >> 1);
-            for (let x = room.x; x < room.x + room.w; x++) {
-              for (let y = room.y; y < room.y + room.h; y++) {
-                const onPerimeter = x === room.x || x === room.x + room.w - 1 || y === room.y || y === room.y + room.h - 1;
-                if (!onPerimeter) continue;
-                const tile = tileAt(this.floor, { x, y });
-                if (!tile || tile.kind !== TILE_ROOM) continue;
-                tile.torrent = dirFromDelta(cx - x, cy - y);
-                actor.summonedTorrentTiles.push({ pos: { x, y }, expiresIn: SUMMON_TORRENT_DURATION });
-              }
-            }
-          }
-          break;
-        }
-        case "summonEcho": {
-          // 地方ボス(plan/region-boss-kodamanonushi.md): 予兆を消費した大技。
-          // HPを共有する分身を、既存の生存数に応じて最大2体まで補充する
-          const existingEchoes = this.floor.actors.filter((a) => a.alive && a.sharesHpWith === actor.id);
-          const toSpawn = Math.max(0, 2 - existingEchoes.length);
-          const species = actor.speciesId ? speciesById(actor.speciesId) : undefined;
-          if (toSpawn > 0 && species) {
-            events.push({ type: "message", text: `${displayActorName(actor)}が分身を呼び出した!` });
-          }
-          for (let i = 0; i < toSpawn && species; i++) {
-            const pos = this.freeSpotNear(actor.pos);
-            if (!pos) break;
-            const echo = createMonster(this.ids.nextActorId(), species, pos);
-            echo.sharesHpWith = actor.id;
-            echo.hp = actor.hp;
-            echo.atk = Math.round(actor.atk * 0.5);
-            echo.aware = true;
-            this.floor.actors.push(echo);
-          }
-          break;
-        }
-        case "summonMirror": {
-          // 地方ボス(plan/region-boss-misemonononushi.md): 予兆を消費した大技。
-          // 本体そっくりの幻影を3体呼び出す。当てても消えるだけの偽物で、
-          // 本体を選び当てる駆け引きになる
-          const species = actor.speciesId ? speciesById(actor.speciesId) : undefined;
-          if (species) {
-            events.push({ type: "message", text: `${displayActorName(actor)}の周りに幻影が現れた!` });
-            for (let i = 0; i < 3; i++) {
-              const spot = this.freeSpotNear(actor.pos);
-              if (!spot) break;
-              const mirror = createMonster(this.ids.nextActorId(), species, spot);
-              mirror.mirrorOf = actor.id;
-              mirror.aware = true;
-              this.floor.actors.push(mirror);
-            }
-            actor.mirrorTurnsLeft = MIRROR_AUTO_DISPEL_TURNS;
-          }
+        case "bossMove": {
+          // 地方ボス(plan/region-bosses.md): 予兆を消費した大技本体。種類ごとの
+          // 実装は systems/bossMoves.ts の BOSS_MOVES レジストリに集約している
+          BOSS_MOVES[action.moveId].execute(this.bossMoveContext(actor, events));
+          if (this.status !== "playing") return;
           break;
         }
         case "burrowSurface": {
@@ -2643,25 +2555,6 @@ export class Game {
           const from = actor.pos;
           actor.pos = action.to;
           events.push({ type: "teleport", actorId: actor.id, from, to: action.to });
-          break;
-        }
-        case "groundSpikes": {
-          // 地方ボス(plan/region-boss-horikuinonushi.md): 予兆を消費した大技。
-          // crackWarningの立つ全マスについて、上にいるアクターへダメージを
-          // 適用し、その後crackWarningをすべて解除する
-          events.push({ type: "message", text: `${displayActorName(actor)}が地面から杭を突き上げた!` });
-          for (let i = 0; i < this.floor.tiles.length; i++) {
-            const tile = this.floor.tiles[i]!;
-            if (!tile.crackWarning) continue;
-            tile.crackWarning = false;
-            const pos = { x: i % this.floor.width, y: Math.floor(i / this.floor.width) };
-            const hit = actorAt(this.floor, pos);
-            if (!hit || !hit.alive) continue;
-            const result = computeDamage(this.rng, GROUND_SPIKES_DAMAGE, hit.def);
-            events.push({ type: "message", text: `${displayActorName(hit)}に${result.damage}のダメージ!` });
-            this.damageActor(hit, result.damage, result.critical, events);
-            if (this.status !== "playing") return;
-          }
           break;
         }
       }
@@ -2920,6 +2813,22 @@ export class Game {
 
   private effectContext(events: GameEvent[]): EffectContext {
     return { rng: this.rng, floor: this.floor, player: this.player, events };
+  }
+
+  /** 地方ボスの大技(systems/bossMoves.tsのBOSS_MOVES)に渡す、narrowなGameアクセス */
+  private bossMoveContext(actor: Actor, events: GameEvent[]): BossMoveContext {
+    return {
+      actor,
+      floor: this.floor,
+      rng: this.rng,
+      ids: this.ids,
+      events,
+      applyRoomWideStatus: (occupants, kind, chance, turns, verb, evts) =>
+        this.applyRoomWideStatus(occupants, kind, chance, turns, verb, evts),
+      freeSpotNear: (center) => this.freeSpotNear(center),
+      damageActor: (target, damage, critical, evts) => this.damageActor(target, damage, critical, evts),
+      isGameOver: () => this.status !== "playing",
+    };
   }
 
   /** テストとデバッグ用。指定した種類のアイテムを持ち物に足す */

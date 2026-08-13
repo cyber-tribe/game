@@ -97,7 +97,7 @@ describe("entities/ai.ts: 見世物のぬしの大技(decideMonsterAction)", () 
     const field = new Int32Array(floor.width * floor.height).fill(0);
 
     const action = decideMonsterAction(rng, floor, boss, target, field);
-    expect(action).toEqual({ type: "summonMirror" });
+    expect(action).toEqual({ type: "bossMove", moveId: "summonMirror" });
     expect(boss.telegraphCharge).toBe(false);
   });
 
