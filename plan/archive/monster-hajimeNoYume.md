@@ -1,3 +1,9 @@
+> **実装済み(コード変更なし)。** `src/entities/species.ts`の
+> `HAJIME_NO_YUME_ID`定数(`id: HAJIME_NO_YUME_ID` = `"hajimeNoYume"`)の
+> エントリを確認し、本文書のデータ表(AI/maxHp/atk/def/exp/weight/備考)が
+> すべて一致することを検証した。差分なし。本文書はコードを伴わない記録用の
+> 文書のため、追加の実装は行わない。
+
 # はじめの夢(hajimeNoYume)のモンスター実装
 
 `src/entities/species.ts`にすでに実装済みの内容を、正式なplanとして
