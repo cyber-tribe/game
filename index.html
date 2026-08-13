@@ -532,6 +532,44 @@
       .ending-box p { margin: 8px 0; font-size: 15px; line-height: 1.7; }
       .ending-hint { margin-top: 22px; font-size: 12px; color: var(--dim); }
 
+      /* ------------------------------------------------ 出先デバッグパネル(plan/mobile-debug-panel.md) */
+      /* ?debug=1のときだけ src/ui/debug-panel.ts が中身を生成する。通常は空のまま非表示 */
+      #debugPanel {
+        display: none;
+        position: absolute;
+        left: 8px; top: 8px;
+        width: min(300px, 84vw);
+        max-height: 62vh;
+        overflow-y: auto;
+        padding: 8px 10px;
+        pointer-events: auto;
+        font-size: 11px;
+        line-height: 1.5;
+        z-index: 30;
+      }
+      #debugPanel:not(:empty) { display: block; }
+      .debug-panel-title {
+        margin: 0 0 6px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: #ff9ea6;
+      }
+      .debug-panel-row { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+      .debug-panel-row button {
+        font-family: inherit; font-size: 11px; padding: 4px 8px;
+        border-radius: 6px; background: rgba(255, 255, 255, 0.06);
+        border: 1px solid var(--edge); color: var(--ink); cursor: pointer;
+      }
+      .debug-panel-row button:active { background: rgba(127, 190, 255, 0.24); }
+      .debug-panel-log { list-style: none; margin: 0 0 8px; padding: 0; max-height: 130px; overflow-y: auto; }
+      .debug-panel-log li {
+        color: var(--bad); border-bottom: 1px solid var(--edge);
+        padding: 3px 0; word-break: break-all;
+      }
+      .debug-panel-log li.warn { color: var(--warn); }
+      .debug-panel-snapshot {
+        margin: 0; padding: 6px; max-height: 160px; overflow-y: auto;
+        background: rgba(255, 255, 255, 0.04); border-radius: 6px;
+        white-space: pre-wrap; word-break: break-all; font-size: 10px;
+      }
+
       #loading {
         position: absolute; inset: 0;
         display: flex; align-items: center; justify-content: center;
@@ -594,6 +632,7 @@
         <div id="slotSelect"></div>
         <div id="overlay"></div>
         <div id="ending"></div>
+        <div id="debugPanel" class="panel"></div>
       </div>
 
       <div id="gallery-info" class="panel"></div>
