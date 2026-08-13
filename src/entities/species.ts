@@ -987,10 +987,10 @@ export const SPECIES: readonly Species[] = [
 
   // 第七地方: わすれられた祭りの跡(design/regions.md 37〜42階)。+4
   {
-    // 祭りの影絵芝居の忘れ物。めんかぶりこぞうと同じtsubuteモデルを流用する
+    // 祭りの影絵芝居の忘れ物。専用モデル(plan/models/archive/model-kageboushi.md)
     id: "kageboushi",
     name: "かげぼうし",
-    model: "tsubute",
+    model: "kageboushi",
     maxHp: 38,
     atk: 24,
     def: 10,

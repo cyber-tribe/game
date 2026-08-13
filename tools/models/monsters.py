@@ -3453,6 +3453,110 @@ def kazaridaruma_animations():
     ]
 
 
+# ======================================================================= かげぼうし
+
+# tsubuteと同じ関節構成(hip/chest/head/armF/handF/kneeB/ankleB/footB)を
+# ベースにする、menkaburikozoと同系統の奇襲役(ambush AI)。menkaburikozo
+# が「面をかぶって潜む」のに対し、かげぼうしは「祭りの影絵芝居そのものの
+# 忘れ物」という由来のため、立体感をさらに削って紙のように薄い輪郭にし、
+# 全身をほぼ黒一色にする。祭りの提灯に透かされていた名残として、
+# 三日月形の眠たげな目だけを金色に発光させる(混乱ではなく眠りを誘う
+# 由来にちなみ、menkaburikozoの見開いた目の穴とは逆に閉じた目にする)。
+KAGEBOUSHI_HALF = {
+    "hip": (0.0, 0.108, 0.088),
+    "chest": (0.0, -0.052, 0.096),
+    "head": (0.0, -0.205, 0.100),
+    "armF.L": (0.140, -0.140, 0.046),
+    "handF.L": (0.158, -0.196, 0.012),
+    "kneeB.L": (0.188, 0.102, 0.100),
+    "ankleB.L": (0.170, -0.036, 0.030),
+    "footB.L": (0.158, -0.140, 0.011),
+}
+KAGEBOUSHI_RADII_HALF = {
+    "hip": 0.128, "chest": 0.135, "head": 0.088,
+    "armF.L": 0.026, "handF.L": 0.030,
+    "kneeB.L": 0.056, "ankleB.L": 0.036, "footB.L": 0.032,
+}
+KAGEBOUSHI_BONES_HALF = [
+    ("chest", "hip"), ("chest", "head"),
+    ("chest", "armF.L"), ("armF.L", "handF.L"),
+    ("hip", "kneeB.L"), ("kneeB.L", "ankleB.L"), ("ankleB.L", "footB.L"),
+]
+
+
+def build_kageboushi():
+    """
+    祭りの影絵芝居の忘れ物。tsubuteと同じ関節構成をベースに、
+    menkaburikozoよりさらに立体感を削った紙のように薄いシルエットに
+    する。全身をほぼ黒一色にし、提灯に透かされていた名残として
+    三日月形の眠たげな目だけを金色に発光させる。
+    """
+    joints = C.mirrored(KAGEBOUSHI_HALF)
+    radii = C.mirrored_radii(KAGEBOUSHI_RADII_HALF)
+    bones = C.mirrored_bones(KAGEBOUSHI_BONES_HALF)
+
+    body = C.build_skinned("kageboushi", joints, bones, radii, root="chest", subsurf=2)
+    shadow = C.make_material("kageboushi_shadow", (0.05, 0.045, 0.055), roughness=0.7)
+    C.assign_material(body, shadow)
+
+    extras = []
+    glow = C.make_material("kageboushi_glow", (0.85, 0.66, 0.28), roughness=0.3, emission=1.8)
+    for side in (-1.0, 1.0):
+        # 三日月形の目。細長く潰したuv_sphereを2つ重ねて三日月の欠けを作る
+        moon = C.uv_sphere(f"kageboushi_moon{side}", (0.048 * side, -0.238, 0.108), 0.022,
+                           segments=14, rings=10, scale=(1.0, 0.5, 1.4))
+        C.assign_material(moon, glow)
+        extras.append(moon)
+        bite = C.uv_sphere(f"kageboushi_bite{side}", (0.048 * side + 0.010 * side, -0.246, 0.108), 0.020,
+                           segments=14, rings=10, scale=(1.0, 0.5, 1.4))
+        C.assign_material(bite, shadow)
+        extras.append(bite)
+
+    mesh = C.join([body] + extras, "kageboushi")
+    armature = C.build_armature("kageboushi", joints, bones, mesh, root="chest")
+    return [mesh, armature], armature
+
+
+def kageboushi_animations():
+    head = "chest-head"
+    armL, armR = "chest-armF.L", "chest-armF.R"
+    legL, legR = "hip-kneeB.L", "hip-kneeB.R"
+    return [
+        # 影のように、ほとんど気配なく潜む
+        ("idle", [
+            (1, {head: (0, 0, 0)}),
+            (44, {head: (2, 4, 0)}),
+            (88, {head: (0, 0, 0)}),
+        ]),
+        # 音も無く、するすると這うように忍び寄る
+        ("walk", [
+            (1, {legL: (0, 0, 0), legR: (0, 0, 0), head: (0, 0, 0)}),
+            (6, {legL: (28, 0, 0), legR: (28, 0, 0), head: (5, 0, 0)}),
+            (11, {legL: (-22, 0, 0), legR: (-22, 0, 0), head: (-5, 0, 0)}),
+            (16, {legL: (0, 0, 0), legR: (0, 0, 0), head: (0, 0, 0)}),
+        ]),
+        # 影が伸びるように腕を差し伸べ、眠りを誘う不意打ち
+        ("attack", [
+            (1, {armL: (0, 0, 0), armR: (0, 0, 0), head: (0, 0, 0)}),
+            (5, {armL: (-46, 0, 24), armR: (-46, 0, -24), head: (-20, 0, 0)}),
+            (10, {armL: (26, 0, -8), armR: (26, 0, 8), head: (10, 0, 0)}),
+            (18, {armL: (0, 0, 0), armR: (0, 0, 0), head: (0, 0, 0)}),
+        ]),
+        ("hit", [
+            (1, {head: (0, 0, 0)}),
+            (4, {head: (16, 0, 0), armL: (-18, 0, 14), armR: (-18, 0, -14)}),
+            (14, {head: (0, 0, 0)}),
+        ]),
+        # 影そのものが薄れ消えていくように、色が沈むのではなく潰れて消える
+        ("die", [
+            (1, {head: (0, 0, 0)}),
+            (10, {head: (22, 0, 0), legL: (-30, 0, 0), legR: (-30, 0, 0)}),
+            (24, {head: (34, 0, 0), legL: (-56, 0, 0), legR: (-56, 0, 0),
+                  armL: (-50, 0, 20), armR: (-50, 0, -20)}),
+        ]),
+    ]
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -3481,6 +3585,7 @@ MONSTERS = {
     "menkaburikozo": (build_menkaburikozo, menkaburikozo_animations),
     "honedatami": (build_honedatami, honedatami_animations),
     "kazaridaruma": (build_kazaridaruma, kazaridaruma_animations),
+    "kageboushi": (build_kageboushi, kageboushi_animations),
 }
 
 
