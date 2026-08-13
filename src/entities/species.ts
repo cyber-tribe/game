@@ -388,7 +388,7 @@ export const SPECIES: readonly Species[] = [
     // (plan/region-boss-misemonononushi.md)
     id: "misemonoNoNushi",
     name: "見世物のぬし",
-    model: "honegarami",
+    model: "misemonoNoNushi",
     maxHp: 152,
     atk: 31,
     def: 34,
