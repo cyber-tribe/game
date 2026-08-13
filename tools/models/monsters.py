@@ -2398,6 +2398,132 @@ def kaerukodama_animations():
     ]
 
 
+# ===================================================================== やまびこおに
+
+# honegaramiと同じ人型の骨組み(hip/chest/neck/head/crown、
+# shoulder/elbow/hand、thigh/knee/foot)をベースにするが、honegaramiの
+# 「骨が浮いた細い体」とは正反対の「がっしりした体格」を作るため、
+# 座標・太さともに大きく変える: 胴と肩を横に張り出させ、四肢の半径を
+# honegaramiの2倍前後まで太くする。声そのものが実体化した鬼という由来から、
+# 頭に角を2本足し、honegaramiの眼窩(暗い落ちくぼみ)とは逆に、
+# 響きが宿っているような発光する目にする。
+YAMABIKOONI_HALF = {
+    "hip": (0.0, 0.0, 0.335),
+    "chest": (0.0, 0.0, 0.565),
+    "neck": (0.0, 0.0, 0.685),
+    "head": (0.0, -0.012, 0.805),
+    "crown": (0.0, 0.0, 0.905),
+    "shoulder.L": (0.175, 0.0, 0.605),
+    "elbow.L": (0.250, 0.015, 0.440),
+    "hand.L": (0.258, -0.030, 0.295),
+    "thigh.L": (0.100, 0.0, 0.320),
+    "knee.L": (0.106, 0.0, 0.160),
+    "foot.L": (0.110, -0.035, 0.020),
+}
+YAMABIKOONI_RADII_HALF = {
+    "hip": 0.128, "chest": 0.138, "neck": 0.058, "head": 0.148, "crown": 0.040,
+    "shoulder.L": 0.068, "elbow.L": 0.054, "hand.L": 0.062,
+    "thigh.L": 0.076, "knee.L": 0.062, "foot.L": 0.066,
+}
+YAMABIKOONI_BONES_HALF = [
+    ("hip", "chest"), ("chest", "neck"), ("neck", "head"), ("head", "crown"),
+    ("chest", "shoulder.L"), ("shoulder.L", "elbow.L"), ("elbow.L", "hand.L"),
+    ("hip", "thigh.L"), ("thigh.L", "knee.L"), ("knee.L", "foot.L"),
+]
+
+
+def build_yamabikooni():
+    """
+    やまびこぎつねの呼び声に応じて現れる、尾根の奥にひそむ力の強い個体。
+    honegaramiと同じ人型骨格をがっしりと太らせ、正面から迫る力強い
+    シルエットにする。配色は第六地方(こだまの尾根)の岩肌の灰色と
+    乾いた土色。頭には鬼らしい角を2本、声が実体化した由来にちなんで
+    発光する目を持たせる。
+    """
+    joints = C.mirrored(YAMABIKOONI_HALF)
+    radii = C.mirrored_radii(YAMABIKOONI_RADII_HALF)
+    bones = C.mirrored_bones(YAMABIKOONI_BONES_HALF)
+
+    body = C.build_skinned("yamabikooni", joints, bones, radii, root="hip", subsurf=2)
+    rock = C.make_material("yamabikooni_rock", (0.50, 0.48, 0.46), roughness=0.8)
+    earth = C.make_material("yamabikooni_earth", (0.56, 0.44, 0.32), roughness=0.7)
+    # 腰まわり(腰巻のように見える範囲)だけ乾いた土色にする
+    C.assign_materials_by_region(
+        body, [rock, earth],
+        lambda c: 1 if (0.28 < c.z < 0.40) else 0,
+    )
+
+    extras = []
+    eye_glow = C.make_material("yamabikooni_eye", (0.95, 0.65, 0.20), roughness=0.3, emission=2.2)
+    for side in (-1.0, 1.0):
+        eye = C.uv_sphere(f"yamabikooni_eye{side}", (0.062 * side, -0.108, 0.815), 0.026,
+                          segments=12, rings=9, scale=(1.0, 0.7, 0.8))
+        C.assign_material(eye, eye_glow)
+        extras.append(eye)
+        # 鬼らしい角。cone()はZ軸沿いにしか作れないので回転はかけず、
+        # 根元を頭頂の高さに置いて真上へ伸ばすだけにする
+        horn = C.cone(f"yamabikooni_horn{side}", (0.044 * side, 0.010, 0.895),
+                     0.026, 0.006, 0.115, segments=10)
+        C.assign_material(horn, earth)
+        extras.append(horn)
+    jaw = C.uv_sphere("yamabikooni_jaw", (0.0, -0.055, 0.735), 0.096,
+                      segments=18, rings=12, scale=(0.95, 1.1, 0.6))
+    C.assign_material(jaw, rock)
+    extras.append(jaw)
+
+    mesh = C.join([body] + extras, "yamabikooni")
+    armature = C.build_armature("yamabikooni", joints, bones, mesh, root="hip")
+    return [mesh, armature], armature
+
+
+def yamabikooni_animations():
+    hipc, neck = "hip-chest", "neck-head"
+    armL, armR = "chest-shoulder.L", "chest-shoulder.R"
+    foreL, foreR = "shoulder.L-elbow.L", "shoulder.R-elbow.R"
+    legL, legR = "hip-thigh.L", "hip-thigh.R"
+    shinL, shinR = "thigh.L-knee.L", "thigh.R-knee.R"
+    return [
+        # 力強くゆったりとした、鬼らしい構え
+        ("idle", [
+            (1, {hipc: (0, 0, 0), armL: (0, 0, 10), armR: (0, 0, -10)}),
+            (24, {hipc: (3, 0, 2), neck: (-4, 0, 0), armL: (-6, 0, 14), armR: (-6, 0, -14)}),
+            (48, {hipc: (0, 0, 0), armL: (0, 0, 10), armR: (0, 0, -10)}),
+        ]),
+        # honegaramiより重心を落とし、どっしりと踏みしめて歩く
+        ("walk", [
+            (1, {legL: (20, 0, 0), legR: (-20, 0, 0), shinL: (-8, 0, 0), shinR: (6, 0, 0),
+                 armL: (-16, 0, 8), armR: (16, 0, -8)}),
+            (10, {legL: (0, 0, 0), legR: (0, 0, 0), armL: (0, 0, 8), armR: (0, 0, -8)}),
+            (19, {legL: (-20, 0, 0), legR: (20, 0, 0), shinL: (6, 0, 0), shinR: (-8, 0, 0),
+                  armL: (16, 0, 8), armR: (-16, 0, -8)}),
+            (28, {legL: (0, 0, 0), legR: (0, 0, 0), armL: (0, 0, 8), armR: (0, 0, -8)}),
+            (37, {legL: (20, 0, 0), legR: (-20, 0, 0), shinL: (-8, 0, 0), shinR: (6, 0, 0),
+                  armL: (-16, 0, 8), armR: (16, 0, -8)}),
+        ]),
+        # 両腕を振りかぶり、全身をひねって叩きつける大振りの一撃
+        ("attack", [
+            (1, {armR: (0, 0, -8), foreR: (0, 0, 0), armL: (0, 0, 8), foreL: (0, 0, 0), hipc: (0, 0, 0)}),
+            (7, {armR: (-135, 0, -22), foreR: (-34, 0, 0), armL: (-40, 0, 30), foreL: (-10, 0, 0),
+                 hipc: (-10, 0, -14), neck: (-6, 0, 0)}),
+            (12, {armR: (72, 0, 16), foreR: (10, 0, 0), armL: (30, 0, -4), foreL: (0, 0, 0),
+                  hipc: (18, 0, 16), neck: (-10, 0, 0)}),
+            (24, {armR: (0, 0, -8), foreR: (0, 0, 0), armL: (0, 0, 8), foreL: (0, 0, 0), hipc: (0, 0, 0)}),
+        ]),
+        ("hit", [
+            (1, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+            (4, {hipc: (-14, 0, 0), neck: (-14, 0, 0), armL: (-18, 0, 20), armR: (-18, 0, -20)}),
+            (16, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+        ]),
+        # 巨体が崩れ落ちるように、ゆっくりと大きく倒れる
+        ("die", [
+            (1, {hipc: (0, 0, 0)}),
+            (10, {hipc: (-14, 0, 5), neck: (-20, 0, 0), armL: (-34, 0, 34), armR: (-34, 0, -34)}),
+            (28, {hipc: (-82, 0, 16), neck: (-36, 0, 0), legL: (50, 0, 0), legR: (44, 0, 0),
+                  armL: (-74, 0, 50), armR: (-74, 0, -50)}),
+        ]),
+    ]
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -2418,6 +2544,7 @@ MONSTERS = {
     "nebosukegaeru": (build_nebosukegaeru, nebosukegaeru_animations),
     "madoromigumo": (build_madoromigumo, madoromigumo_animations),
     "kaerukodama": (build_kaerukodama, kaerukodama_animations),
+    "yamabikooni": (build_yamabikooni, yamabikooni_animations),
 }
 
 

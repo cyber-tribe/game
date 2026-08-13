@@ -937,10 +937,10 @@ export const SPECIES: readonly Species[] = [
     swarmSize: [3, 4],
   },
   {
-    // 声そのものが実体化した鬼。honegaramiモデルを流用する
+    // 声そのものが実体化した鬼。専用モデル(plan/models/archive/model-yamabikooni.md)
     id: "yamabikooni",
     name: "やまびこおに",
-    model: "honegarami",
+    model: "yamabikooni",
     // やまびこぎつねのalertsFloorOnSightで自動的に呼び起こされる(このspecies自体に追加のフィールドは不要)
     maxHp: 52,
     atk: 28,
