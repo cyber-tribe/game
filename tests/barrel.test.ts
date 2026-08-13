@@ -5,6 +5,7 @@ import { type Dir, dirDelta } from "../src/core/grid";
 import { MAX_ALLIES } from "../src/entities/player";
 import {
   type Actor,
+  type MonsterActor,
   actorAt,
   barrelAt,
   isFree,
@@ -30,11 +31,11 @@ function faceOpenDirection(game: Game): Dir | null {
 }
 
 /** プレイヤーの正面にモンスターを1体連れてくる */
-function putMonsterInFront(game: Game): { monster: Actor; dir: Dir } | null {
+function putMonsterInFront(game: Game): { monster: MonsterActor; dir: Dir } | null {
   const dir = faceOpenDirection(game);
   if (dir === null) return null;
   const monster = game.floor.actors.find((a) => a.kind === "monster" && a.alive);
-  if (!monster) return null;
+  if (!monster || monster.kind !== "monster") return null;
   const d = dirDelta(dir);
   monster.pos = { x: game.player.pos.x + d.x, y: game.player.pos.y + d.y };
   return { monster, dir };
@@ -342,7 +343,7 @@ describe("仲間の振る舞い", () => {
     // 隣にモンスターを置いて殴らせる
     const spot = { x: ally.pos.x + 1, y: ally.pos.y };
     const monster = game.floor.actors.find((a) => a.kind === "monster" && a.alive);
-    if (!monster || !walkableAt(game.floor, spot)) return;
+    if (!monster || monster.kind !== "monster" || !walkableAt(game.floor, spot)) return;
     monster.pos = spot;
     monster.atk = 999;
     monster.aware = true;

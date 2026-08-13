@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Actor } from "../src/core/types";
+import type { AllyActor } from "../src/core/types";
 import {
   VILLAGE_STAGE_REQUIREMENTS,
   canDevelopVillage,
@@ -9,7 +9,7 @@ import {
 } from "../src/entities/village";
 import { developVillage, initialSave, recordRun } from "../src/save";
 
-function ally(id: number): Actor {
+function ally(id: number): AllyActor {
   return {
     id,
     kind: "ally",

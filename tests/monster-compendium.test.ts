@@ -4,7 +4,15 @@ import { Rng } from "../src/core/rng";
 import { decideMonsterAction, GUARD_COUNTER_BONUS } from "../src/entities/ai";
 import { createMonster } from "../src/dungeon/populate";
 import { speciesById, speciesForDepth, SPECIES } from "../src/entities/species";
-import { hasStatus, STATUS_CONFUSE, STATUS_SEAL, type Actor, type FloorState, type Tile } from "../src/core/types";
+import {
+  hasStatus,
+  STATUS_CONFUSE,
+  STATUS_SEAL,
+  type Actor,
+  type AllyActor,
+  type FloorState,
+  type Tile,
+} from "../src/core/types";
 import {
   initialSave,
   isCompendiumComplete,
@@ -248,7 +256,7 @@ describe("game.ts: オイテケボシ(drainsSatiety)", () => {
 });
 
 describe("game.ts: 夢あわせで得た付与系特技(みだしのつめ・ふうじのキバ)", () => {
-  function alliedAttacker(skills: Actor["skills"]): Actor {
+  function alliedAttacker(skills: AllyActor["skills"]): AllyActor {
     return {
       id: 50,
       kind: "ally",

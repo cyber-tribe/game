@@ -4,6 +4,7 @@ import {
   TILE_ROOM,
   isFree,
   type Actor,
+  type AllyActor,
   type FloorState,
   type Tile,
 } from "../src/core/types";
@@ -58,7 +59,7 @@ describe("構えとAI(decideAllyAction)", () => {
   it("そばにいろ: 敵が見えていても自分から追わず、主のそばへ戻る", () => {
     const floor = makeOpenFloor();
     const leader = makeActor({ kind: "player", pos: { x: 5, y: 2 } });
-    const ally = makeActor({ kind: "ally", pos: { x: 5, y: 5 }, stance: "guard" });
+    const ally = makeActor({ kind: "ally", pos: { x: 5, y: 5 }, stance: "guard" }) as AllyActor;
     const foe = makeActor({ kind: "monster", pos: { x: 5, y: 8 } });
     floor.actors.push(leader, ally, foe);
 
@@ -73,7 +74,7 @@ describe("構えとAI(decideAllyAction)", () => {
   it("そばにいろ: 主の隣接圏内(距離1以内)なら足を止める", () => {
     const floor = makeOpenFloor();
     const leader = makeActor({ kind: "player", pos: { x: 5, y: 5 } });
-    const ally = makeActor({ kind: "ally", pos: { x: 5, y: 6 }, stance: "guard" });
+    const ally = makeActor({ kind: "ally", pos: { x: 5, y: 6 }, stance: "guard" }) as AllyActor;
     const foe = makeActor({ kind: "monster", pos: { x: 0, y: 0 } });
     floor.actors.push(leader, ally, foe);
 
@@ -92,7 +93,7 @@ describe("構えとAI(decideAllyAction)", () => {
       pos: { x: 8, y: 5 },
       stance: "hold",
       holdPos,
-    });
+    }) as AllyActor;
     floor.actors.push(leader, ally);
 
     const foeField = buildDistanceField(floor, leader.pos);
@@ -110,7 +111,7 @@ describe("構えとAI(decideAllyAction)", () => {
     const floor = makeOpenFloor();
     const leader = makeActor({ kind: "player", pos: { x: 0, y: 0 } });
     const holdPos = { x: 5, y: 5 };
-    const ally = makeActor({ kind: "ally", pos: { ...holdPos }, stance: "hold", holdPos });
+    const ally = makeActor({ kind: "ally", pos: { ...holdPos }, stance: "hold", holdPos }) as AllyActor;
     floor.actors.push(leader, ally);
 
     const field = buildDistanceField(floor, leader.pos);
@@ -127,7 +128,7 @@ describe("構えとAI(decideAllyAction)", () => {
       }
     }
     const leader = makeActor({ kind: "player", pos: { x: 0, y: 0 } });
-    const ally = makeActor({ kind: "ally", pos: { x: 5, y: 5 }, stance: "vanguard" });
+    const ally = makeActor({ kind: "ally", pos: { x: 5, y: 5 }, stance: "vanguard" }) as AllyActor;
     floor.actors.push(leader, ally);
 
     const field = buildDistanceField(floor, leader.pos);
@@ -145,7 +146,12 @@ describe("構えとAI(decideAllyAction)", () => {
     const floor = makeOpenFloor();
     const leader = makeActor({ kind: "player", pos: { x: 0, y: 0 } });
     for (const stance of ["free", "guard", "hold", "vanguard"] as const) {
-      const ally = makeActor({ kind: "ally", pos: { x: 5, y: 5 }, stance, holdPos: { x: 5, y: 5 } });
+      const ally = makeActor({
+        kind: "ally",
+        pos: { x: 5, y: 5 },
+        stance,
+        holdPos: { x: 5, y: 5 },
+      }) as AllyActor;
       const foe = makeActor({ kind: "monster", pos: { x: 5, y: 6 } });
       const localFloor = { ...floor, actors: [leader, ally, foe] };
       const field = buildDistanceField(localFloor, leader.pos);

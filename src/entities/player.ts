@@ -1,4 +1,4 @@
-import type { Actor, Barrel } from "../core/types";
+import type { Barrel, PlayerActor } from "../core/types";
 import { type ArtId, createArtCooldowns } from "./arts";
 import { type Inventory, createInventory, headBonus, shieldBonus, weaponBonus } from "../items/inventory";
 
@@ -13,7 +13,7 @@ export const MAX_ALLIES = 2;
  */
 export type TrainingFocus = "offense" | "defense" | "balance";
 
-export interface PlayerState extends Actor {
+export interface PlayerState extends PlayerActor {
   kind: "player";
   exp: number;
   satiety: number;

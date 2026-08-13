@@ -3,7 +3,7 @@ import { Rng } from "../src/core/rng";
 import { type Vec2, dirFromDelta } from "../src/core/grid";
 import {
   TILE_ROOM,
-  type Actor,
+  type AllyActor,
   type FloorState,
   type Tile,
 } from "../src/core/types";
@@ -47,7 +47,7 @@ function makeOpenFloor(depth = 1, size = 12): FloorState {
   };
 }
 
-function ally(id: number, speciesId: string, pos: Vec2): Actor {
+function ally(id: number, speciesId: string, pos: Vec2): AllyActor {
   const species = speciesById(speciesId);
   return {
     id,

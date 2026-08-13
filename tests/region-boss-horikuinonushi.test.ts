@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Rng } from "../src/core/rng";
-import type { Actor, FloorState } from "../src/core/types";
+import type { FloorState, MonsterActor, PlayerActor } from "../src/core/types";
 import { roomContains } from "../src/core/types";
 import { decideMonsterAction } from "../src/entities/ai";
 import { REGION_BOSS_ORDER, speciesById } from "../src/entities/species";
@@ -8,7 +8,7 @@ import { Game } from "../src/game";
 import { access } from "./helpers/access";
 import { makeEmptyFloor } from "./helpers/floor";
 
-function bossActor(overrides: Partial<Actor> = {}): Actor {
+function bossActor(overrides: Partial<MonsterActor> = {}): MonsterActor {
   const species = speciesById("horikuiNoNushi");
   return {
     // プレイヤー(id: 1固定、src/game.tsのcreatePlayer(1))との衝突を避ける
@@ -32,7 +32,7 @@ function bossActor(overrides: Partial<Actor> = {}): Actor {
   };
 }
 
-function player(pos = { x: 5, y: 6 }): Actor {
+function player(pos = { x: 5, y: 6 }): PlayerActor {
   return {
     id: 2,
     kind: "player",
@@ -124,7 +124,9 @@ describe("game.ts: 地方ボスの階(depth 48、表の寝穴)", () => {
 
   it("撃破すると地方限定素材(掘り杭の杭先)を確定ドロップする", () => {
     const game = new Game({ seed: 1, startDepth: 48 });
-    const boss = game.floor.actors.find((a) => a.speciesId === "horikuiNoNushi")!;
+    const boss = game.floor.actors.find(
+      (a): a is MonsterActor => a.kind === "monster" && a.speciesId === "horikuiNoNushi",
+    )!;
 
     const killActor = access(game).killActor.bind(game);
     killActor(boss, []);
@@ -203,7 +205,9 @@ describe("game.ts: 予兆ターンでcrackWarningを可視化し、発動ター�
 describe("game.ts: ばくはつタルで大技(予兆)を解除すると、crackWarningも一緒に消える", () => {
   it("予兆中のボスと同じ部屋でタルを爆発させると、telegraphChargeとcrackWarningの両方が解除される", () => {
     const game = new Game({ seed: 1, startDepth: 48 });
-    const boss = game.floor.actors.find((a) => a.speciesId === "horikuiNoNushi")!;
+    const boss = game.floor.actors.find(
+      (a): a is MonsterActor => a.kind === "monster" && a.speciesId === "horikuiNoNushi",
+    )!;
     const room = game.floor.rooms.find((r) => roomContains(r, boss.pos))!;
     boss.telegraphCharge = true;
     boss.telegraphCooldown = 4;

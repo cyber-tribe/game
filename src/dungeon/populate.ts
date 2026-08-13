@@ -2,11 +2,13 @@ import type { Rng } from "../core/rng";
 import { type Dir, type Vec2, chebyshev, eq } from "../core/grid";
 import {
   type Actor,
+  type AllyActor,
   type Barrel,
   type BarrelKind,
   type FieldSkillId,
   type FloorState,
   type Item,
+  type MonsterActor,
   type Room,
   type SkillId,
   type Species,
@@ -37,7 +39,7 @@ export interface IdSource {
 
 const TRAP_KINDS: readonly TrapKind[] = ["damage", "sleep", "alarm", "pitfall", "poison"];
 
-export function createMonster(id: number, species: Species, pos: Vec2): Actor {
+export function createMonster(id: number, species: Species, pos: Vec2): MonsterActor {
   return {
     id,
     kind: "monster",
@@ -69,21 +71,28 @@ export function createItem(uid: number, defId: string, charges?: number): Item {
  * 仲間になったモンスター。
  * 野生の同種より少しだけ丈夫にしてある。捕まえる手間に見合わないと、
  * わざわざタルをぶつける気にならないため。
+ *
+ * createMonsterの戻り値を土台にkindを差し替えて作る(実行時の形はほぼ同じ)。
+ * kindはActorの判別子なので、直接代入ではなくオブジェクトを作り直す
  */
-export function createAlly(id: number, species: Species, pos: Vec2): Actor {
-  const actor = createMonster(id, species, pos);
-  actor.kind = "ally";
-  actor.maxHp = Math.round(species.maxHp * 1.3);
-  actor.hp = actor.maxHp;
-  actor.atk = Math.round(species.atk * 1.15);
-  actor.exp = 0;
-  actor.aware = true;
+export function createAlly(id: number, species: Species, pos: Vec2): AllyActor {
+  const monster = createMonster(id, species, pos);
+  const maxHp = Math.round(species.maxHp * 1.3);
+  const actor: AllyActor = {
+    ...monster,
+    kind: "ally",
+    maxHp,
+    hp: maxHp,
+    atk: Math.round(species.atk * 1.15),
+    exp: 0,
+    aware: true,
+  };
   applySkills(actor, species, fullSkillSet(species.id));
   return actor;
 }
 
 /** 特技一式をactorに反映する。とおなげ(longThrow)は遠隔射程+1に変換する */
-function applySkills(actor: Actor, species: Species, skills: SkillId[]): void {
+function applySkills(actor: AllyActor, species: Species, skills: SkillId[]): void {
   actor.skills = skills;
   actor.rangedRange = species.range;
   if (skills.includes("longThrow") && actor.rangedRange !== undefined) {
@@ -97,7 +106,7 @@ function applySkills(actor: Actor, species: Species, skills: SkillId[]): void {
  * レベルアップはまだ実装されていないため、ここでの level は捕獲時や
  * 夢あわせの結果のまま変わらない)。
  */
-export function createAllyFromStored(id: number, stored: StoredMonster, pos: Vec2): Actor {
+export function createAllyFromStored(id: number, stored: StoredMonster, pos: Vec2): AllyActor {
   const species = speciesById(stored.speciesId);
   const actor = createAlly(id, species, pos);
   actor.level = stored.level;
@@ -205,7 +214,7 @@ const SHINING_CHANCE = 0.01;
 const SHINING_STAT_MULTIPLIER = 1.3;
 
 /** 生成した個体に、確率でかがやきの夢のかけらの補正をかける */
-function rollShining(rng: Rng, monster: Actor, shiningChanceMultiplier: number): void {
+function rollShining(rng: Rng, monster: MonsterActor, shiningChanceMultiplier: number): void {
   if (!rng.chance(SHINING_CHANCE * shiningChanceMultiplier)) return;
   monster.shining = true;
   monster.maxHp = Math.round(monster.maxHp * SHINING_STAT_MULTIPLIER);

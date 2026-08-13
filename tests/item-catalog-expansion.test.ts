@@ -10,6 +10,7 @@ import {
   isFree,
   type Actor,
   type FloorState,
+  type MonsterActor,
   type Tile,
 } from "../src/core/types";
 import { buildDistanceField, decideMonsterAction } from "../src/entities/ai";
@@ -220,7 +221,7 @@ describe("おびえの効果(AI)", () => {
       pos: { x: 5, y: 4 },
       aware: true,
       statuses: [{ kind: STATUS_FEAR, turns: 3 }],
-    });
+    }) as MonsterActor;
     floor.actors.push(leader, monster);
     const field = buildDistanceField(floor, leader.pos);
     const action = decideMonsterAction(new Rng(1), floor, monster, leader, field);
@@ -236,7 +237,7 @@ describe("透明の効果(AI)", () => {
       pos: { x: 5, y: 5 },
       statuses: [{ kind: STATUS_INVISIBLE, turns: 3 }],
     });
-    const monster = makeActor({ kind: "monster", pos: { x: 5, y: 2 }, aware: false });
+    const monster = makeActor({ kind: "monster", pos: { x: 5, y: 2 }, aware: false }) as MonsterActor;
     floor.actors.push(leader, monster);
     const field = buildDistanceField(floor, leader.pos);
     decideMonsterAction(new Rng(1), floor, monster, leader, field);
@@ -246,7 +247,7 @@ describe("透明の効果(AI)", () => {
   it("透明が解ければ通常どおり気づく", () => {
     const floor = makeOpenFloor();
     const leader = makeActor({ kind: "player", pos: { x: 5, y: 5 } });
-    const monster = makeActor({ kind: "monster", pos: { x: 5, y: 2 }, aware: false });
+    const monster = makeActor({ kind: "monster", pos: { x: 5, y: 2 }, aware: false }) as MonsterActor;
     floor.actors.push(leader, monster);
     const field = buildDistanceField(floor, leader.pos);
     decideMonsterAction(new Rng(1), floor, monster, leader, field);
@@ -264,7 +265,7 @@ describe("封じの効果(AI)", () => {
       aware: true,
       rangedRange: 5,
       statuses: [{ kind: STATUS_SEAL, turns: 3 }],
-    });
+    }) as MonsterActor;
     floor.actors.push(leader, monster);
     const field = buildDistanceField(floor, leader.pos);
     const action = decideMonsterAction(new Rng(1), floor, monster, leader, field);
@@ -279,7 +280,7 @@ describe("封じの効果(AI)", () => {
       pos: { x: 5, y: 2 },
       aware: true,
       rangedRange: 5,
-    });
+    }) as MonsterActor;
     floor.actors.push(leader, monster);
     const field = buildDistanceField(floor, leader.pos);
     const action = decideMonsterAction(new Rng(1), floor, monster, leader, field);

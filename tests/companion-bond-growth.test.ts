@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type { Actor } from "../src/core/types";
+import type { AllyActor } from "../src/core/types";
 import { bondBonus, bondStage, bondStageLabel } from "../src/entities/companionBond";
 import { createAllyFromStored } from "../src/dungeon/populate";
 import { actorToStoredMonster, fuseMonsters, initialSave, loadSave, type StoredMonster } from "../src/save";
 import { withMockedLocalStorage } from "./helpers/localStorage";
 
-function actor(overrides: Partial<Actor> = {}): Actor {
+function actor(overrides: Partial<AllyActor> = {}): AllyActor {
   return {
     id: 1,
     kind: "ally",

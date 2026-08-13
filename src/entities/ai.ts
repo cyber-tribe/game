@@ -5,9 +5,12 @@ import {
   STATUS_INVISIBLE,
   STATUS_SEAL,
   type Actor,
+  type AllyActor,
   type AllyStance,
   type BossMoveId,
+  type CombatantActor,
   type FloorState,
+  type MonsterActor,
   actorAt,
   barrelAt,
   hasStatus,
@@ -166,7 +169,7 @@ export function adjacentFoe(floor: FloorState, self: Actor, opts?: { avoidDisgui
 function attemptSight(
   rng: Rng,
   floor: FloorState,
-  monster: Actor,
+  monster: MonsterActor,
   target: Actor,
   /** ヨリシロの気分(plan/yorishiro-moods.md)。省略時は1(無補正) */
   awareDistanceMul = 1,
@@ -243,7 +246,7 @@ export function effectiveRangedRange(floor: FloorState, actor: Actor): number {
 export function decideMonsterAction(
   rng: Rng,
   floor: FloorState,
-  monster: Actor,
+  monster: MonsterActor,
   target: Actor,
   distField: Int32Array,
   /** ヨリシロの気分(plan/yorishiro-moods.md)。省略時は1(無補正) */
@@ -386,7 +389,7 @@ export function decideMonsterAction(
 export function decideAllyAction(
   rng: Rng,
   floor: FloorState,
-  ally: Actor,
+  ally: AllyActor,
   leader: Actor,
   foeField: Int32Array,
   leaderField: Int32Array,
@@ -411,7 +414,7 @@ export function decideAllyAction(
 function freeAction(
   rng: Rng,
   floor: FloorState,
-  ally: Actor,
+  ally: AllyActor,
   leader: Actor,
   foeField: Int32Array,
   leaderField: Int32Array,
@@ -439,7 +442,7 @@ function freeAction(
 /** そばにいろ。自分からは追わず、主の隣接圏内(距離1以内)を保つだけ */
 function guardAction(
   floor: FloorState,
-  ally: Actor,
+  ally: AllyActor,
   leader: Actor,
   leaderField: Int32Array,
 ): MonsterAction {
@@ -451,7 +454,7 @@ function guardAction(
 }
 
 /** そこで待て。指示した瞬間の座標(holdPos)に留まる */
-function holdAction(floor: FloorState, ally: Actor): MonsterAction {
+function holdAction(floor: FloorState, ally: AllyActor): MonsterAction {
   const point = ally.holdPos ?? ally.pos;
   if (eq(ally.pos, point)) return { type: "wait" };
   const field = buildDistanceField(floor, point);
@@ -466,7 +469,7 @@ function holdAction(floor: FloorState, ally: Actor): MonsterAction {
 function vanguardAction(
   rng: Rng,
   floor: FloorState,
-  ally: Actor,
+  ally: AllyActor,
   foeField: Int32Array,
 ): MonsterAction {
   const foe = nearestVisibleFoe(floor, ally);
@@ -544,7 +547,7 @@ function fleeDirection(floor: FloorState, monster: Actor, target: Vec2): Dir | n
  * 相手を見失っているときの徘徊。
  * 毎回ランダムだとその場で震えるだけになるので、進行方向を覚えて進み続ける。
  */
-function wander(rng: Rng, floor: FloorState, actor: Actor): MonsterAction {
+function wander(rng: Rng, floor: FloorState, actor: CombatantActor): MonsterAction {
   const current = actor.wanderDir;
   if (current !== undefined && canStep(floor, actor.pos, current) && rng.chance(0.8)) {
     return { type: "move", dir: current };

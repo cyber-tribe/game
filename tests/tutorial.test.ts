@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { Game } from "../src/game";
 import type { GameEvent } from "../src/core/events";
 import { TUTORIAL_TIPS, TUTORIAL_TIP_IDS, type TutorialTipId } from "../src/core/tutorial";
-import { type Actor, isFree } from "../src/core/types";
+import { type MonsterActor, isFree } from "../src/core/types";
 import { type Dir, dirDelta } from "../src/core/grid";
 import {
   initialSave,
@@ -66,7 +66,7 @@ describe("チュートリアルヒントのGameEvent", () => {
     const dir = faceOpenDirection(game);
     expect(dir).not.toBeNull();
     const d = dirDelta(dir!);
-    const monster = game.floor.actors.find((a) => a.kind === "monster" && a.alive) as Actor;
+    const monster = game.floor.actors.find((a) => a.kind === "monster" && a.alive) as MonsterActor;
     expect(monster).toBeDefined();
     monster.pos = { x: game.player.pos.x + d.x, y: game.player.pos.y + d.y };
     const events = game.command({ type: "move", dir: dir! });
@@ -115,7 +115,7 @@ describe("チュートリアルヒントのGameEvent", () => {
     const dir = faceOpenDirection(game);
     expect(dir).not.toBeNull();
     const d = dirDelta(dir!);
-    const monster = game.floor.actors.find((a) => a.kind === "monster" && a.alive) as Actor;
+    const monster = game.floor.actors.find((a) => a.kind === "monster" && a.alive) as MonsterActor;
     expect(monster).toBeDefined();
     monster.pos = { x: game.player.pos.x + d.x, y: game.player.pos.y + d.y };
     monster.hp = 1;

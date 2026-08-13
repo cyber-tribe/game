@@ -1,5 +1,5 @@
 import type { Command } from "../game";
-import { ALLY_STANCE_NAMES, type Actor, type AllyStance } from "../core/types";
+import { ALLY_STANCE_NAMES, type AllyActor, type AllyStance } from "../core/types";
 
 const STANCES: readonly AllyStance[] = ["free", "guard", "hold", "vanguard"];
 
@@ -35,7 +35,7 @@ export class StanceMenu {
     return this.open;
   }
 
-  show(allies: readonly Actor[], emit: (cmd: Command) => void): void {
+  show(allies: readonly AllyActor[], emit: (cmd: Command) => void): void {
     if (allies.length === 0) return;
     this.emit = emit;
     this.targets = [

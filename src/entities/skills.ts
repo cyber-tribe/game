@@ -124,7 +124,7 @@ export function fullSkillSet(speciesId: string, extra: readonly SkillId[] = []):
   return [...set];
 }
 
-/** 夢あわせ(plan/monster-fusion.md)で得た特技を持っているか */
+/** 夢あわせ(plan/monster-fusion.md)で得た特技を持っているか。特技を持てるのは仲間だけ */
 export function hasSkill(actor: Actor, id: SkillId): boolean {
-  return actor.skills?.includes(id) ?? false;
+  return actor.kind === "ally" && (actor.skills?.includes(id) ?? false);
 }

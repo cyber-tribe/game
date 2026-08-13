@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Rng } from "../src/core/rng";
-import type { Actor, FloorState } from "../src/core/types";
+import type { Actor, FloorState, MonsterActor, PlayerActor } from "../src/core/types";
 import { decideMonsterAction } from "../src/entities/ai";
 import { dirFromDelta } from "../src/core/grid";
 import { REGION_BOSS_ORDER, speciesById } from "../src/entities/species";
@@ -8,7 +8,7 @@ import { Game } from "../src/game";
 import { access } from "./helpers/access";
 import { makeEmptyFloor } from "./helpers/floor";
 
-function bossActor(overrides: Partial<Actor> = {}): Actor {
+function bossActor(overrides: Partial<MonsterActor> = {}): MonsterActor {
   const species = speciesById("nushigaeru");
   return {
     id: 1,
@@ -31,7 +31,7 @@ function bossActor(overrides: Partial<Actor> = {}): Actor {
   };
 }
 
-function player(pos = { x: 5, y: 6 }): Actor {
+function player(pos = { x: 5, y: 6 }): PlayerActor {
   return {
     id: 2,
     kind: "player",
@@ -129,7 +129,9 @@ describe("game.ts: 地方ボスの階(depth 12、表の寝穴)", () => {
 
   it("撃破すると地方限定素材(ヌシガエルのうろこ)を確定ドロップする", () => {
     const game = new Game({ seed: 1, startDepth: 12 });
-    const boss = game.floor.actors.find((a) => a.speciesId === "nushigaeru")!;
+    const boss = game.floor.actors.find(
+      (a): a is MonsterActor => a.kind === "monster" && a.speciesId === "nushigaeru",
+    )!;
 
     const killActor = access(game).killActor.bind(game);
     killActor(boss, []);
@@ -151,7 +153,9 @@ describe("game.ts: 深みタイルでの潜伏(STATUS_INVISIBLE)", () => {
 
     for (let seed = 1; seed <= 20 && !game; seed++) {
       const candidate = new Game({ seed, startDepth: 12 });
-      const b = candidate.floor.actors.find((a) => a.speciesId === "nushigaeru");
+      const b = candidate.floor.actors.find(
+        (a): a is MonsterActor => a.kind === "monster" && a.speciesId === "nushigaeru",
+      );
       if (!b) continue;
       const neighbors = [
         { x: b.pos.x - 1, y: b.pos.y },
@@ -192,7 +196,9 @@ describe("game.ts: 深みタイルでの潜伏(STATUS_INVISIBLE)", () => {
 
     for (let seed = 1; seed <= 20 && !game; seed++) {
       const candidate = new Game({ seed, startDepth: 12 });
-      const b = candidate.floor.actors.find((a) => a.speciesId === "nushigaeru");
+      const b = candidate.floor.actors.find(
+        (a): a is MonsterActor => a.kind === "monster" && a.speciesId === "nushigaeru",
+      );
       if (!b) continue;
       const neighbors = [
         { x: b.pos.x - 1, y: b.pos.y },

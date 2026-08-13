@@ -252,8 +252,9 @@ export function addStatus(
   verb: string,
 ): void {
   // 地方ごとの成熟系統(plan/companion-evolution-expansion.md): まつりのぬしは
-  // あらゆる状態異常を受け付けない
-  if (target.speciesId && speciesById(target.speciesId).statusImmune) {
+  // あらゆる状態異常を受け付けない(speciesIdを持てるのはmonster/allyだけ)
+  const speciesId = target.kind === "monster" || target.kind === "ally" ? target.speciesId : undefined;
+  if (speciesId && speciesById(speciesId).statusImmune) {
     ctx.events.push({ type: "message", text: `${target.name}には効かなかった!` });
     return;
   }

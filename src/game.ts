@@ -22,16 +22,20 @@ import {
   STATUS_SEAL,
   STATUS_SLEEP,
   type Actor,
+  type AllyActor,
   type AllyStance,
   type Barrel,
   type BarrelKind,
+  type CombatantActor,
   type FieldSkillId,
   type FloorGimmickKind,
   type FloorState,
   type Item,
   type ItemDef,
+  type MonsterActor,
   type Room,
   type StatusKind,
+  type TargetActor,
   type Tile,
   type Trap,
   type WeaponPattern,
@@ -288,7 +292,7 @@ export interface RunSnapshot {
   depth: number;
   floor: FloorState;
   player: PlayerState;
-  allies: Actor[];
+  allies: AllyActor[];
   status: RunStatus;
   turnCount: number;
   endReason: string;
@@ -529,7 +533,7 @@ export class Game {
   private weaponKindThisRun: string | undefined;
 
   /** 連れている仲間。フロアをまたいで付いてくるので、floor とは別に持つ */
-  allies: Actor[] = [];
+  allies: AllyActor[] = [];
 
   // ---- plan/tarukurabe-minigame.md ----
   /** このセッションの合計得点 */
@@ -1061,13 +1065,14 @@ export class Game {
    * killActorの代わりに呼ぶ。討伐・ドロップ・経験値は発生させず、絆(なじみ)
    * に応じた締めの一言を挟んでダイブを踏破扱いで終える
    */
-  private trueAwakeningEnding(target: Actor, events: GameEvent[]): void {
+  private trueAwakeningEnding(target: MonsterActor, events: GameEvent[]): void {
     target.alive = false;
     target.hp = 0;
     events.push({ type: "die", actorId: target.id, kind: target.kind, speciesId: target.speciesId });
     // summonEcho(地方ボス、plan/region-boss-kodamanonushi.md)で分身を出していた
     // 場合、本体と同時に消す(killActorの同等処理を踏襲)
     for (const echo of this.floor.actors) {
+      if (echo.kind !== "monster") continue;
       if (echo.id === target.id || echo.sharesHpWith !== target.id || !echo.alive) continue;
       echo.alive = false;
       echo.hp = 0;
@@ -1385,7 +1390,7 @@ export class Game {
       case "soothe": {
         const delta = dirDelta(player.facing);
         const target = actorAt(this.floor, { x: player.pos.x + delta.x, y: player.pos.y + delta.y });
-        if (target && isHostile(player, target)) {
+        if (target && target.kind === "monster" && isHostile(player, target)) {
           target.captureBonus = Math.min(1, (target.captureBonus ?? 0) + 0.4);
           events.push({ type: "message", text: `${target.name}の勢いをそいだ!` });
         } else {
@@ -1624,7 +1629,7 @@ export class Game {
    * (的は最初の命中でhit.alive=falseになり、以後actorAtに引っかからなくなる
    * ため通常は再度ここへ来ないが、念のためのガードとして残す)
    */
-  private resolveTarukurabeHit(hit: Actor, events: GameEvent[]): void {
+  private resolveTarukurabeHit(hit: TargetActor, events: GameEvent[]): void {
     const points = hit.tarukurabePoints ?? 0;
     if (this.tarukurabeScoredLanes.has(points)) return;
     this.tarukurabeScoredLanes.add(points);
@@ -1741,7 +1746,7 @@ export class Game {
     // ボスがいれば、大技を解除する(クールダウンはそのまま消費済み扱い)
     if (room) {
       const chargingBoss = this.floor.actors.find(
-        (a) => a.alive && a.telegraphCharge && roomContains(room, a.pos),
+        (a): a is MonsterActor => a.alive && a.kind === "monster" && !!a.telegraphCharge && roomContains(room, a.pos),
       );
       if (chargingBoss) {
         chargingBoss.telegraphCharge = false;
@@ -1891,7 +1896,7 @@ export class Game {
     for (const item of this.player.inventory.items) item.unpaid = false;
     this.shopWary = true;
     const keeper = this.floor.actors.find(
-      (a) => a.alive && a.aiKind === "shopkeeper" && roomContains(shopRoom, a.pos),
+      (a): a is MonsterActor => a.alive && a.kind === "monster" && a.aiKind === "shopkeeper" && roomContains(shopRoom, a.pos),
     );
     if (keeper) keeper.angry = true;
     events.push({ type: "message", text: "万引きだ! 店主が豹変した!" });
@@ -1977,7 +1982,7 @@ export class Game {
       const pos = { x: player.pos.x + offset.x, y: player.pos.y + offset.y };
       const target = actorAt(this.floor, pos);
       if (!target || target.id === player.id || seen.has(target.id)) continue;
-      if (!isHostile(player, target)) continue;
+      if (target.kind !== "monster" || !isHostile(player, target)) continue;
       // 地方ボス(plan/region-boss-nushigaeru.md): 深みに隠れている間は
       // 姿を晦ませていて、近接攻撃が空振りする
       if (hasStatus(target, STATUS_INVISIBLE)) {
@@ -2002,8 +2007,8 @@ export class Game {
 
       // 地方ボス(plan/region-boss-misemonononushi.md): 本体に命中すると、
       // 残っている幻影は見破られてすべて消える
-      if (this.floor.actors.some((a) => a.mirrorOf === target.id)) {
-        this.floor.actors = this.floor.actors.filter((a) => a.mirrorOf !== target.id);
+      if (this.floor.actors.some((a) => a.kind === "monster" && a.mirrorOf === target.id)) {
+        this.floor.actors = this.floor.actors.filter((a) => a.kind !== "monster" || a.mirrorOf !== target.id);
         target.mirrorTurnsLeft = undefined;
         events.push({ type: "message", text: "幻影が見破られ、消え去った!" });
       }
@@ -2018,7 +2023,7 @@ export class Game {
   }
 
   /** スリガラス(plan/shops-and-thieves.md)の盗み。成功率は控えめにし、盗む額もほどほどに留める */
-  private attemptSteal(thief: Actor, target: Actor, events: GameEvent[]): void {
+  private attemptSteal(thief: CombatantActor, target: Actor, events: GameEvent[]): void {
     thief.facing = dirFromDelta(target.pos.x - thief.pos.x, target.pos.y - thief.pos.y);
     events.push({ type: "attack", attackerId: thief.id, targetId: target.id });
     const gold = this.player.gold;
@@ -2052,7 +2057,8 @@ export class Game {
     const defense = target.kind === "player" ? totalDefense(this.player) : target.def;
     // 地方ごとの成熟系統(plan/companion-evolution-expansion.md): なみだぐまは
     // HPが減るほど攻撃力が上がる(HP満タンで+0%、HP0近くで最大値に近づく)
-    const lowHpBonusMax = attacker.speciesId ? speciesById(attacker.speciesId).lowHpAtkBonusMax ?? 0 : 0;
+    const attackerSpeciesId = attacker.kind === "monster" || attacker.kind === "ally" ? attacker.speciesId : undefined;
+    const lowHpBonusMax = attackerSpeciesId ? speciesById(attackerSpeciesId).lowHpAtkBonusMax ?? 0 : 0;
     const hpRatio = attacker.maxHp > 0 ? Math.max(0, attacker.hp) / attacker.maxHp : 1;
     const lowHpMultiplier = 1 + lowHpBonusMax * (1 - hpRatio);
     // 60種化・追加種族(plan/monster-roster-expansion-species.md): きのこおとこは
@@ -2102,9 +2108,11 @@ export class Game {
     if (hasQuickStartEffect) this.oncePerRun.markUsed("quickStart", attacker.id);
 
     // ambush・mimic AI(plan/monster-compendium.md): 隣接されるまで潜んでいた
-    // モンスターが、気づいた直後の1撃で会心になる
-    const ambushSurprise = attacker.ambushReady === true;
-    if (attacker.ambushReady) attacker.ambushReady = false;
+    // モンスターが、気づいた直後の1撃で会心になる(ambushReadyを持てるのはmonster/allyだけ)
+    const ambushSurprise = attacker.kind === "monster" || attacker.kind === "ally" ? attacker.ambushReady === true : false;
+    if (attacker.kind === "monster" || attacker.kind === "ally") {
+      if (attacker.ambushReady) attacker.ambushReady = false;
+    }
 
     // 特技「ふいのいちげき」(ambushStrike、plan/monster-compendium.md):
     // そのランの最初の1撃のダメージ+50%
@@ -2121,7 +2129,8 @@ export class Game {
    * ダメージ計算そのものをスキップする
    */
   private tryEvade(target: Actor, events: GameEvent[]): boolean {
-    const evadeChance = target.speciesId ? speciesById(target.speciesId).evadeChance ?? 0 : 0;
+    const targetSpeciesId = target.kind === "monster" || target.kind === "ally" ? target.speciesId : undefined;
+    const evadeChance = targetSpeciesId ? speciesById(targetSpeciesId).evadeChance ?? 0 : 0;
     if (evadeChance <= 0 || !this.rng.chance(evadeChance)) return false;
     events.push({ type: "message", text: `${displayActorName(target)}はひらりと攻撃をかわした!` });
     if (target.kind === "monster") target.aware = true;
@@ -2136,8 +2145,9 @@ export class Game {
   private applyAttackDamage(attacker: Actor, target: Actor, damage: number, critical: boolean, events: GameEvent[]): void {
     // オイテケボシ(drainsSatiety、plan/monster-compendium.md): HPではなく
     // プレイヤーの満腹度を削る特殊効果。防御・軽減の計算はそのまま流用する
+    const attackerSpeciesId = attacker.kind === "monster" || attacker.kind === "ally" ? attacker.speciesId : undefined;
     const drainsSatiety =
-      target.kind === "player" && attacker.speciesId !== undefined && speciesById(attacker.speciesId).drainsSatiety;
+      target.kind === "player" && attackerSpeciesId !== undefined && speciesById(attackerSpeciesId).drainsSatiety;
     if (drainsSatiety) {
       const drained = Math.max(1, Math.round(damage / 2));
       this.player.satiety = Math.max(0, this.player.satiety - drained);
@@ -2153,7 +2163,8 @@ export class Game {
     // 被弾するたび、受けたダメージの一部を攻撃者に返す。プランの原案は
     // 「相手の満腹度を削り返す」だったが、満腹度はプレイヤー専用のステータスで
     // 攻撃者(モンスター)には存在しないため、ダメージ反射に差し替えた
-    const counterRatio = target.speciesId ? speciesById(target.speciesId).counterDamageRatio ?? 0 : 0;
+    const targetSpeciesId = target.kind === "monster" || target.kind === "ally" ? target.speciesId : undefined;
+    const counterRatio = targetSpeciesId ? speciesById(targetSpeciesId).counterDamageRatio ?? 0 : 0;
     if (counterRatio > 0 && attacker.alive) {
       const counter = Math.max(1, Math.round(finalDamage * counterRatio));
       events.push({ type: "message", text: `${displayActorName(target)}が身を固めて${counter}のダメージを返した!` });
@@ -2169,12 +2180,13 @@ export class Game {
       (attacker.kind === "ally" && hasSkill(attacker, "drowsyBreath")) ||
       (attacker.kind === "player" && hasEquipEffect(this.player.inventory, "drowsyBonus"));
     const drowsyBonus = hasDrowsyEffect ? 0.1 : 0;
-    const inflictChance = (attacker.inflicts?.chance ?? 0) + drowsyBonus;
+    const inflicts = attacker.kind === "monster" || attacker.kind === "ally" ? attacker.inflicts : undefined;
+    const inflictChance = (inflicts?.chance ?? 0) + drowsyBonus;
     // かなしばりの杖で封じられている間は、特技(状態異常の追加付与)が出せない
     const sealed = hasStatus(attacker, STATUS_SEAL);
     if (target.alive && inflictChance > 0 && !sealed && this.rng.chance(inflictChance)) {
-      const kind = attacker.inflicts?.kind ?? STATUS_SLEEP;
-      const turns = attacker.inflicts?.turns ?? 4;
+      const kind = inflicts?.kind ?? STATUS_SLEEP;
+      const turns = inflicts?.turns ?? 4;
       addStatus(this.effectContext(events), target, kind, turns, STATUS_INFLICT_MESSAGES[kind] ?? "様子がおかしくなった");
     }
 
@@ -2195,7 +2207,8 @@ export class Game {
    * 命中のたび確率で追加の1撃を同じ相手に放つ(最大2回まで反響)
    */
   private applyEchoAttacks(attacker: Actor, target: Actor, effectivePower: number, events: GameEvent[]): void {
-    const echoChance = attacker.speciesId ? speciesById(attacker.speciesId).echoAttackChance ?? 0 : 0;
+    const attackerSpeciesId = attacker.kind === "monster" || attacker.kind === "ally" ? attacker.speciesId : undefined;
+    const echoChance = attackerSpeciesId ? speciesById(attackerSpeciesId).echoAttackChance ?? 0 : 0;
     if (echoChance <= 0) return;
     for (let echo = 0; echo < ECHO_ATTACK_MAX && target.alive && this.rng.chance(echoChance); echo++) {
       events.push({ type: "message", text: `${displayActorName(attacker)}のこうげきがこだました!` });
@@ -2300,7 +2313,7 @@ export class Game {
         hpOwner.hp = 1;
         this.oncePerRun.markUsed("stubborn", hpOwner.id);
         events.push({ type: "message", text: `${displayActorName(hpOwner)}はふんばりこらえた!` });
-      } else if (hpOwner.speciesId === HAJIME_NO_YUME_ID) {
+      } else if (hpOwner.kind === "monster" && hpOwner.speciesId === HAJIME_NO_YUME_ID) {
         this.trueAwakeningEnding(hpOwner, events);
       } else {
         this.killActor(hpOwner, events);
@@ -2309,15 +2322,17 @@ export class Game {
     this.mirrorSharedHp(hpOwner);
   }
 
-  /** 地方ボス(plan/region-boss-kodamanonushi.md): 分身が紐づく本体を返す。紐づいていなければそのまま */
+  /** 地方ボス(plan/region-boss-kodamanonushi.md): 分身が紐づく本体を返す。紐づいていなければそのまま(sharesHpWithを持てるのはmonster/allyだけ) */
   private hpOwnerOf(actor: Actor): Actor {
-    if (actor.sharesHpWith === undefined) return actor;
-    return this.floor.actors.find((a) => a.id === actor.sharesHpWith) ?? actor;
+    const sharesHpWith = actor.kind === "monster" || actor.kind === "ally" ? actor.sharesHpWith : undefined;
+    if (sharesHpWith === undefined) return actor;
+    return this.floor.actors.find((a) => a.id === sharesHpWith) ?? actor;
   }
 
   /** 本体のhpを、紐づく分身全員のhpフィールドへミラーする(表示用。増減判定には使わない) */
   private mirrorSharedHp(owner: Actor): void {
     for (const actor of this.floor.actors) {
+      if (actor.kind !== "monster" && actor.kind !== "ally") continue;
       if (actor.sharesHpWith === owner.id) actor.hp = owner.hp;
     }
   }
@@ -2325,7 +2340,8 @@ export class Game {
   private killActor(target: Actor, events: GameEvent[]): void {
     target.alive = false;
     target.hp = 0;
-    events.push({ type: "die", actorId: target.id, kind: target.kind, speciesId: target.speciesId });
+    const diedSpeciesId = target.kind === "monster" || target.kind === "ally" ? target.speciesId : undefined;
+    events.push({ type: "die", actorId: target.id, kind: target.kind, speciesId: diedSpeciesId });
 
     if (target.kind === "player") {
       this.status = "dead";
@@ -2341,6 +2357,10 @@ export class Game {
       events.push({ type: "message", text: `${displayActorName(target)}は力尽きた……` });
       return;
     }
+
+    // 樽比べ(plan/tarukurabe-minigame.md)の的は、専用のresolveTarukurabeHitで
+    // 処理されるためkillActorには本来到達しないが、型上は残る分岐として明示しておく
+    if (target.kind === "target") return;
 
     events.push({ type: "message", text: `${displayActorName(target)}をたおした!` });
     // スリガラス(plan/shops-and-thieves.md): 盗品を持ったまま倒すと、その場に落とす
@@ -2384,6 +2404,7 @@ export class Game {
     // 同時に消える。経験値・ドロップの重複を避けるため、通常のkillActor処理は
     // 分身側には通さない
     for (const echo of this.floor.actors) {
+      if (echo.kind !== "monster") continue;
       if (echo.id === target.id || echo.sharesHpWith !== target.id || !echo.alive) continue;
       echo.alive = false;
       echo.hp = 0;
@@ -2705,7 +2726,7 @@ export class Game {
     // target(樽比べ、plan/tarukurabe-minigame.md)はaiKindを持たない非戦闘
     // アクターなので、モンスター/仲間と同じ枠で動かそうとしない
     const movers = this.floor.actors.filter(
-      (a) => a.alive && a.kind !== "player" && a.kind !== "target",
+      (a): a is MonsterActor | AllyActor => a.alive && a.kind !== "player" && a.kind !== "target",
     );
 
     for (const actor of movers) {
@@ -2778,7 +2799,7 @@ export class Game {
    * なったなどの理由でrunActors自体を即座に打ち切るべきことを示す
    * (呼び出し側でreturnする)
    */
-  private executeMonsterAction(actor: Actor, action: MonsterAction, events: GameEvent[]): boolean {
+  private executeMonsterAction(actor: MonsterActor | AllyActor, action: MonsterAction, events: GameEvent[]): boolean {
     switch (action.type) {
       case "wait":
         break;
@@ -2853,6 +2874,8 @@ export class Game {
       case "bossMove": {
         // 地方ボス(plan/region-bosses.md): 予兆を消費した大技本体。種類ごとの
         // 実装は systems/bossMoves.ts の BOSS_MOVES レジストリに集約している
+        // (大技はdecideMonsterActionだけが生成するため、実際にはactorは常にmonster)
+        if (actor.kind !== "monster") break;
         BOSS_MOVES[action.moveId].execute(this.bossMoveContext(actor, events));
         if (this.status !== "playing") return true;
         break;
@@ -2874,7 +2897,7 @@ export class Game {
    * 地方ボス(plan/region-boss-nushigaeru.md): 深みタイルの上にいる間、毎ターン
    * STATUS_INVISIBLEを付与し直す。深みタイルを離れれば次のupkeepで自然にturnsが尽きて解ける
    */
-  private tickQuagmireInvisibility(actor: Actor): void {
+  private tickQuagmireInvisibility(actor: MonsterActor | AllyActor): void {
     if (
       !actor.alive ||
       !actor.speciesId ||
@@ -3037,7 +3060,7 @@ export class Game {
    */
   private tickRegen(): void {
     for (const actor of this.floor.actors) {
-      if (!actor.alive || actor.kind === "player") continue;
+      if (!actor.alive || actor.kind === "player" || actor.kind === "target") continue;
       if (this.hitThisTurn.has(actor.id)) continue;
       if (actor.hp >= actor.maxHp) continue;
       const nativeRegen = actor.speciesId !== undefined && speciesById(actor.speciesId).regenIfUnhit === true;
@@ -3071,6 +3094,7 @@ export class Game {
    */
   private tickSummonedTorrentTiles(): void {
     for (const actor of this.floor.actors) {
+      if (actor.kind !== "monster" && actor.kind !== "ally") continue;
       if (!actor.summonedTorrentTiles || actor.summonedTorrentTiles.length === 0) continue;
       const remaining: { pos: Vec2; expiresIn: number }[] = [];
       for (const entry of actor.summonedTorrentTiles) {
@@ -3093,12 +3117,13 @@ export class Game {
    */
   private tickMirrors(events: GameEvent[]): void {
     for (const actor of this.floor.actors) {
+      if (actor.kind !== "monster") continue;
       if (actor.mirrorTurnsLeft === undefined) continue;
       actor.mirrorTurnsLeft--;
       if (actor.mirrorTurnsLeft > 0) continue;
       actor.mirrorTurnsLeft = undefined;
-      const hadMirrors = this.floor.actors.some((a) => a.mirrorOf === actor.id);
-      this.floor.actors = this.floor.actors.filter((a) => a.mirrorOf !== actor.id);
+      const hadMirrors = this.floor.actors.some((a) => a.kind === "monster" && a.mirrorOf === actor.id);
+      this.floor.actors = this.floor.actors.filter((a) => a.kind !== "monster" || a.mirrorOf !== actor.id);
       if (hadMirrors) events.push({ type: "message", text: "幻影が薄れて消えていった……" });
     }
   }
@@ -3129,7 +3154,7 @@ export class Game {
   }
 
   /** 地方ボスの大技(systems/bossMoves.tsのBOSS_MOVES)に渡す、narrowなGameアクセス */
-  private bossMoveContext(actor: Actor, events: GameEvent[]): BossMoveContext {
+  private bossMoveContext(actor: MonsterActor, events: GameEvent[]): BossMoveContext {
     return {
       actor,
       floor: this.floor,
@@ -3159,7 +3184,7 @@ export class Game {
   }
 
   /** 連れている仲間(表示や判定の入口) */
-  get allyList(): readonly Actor[] {
+  get allyList(): readonly AllyActor[] {
     return this.allies;
   }
 

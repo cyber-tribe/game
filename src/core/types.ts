@@ -278,12 +278,10 @@ export interface Species {
 /** あうんの呼吸(plan/ally-field-gimmicks.md)。障害物が要求する仲間の性質 */
 export type FieldSkillId = "break" | "squeeze" | "leap" | "dig";
 
-export interface Actor {
+/** 4種類のActorすべてに共通するフィールド */
+interface ActorBase {
   id: number;
-  kind: ActorKind;
   name: string;
-  /** monster のみ */
-  speciesId?: string;
   model: string;
   /**
    * 装備した武器の見た目(plan/equipped-weapon-visual.md)。武器を持つのは
@@ -301,9 +299,19 @@ export interface Actor {
   level: number;
   statuses: Status[];
   alive: boolean;
+}
 
-  // ---- 以下はモンスターのみ ----
-  /** 行動傾向 */
+/**
+ * モンスター・仲間に共通するフィールド(plan外のリファクタリング、
+ * Martin Fowler PR15)。仲間はdungeon/populate.tsのcreateAllyが
+ * createMonsterの戻り値を土台にkindだけ差し替えて作るため、実行時の形は
+ * 元からほぼ同じだった。この共通部分をCombatantActorとして型でも表す
+ */
+export interface CombatantActor extends ActorBase {
+  kind: "monster" | "ally";
+  /** 種族id(entities/species.ts) */
+  speciesId?: string;
+  /** 行動傾向。仲間は種族の行動傾向を引き継ぐが、AIはkind==="ally"を優先する */
   aiKind?: AiKind;
   /** 遠隔攻撃の射程。持たないなら undefined */
   rangedRange?: number;
@@ -363,8 +371,14 @@ export interface Actor {
    * 幻影を呼び出してからの残りターン数。0になると幻影が自然に消える
    */
   mirrorTurnsLeft?: number;
+}
 
-  // ---- 以下は ally のみ ----
+export interface MonsterActor extends CombatantActor {
+  kind: "monster";
+}
+
+export interface AllyActor extends CombatantActor {
+  kind: "ally";
   /** 構え。plan/companion-orders.md 参照。既定は "free" */
   stance?: AllyStance;
   /** stance === "hold" のときの固定地点 */
@@ -387,11 +401,26 @@ export interface Actor {
    * 直後は未設定(ダイブ中は夢あわせを行えないため、この値自体は変化しない)
    */
   recentFusionMaterials?: string[];
+}
 
-  // ---- 以下は target(樽比べ、plan/tarukurabe-minigame.md)のみ ----
+/**
+ * プレイヤー本人の最小限の形。装備・満腹度などプレイヤー固有のフィールドは
+ * entities/player.ts の PlayerState(このインターフェースを継承する)が持つ。
+ * core/types.ts はitems/inventory.ts等に依存しないリーフモジュールであるため、
+ * ここではActor共通の形だけを表す
+ */
+export interface PlayerActor extends ActorBase {
+  kind: "player";
+}
+
+/** 樽比べ(plan/tarukurabe-minigame.md)専用の非戦闘アクター。的 */
+export interface TargetActor extends ActorBase {
+  kind: "target";
   /** 命中したときに加算する得点(近1・中2・遠3) */
   tarukurabePoints?: number;
 }
+
+export type Actor = PlayerActor | MonsterActor | AllyActor | TargetActor;
 
 export function hasStatus(actor: Actor, kind: StatusKind): boolean {
   return actor.statuses.some((s) => s.kind === kind && s.turns > 0);

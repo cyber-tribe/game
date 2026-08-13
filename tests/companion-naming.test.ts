@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { Actor } from "../src/core/types";
+import type { AllyActor } from "../src/core/types";
 import { MAX_NICKNAME_LENGTH, displayActorName, sanitizeNickname } from "../src/entities/naming";
 import { actorToStoredMonster, initialSave, renameStoredMonster, type StoredMonster } from "../src/save";
 
-function actor(overrides: Partial<Actor> = {}): Actor {
+function actor(overrides: Partial<AllyActor> = {}): AllyActor {
   return {
     id: 1,
     kind: "ally",
