@@ -924,10 +924,9 @@ export const SPECIES: readonly Species[] = [
 
   // 第六地方: こだまの尾根(design/regions.md 31〜36階)。+4
   {
-    // 響きに寄ってくる雲のような群れ。purunモデルを流用する
     id: "kodamagumo",
     name: "こだまぐも",
-    model: "purun",
+    model: "kodamagumo",
     maxHp: 16,
     atk: 15,
     def: 6,
