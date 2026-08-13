@@ -750,10 +750,10 @@ export const SPECIES: readonly Species[] = [
     atkMulInSporedRoom: 0.25,
   },
   {
-    // 舞い散る胞子の化身。madoromiモデルを流用する
+    // 舞い散る胞子の化身。専用モデル(houshitobi)
     id: "houshitobi",
     name: "ほうしとび",
-    model: "madoromi",
+    model: "houshitobi",
     maxHp: 20,
     atk: 14,
     def: 5,
