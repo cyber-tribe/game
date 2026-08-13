@@ -583,9 +583,10 @@ export const SPECIES: readonly Species[] = [
 
   // 第七地方: わすれられた祭りの跡(37〜42階)
   {
+    // 出し物の陰に潜む悪戯。専用モデル(plan/models/archive/model-menkaburikozo.md)
     id: "menkaburikozo",
     name: "めんかぶりこぞう",
-    model: "tsubute",
+    model: "menkaburikozo",
     maxHp: 42,
     atk: 26,
     def: 12,
