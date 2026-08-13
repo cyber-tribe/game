@@ -41,8 +41,9 @@ const NEW_SPECIES_IDS = [
   "mouhitotsunokage",
 ];
 
-// akubitokage は plan/archive/model-akubitokage.md、mabutamushi は
-// plan/archive/model-mabutamushi.md で専用モデルを新規に作った
+// akubitokage・mabutamushi・kirimizuchi は plan/archive/model-akubitokage.md・
+// plan/archive/model-mabutamushi.md・plan/archive/model-kirimizuchi.md で
+// それぞれ専用モデルを新規に作った
 // (このロースター拡張が前提としていた「新規3Dモデルは作らず既存5種を流用する」
 // の例外)。それ以外は今なお既存5種の流用のまま。
 const KNOWN_MODEL_IDS = new Set([
@@ -53,6 +54,7 @@ const KNOWN_MODEL_IDS = new Set([
   "honegarami",
   "akubitokage",
   "mabutamushi",
+  "kirimizuchi",
 ]);
 
 function makeOpenFloor(): FloorState {
