@@ -1631,6 +1631,164 @@ def kinokootoko_animations():
     ]
 
 
+# =================================================================== ホウシトビ
+
+# madoromiと同じ「幹1本+傘」の関節の"種類"を土台にしつつ、遠隔で胞子を
+# 飛ばす個体として、傘の先から前方・斜め上へ突き出す噴出口(spout)を新たに
+# 追加し、傘の背後には発射のたびに開閉する触手状の付属肢(tendril)を
+# 垂らす(ashiatodori/nukarumiganiと同じ、関節の"種類"は踏襲しつつ座標構成は
+# ゼロから設計する方針)。噴出口・触手はcapbaseの半径(0.215)より
+# はっきり遠い位置に置き、皮に飲み込まれて見えなくなる事故を避ける。
+# 最初の試作では噴出口を長く水平に伸ばしすぎ、傘とマドロミらしさが消えて
+# 一本のバナナ状の塊に見えてしまった。傘の張り出しを大きくし、噴出口を
+# 短く・斜め上向きにし、触手を胴の途中ではなく傘の後方へ逃がして
+# シルエットの帯状の途切れを解消している。
+HOUSHITOBI_HALF = {
+    "root": (0.0, 0.0, 0.06),
+    "stem": (0.0, 0.0, 0.19),
+    "capbase": (0.0, 0.0, 0.33),
+    "captop": (0.0, 0.0, 0.45),
+    "spout": (0.0, -0.27, 0.43),
+    "tendril.L": (0.22, 0.15, 0.26),
+    "tendriltip.L": (0.32, 0.24, 0.12),
+}
+HOUSHITOBI_RADII_HALF = {
+    "root": 0.085, "stem": 0.070, "capbase": 0.215, "captop": 0.058,
+    "spout": 0.048, "tendril.L": 0.050, "tendriltip.L": 0.020,
+}
+HOUSHITOBI_BONES_HALF = [
+    ("root", "stem"), ("stem", "capbase"), ("capbase", "captop"),
+    ("capbase", "spout"),
+    ("capbase", "tendril.L"), ("tendril.L", "tendriltip.L"),
+]
+
+
+def build_houshitobi():
+    """
+    舞い散る胞子の化身。マドロミダケの遠隔版というべき存在(design/characters.md)。
+    傘の先からまっすぐ伸びる噴出口を主役にし、左右の触手が発射のたびに
+    開いて反動を受け止める構造にする。
+    """
+    joints = C.mirrored(HOUSHITOBI_HALF)
+    radii = C.mirrored_radii(HOUSHITOBI_RADII_HALF)
+    bones = C.mirrored_bones(HOUSHITOBI_BONES_HALF)
+
+    body = C.build_skinned("houshitobi", joints, bones, radii, root="root", subsurf=2)
+
+    # 第3地方(まどろみの茸林)のテーマに合わせ、湿った土色の幹と、
+    # 胞子を思わせる淡い黄土色の傘・噴出口・触手の2トーンに塗り分ける。
+    # 噴出口・触手は関節からの距離(nukarumigani/wasuremizuchiと同じ、
+    # 複数関節へのmin距離を使う安全な手法)、傘は高さで判定する
+    # (単一の中心距離だけに頼る判定は誤爆した実績があるため避ける)。
+    trunk_mat = C.make_material("houshi_trunk", (0.32, 0.23, 0.15), roughness=0.8)
+    spore_mat = C.make_material("houshi_spore", (0.82, 0.71, 0.44), roughness=0.55, emission=0.05)
+
+    spore_pts = [
+        Vector(joints[name])
+        for name in ("spout", "tendril.L", "tendril.R", "tendriltip.L", "tendriltip.R")
+    ]
+
+    def classify(c):
+        if min((c - p).length for p in spore_pts) < 0.075:
+            return 1
+        return 1 if c.z > 0.28 else 0
+
+    C.assign_materials_by_region(body, [trunk_mat, spore_mat], classify)
+    counts = [0, 0]
+    for poly in body.data.polygons:
+        counts[poly.material_index] += 1
+    total = sum(counts)
+    print(f"houshitobi: 幹{counts[0]} 胞子色{counts[1]} / 計{total} "
+          f"({[f'{c / total:.1%}' for c in counts]})")
+
+    extras = []
+    # 半分閉じた眠たげな目。madoromiと同じ由来(眠りを誘う胞子)を示す
+    for side in (-1.0, 1.0):
+        extras += eyeball(f"houshi_eye{side}", (0.072 * side, -0.203, 0.347), 0.026,
+                          look=(0.2 * side, -1.0, 0.0), squash=0.45,
+                          white=(0.92, 0.90, 0.82), dark=(0.10, 0.08, 0.06))
+
+    # 噴出口の先端。胞子を飛ばす開口部を暗い小さな穴として表現する
+    nozzle = C.uv_sphere("houshi_nozzle", (0.0, -0.336, 0.448), 0.028,
+                         segments=12, rings=8, scale=(0.85, 0.6, 0.85))
+    C.assign_material(nozzle, C.make_material("houshi_nozzle_m", (0.14, 0.10, 0.08), roughness=0.4))
+    extras.append(nozzle)
+
+    # 噴出口の先から、飛び散る途中の胞子が尾を引くように、小さく・
+    # 淡くなりながら発光を強めて浮遊する(wasuremizuchiの霧の尾と同じ手法)
+    for i, (y, z, r, glow) in enumerate([
+        (-0.381, 0.458, 0.020, 0.10), (-0.431, 0.478, 0.015, 0.30),
+        (-0.471, 0.503, 0.011, 0.60), (-0.506, 0.533, 0.008, 1.0),
+    ]):
+        mote_mat = C.make_material(f"houshi_mote{i}", (0.90, 0.82, 0.55),
+                                   roughness=0.3, emission=glow)
+        mote = C.uv_sphere(f"houshi_mote{i}", (0.0, y, z), r, segments=10, rings=8)
+        C.assign_material(mote, mote_mat)
+        extras.append(mote)
+
+    mesh = C.join([body] + extras, "houshitobi")
+    armature = C.build_armature("houshitobi", joints, bones, mesh, root="root")
+    return [mesh, armature], armature
+
+
+def houshitobi_animations():
+    trunk1 = "root-stem"
+    trunk2 = "stem-capbase"
+    cap = "capbase-captop"
+    spout = "capbase-spout"
+    tendrilL, tendrilR = "capbase-tendril.L", "capbase-tendril.R"
+    return [
+        # 微かに漂うような、ゆっくりした揺れ
+        ("idle", [
+            (1, {trunk2: (0, 0, 0), cap: (0, 0, 0), spout: (0, 0, 0),
+                 tendrilL: (0, 0, 8), tendrilR: (0, 0, -8)}),
+            (28, {trunk2: (3, 0, 2), cap: (-4, 0, -2), spout: (3, 0, 0),
+                  tendrilL: (0, 0, 16), tendrilR: (0, 0, -16)}),
+            (56, {trunk2: (0, 0, 0), cap: (0, 0, 0), spout: (0, 0, 0),
+                  tendrilL: (0, 0, 8), tendrilR: (0, 0, -8)}),
+        ]),
+        # 左右の触手を交互にはためかせながら漂うように進む
+        ("walk", [
+            (1, {trunk1: (0, 0, -6), trunk2: (0, 0, 4),
+                 tendrilL: (0, 0, 6), tendrilR: (0, 0, -6)}),
+            (9, {trunk1: (0, 0, 6), trunk2: (0, 0, -4),
+                 tendrilL: (0, 0, -20), tendrilR: (0, 0, 20)}),
+            (18, {trunk1: (0, 0, -6), trunk2: (0, 0, 4),
+                  tendrilL: (0, 0, 6), tendrilR: (0, 0, -6)}),
+            (27, {trunk1: (0, 0, 6), trunk2: (0, 0, -4),
+                  tendrilL: (0, 0, -20), tendrilR: (0, 0, 20)}),
+            (36, {trunk1: (0, 0, -6), trunk2: (0, 0, 4),
+                  tendrilL: (0, 0, 6), tendrilR: (0, 0, -6)}),
+        ]),
+        # ためてから噴出口を勢いよく突き出し、胞子を撃ち放つ
+        ("attack", [
+            (1, {spout: (0, 0, 0), trunk2: (0, 0, 0), cap: (0, 0, 0),
+                 tendrilL: (0, 0, 8), tendrilR: (0, 0, -8)}),
+            (5, {spout: (24, 0, 0), trunk2: (-9, 0, 0), cap: (6, 0, 0),
+                 tendrilL: (0, 0, 24), tendrilR: (0, 0, -24)}),
+            (10, {spout: (-32, 0, 0), trunk2: (11, 0, 0), cap: (-14, 0, 0),
+                  tendrilL: (0, 0, -6), tendrilR: (0, 0, 6)}),
+            (20, {spout: (0, 0, 0), trunk2: (0, 0, 0), cap: (0, 0, 0),
+                  tendrilL: (0, 0, 8), tendrilR: (0, 0, -8)}),
+        ]),
+        ("hit", [
+            (1, {trunk2: (0, 0, 0), cap: (0, 0, 0)}),
+            (4, {trunk2: (-16, 0, 0), cap: (-14, 0, 0),
+                 tendrilL: (0, 0, -12), tendrilR: (0, 0, 12)}),
+            (14, {trunk2: (0, 0, 0), cap: (0, 0, 0),
+                  tendrilL: (0, 0, 8), tendrilR: (0, 0, -8)}),
+        ]),
+        # 傘と触手をしぼませながら、幹から崩れ落ちる
+        ("die", [
+            (1, {trunk1: (0, 0, 0), trunk2: (0, 0, 0)}),
+            (10, {trunk1: (-20, 0, 8), trunk2: (-24, 0, 4), cap: (-14, 0, 0),
+                  tendrilL: (-10, 0, -28), tendrilR: (-10, 0, 28), spout: (18, 0, 0)}),
+            (24, {trunk1: (-50, 0, 16), trunk2: (-56, 0, 10), cap: (-30, 0, 0),
+                  tendrilL: (-20, 0, -58), tendrilR: (-20, 0, 58), spout: (44, 0, 0)}),
+        ]),
+    ]
+
+
 
 
 # =========================================================================== 一覧
@@ -1647,6 +1805,7 @@ MONSTERS = {
     "ashiatodori": (build_ashiatodori, ashiatodori_animations),
     "wasuremizuchi": (build_wasuremizuchi, wasuremizuchi_animations),
     "kinokootoko": (build_kinokootoko, kinokootoko_animations),
+    "houshitobi": (build_houshitobi, houshitobi_animations),
 }
 
 
