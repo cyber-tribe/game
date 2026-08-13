@@ -79,9 +79,20 @@ export class ActorView {
     this.moveElapsed = this.moveDuration = 0;
   }
 
-  /** マスからマスへ移動させる。到着までのあいだ walk を流す */
+  /**
+   * マスからマスへ移動させる。到着までのあいだ walk を流す。
+   *
+   * 開始点は event.from を鵜呑みにせず、常に現在の表示位置(root.position)を
+   * 使う。1ターンの中で同じアクターに move イベントが2回続くこと(押し出し
+   * 直後にそのモンスター自身のAI行動が動く、奔流タイルで連続して押し流される
+   * 等)があり、applyEvents は同じ tick 内でイベントを順番に処理するため
+   * 描画が一度も挟まらない。event.from をそのまま信じると1回目の移動区間が
+   * まるごと飛ばされ、2回目の開始点(1回目の終点)へ表示が瞬間移動してから
+   * 動き出して見えてしまう(#372)。現在位置を起点にすれば、複数回呼ばれても
+   * 常に「今表示されている場所」から滑らかにつながる
+   */
   moveTo(from: Vec2, to: Vec2, duration: number): void {
-    this.from.set(from.x * TILE, 0, from.y * TILE);
+    this.from.copy(this.root.position);
     this.to.set(to.x * TILE, 0, to.y * TILE);
     this.moveElapsed = 0;
     this.moveDuration = Math.max(0.001, duration);
