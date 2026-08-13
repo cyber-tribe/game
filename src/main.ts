@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { Game, type Command, type RunSnapshot } from "./game";
 import type { GameEvent } from "./core/events";
+import { splitEventsAtRecruits } from "./core/events";
 import { isFree, walkableAt } from "./core/types";
 import { DIRS, chebyshev, eq } from "./core/grid";
 import { BARREL_MODELS, essentialModelNames, modelNames } from "./modelList";
@@ -89,7 +90,7 @@ import { isDebugEnabled } from "./entities/debugPanel";
 import { DebugPanel } from "./ui/debug-panel";
 import { speciesLore } from "./entities/speciesLore";
 import { TUTORIAL_TIPS, type TutorialTipId } from "./core/tutorial";
-import type { Item } from "./core/types";
+import type { FloorState, Item } from "./core/types";
 import type { TrainingFocus } from "./entities/player";
 
 /** 拠点に覆われているあいだ、洞窟を描き直す間隔(秒)。うっすら動いて見えれば足りる */
@@ -123,6 +124,25 @@ class App {
   private readonly endingScreen: EndingScreen;
   private readonly town: TownScreen;
   private readonly namingDialog: NamingDialog;
+  /** #naming自身。仲間になった瞬間の見せ場のときだけ.naming-showcaseを付け外しする */
+  private readonly namingRoot: HTMLElement;
+  /**
+   * 仲間になった瞬間の一時停止(plan/game/archive/companion-recruit-showcase.md)。
+   * そのターンのイベント列をrecruitごとに区切った再生単位。先頭が
+   * これから再生する分。nullなら保留していない
+   */
+  private turnPlayback: { segments: GameEvent[][]; floor: FloorState; hurry: boolean; scale: number } | null = null;
+  /**
+   * 直前に再生した区切りの末尾がrecruitだった場合、その仲間の情報を
+   * 入れておく。recruitの直前までの演出(タルが飛んでいく等)を
+   * 中途半端に止めたくないので、this.lockが切れる(演出が最後まで
+   * 終わる)のを待ってからダイアログを開く
+   */
+  private pendingRecruitShowcase: { actorId: number; name: string } | null = null;
+  /** 上記の一時停止中、命名ダイアログと一緒にモデルを見せているか */
+  private recruitShowcaseActive = false;
+  /** 一時停止中に見せているモンスターのモデル名(public/models/<model>.glb) */
+  private recruitShowcaseModel: string | null = null;
   /** セーブ枠選択(plan/save-slots.md) */
   private readonly slotSelect: SlotSelectScreen;
   private readonly canvas: HTMLCanvasElement;
@@ -185,7 +205,8 @@ class App {
     // document.bodyへクラスとして反映するだけなので、以後参照する必要が無い
     new OrientationGuard();
     this.town = new TownScreen(document.querySelector<HTMLElement>("#town")!);
-    this.namingDialog = new NamingDialog(document.querySelector<HTMLElement>("#naming")!);
+    this.namingRoot = document.querySelector<HTMLElement>("#naming")!;
+    this.namingDialog = new NamingDialog(this.namingRoot);
     this.slotSelect = new SlotSelectScreen(document.querySelector<HTMLElement>("#slotSelect")!);
     // 出先デバッグパネル(plan/mobile-debug-panel.md): ?debug=1が無ければ
     // newすらしない(このURLSearchParamsチェック自体はほぼ無コスト)。DebugPanel
@@ -567,16 +588,85 @@ class App {
   }
 
   /**
-   * 仲間になった直後に名前をつけるか尋ねる(plan/companion-naming.md)。
-   * Escで「あとで」を選べ、ねむり小屋でいつでも改名できる
+   * 仲間になった瞬間の一時停止(plan/game/archive/companion-recruit-showcase.md)。
+   * turnPlaybackの先頭の再生単位を再生する。末尾がrecruitイベントなら、
+   * pendingRecruitShowcaseに記録するだけに留める。ここではまだダイアログを
+   * 開かない(タルが飛んでいく等、recruit直前までの演出をlockが切れるまで
+   * 最後まで見せたいので、loop()側でthis.lock<=0を待ってから開く)
    */
-  private promptNaming(actorId: number, speciesName: string): void {
+  private advanceTurnPlayback(): void {
+    const playback = this.turnPlayback;
+    if (!playback) return;
+    const segment = playback.segments.shift();
+    if (!segment) {
+      this.turnPlayback = null;
+      return;
+    }
+    this.lock = this.stage.applyEvents(segment, playback.floor, playback.hurry, playback.scale);
+    const last = segment[segment.length - 1];
+    if (last?.type === "recruit") {
+      this.pendingRecruitShowcase = { actorId: last.actorId, name: last.name };
+    } else if (playback.segments.length > 0) {
+      // recruit以外で区切りが生まれることは無いはずだが、念のため止めずに続ける
+      this.advanceTurnPlayback();
+    } else {
+      // これが最後の再生単位だった。次のsubmit()まで参照されないが、
+      // 使い終わったfloorへの参照を持ち続けないようにここで手放す
+      this.turnPlayback = null;
+    }
+  }
+
+  /**
+   * 仲間になった直後に名前をつけるか尋ねる(plan/game/archive/companion-naming.md)。
+   * Escで「あとで」を選べ、ねむり小屋でいつでも改名できる。
+   *
+   * plan/game/archive/companion-recruit-showcase.md: 図鑑ギャラリーと同じ
+   * GalleryView(回転台)にこの個体のモデルを乗せ、ダンジョンの描画を
+   * 一時的にそちらへ丸ごと差し替える。HUDも図鑑ギャラリー・フォトモードと
+   * 同じくこの間は隠す(uiRootの中に#namingがあるため、隠す前に確定させる)
+   */
+  private showRecruitShowcase(actorId: number, speciesName: string): void {
     const ally = this.game.allyList.find((a) => a.id === actorId);
-    if (!ally) return;
+    if (!ally) {
+      // 万一見つからなければ(理論上起きないはずだが)ダイアログを出さず、
+      // 保留していた残りの再生単位だけ続ける
+      this.advanceTurnPlayback();
+      return;
+    }
+    this.recruitShowcaseActive = true;
+    this.recruitShowcaseModel = ally.model;
+    this.uiRoot.style.display = "none";
+    this.namingRoot.classList.add("naming-showcase");
     this.namingDialog.show(`${speciesName}に名前をつける?`, ally.nickname, (value) => {
       ally.nickname = value;
       this.hud.update(this.game.player, this.game.depth, this.game.allyList);
     });
+  }
+
+  /**
+   * 命名ダイアログを閉じた(Enter確定・Escあとで、どちらも)直後にloop()から
+   * 呼ばれる。隠していたHUDを戻し、保留していた残りの再生単位を再開する
+   */
+  private endRecruitShowcase(): void {
+    this.recruitShowcaseActive = false;
+    this.recruitShowcaseModel = null;
+    this.uiRoot.style.display = "";
+    this.namingRoot.classList.remove("naming-showcase");
+    this.gallery.clear();
+    this.advanceTurnPlayback();
+  }
+
+  /**
+   * 仲間になった瞬間の見せ場(plan/game/archive/companion-recruit-showcase.md)。
+   * 図鑑ギャラリーと同じ`renderGallery`の描画差し替えパターンを踏襲する。
+   * 捕まえた直後なのでシルエットにはしない(silhouette=false)
+   */
+  private renderRecruitShowcase(dt: number): void {
+    if (!this.recruitShowcaseModel) return;
+    this.gallery.show(this.recruitShowcaseModel, false);
+    this.gallery.update(dt);
+    this.gallery.setAspect(this.renderer.camera.aspect);
+    this.renderer.renderer.render(this.gallery.scene, this.gallery.camera);
   }
 
   /**
@@ -632,8 +722,24 @@ class App {
 
     this.step(dt);
 
+    // 仲間になった瞬間の一時停止(plan/game/archive/companion-recruit-showcase.md):
+    // ダイアログが閉じていれば、隠していたHUDを戻して保留していた残りの
+    // 演出を再開する(1ターンで複数体が同時に仲間になった場合は、続けて
+    // 次のpendingRecruitShowcaseが立つ)。逆に、recruit直前までの演出
+    // (タルが飛んでいく等)がまだ再生中(lock>0)のあいだはダイアログを
+    // 開かず、通常のダンジョン描画のまま最後まで見せてから切り替える
+    if (this.recruitShowcaseActive && !this.namingDialog.isOpen) {
+      this.endRecruitShowcase();
+    } else if (this.pendingRecruitShowcase && this.lock <= 0) {
+      const { actorId, name } = this.pendingRecruitShowcase;
+      this.pendingRecruitShowcase = null;
+      this.showRecruitShowcase(actorId, name);
+    }
+
     const gallerySpeciesId = this.town.gallerySpeciesId;
-    if (gallerySpeciesId) {
+    if (this.recruitShowcaseActive) {
+      this.renderRecruitShowcase(dt);
+    } else if (gallerySpeciesId) {
       this.renderGallery(dt, gallerySpeciesId);
     } else if (this.villageActive) {
       this.renderVillage();
@@ -670,14 +776,15 @@ class App {
     requestAnimationFrame(this.loop);
   };
 
-  /** menu.ts/stance.ts/arts.ts/stairsConfirm/town.tsのいずれかのモーダルが開いているか */
+  /** menu.ts/stance.ts/arts.ts/stairsConfirm/town.ts/naming-dialog.tsのいずれかのモーダルが開いているか */
   private anyModalOpen(): boolean {
     return (
       this.menu.isOpen ||
       this.stanceMenu.isOpen ||
       this.artsMenu.isOpen ||
       this.stairsConfirm.isOpen ||
-      this.town.isOpen
+      this.town.isOpen ||
+      this.namingDialog.isOpen
     );
   }
 
@@ -963,8 +1070,10 @@ class App {
         this.diveCaptures++;
       },
       captureFailed: noop,
+      // 名前を尋ねる・モデルを見せる処理そのものは、Stageの演出再生と
+      // タイミングを合わせるためsubmit()側(advanceTurnPlayback)に移した。
+      // ここでは記録だけを行う(plan/game/archive/companion-recruit-showcase.md)
       recruit: (event) => {
-        this.promptNaming(event.actorId, event.name);
         const ally = this.game.allyList.find((a) => a.id === event.actorId);
         if (ally?.speciesId) this.save = markSpeciesCaptured(this.save, ally.speciesId);
       },
@@ -1037,12 +1146,16 @@ class App {
       this.updateDiveBgm();
     } else {
       this.stage.syncActors(this.game.floor);
-      this.lock = this.stage.applyEvents(
-        events,
-        this.game.floor,
-        this.input.direction() !== null,
-        messageSpeedScale(this.save.messageSpeed),
-      );
+      // 仲間になった瞬間の一時停止(plan/game/archive/companion-recruit-showcase.md):
+      // recruitイベントの直後で区切り、区切りごとに再生する。区切りが1つ
+      // (recruit無し)なら、これまでどおり1回のapplyEventsで完結する
+      this.turnPlayback = {
+        segments: splitEventsAtRecruits(events),
+        floor: this.game.floor,
+        hurry: this.input.direction() !== null,
+        scale: messageSpeedScale(this.save.messageSpeed),
+      };
+      this.advanceTurnPlayback();
       this.stage.updateActorVisibility(this.game.floor);
     }
 
