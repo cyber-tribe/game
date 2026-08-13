@@ -52,6 +52,7 @@ import {
 import { type ArtId, artDef } from "./entities/arts";
 import { hasSkill } from "./entities/skills";
 import { generateFloor } from "./dungeon/generate";
+import { t } from "./i18n";
 import { GIMMICK_MESSAGES, pickFloorGimmick } from "./dungeon/gimmicks";
 import {
   type IdSource,
@@ -1111,7 +1112,7 @@ export class Game {
     }
     this.enterFloor(this.depth + 1);
     events.push({ type: "descend", depth: this.depth });
-    events.push({ type: "message", text: `地下${this.depth}階に降りた。` });
+    events.push({ type: "message", text: t("msg.descend", { depth: this.depth }) });
     if (this.floor.gimmick) {
       events.push({ type: "message", text: GIMMICK_MESSAGES[this.floor.gimmick] });
     }
@@ -1135,7 +1136,7 @@ export class Game {
     }
     this.maybePlayMountainCoreEnding(events);
     this.status = "cleared";
-    this.endReason = `地下${this.depth}階のめざめの階段で区切って持ち帰った!`;
+    this.endReason = t("msg.checkpointReached", { depth: this.depth });
     events.push({ type: "message", text: this.endReason });
     events.push({ type: "gameOver", reason: this.endReason });
     return true;
@@ -1601,7 +1602,7 @@ export class Game {
       critForced || this.rng.chance(Math.min(0.9, captureChance(hit) + bonus + charmBonus));
     if (!captured) {
       events.push({ type: "captureFailed", actorId: hit.id, name: hit.name });
-      events.push({ type: "message", text: `${hit.name}は吸い込まれなかった。` });
+      events.push({ type: "message", text: t("msg.captureFailed", { name: hit.name }) });
       this.dropBarrelNear(barrel, landing, events);
       return true;
     }
@@ -1612,7 +1613,7 @@ export class Game {
     barrel.kind = "caught";
     barrel.speciesId = hit.speciesId;
     events.push({ type: "capture", actorId: hit.id, barrelId: barrel.id, name: hit.name });
-    events.push({ type: "message", text: `${hit.name}をタルに吸い込んだ!` });
+    events.push({ type: "message", text: t("msg.captureSuccess", { name: hit.name }) });
     this.dropBarrelNear(barrel, hit.pos, events);
     return true;
   }
@@ -1688,7 +1689,7 @@ export class Game {
     this.floor.actors.push(ally);
     events.push({ type: "spawn", actorId: ally.id });
     events.push({ type: "recruit", actorId: ally.id, name: ally.name });
-    events.push({ type: "message", text: `${ally.name}が仲間になった!` });
+    events.push({ type: "message", text: t("msg.recruit", { name: ally.name }) });
     events.push({ type: "tutorialTip", id: "capture" });
     if (this.allies.length === 2) events.push({ type: "tutorialTip", id: "allyOrders" });
   }
@@ -1873,7 +1874,7 @@ export class Game {
     if (idx < 0) return;
     const [pile] = this.floor.goldPiles.splice(idx, 1);
     this.player.gold += pile!.amount;
-    events.push({ type: "message", text: `${pile!.amount}ゴールドを拾った。` });
+    events.push({ type: "message", text: t("msg.goldPicked", { amount: pile!.amount }) });
   }
 
   /**
@@ -2140,7 +2141,7 @@ export class Game {
     if (drainsSatiety) {
       const drained = Math.max(1, Math.round(damage / 2));
       this.player.satiety = Math.max(0, this.player.satiety - drained);
-      events.push({ type: "message", text: `満腹度が${drained}減った!` });
+      events.push({ type: "message", text: t("msg.satietyDrained", { amount: drained }) });
       return;
     }
 
@@ -2371,10 +2372,10 @@ export class Game {
     const exp = target.exp ?? 0;
     if (exp > 0) {
       const levels = gainExp(this.player, exp, this.trainingFocus);
-      events.push({ type: "message", text: `経験値を${exp}かくとく。` });
+      events.push({ type: "message", text: t("msg.expGained", { exp }) });
       for (let i = 0; i < levels; i++) {
         events.push({ type: "levelUp", actorId: this.player.id, level: this.player.level });
-        events.push({ type: "message", text: `レベルが${this.player.level}に上がった!` });
+        events.push({ type: "message", text: t("msg.levelUp", { level: this.player.level }) });
       }
       if (levels > 0) events.push({ type: "tutorialTip", id: "levelUp" });
     }

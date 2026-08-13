@@ -30,6 +30,7 @@ import {
 } from "../entities/dungeons";
 import { dialogueContext, dialoguePoolFor } from "../entities/dialogue";
 import { FESTIVAL_SHOP_OFFERS, isTarukurabeDay, isYoimatsuri } from "../entities/festivals";
+import { LOCALES, type LocaleId, t } from "../i18n";
 import { moodForDate } from "../entities/moods";
 import { MAX_ALLIES, type TrainingFocus } from "../entities/player";
 import { todayKey } from "../entities/quests";
@@ -177,8 +178,10 @@ export class TownScreen {
   private audioSettingsCursor: 0 | 1 = 0;
   /** 設定画面(plan/settings-screen.md) */
   private onSetMessageSpeed: ((speed: MessageSpeed) => void) | null = null;
-  /** 設定画面の一覧上のカーソル位置(0=メッセージ速度、1=操作説明、2=キー配置) */
-  private settingsCursor: 0 | 1 | 2 = 0;
+  /** 多言語対応の土台(plan/i18n-foundation.md) */
+  private onSetSaveLocale: ((locale: LocaleId) => void) | null = null;
+  /** 設定画面の一覧上のカーソル位置(0=メッセージ速度、1=操作説明、2=キー配置、3=げんご) */
+  private settingsCursor: 0 | 1 | 2 | 3 = 0;
   /** 設定画面: 操作説明・キー配置確認を全件表示しているあいだだけ非null */
   private settingsSubView: "tutorialTips" | "keyReference" | null = null;
   /** 実績帳(plan/achievements.md)の一覧上のカーソル位置 */
@@ -222,6 +225,7 @@ export class TownScreen {
     onSetAudioMuted: (muted: boolean) => void,
     onSetAudioVolume: (volume: number) => void,
     onSetMessageSpeed: (speed: MessageSpeed) => void,
+    onSetSaveLocale: (locale: LocaleId) => void,
   ): void {
     this.save = save;
     this.storage = save.storage.map((s) => ({ ...s }));
@@ -268,6 +272,7 @@ export class TownScreen {
     this.onSetAudioVolume = onSetAudioVolume;
     this.audioSettingsCursor = 0;
     this.onSetMessageSpeed = onSetMessageSpeed;
+    this.onSetSaveLocale = onSetSaveLocale;
     this.settingsCursor = 0;
     this.settingsSubView = null;
     this.festivalShopCursor = 0;
@@ -954,11 +959,11 @@ export class TownScreen {
       switch (code) {
         case "ArrowUp":
         case "KeyW":
-          this.settingsCursor = wrap(this.settingsCursor - 1, 3) as 0 | 1 | 2;
+          this.settingsCursor = wrap(this.settingsCursor - 1, 4) as 0 | 1 | 2 | 3;
           break;
         case "ArrowDown":
         case "KeyS":
-          this.settingsCursor = wrap(this.settingsCursor + 1, 3) as 0 | 1 | 2;
+          this.settingsCursor = wrap(this.settingsCursor + 1, 4) as 0 | 1 | 2 | 3;
           break;
         case "ArrowLeft":
         case "KeyA":
@@ -972,8 +977,14 @@ export class TownScreen {
             this.onSetMessageSpeed?.(speeds[(idx + 1) % speeds.length]!);
           } else if (this.settingsCursor === 1) {
             this.settingsSubView = "tutorialTips";
-          } else {
+          } else if (this.settingsCursor === 2) {
             this.settingsSubView = "keyReference";
+          } else {
+            // 多言語対応の土台(plan/i18n-foundation.md): 第1段階時点はLOCALESが"ja"のみのため、
+            // 骨格として1周するだけの切り替えになる
+            const locales = LOCALES;
+            const idx = locales.indexOf(this.save?.locale ?? "ja");
+            this.onSetSaveLocale?.(locales[(idx + 1) % locales.length]!);
           }
           break;
         }
@@ -1511,10 +1522,12 @@ export class TownScreen {
     } else if (this.column === 19) {
       desc.textContent =
         this.settingsCursor === 0
-          ? "Enterでメッセージ・演出の速さを切り替える(ふつう→はやい→ゆっくり→ふつう…)。"
+          ? t("ui.settings.descSpeed")
           : this.settingsCursor === 1
-            ? "Enterでこれまでの操作説明を一覧できる。"
-            : "Enterでキー配置を一覧できる(再割り当てはできない)。";
+            ? t("ui.settings.descTips")
+            : this.settingsCursor === 2
+              ? t("ui.settings.descKeys")
+              : t("ui.settings.descLocale");
     } else {
       const selected = (this.column === 0 ? this.storage : this.carry)[this.cursor[this.column]];
       desc.textContent = selected ? itemDef(selected.defId).description : "";
@@ -1554,9 +1567,7 @@ export class TownScreen {
     } else if (this.column === 18) {
       hint.textContent = "←→ 列を移る / ↑↓ 選ぶ / Enter 切り替え・音量変更 / Space もぐる";
     } else if (this.column === 19) {
-      hint.textContent = this.settingsSubView
-        ? "Enter / Esc でもどる"
-        : "← 列を移る / ↑↓ 選ぶ / Enter 切り替え・一覧を見る / Space もぐる";
+      hint.textContent = this.settingsSubView ? t("ui.settings.hintSubView") : t("ui.settings.hint");
     } else {
       hint.textContent = "←→ 列を移る / ↑↓ 選ぶ / Enter 移す / Space もぐる";
     }
@@ -2352,7 +2363,7 @@ export class TownScreen {
 
     const heading = document.createElement("h3");
     heading.className = "town-col-title";
-    heading.textContent = "設定";
+    heading.textContent = t("ui.settings.title");
     wrapper.appendChild(heading);
 
     if (this.settingsSubView === "tutorialTips") {
@@ -2380,24 +2391,37 @@ export class TownScreen {
     }
 
     const speed = this.save?.messageSpeed ?? "normal";
-    const speedLabel: Record<MessageSpeed, string> = { slow: "ゆっくり", normal: "ふつう", fast: "はやい" };
+    const speedLabel: Record<MessageSpeed, string> = {
+      slow: t("ui.settings.speedSlow"),
+      normal: t("ui.settings.speedNormal"),
+      fast: t("ui.settings.speedFast"),
+    };
+    // 多言語対応の土台(plan/i18n-foundation.md): 第1段階時点はLOCALESが"ja"のみのため
+    // ラベルもjaの1件だけ持つ。"en"の翻訳テーブルが揃い次第ここに追加する
+    const localeLabel: Partial<Record<LocaleId, string>> = { ja: t("ui.settings.localeJa") };
     const list = document.createElement("ul");
     list.setAttribute("role", "list");
 
     const speedLi = document.createElement("li");
-    speedLi.textContent = `メッセージ・演出の速さ: ${speedLabel[speed]}`;
+    speedLi.textContent = t("ui.settings.messageSpeedLabel", { value: speedLabel[speed] });
     if (this.column === 19 && this.settingsCursor === 0) speedLi.classList.add("selected");
     list.appendChild(speedLi);
 
     const tipsLi = document.createElement("li");
-    tipsLi.textContent = "操作説明を見る";
+    tipsLi.textContent = t("ui.settings.tutorialTips");
     if (this.column === 19 && this.settingsCursor === 1) tipsLi.classList.add("selected");
     list.appendChild(tipsLi);
 
     const keysLi = document.createElement("li");
-    keysLi.textContent = "キー配置を確認する";
+    keysLi.textContent = t("ui.settings.keyReference");
     if (this.column === 19 && this.settingsCursor === 2) keysLi.classList.add("selected");
     list.appendChild(keysLi);
+
+    const localeLi = document.createElement("li");
+    const currentLocale = this.save?.locale ?? "ja";
+    localeLi.textContent = t("ui.settings.localeLabel", { value: localeLabel[currentLocale] ?? currentLocale });
+    if (this.column === 19 && this.settingsCursor === 3) localeLi.classList.add("selected");
+    list.appendChild(localeLi);
 
     wrapper.appendChild(list);
     return wrapper;

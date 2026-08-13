@@ -12,6 +12,8 @@ import { Renderer } from "./view/renderer";
 import { GalleryView } from "./view/gallery";
 import { Stage } from "./view/stage";
 import { AudioPlayer } from "./audio/player";
+import { ja as jaDict } from "./i18n/ja";
+import { setLocale as applyLocaleDict } from "./i18n";
 import { ArtsMenu } from "./ui/arts";
 import { EndingScreen } from "./ui/ending";
 import { InventoryMenu } from "./ui/menu";
@@ -63,6 +65,7 @@ import {
   setEquippedTitle,
   setFontSize,
   setMessageSpeed,
+  setSaveLocale,
   setTrainingFocus,
   takeFromHut,
   talkToNpc,
@@ -218,6 +221,7 @@ class App {
     this.save = loadSave();
     this.applyFontSize();
     this.applyAudioSettings();
+    this.applyLocale();
 
     // ダイブ中オートセーブ(plan/mid-dive-autosave.md)が残っていれば、
     // 拠点画面を経由せずそのままダイブの続きから再開する
@@ -352,6 +356,11 @@ class App {
       },
       (speed) => {
         this.save = setMessageSpeed(this.save, speed);
+        this.town.refreshSave(this.save);
+      },
+      (locale) => {
+        this.save = setSaveLocale(this.save, locale);
+        this.applyLocale();
         this.town.refreshSave(this.save);
       },
     );
@@ -753,6 +762,15 @@ class App {
   private applyAudioSettings(): void {
     this.audio.setMuted(this.save.audioMuted);
     this.audio.setMasterVolume(this.save.audioVolume);
+  }
+
+  /**
+   * 多言語対応の土台(plan/i18n-foundation.md)。セーブされたlocaleに応じて
+   * i18nの辞書を切り替える。第1段階時点はjaの辞書しか無いため、実質的には
+   * 常にjaを適用するだけ(en.ts追加時にsave.localeで分岐させる)
+   */
+  private applyLocale(): void {
+    applyLocaleDict(jaDict);
   }
 
   /**

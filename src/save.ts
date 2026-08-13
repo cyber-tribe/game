@@ -10,6 +10,7 @@ import { HOKORA_DUST_DEF_ID, MARK_STONE_DEF_ID, MARKS, MAX_MARK_SLOTS, MAX_PLUS 
 import { MAX_ACTIVE_QUESTS, QUESTS, questDef, questsForDate, todayKey } from "./entities/quests";
 import type { TrainingFocus } from "./entities/player";
 import { MESSAGE_SPEEDS, type MessageSpeed } from "./entities/settings";
+import { LOCALES, type LocaleId } from "./i18n";
 import { type BondStage, bondStage } from "./entities/companionBond";
 import {
   OTAMA_VISIT_STORY,
@@ -274,6 +275,11 @@ export interface SaveData {
   messageSpeed: MessageSpeed;
   /** 樽比べ(plan/tarukurabe-minigame.md)。自己ベスト得点(0〜TARUKURABE_PERFECT_SCORE)。既定0 */
   tarukurabeBestScore: number;
+  /**
+   * 多言語対応の土台(plan/i18n-foundation.md)。表示言語。既定"ja"。
+   * 第1段階時点では"en"の翻訳テーブルが無いため、実際に選べるのは"ja"のみ(LOCALES参照)
+   */
+  locale: LocaleId;
 }
 
 /** 腕試しの間(plan/hidden-dungeon.md)。踏破1回ぶんの記録 */
@@ -396,6 +402,7 @@ const SAVE_FIELDS: SaveFieldSpecs = {
   },
   messageSpeed: { default: "normal", sanitize: (p) => sanitizeMessageSpeed(p.messageSpeed) },
   tarukurabeBestScore: { default: 0, sanitize: (p) => Math.max(0, numberOr(p.tarukurabeBestScore, 0)) },
+  locale: { default: "ja", sanitize: (p) => sanitizeLocale(p.locale) },
 };
 
 const SAVE_FIELD_KEYS = Object.keys(SAVE_FIELDS) as (keyof SaveData)[];
@@ -565,6 +572,18 @@ export function setAudioMuted(current: SaveData, muted: boolean): SaveData {
 export function setMessageSpeed(current: SaveData, messageSpeed: MessageSpeed): SaveData {
   if (current.messageSpeed === messageSpeed) return current;
   const next: SaveData = { ...current, messageSpeed };
+  saveData(next);
+  return next;
+}
+
+/**
+ * 多言語対応の土台(plan/i18n-foundation.md)。表示言語を切り替える。
+ * i18n側の`setLocale`(現在の辞書を切り替える)と名前が衝突するため、
+ * SaveDataフィールドの切り替えであることが分かるよう`setSaveLocale`と命名した
+ */
+export function setSaveLocale(current: SaveData, locale: LocaleId): SaveData {
+  if (current.locale === locale) return current;
+  const next: SaveData = { ...current, locale };
   saveData(next);
   return next;
 }
@@ -804,6 +823,8 @@ export function recordRun(
     // 樽比べ(plan/tarukurabe-minigame.md): recordRunでは変化しない
     // (専用モードの結果はrecordTarukurabeResultが別途反映する)
     tarukurabeBestScore: current.tarukurabeBestScore,
+    // 多言語対応の土台(plan/i18n-foundation.md): recordRunでは変化しない
+    locale: current.locale,
   };
   // 依頼板(plan/quest-board.md): 受注中の依頼を判定し、達成していれば報酬を渡して外す
   const withQuests = resolveQuests(next, result);
@@ -1694,6 +1715,15 @@ function sanitizeDifficulty(value: unknown): DifficultyMode {
 
 function sanitizeMessageSpeed(value: unknown): MessageSpeed {
   return sanitizeEnum(value, MESSAGE_SPEEDS, "normal");
+}
+
+/**
+ * 多言語対応の土台(plan/i18n-foundation.md)。LOCALES(第1段階時点は"ja"のみ)に
+ * 無い値は既定の"ja"に丸める。型上は"en"も許容するが、翻訳テーブルができるまでは
+ * 実際には選ばせない
+ */
+function sanitizeLocale(value: unknown): LocaleId {
+  return sanitizeEnum(value, LOCALES, "ja");
 }
 
 function sanitizeVillageStage(value: unknown): VillageStage {
