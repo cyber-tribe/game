@@ -304,6 +304,101 @@ def gajiri_animations():
     ]
 
 
+# ===================================================================== まぶたむし
+
+MABUTAMUSHI_HALF = {
+    "body": (0.0, 0.020, 0.075),
+    "head": (0.0, -0.098, 0.058),
+    "legF.L": (0.075, -0.020, 0.045),
+    "footF.L": (0.128, -0.052, 0.006),
+    "legB.L": (0.078, 0.078, 0.050),
+    "footB.L": (0.132, 0.110, 0.006),
+}
+MABUTAMUSHI_RADII_HALF = {
+    "body": 0.085, "head": 0.040,
+    "legF.L": 0.022, "footF.L": 0.015,
+    "legB.L": 0.024, "footB.L": 0.016,
+}
+MABUTAMUSHI_BONES_HALF = [
+    ("body", "head"),
+    ("body", "legF.L"), ("legF.L", "footF.L"),
+    ("body", "legB.L"), ("legB.L", "footB.L"),
+]
+
+
+def build_mabutamushi():
+    """
+    瞼の隙間に湧く小さな夢。gajiriと同じ「胴+頭+前後の脚」という関節構成を
+    踏襲しつつ、swarmで複数体まとめて出現する前提のため尻尾と耳を削り、
+    関節数をgajiriの半分ほどまで落として軽くする(その分subsurfは変えず
+    形の滑らかさは保つ)。
+    """
+    joints = C.mirrored(MABUTAMUSHI_HALF)
+    radii = C.mirrored_radii(MABUTAMUSHI_RADII_HALF)
+    bones = C.mirrored_bones(MABUTAMUSHI_BONES_HALF)
+
+    body = C.build_skinned("mabutamushi", joints, bones, radii, root="body", subsurf=2)
+    dust = C.make_material("mabuta_dust", (0.72, 0.63, 0.56), roughness=0.55)
+    shade = C.make_material("mabuta_shade", (0.40, 0.32, 0.28), roughness=0.6)
+    # 丸い背中だけ参道の土埃色に浮かせ、脚と腹側は影のように落として引き締める
+    # (tsubuteの背/腹の塗り分けと同じ、高さだけで切る手法)
+    C.assign_materials_by_region(body, [shade, dust], lambda c: 1 if c.z > 0.05 else 0)
+
+    extras = []
+    for side in (-1.0, 1.0):
+        extras += eyeball(f"mabuta_eye{side}", (0.022 * side, -0.083, 0.060), 0.014,
+                          look=(0.2 * side, -1.0, 0.0),
+                          white=(0.97, 0.92, 0.80), dark=(0.34, 0.20, 0.12))
+
+    mesh = C.join([body] + extras, "mabutamushi")
+    armature = C.build_armature("mabutamushi", joints, bones, mesh, root="body")
+    return [mesh, armature], armature
+
+
+def mabutamushi_animations():
+    head = "body-head"
+    legF_L, legF_R = "body-legF.L", "body-legF.R"
+    legB_L, legB_R = "body-legB.L", "body-legB.R"
+    return [
+        # 群れの中でそわそわ落ち着かず、小刻みに震える
+        ("idle", [
+            (1, {head: (0, 0, 0)}),
+            (16, {head: (-6, 0, 4), legF_L: (4, 0, 0), legF_R: (-4, 0, 0)}),
+            (32, {head: (0, 0, -4), legB_L: (-4, 0, 0), legB_R: (4, 0, 0)}),
+            (44, {head: (0, 0, 0)}),
+        ]),
+        ("walk", [
+            (1, {legF_L: (26, 0, 0), legF_R: (-26, 0, 0),
+                 legB_L: (-24, 0, 0), legB_R: (24, 0, 0), head: (4, 0, 0)}),
+            (5, {legF_L: (0, 0, 0), legF_R: (0, 0, 0),
+                 legB_L: (0, 0, 0), legB_R: (0, 0, 0), head: (0, 0, 0)}),
+            (9, {legF_L: (-26, 0, 0), legF_R: (26, 0, 0),
+                 legB_L: (24, 0, 0), legB_R: (-24, 0, 0), head: (-4, 0, 0)}),
+            (13, {legF_L: (0, 0, 0), legF_R: (0, 0, 0),
+                  legB_L: (0, 0, 0), legB_R: (0, 0, 0), head: (0, 0, 0)}),
+        ]),
+        ("attack", [
+            (1, {head: (0, 0, 0), legF_L: (0, 0, 0), legF_R: (0, 0, 0)}),
+            (3, {head: (-16, 0, 0), legF_L: (-14, 0, 0), legF_R: (-14, 0, 0)}),
+            (7, {head: (22, 0, 0), legF_L: (10, 0, 0), legF_R: (10, 0, 0)}),
+            (14, {head: (0, 0, 0), legF_L: (0, 0, 0), legF_R: (0, 0, 0)}),
+        ]),
+        ("hit", [
+            (1, {head: (0, 0, 0), legB_L: (0, 0, 0), legB_R: (0, 0, 0)}),
+            (3, {head: (18, 0, 0), legB_L: (-16, 0, 0), legB_R: (-16, 0, 0)}),
+            (11, {head: (0, 0, 0), legB_L: (0, 0, 0), legB_R: (0, 0, 0)}),
+        ]),
+        # 小さな夢らしく、脚を丸く縮めて消えていく
+        ("die", [
+            (1, {head: (0, 0, 0)}),
+            (8, {head: (20, 0, 0), legF_L: (-40, 0, 0), legF_R: (-40, 0, 0),
+                 legB_L: (-36, 0, 0), legB_R: (-36, 0, 0)}),
+            (18, {head: (34, 0, 0), legF_L: (-70, 0, 0), legF_R: (-70, 0, 0),
+                  legB_L: (-64, 0, 0), legB_R: (-64, 0, 0)}),
+        ]),
+    ]
+
+
 # =================================================================== ツブテガエル
 
 TSUBUTE_HALF = {
@@ -667,6 +762,7 @@ MONSTERS = {
     "purun": (build_purun, purun_animations),
     "akubitokage": (build_akubitokage, akubitokage_animations),
     "gajiri": (build_gajiri, gajiri_animations),
+    "mabutamushi": (build_mabutamushi, mabutamushi_animations),
     "tsubute": (build_tsubute, tsubute_animations),
     "madoromi": (build_madoromi, madoromi_animations),
     "honegarami": (build_honegarami, honegarami_animations),

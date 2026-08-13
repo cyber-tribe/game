@@ -658,10 +658,10 @@ export const SPECIES: readonly Species[] = [
     weight: 9,
   },
   {
-    // 閉じかけた瞼の隙間に湧く小さな夢。この作品最初のswarm。新規モデル未制作のため、gajiriモデルを流用する
+    // 閉じかけた瞼の隙間に湧く小さな夢。この作品最初のswarm。専用モデル(plan/archive/model-mabutamushi.md)
     id: "mabutamushi",
     name: "まぶたむし",
-    model: "gajiri",
+    model: "mabutamushi",
     maxHp: 5,
     atk: 3,
     def: 0,
