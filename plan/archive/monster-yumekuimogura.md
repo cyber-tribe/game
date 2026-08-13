@@ -1,3 +1,9 @@
+> **実装済み(コード変更なし)。** `src/entities/species.ts`の`id:
+> "yumekuimogura"`エントリを確認し、本文書のデータ表(AI/maxHp/atk/def/
+> exp/weight/出現階/`fieldSkill: "dig"`)がすべて一致することを確認
+> した。本文書自体は追加のコード変更を要求していないため、記録として
+> そのままアーカイブする。
+
 # ユメクイモグラ(yumekuimogura)のモンスター実装
 
 `src/entities/species.ts`にすでに実装済みの内容を、正式なplanとして
