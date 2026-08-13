@@ -29,7 +29,8 @@ export function messageSpeedScale(speed: MessageSpeed): number {
  * (`src/ui/town.ts`)の両方から参照する、単一の出典
  */
 export const KEY_REFERENCE: readonly string[] = [
-  "矢印/WASD/テンキー: 8方向に移動。モンスターがいる方向へ進むと攻撃",
+  "矢印/WASD/テンキー: 8方向に移動。モンスターがいる方向へ進むと1マス押し出す",
+  "X: 向いている方向へ攻撃する(その場から動かない)。何もいなければ空振り",
   "Shift+方向: その場で向きだけ変える(ターンを消費しない)",
   "Space: 足元のものを拾う。階段の上なら次の階へ降りる",
   ". / テンキー5: 足踏み(1ターンやり過ごす)",

@@ -6,7 +6,7 @@ import { DIRS, chebyshev, eq } from "./core/grid";
 import { BARREL_MODELS, essentialModelNames, modelNames } from "./modelList";
 import { Assets } from "./view/assets";
 import { Hud } from "./view/hud";
-import { Input } from "./view/input";
+import { ATTACK_KEY_CODE, Input } from "./view/input";
 import { Minimap } from "./view/minimap";
 import { Renderer } from "./view/renderer";
 import { GalleryView } from "./view/gallery";
@@ -855,6 +855,9 @@ class App {
       case "throwBarrel":
         this.submit({ type: "throwBarrel" });
         break;
+      case "attack":
+        this.submit({ type: "attack" });
+        break;
       case "orders":
         if (this.game.allyList.length === 0) {
           this.hud.log("指示できる仲間がいない。");
@@ -1130,7 +1133,11 @@ class App {
     this.submit({ type: "descend" });
   }
 
-  /** 一番近いモンスターの隣に立ち、殴りかかるべき方向キーを返す */
+  /**
+   * 一番近いモンスターの隣に立ち、向かせたうえで、殴りかかるべきキー
+   * (攻撃専用キー。plan/attack-button.md)を返す。移動キーでは「押し出し」に
+   * なってしまい殴り合いにならないため、あらかじめfaceで向きだけ合わせておく
+   */
   debugFightNearest(): { key: string; name: string } | { key: null; name: string } {
     const player = this.game.player;
     // 「殴り合いの流れを見せる」だけのテストで運悪く力尽きると、後続のタル/仲間の
@@ -1146,19 +1153,19 @@ class App {
     for (const m of monsters) {
       if (chebyshev(m.pos, player.pos) < chebyshev(nearest.pos, player.pos)) nearest = m;
     }
-    // モンスターの西隣が空いていればそこへ、駄目なら東隣へ
-    for (const [dx, key] of [
-      [-1, "ArrowRight"],
-      [1, "ArrowLeft"],
+    // モンスターの西隣が空いていればそこへ(東を向く)、駄目なら東隣へ(西を向く)
+    for (const [dx, dir] of [
+      [-1, 2],
+      [1, 6],
     ] as const) {
       const spot = { x: nearest.pos.x + dx, y: nearest.pos.y };
       if (!walkableAt(floor, spot)) continue;
       if (floor.actors.some((a) => a.alive && a.pos.x === spot.x && a.pos.y === spot.y)) continue;
       player.pos = spot;
       this.stage.viewOf(player.id)?.setPosition(spot);
-      this.submit({ type: "wait" });
+      this.submit({ type: "face", dir });
       this.renderer.setFocus(player.pos, true);
-      return { key, name: nearest.name };
+      return { key: ATTACK_KEY_CODE, name: nearest.name };
     }
     return { key: null, name: `${nearest.name} の隣が空いていない` };
   }
@@ -1190,17 +1197,17 @@ class App {
     this.hud.update(this.game.player, this.game.depth, this.game.allyList);
   }
 
-  /** 目の前にモンスターを置いて、タルをぶつけられる状態にする */
+  /**
+   * 目の前にモンスターを置いて、タルをぶつけられる状態にする。
+   * 返す`key`は攻撃専用キー(plan/attack-button.md)。既にfaceで向かせて
+   * あるので、押しっぱなしの移動(押し出しになってしまう)ではなく
+   * この攻撃キーをtapして弱らせる想定
+   */
   debugMonsterInFront(): { name: string; key: string } | null {
     const player = this.game.player;
     const monster = this.game.floor.actors.find((a) => a.kind === "monster" && a.alive);
     if (!monster) return null;
-    for (const [dir, key] of [
-      [2, "ArrowRight"],
-      [6, "ArrowLeft"],
-      [4, "ArrowDown"],
-      [0, "ArrowUp"],
-    ] as const) {
+    for (const dir of [2, 6, 4, 0] as const) {
       const d = DIRS[dir]!;
       const spot = { x: player.pos.x + d.x, y: player.pos.y + d.y };
       if (!walkableAt(this.game.floor, spot)) continue;
@@ -1214,7 +1221,7 @@ class App {
       this.submit({ type: "face", dir });
       this.stage.syncActors(this.game.floor);
       this.stage.viewOf(monster.id)?.setPosition(spot);
-      return { name: monster.name, key };
+      return { name: monster.name, key: ATTACK_KEY_CODE };
     }
     return null;
   }

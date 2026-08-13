@@ -69,7 +69,7 @@ describe("チュートリアルヒントのGameEvent", () => {
     const monster = game.floor.actors.find((a) => a.kind === "monster" && a.alive) as MonsterActor;
     expect(monster).toBeDefined();
     monster.pos = { x: game.player.pos.x + d.x, y: game.player.pos.y + d.y };
-    const events = game.command({ type: "move", dir: dir! });
+    const events = game.command({ type: "attack" });
     expect(tipIds(events)).toContain("weakenThenThrow");
   });
 
@@ -121,7 +121,7 @@ describe("チュートリアルヒントのGameEvent", () => {
     monster.hp = 1;
     monster.def = 0;
     monster.exp = 9999;
-    const events = game.command({ type: "move", dir: dir! });
+    const events = game.command({ type: "attack" });
     expect(tipIds(events)).toContain("levelUp");
   });
 

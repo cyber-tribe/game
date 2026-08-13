@@ -140,7 +140,8 @@ describe("武器種ごとの当たり判定(Game)", () => {
     const far = putMonster(game, { x: game.player.pos.x, y: game.player.pos.y - 2 });
     expect(isHostile(game.player, near)).toBe(true);
 
-    const events = game.command({ type: "move", dir: 0 });
+    game.command({ type: "face", dir: 0 });
+    const events = game.command({ type: "attack" });
     const damaged = events.filter((e) => e.type === "damage").map((e) => e.actorId);
     expect(damaged).toContain(near.id);
     expect(damaged).toContain(far.id);
@@ -156,7 +157,8 @@ describe("武器種ごとの当たり判定(Game)", () => {
     const frontRight = putMonster(game, { x: game.player.pos.x + 1, y: game.player.pos.y - 1 });
     const behind = putMonster(game, { x: game.player.pos.x, y: game.player.pos.y + 1 });
 
-    const events = game.command({ type: "move", dir: 0 });
+    game.command({ type: "face", dir: 0 });
+    const events = game.command({ type: "attack" });
     const damaged = events.filter((e) => e.type === "damage").map((e) => e.actorId);
     expect(damaged).toContain(front.id);
     expect(damaged).toContain(frontLeft.id);
@@ -170,7 +172,8 @@ describe("武器種ごとの当たり判定(Game)", () => {
     equipWeapon(game, "barrelHook");
 
     const target = putMonster(game, { x: game.player.pos.x, y: game.player.pos.y - 1 });
-    const events = game.command({ type: "move", dir: 0 });
+    game.command({ type: "face", dir: 0 });
+    const events = game.command({ type: "attack" });
     expect(findDamage(events, target.id)?.critical).toBe(true);
   });
 
@@ -180,14 +183,15 @@ describe("武器種ごとの当たり判定(Game)", () => {
     equipWeapon(game, "barrelHook");
 
     // 1手目(強制会心)を消費する
+    game.command({ type: "face", dir: 0 });
     const first = putMonster(game, { x: game.player.pos.x, y: game.player.pos.y - 1 });
-    game.command({ type: "move", dir: 0 });
+    game.command({ type: "attack" });
     game.floor.actors = game.floor.actors.filter((a) => a.id !== first.id);
 
     let sawNonCritical = false;
     for (let i = 0; i < 200; i++) {
       const target = putMonster(game, { x: game.player.pos.x, y: game.player.pos.y - 1 });
-      const events = game.command({ type: "move", dir: 0 });
+      const events = game.command({ type: "attack" });
       if (findDamage(events, target.id)?.critical === false) sawNonCritical = true;
       game.floor.actors = game.floor.actors.filter((a) => a.id !== target.id);
       if (sawNonCritical) break;
@@ -201,7 +205,8 @@ describe("武器種ごとの当たり判定(Game)", () => {
     equipWeapon(game, "lordsMaul");
 
     putMonster(game, { x: game.player.pos.x, y: game.player.pos.y - 1 });
-    game.command({ type: "move", dir: 0 });
+    game.command({ type: "face", dir: 0 });
+    game.command({ type: "attack" });
     expect(hasStatus(game.player, STATUS_RECOVER)).toBe(true);
 
     // 反動中は動けない
@@ -226,7 +231,8 @@ describe("武器種ごとの当たり判定(Game)", () => {
 
     const near = putMonster(game, { x: game.player.pos.x, y: game.player.pos.y - 1 });
     const far = putMonster(game, { x: game.player.pos.x, y: game.player.pos.y - 2 });
-    const events = game.command({ type: "move", dir: 0 });
+    game.command({ type: "face", dir: 0 });
+    const events = game.command({ type: "attack" });
     const damaged = events.filter((e) => e.type === "damage").map((e) => e.actorId);
     expect(damaged).toContain(near.id);
     expect(damaged).not.toContain(far.id);

@@ -277,7 +277,8 @@ describe("ゲーム進行", () => {
     monster.pos = { x: game.player.pos.x + d.x, y: game.player.pos.y + d.y };
     monster.hp = 1;
     const expBefore = game.player.exp;
-    game.command({ type: "move", dir: 2 });
+    game.command({ type: "face", dir: 2 });
+    game.command({ type: "attack" });
     expect(game.player.exp).toBeGreaterThan(expBefore);
     expect(monster.alive).toBe(false);
   });

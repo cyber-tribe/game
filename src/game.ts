@@ -196,9 +196,15 @@ const COMPENDIUM_COMPLETE_SHINING_MULTIPLIER = 1.5;
 const TRUE_AWAKENING_SHINING_MULTIPLIER = 2;
 
 export type Command =
+  /** 移動、または進んだ先に敵がいれば1マス押し出す(plan/attack-button.md) */
   | { type: "move"; dir: Dir }
   /** 向きだけ変える。ターンを消費しない */
   | { type: "face"; dir: Dir }
+  /**
+   * 向いている方向へ攻撃する(plan/attack-button.md)。移動は伴わない。
+   * 敵がいなければ空振り(何も起きないがターンは消費する)
+   */
+  | { type: "attack" }
   | { type: "wait" }
   | { type: "pickup" }
   | { type: "descend" }
@@ -1246,6 +1252,13 @@ export class Game {
         return this.movePlayer(dir, events);
       }
 
+      // 攻撃専用キー(plan/attack-button.md)。移動キーで敵の方向へ進んだ場合は
+      // 「押し出し」になる(movePlayer参照)ため、実際にダメージを与える経路は
+      // ここ一本に絞られる。空振り(敵がいない・不可視 等)でもターンは消費する
+      case "attack":
+        this.resolvePlayerAttack(player.facing, events);
+        return true;
+
       case "pickup":
         return this.pickUp(events);
 
@@ -1770,8 +1783,7 @@ export class Game {
     const target = actorAt(this.floor, to);
     if (target && target.id !== player.id) {
       if (isHostile(player, target)) {
-        this.resolvePlayerAttack(dir, events);
-        return true;
+        return this.pushMonster(dir, target, events);
       }
       // 仲間とは位置を入れ替える。通せんぼで足止めされては連れ歩けない
       const from = player.pos;
@@ -1855,6 +1867,27 @@ export class Game {
     this.announceGround(landed, events);
     this.checkMonsterHouseWarning(landed, events);
     this.checkSecretPassageHint(landed, events);
+    return true;
+  }
+
+  /**
+   * 移動キーで敵のいる方向へ進もうとしたときの「押し出し」(plan/attack-button.md)。
+   * 敵の向こう側のマスが空いていれば1マス押し出し、プレイヤーはその場に留まる。
+   * 押し出し先の判定は、モンスターAIの移動判定(entities/ai.ts の canStep)と
+   * 同じ関数をそのまま使う(壁・他アクター・タルをまとめて弾いてくれる)。
+   * 押し出した先が奔流タイル等であれば、moveActor経由でその効果もそのまま乗る
+   * (「そのマスに元々あった効果がそのまま発動する」という計画書の方針どおり)。
+   *
+   * 押し出せない場合(壁際・別アクターがいる 等)は、壁への体当たりと同じ扱いで
+   * bumpイベントだけを出し、ターンを消費しない(plan/attack-button.mdのアーカイブ
+   * 注記に理由を記載)
+   */
+  private pushMonster(dir: Dir, target: Actor, events: GameEvent[]): boolean {
+    if (!canStep(this.floor, target.pos, dir)) {
+      events.push({ type: "bump", actorId: this.player.id, dir: dirDelta(dir) });
+      return false;
+    }
+    this.moveActor(target, dir, events);
     return true;
   }
 

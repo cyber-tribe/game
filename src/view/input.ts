@@ -12,6 +12,8 @@ export type ActionKey =
   | "zoomOut"
   | "liftBarrel"
   | "throwBarrel"
+  /** 向いている方向へ攻撃する。移動しない(plan/attack-button.md) */
+  | "attack"
   /** 仲間への指示(構え)メニューを開く */
   | "orders"
   /** 樽守りの技メニューを開く */
@@ -58,6 +60,14 @@ const AXIS_KEYS = {
   east: ["ArrowRight", "KeyD"],
 } as const;
 
+/**
+ * 攻撃専用キー(plan/attack-button.md)。WASD移動クラスタの近くにある
+ * 未使用キーから選んだ(README操作表・plan/attack-button.mdのアーカイブ
+ * 注記に選定理由を記載)。`tools/playtest.mjs`・`src/main.ts`のデバッグ
+ * 用ヘルパーからも参照するため、リテラルをここでexportしておく
+ */
+export const ATTACK_KEY_CODE = "KeyX";
+
 const ACTION_KEYS: Record<string, ActionKey> = {
   Space: "confirm",
   Enter: "confirm",
@@ -77,6 +87,7 @@ const ACTION_KEYS: Record<string, ActionKey> = {
   KeyC: "arts",
   KeyP: "photoMode",
   KeyH: "help",
+  [ATTACK_KEY_CODE]: "attack",
 };
 
 /**

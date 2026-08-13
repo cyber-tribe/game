@@ -38,7 +38,8 @@ describe("game.ts: 第六地方(31〜36階)は攻撃で周囲のモンスター�
     const farFoe = makeMonster(103, { x: 5, y: 12 }); // チェビシェフ距離7
     game.floor.actors.push(adjacentFoe, nearFoe, farFoe);
 
-    game.command({ type: "move", dir: 2 });
+    game.command({ type: "face", dir: 2 });
+    game.command({ type: "attack" });
 
     expect(nearFoe.aware).toBe(true);
     expect(farFoe.aware).toBe(false);
@@ -54,7 +55,8 @@ describe("game.ts: 第六地方(31〜36階)は攻撃で周囲のモンスター�
     const nearFoe = makeMonster(102, { x: 5, y: 10 }); // チェビシェフ距離5
     game.floor.actors.push(invisibleFoe, nearFoe);
 
-    game.command({ type: "move", dir: 2 });
+    game.command({ type: "face", dir: 2 });
+    game.command({ type: "attack" });
 
     expect(nearFoe.aware).toBe(true);
   });
@@ -84,7 +86,8 @@ describe("game.ts: 第六地方(31〜36階)は攻撃で周囲のモンスター�
     const nearFoe = makeMonster(102, { x: 5, y: 8 }); // チェビシェフ距離3(範囲内相当)
     game.floor.actors.push(adjacentFoe, nearFoe);
 
-    game.command({ type: "move", dir: 2 });
+    game.command({ type: "face", dir: 2 });
+    game.command({ type: "attack" });
 
     expect(adjacentFoe.aware).toBe(true); // 直接攻撃された相手は既存仕様どおりawareになる
     expect(nearFoe.aware).toBe(false); // 巻き添えの範囲効果は起きない
