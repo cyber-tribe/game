@@ -2893,6 +2893,135 @@ def kodamagitsune_animations():
     ]
 
 
+# ======================================================================= こだまの主
+
+# 第六地方(こだまの尾根)のボス。「尾根じゅうに響いてきた無数のこだまが、
+# ひとつに重なり合って生まれた姿」という由来から、地方の他の種族
+# (kodamausagi・kodamagumo・kaerukodama)の特徴を1体に集約する構成にする。
+# 骨格は計画書どおりgajiriと同じ関節構成をベースにするが、ボスらしく
+# 大きく育て、kodamausagi譲りの長い耳・kodamagumo譲りの雲状の膨らみ・
+# kaerukodama譲りの大きく見開いた目を組み合わせる。
+KODAMANONUSHI_HALF = {
+    "hip": (0.0, 0.260, 0.340),
+    "chest": (0.0, -0.035, 0.360),
+    "neck": (0.0, -0.260, 0.325),
+    "snout": (0.0, -0.540, 0.225),
+    "tail1": (0.0, 0.480, 0.330),
+    "tail2": (0.0, 0.720, 0.420),
+    "tail3": (0.0, 0.890, 0.560),
+    "ear.L": (0.130, -0.255, 0.610),
+    "hipF.L": (0.145, -0.100, 0.235),
+    "footF.L": (0.158, -0.165, 0.040),
+    "hipB.L": (0.175, 0.215, 0.245),
+    "footB.L": (0.188, 0.265, 0.040),
+}
+KODAMANONUSHI_RADII_HALF = {
+    "hip": 0.235, "chest": 0.255, "neck": 0.150, "snout": 0.058,
+    "tail1": 0.062, "tail2": 0.050, "tail3": 0.030,
+    "ear.L": 0.056,
+    "hipF.L": 0.068, "footF.L": 0.056,
+    "hipB.L": 0.092, "footB.L": 0.060,
+}
+KODAMANONUSHI_BONES_HALF = [
+    ("chest", "hip"), ("chest", "neck"), ("neck", "snout"),
+    ("hip", "tail1"), ("tail1", "tail2"), ("tail2", "tail3"),
+    ("neck", "ear.L"),
+    ("chest", "hipF.L"), ("hipF.L", "footF.L"),
+    ("hip", "hipB.L"), ("hipB.L", "footB.L"),
+]
+
+
+def build_kodamaNoNushi():
+    """
+    尾根じゅうに響いてきた無数のこだまが、ひとつに重なり合って生まれた
+    地方の主。gajiriと同じ四つ足の骨組みをボスらしく大きく育て、
+    地方の他の種族の特徴(kodamausagiの長い耳、kodamagumoの雲状の膨らみ、
+    kaerukodamaの見開いた目)を1体に集約する。配色は第六地方
+    (こだまの尾根)の岩肌の灰色と乾いた土色。
+    """
+    joints = C.mirrored(KODAMANONUSHI_HALF)
+    radii = C.mirrored_radii(KODAMANONUSHI_RADII_HALF)
+    bones = C.mirrored_bones(KODAMANONUSHI_BONES_HALF)
+
+    body = C.build_skinned("kodamaNoNushi", joints, bones, radii, root="chest", subsurf=2)
+    rock = C.make_material("kodamanonushi_rock", (0.52, 0.51, 0.49), roughness=0.78)
+    earth = C.make_material("kodamanonushi_earth", (0.60, 0.48, 0.34), roughness=0.66)
+    accents = [Vector(joints["ear.L"]), Vector(joints["ear.R"]), Vector(joints["tail3"])]
+    C.assign_materials_by_region(
+        body, [rock, earth],
+        lambda c: 1 if min((c - a).length for a in accents) < 0.15 else 0,
+    )
+
+    extras = []
+    # kaerukodama譲りの、常に見開いた大きな目
+    for side in (-1.0, 1.0):
+        extras += eyeball(f"kodamanonushi_eye{side}", (0.100 * side, -0.330, 0.345), 0.062,
+                          look=(0.25 * side, -1.0, 0.1))
+    jaw = C.uv_sphere("kodamanonushi_jaw", (0.0, -0.560, 0.175), 0.088,
+                      segments=18, rings=12, scale=(0.95, 1.05, 0.55))
+    C.assign_material(jaw, rock)
+    extras.append(jaw)
+
+    # kodamagumo譲りの、雲のような膨らみを背に重ねる
+    puff_mat = C.make_material("kodamanonushi_puff", (0.58, 0.57, 0.55), roughness=0.82)
+    for px, py, pz, pr in [
+        (0.0, 0.05, 0.560, 0.145),
+        (0.115, 0.10, 0.470, 0.115),
+        (-0.115, 0.10, 0.470, 0.115),
+        (0.0, 0.22, 0.420, 0.120),
+    ]:
+        puff = C.uv_sphere(f"kodamanonushi_puff{px}_{pz}", (px, py, pz), pr,
+                           segments=16, rings=12)
+        C.assign_material(puff, puff_mat)
+        extras.append(puff)
+
+    mesh = C.join([body] + extras, "kodamaNoNushi")
+    armature = C.build_armature("kodamaNoNushi", joints, bones, mesh, root="chest")
+    return [mesh, armature], armature
+
+
+def kodamaNoNushi_animations():
+    neck, snout = "chest-neck", "neck-snout"
+    t1, t2 = "hip-tail1", "tail1-tail2"
+    fL, fR = "chest-hipF.L", "chest-hipF.R"
+    bL, bR = "hip-hipB.L", "hip-hipB.R"
+    return [
+        # 地方の主として、絶えず尾根に響き続けているような、ゆったり大きな揺れ
+        ("idle", [
+            (1, {neck: (0, 0, 0), t1: (0, 8, 0)}),
+            (30, {neck: (-5, 12, 0), t1: (0, -8, 0), t2: (0, 10, 0)}),
+            (60, {neck: (4, -10, 0), t1: (0, 8, 0), t2: (0, -10, 0)}),
+            (80, {neck: (0, 0, 0), t1: (0, 8, 0)}),
+        ]),
+        # 巨体を踏みしめる、重く力強い足取り
+        ("walk", [
+            (1, {fL: (22, 0, 0), fR: (-22, 0, 0), bL: (-18, 0, 0), bR: (18, 0, 0), t1: (0, 12, 0)}),
+            (9, {fL: (0, 0, 0), fR: (0, 0, 0), bL: (0, 0, 0), bR: (0, 0, 0), t1: (0, -12, 0)}),
+            (17, {fL: (-22, 0, 0), fR: (22, 0, 0), bL: (18, 0, 0), bR: (-18, 0, 0), t1: (0, 12, 0)}),
+            (25, {fL: (0, 0, 0), fR: (0, 0, 0), bL: (0, 0, 0), bR: (0, 0, 0), t1: (0, -12, 0)}),
+        ]),
+        # 頭を大きく振りかぶり、地方の主らしい重い一撃を叩き込む
+        ("attack", [
+            (1, {snout: (0, 0, 0), neck: (0, 0, 0)}),
+            (7, {snout: (-36, 0, 0), neck: (-28, 0, 0)}),
+            (13, {snout: (22, 0, 0), neck: (14, 0, 0), fL: (14, 0, 0), fR: (14, 0, 0)}),
+            (24, {snout: (0, 0, 0), neck: (0, 0, 0)}),
+        ]),
+        ("hit", [
+            (1, {neck: (0, 0, 0)}),
+            (5, {neck: (20, 0, 0), t1: (0, -20, 0)}),
+            (18, {neck: (0, 0, 0), t1: (0, 8, 0)}),
+        ]),
+        # 重なり合っていた無数のこだまがほどけるように、大きく崩れ落ちる
+        ("die", [
+            (1, {neck: (0, 0, 0), t1: (0, 8, 0)}),
+            (12, {neck: (30, 0, 0), t1: (0, -34, 0), fL: (-34, 0, 0), fR: (-34, 0, 0)}),
+            (30, {neck: (46, 0, 0), t1: (0, -58, 0), fL: (-64, 0, 0), fR: (-64, 0, 0),
+                  bL: (34, 0, 0), bR: (34, 0, 0)}),
+        ]),
+    ]
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -2917,6 +3046,7 @@ MONSTERS = {
     "nedayamabiko": (build_nedayamabiko, nedayamabiko_animations),
     "yamabikogitsune": (build_yamabikogitsune, yamabikogitsune_animations),
     "kodamagitsune": (build_kodamagitsune, kodamagitsune_animations),
+    "kodamaNoNushi": (build_kodamaNoNushi, kodamaNoNushi_animations),
 }
 
 
