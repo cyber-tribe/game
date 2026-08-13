@@ -75,7 +75,13 @@ export type GameEvent =
    * 経験したことを通知する。セーブへの反映(SaveData.trueAwakeningCleared)は
    * 呼び出し側(main.ts)が行う
    */
-  | { type: "trueAwakeningCleared" };
+  | { type: "trueAwakeningCleared" }
+  /**
+   * 樽比べ(plan/tarukurabe-minigame.md)。10投を使い切るか全ての的に命中させて
+   * 専用モードが終わったことを通知する。セーブへの反映
+   * (SaveData.tarukurabeBestScore・報酬・実績)は呼び出し側(main.ts)が行う
+   */
+  | { type: "tarukurabeFinished"; score: number };
 
 /** メッセージイベントを作るだけの短縮。呼び出し側の見通しのため */
 export function msg(text: string): GameEvent {

@@ -32,10 +32,12 @@ import {
   type ItemDef,
   type Room,
   type StatusKind,
+  type Tile,
   type Trap,
   type WeaponPattern,
   TILE_CORRIDOR,
   TILE_ROOM,
+  TILE_WALL,
   actorAt,
   barrelAt,
   hasStatus,
@@ -76,6 +78,7 @@ import {
   MOUNTAIN_CORE_ID,
   NIGHTLY_DREAM_ID,
   REGION_SIZE,
+  TARUKURABE_ID,
   TRIAL_CHAMBER_ID,
   TRUE_AWAKENING_ID,
   dungeonById,
@@ -293,6 +296,10 @@ export interface RunSnapshot {
   trainingFocus: TrainingFocus;
   /** 潜っているダンジョン(plan/multiple-dungeons.md)。復帰後の階移動で出現テーブルを揃えるのに使う */
   dungeonId: string;
+  /** 樽比べ(plan/tarukurabe-minigame.md)。専用モード中でなければ常に既定値 */
+  tarukurabeScore: number;
+  tarukurabeBarrelsLeft: number;
+  tarukurabeScoredLanes: number[];
 }
 
 /** 満腹度がこのターン数ぶん減る。100 / 0.2 = 500ターンもつ */
@@ -396,6 +403,50 @@ const TRUE_AWAKENING_CLOSING: readonly string[] = [
 
 /** タルの飛距離 */
 const BARREL_RANGE = 8;
+
+// ---- plan/tarukurabe-minigame.md ----
+/** 持ち込めるタルの数(固定10個)。専用モード内で完結し、通常の倉庫は消費しない */
+const TARUKURABE_BARREL_COUNT = 10;
+/**
+ * 遠の的(距離9)は通常のBARREL_RANGE(8)より遠いため、専用モードだけ
+ * タルの飛距離を伸ばす(他のダイブの投擲距離には一切影響しない)
+ */
+const TARUKURABE_THROW_RANGE = 9;
+/**
+ * 満点。的の配点(近1・中2・遠3)の合計と一致させている。計画書の報酬節は
+ * 「満点9点」としていたが、配点表(本文書内で「確定」扱い)と整合しないため、
+ * 配点表を正としてこちらを6に読み替えた(詳細はアーカイブノート参照)。
+ * save.ts(実績・報酬判定)からも参照するためexportする
+ */
+export const TARUKURABE_PERFECT_SCORE = 6;
+
+interface TarukurabeTargetLayout {
+  /** 部屋のローカル座標(プレイヤーの投擲台を基準にした相対値ではなく絶対値) */
+  pos: Vec2;
+  points: number;
+}
+
+/**
+ * 樽比べの部屋。既存の乱数生成(generateFloor)は使わず、山の芯・真の目覚めの
+ * 「短い固定進行」の方針をさらに一歩進めて、手作りの固定Floorを直接組み立てる
+ * (座標を毎回同じにすることで「自己ベストを縮める」比較が成立する、という
+ * 計画書の要件を、生成パラメータの調整ではなく確実に満たすため)。
+ *
+ * プレイヤーは部屋中央寄りの投擲台(TARUKURABE_PLAYER_POS)に立ち、以後移動
+ * できない。的は北(近・距離3)・東(中・距離6)・南(遠・距離9)の3方向に
+ * 1つずつ配置する。「大きい的ほど命中判定のマス数が広い」という計画書の
+ * 表現は、この投擲(8方向・1マス単位の直線)の仕組みでは的の物理的な広さを
+ * 増やす手段が無いため、距離と配点だけで難度カーブを表現する簡略化とした
+ */
+const TARUKURABE_ROOM_WIDTH = 11;
+const TARUKURABE_ROOM_HEIGHT = 17;
+const TARUKURABE_PLAYER_POS: Vec2 = { x: 2, y: 5 };
+const TARUKURABE_TARGETS: readonly TarukurabeTargetLayout[] = [
+  { pos: { x: 2, y: 2 }, points: 1 }, // 近(北、距離3)
+  { pos: { x: 8, y: 5 }, points: 2 }, // 中(東、距離6)
+  { pos: { x: 2, y: 14 }, points: 3 }, // 遠(南、距離9)
+];
+
 /** アイテムの飛距離 */
 const ITEM_THROW_RANGE = 10;
 /** タルをぶつけたときの基本ダメージ */
@@ -476,6 +527,14 @@ export class Game {
 
   /** 連れている仲間。フロアをまたいで付いてくるので、floor とは別に持つ */
   allies: Actor[] = [];
+
+  // ---- plan/tarukurabe-minigame.md ----
+  /** このセッションの合計得点 */
+  tarukurabeScore = 0;
+  /** 残りのタル数(専用モードに入った時点でTARUKURABE_BARREL_COUNTになる) */
+  tarukurabeBarrelsLeft = 0;
+  /** 命中済みの的の得点(重複加算を防ぐ集合。1的=1得点なので値がそのままキーになる) */
+  private readonly tarukurabeScoredLanes = new Set<number>();
 
   /** 直前のフロアに乗っていたギミック。連続で同じものを選ばないための記憶 */
   private previousGimmick?: FloorGimmickKind;
@@ -578,6 +637,9 @@ export class Game {
       this.endReason = s.endReason;
       this.trainingFocus = s.trainingFocus;
       this.dungeon = dungeonById(s.dungeonId);
+      this.tarukurabeScore = s.tarukurabeScore;
+      this.tarukurabeBarrelsLeft = s.tarukurabeBarrelsLeft;
+      for (const points of s.tarukurabeScoredLanes) this.tarukurabeScoredLanes.add(points);
 
       // JSON化を経由すると、本来は同じオブジェクトを指していたはずの
       // player/allies と floor.actors 内の対応する要素が別オブジェクトに
@@ -636,6 +698,9 @@ export class Game {
       barrelIdCounter: this.barrelIdCounter,
       trainingFocus: this.trainingFocus,
       dungeonId: this.dungeon.id,
+      tarukurabeScore: this.tarukurabeScore,
+      tarukurabeBarrelsLeft: this.tarukurabeBarrelsLeft,
+      tarukurabeScoredLanes: [...this.tarukurabeScoredLanes],
     };
   }
 
@@ -644,6 +709,15 @@ export class Game {
   private enterFloor(depth: number): void {
     this.depth = depth;
     this.monsterHouseWarned = false;
+
+    // 樽比べ(plan/tarukurabe-minigame.md): 通常の乱数生成(generateFloor)を
+    // 経由せず、専用の手作り固定Floorを直接組み立てる。仲間・持ち込み品の
+    // 配置(通常はこの関数の末尾で行う)も行わない――専用モードは常にソロで、
+    // 持ち込み品は使い道が無いため
+    if (this.dungeon.id === TARUKURABE_ID) {
+      this.enterTarukurabeFloor();
+      return;
+    }
     // 第八地方(めざめの前庭)固有ギミック(plan/dream-garden-mosaic.md): 43〜48階は、
     // 第二〜第七地方の固有ギミックのうち1〜2種類をランダムに選んで、そのフロアだけに適用する
     this.mosaicRegions =
@@ -764,6 +838,87 @@ export class Game {
     }
 
     updateVisibility(this.floor, this.player.pos, this.visionExtraRange());
+  }
+
+  /**
+   * 樽比べ(plan/tarukurabe-minigame.md)。手作りの固定Floorを直接組み立てる。
+   * generateFloor/populateFloorは一切呼ばない(乱数要素を排除し、毎回同じ
+   * 配置にするため)。仲間・持ち込み品は盤面に出さない(専用モードは常にソロ)
+   */
+  private enterTarukurabeFloor(): void {
+    const width = TARUKURABE_ROOM_WIDTH;
+    const height = TARUKURABE_ROOM_HEIGHT;
+    const tiles: Tile[] = [];
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const isWall = x === 0 || y === 0 || x === width - 1 || y === height - 1;
+        tiles.push({
+          kind: isWall ? TILE_WALL : TILE_ROOM,
+          roomId: isWall ? -1 : 0,
+          explored: false,
+          visible: false,
+        });
+      }
+    }
+
+    this.floor = {
+      depth: this.depth,
+      width,
+      height,
+      tiles,
+      rooms: [{ id: 0, x: 1, y: 1, w: width - 2, h: height - 2 }],
+      // 投擲台から動けないため、実際には誰も踏まない位置(降りる/区切るコマンドは
+      // 「ここには階段がない」で無害に弾かれる)
+      stairs: { x: width - 2, y: height - 2 },
+      actors: [],
+      items: [],
+      traps: [],
+      barrels: [],
+      goldPiles: [],
+      fieldObstacles: [],
+      secretPassages: [],
+    };
+
+    this.player.pos = { ...TARUKURABE_PLAYER_POS };
+    this.player.facing = 0; // 北(近の的)を向いて開始
+    this.player.carrying = null;
+    this.floor.actors.push(this.player);
+
+    for (const target of TARUKURABE_TARGETS) {
+      this.floor.actors.push({
+        id: this.ids.nextActorId(),
+        kind: "target",
+        name: "的",
+        // 専用の3Dモデルは新規に作らず、既存の空樽モデルを的として流用する
+        // (BarrelKindのempty用modelと同じ"barrel"。BARREL_MODELS定数は
+        // modelList.ts側にのみ定義されているため、ここでは直接値を書く)
+        model: "barrel",
+        pos: { ...target.pos },
+        facing: 0,
+        hp: 1,
+        maxHp: 1,
+        atk: 0,
+        def: 0,
+        level: 1,
+        statuses: [],
+        alive: true,
+        tarukurabePoints: target.points,
+      });
+    }
+
+    this.tarukurabeScore = 0;
+    this.tarukurabeBarrelsLeft = TARUKURABE_BARREL_COUNT;
+    this.tarukurabeScoredLanes.clear();
+    this.spawnTarukurabeBarrel();
+
+    updateVisibility(this.floor, this.player.pos, this.visionExtraRange());
+  }
+
+  /** 樽比べ専用: 投擲台(プレイヤーの足元)に次の1個を供給する */
+  private spawnTarukurabeBarrel(): void {
+    this.floor.barrels.push(
+      createBarrel(this.ids.nextBarrelId(), "empty", { ...this.player.pos }),
+    );
   }
 
   /**
@@ -1043,6 +1198,12 @@ export class Game {
       events.push({ type: "message", text: "大槌を振り抜いた反動で、体勢を立て直している……" });
       return true;
     }
+    // 樽比べ(plan/tarukurabe-minigame.md): 投擲台から動けない専用モード。
+    // 向きを変えるfaceは的の狙いを変える手段としてそのまま使えるので許可する
+    if (this.dungeon.id === TARUKURABE_ID && cmd.type === "move") {
+      events.push({ type: "message", text: "ここでは投擲台から動けない。" });
+      return false;
+    }
 
     switch (cmd.type) {
       case "face":
@@ -1128,8 +1289,15 @@ export class Game {
       case "liftBarrel":
         return this.liftOrPutBarrel(events);
 
-      case "throwBarrel":
-        return this.throwCarriedBarrel(events);
+      case "throwBarrel": {
+        const consumed = this.throwCarriedBarrel(events);
+        // 樽比べ(plan/tarukurabe-minigame.md): 実際に1投消費した場合だけ、
+        // 残りタル数・終了条件を進める(「タルを持っていない」等の不発は数えない)
+        if (consumed && this.dungeon.id === TARUKURABE_ID && this.status === "playing") {
+          this.finishTarukurabeThrow(events);
+        }
+        return consumed;
+      }
 
       case "setStance":
         return this.setAllyStance(cmd.allyId, cmd.stance, events);
@@ -1294,7 +1462,8 @@ export class Game {
     let landing = from;
     const hits: Actor[] = [];
 
-    for (const p of walkLine(this.floor, from, player.facing, BARREL_RANGE)) {
+    const throwRange = this.dungeon.id === TARUKURABE_ID ? TARUKURABE_THROW_RANGE : BARREL_RANGE;
+    for (const p of walkLine(this.floor, from, player.facing, throwRange)) {
       const blocker = barrelAt(this.floor, p);
       if (blocker) break;
       landing = p;
@@ -1331,6 +1500,12 @@ export class Game {
         const barrelDamage = this.barrelThrowDamage();
         for (const passThrough of hits.slice(0, -1)) {
           if (!passThrough.alive) continue;
+          // 樽比べ(plan/tarukurabe-minigame.md): 的は貫通されても通過ダメージの
+          // 対象にしない(戦闘ではないので、命中したら即座に得点処理へ回す)
+          if (passThrough.kind === "target") {
+            this.resolveTarukurabeHit(passThrough, events);
+            continue;
+          }
           const result = computeDamage(
             this.rng,
             barrelDamage,
@@ -1365,6 +1540,13 @@ export class Game {
   ): boolean {
     if (!hit) {
       this.dropBarrelNear(barrel, landing, events);
+      return true;
+    }
+
+    // 樽比べ(plan/tarukurabe-minigame.md): 的はダメージ計算にも捕獲判定にも
+    // 乗らない、得点処理だけの専用フロー
+    if (hit.kind === "target") {
+      this.resolveTarukurabeHit(hit, events);
       return true;
     }
 
@@ -1417,6 +1599,43 @@ export class Game {
     events.push({ type: "message", text: `${hit.name}をタルに吸い込んだ!` });
     this.dropBarrelNear(barrel, hit.pos, events);
     return true;
+  }
+
+  /**
+   * 樽比べ(plan/tarukurabe-minigame.md): 的への命中を得点に変換する。ダメージ・
+   * 捕獲判定は一切行わない。同じ的への2回目以降の命中は何も起きない
+   * (的は最初の命中でhit.alive=falseになり、以後actorAtに引っかからなくなる
+   * ため通常は再度ここへ来ないが、念のためのガードとして残す)
+   */
+  private resolveTarukurabeHit(hit: Actor, events: GameEvent[]): void {
+    const points = hit.tarukurabePoints ?? 0;
+    if (this.tarukurabeScoredLanes.has(points)) return;
+    this.tarukurabeScoredLanes.add(points);
+    this.tarukurabeScore += points;
+    hit.alive = false;
+    events.push({
+      type: "message",
+      text: `的に命中! ${points}点(合計${this.tarukurabeScore}点)。`,
+    });
+  }
+
+  /**
+   * 樽比べ(plan/tarukurabe-minigame.md): 1投の解決後に呼ぶ。タルを1個消費し、
+   * 終了条件(全ての的に命中済み、またはタルを使い切った)を満たしていれば
+   * 専用モードを終了する。満たしていなければ次の1個を投擲台に供給する
+   */
+  private finishTarukurabeThrow(events: GameEvent[]): void {
+    this.tarukurabeBarrelsLeft--;
+    const allTargetsHit = this.tarukurabeScoredLanes.size >= TARUKURABE_TARGETS.length;
+    if (!allTargetsHit && this.tarukurabeBarrelsLeft > 0) {
+      this.spawnTarukurabeBarrel();
+      return;
+    }
+    this.status = "cleared";
+    this.endReason = `樽比べ終了! 合計${this.tarukurabeScore}点。`;
+    events.push({ type: "tarukurabeFinished", score: this.tarukurabeScore });
+    events.push({ type: "message", text: this.endReason });
+    events.push({ type: "gameOver", reason: this.endReason });
   }
 
   /** タルを着地点に置く。塞がっていれば近くの空きマスへ転がす */
@@ -2458,8 +2677,12 @@ export class Game {
   private runActors(events: GameEvent[]): void {
     const { towardsFriendly, towardsFoe, towardsLeader } = this.buildActionDistanceFields();
 
-    // 行動中に配列が変化しても安全なようにコピーしてから回す
-    const movers = this.floor.actors.filter((a) => a.alive && a.kind !== "player");
+    // 行動中に配列が変化しても安全なようにコピーしてから回す。
+    // target(樽比べ、plan/tarukurabe-minigame.md)はaiKindを持たない非戦闘
+    // アクターなので、モンスター/仲間と同じ枠で動かそうとしない
+    const movers = this.floor.actors.filter(
+      (a) => a.alive && a.kind !== "player" && a.kind !== "target",
+    );
 
     for (const actor of movers) {
       if (!actor.alive || this.status !== "playing") continue;
@@ -2506,8 +2729,10 @@ export class Game {
     towardsLeader: () => Int32Array;
   } {
     const alive = (a: Actor) => a.alive;
+    // target(樽比べ)は敵でも味方でもない置物なので、モンスターの追跡先候補
+    // (friendlyPositions)には含めない
     const friendlyPositions = this.floor.actors
-      .filter((a) => alive(a) && a.kind !== "monster")
+      .filter((a) => alive(a) && a.kind !== "monster" && a.kind !== "target")
       .map((a) => a.pos);
     const foePositions = this.floor.actors
       .filter((a) => alive(a) && a.kind === "monster")

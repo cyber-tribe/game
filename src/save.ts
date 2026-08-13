@@ -6,7 +6,7 @@ import { DIFFICULTY_MODES, type DifficultyMode } from "./entities/difficulty";
 import { MAIN_CAVE_ID, MAIN_CAVE_MAX_DEPTH, NIGHTLY_DREAM_ID, REGION_SIZE, TRIAL_CHAMBER_ID } from "./entities/dungeons";
 import { MAX_RECENT_FUSION_MATERIALS, tryEvolve } from "./entities/evolution";
 import { FESTIVAL_SHOP_OFFERS, isYoimatsuri } from "./entities/festivals";
-import { HOKORA_DUST_DEF_ID, MARKS, MAX_MARK_SLOTS, MAX_PLUS } from "./entities/forging";
+import { HOKORA_DUST_DEF_ID, MARK_STONE_DEF_ID, MARKS, MAX_MARK_SLOTS, MAX_PLUS } from "./entities/forging";
 import { MAX_ACTIVE_QUESTS, QUESTS, questDef, questsForDate, todayKey } from "./entities/quests";
 import type { TrainingFocus } from "./entities/player";
 import { MESSAGE_SPEEDS, type MessageSpeed } from "./entities/settings";
@@ -29,7 +29,7 @@ import {
 import { MAX_SKILLS, NATIVE_SKILL_BY_SPECIES, SKILLS, fullSkillSet } from "./entities/skills";
 import { HAJIME_NO_YUME_ID, REGION_BOSS_ORDER, SPECIES, speciesById } from "./entities/species";
 import type { StoredMonster } from "./entities/storedMonster";
-import type { RunSnapshot, RunStatus } from "./game";
+import { TARUKURABE_PERFECT_SCORE, type RunSnapshot, type RunStatus } from "./game";
 import { ITEMS } from "./items/catalog";
 
 export type { StoredMonster };
@@ -266,6 +266,8 @@ export interface SaveData {
   audioVolume: number;
   /** 設定画面(plan/settings-screen.md)。メッセージ・演出の速さ。既定"normal" */
   messageSpeed: MessageSpeed;
+  /** 樽比べ(plan/tarukurabe-minigame.md)。自己ベスト得点(0〜TARUKURABE_PERFECT_SCORE)。既定0 */
+  tarukurabeBestScore: number;
 }
 
 /** 腕試しの間(plan/hidden-dungeon.md)。踏破1回ぶんの記録 */
@@ -344,6 +346,7 @@ export function initialSave(): SaveData {
     audioMuted: false,
     audioVolume: DEFAULT_AUDIO_VOLUME,
     messageSpeed: "normal",
+    tarukurabeBestScore: 0,
   };
 }
 
@@ -397,6 +400,7 @@ export function loadSave(slot: number = activeSlot): SaveData {
       audioMuted: parsed.audioMuted === true,
       audioVolume: clamp01(numberOr(parsed.audioVolume, DEFAULT_AUDIO_VOLUME)),
       messageSpeed: sanitizeMessageSpeed(parsed.messageSpeed),
+      tarukurabeBestScore: Math.max(0, numberOr(parsed.tarukurabeBestScore, 0)),
     };
   } catch {
     // 壊れた保存データで起動できなくなるほうが困るので、黙って初期値に戻す
@@ -535,6 +539,38 @@ export function setMessageSpeed(current: SaveData, messageSpeed: MessageSpeed): 
   const next: SaveData = { ...current, messageSpeed };
   saveData(next);
   return next;
+}
+
+/**
+ * 樽比べ(plan/tarukurabe-minigame.md)。得点に応じた段階的な報酬(ほこら粉・
+ * 刻印石)。計画書の未決事項だった具体的な品・個数は実装時に決定した。
+ * 印は「ツブテガエルの印(タルを投げたときのダメージ+2)」を固定で選んだ
+ * (5種の中で唯一タル投げに直接関わる印で、この的当てミニゲームと題材が
+ * 揃うため。抽選にはせず、常に同じ印にすることでrng不要のまま組める)
+ */
+function tarukurabeReward(score: number): StoredItem[] {
+  const dust = (n: number) => Array.from({ length: n }, () => ({ defId: HOKORA_DUST_DEF_ID }));
+  const stone = (n: number) => Array.from({ length: n }, () => ({ defId: MARK_STONE_DEF_ID.tsubute }));
+  if (score >= TARUKURABE_PERFECT_SCORE) return [...dust(5), ...stone(2)]; // 満点(上位)
+  if (score >= 5) return [...dust(3), ...stone(1)]; // 中位
+  if (score >= 3) return dust(2); // 下位
+  return [];
+}
+
+/**
+ * 樽比べ(plan/tarukurabe-minigame.md)。専用モード終了時に呼ぶ。自己ベストを
+ * 更新し、得点段階に応じた報酬を倉庫に加え、実績を確認する
+ */
+export function recordTarukurabeResult(current: SaveData, score: number): SaveData {
+  const reward = tarukurabeReward(score);
+  const next: SaveData = {
+    ...current,
+    tarukurabeBestScore: Math.max(current.tarukurabeBestScore, score),
+    storage: [...current.storage, ...reward],
+  };
+  const withAchievements = checkAchievements(next);
+  saveData(withAchievements);
+  return withAchievements;
 }
 
 /** サウンド再生(plan/audio-playback.md)。マスター音量(0..1)を設定する */
@@ -737,6 +773,9 @@ export function recordRun(
     audioMuted: current.audioMuted,
     audioVolume: current.audioVolume,
     messageSpeed: current.messageSpeed,
+    // 樽比べ(plan/tarukurabe-minigame.md): recordRunでは変化しない
+    // (専用モードの結果はrecordTarukurabeResultが別途反映する)
+    tarukurabeBestScore: current.tarukurabeBestScore,
   };
   // 依頼板(plan/quest-board.md): 受注中の依頼を判定し、達成していれば報酬を渡して外す
   const withQuests = resolveQuests(next, result);
@@ -1301,6 +1340,9 @@ export function checkAchievements(current: SaveData, extraItems: readonly Stored
 
   // 真の目覚め(plan/true-awakening.md): 「はじめの夢」との決着イベントを経験した称号
   if (next.trueAwakeningCleared) next = unlockAchievement(next, "trueAwakening");
+
+  // 樽比べ(plan/tarukurabe-minigame.md): 満点を出した記録
+  if (next.tarukurabeBestScore >= TARUKURABE_PERFECT_SCORE) next = unlockAchievement(next, "tarukurabePerfect");
 
   return next;
 }

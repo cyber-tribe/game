@@ -78,6 +78,7 @@ describe("save.ts: recordRunは腕試しの間の踏破を記録する(plan/hidd
       audioMuted: false,
       audioVolume: 0.7,
       messageSpeed: "normal",
+      tarukurabeBestScore: 0,
     };
   }
 

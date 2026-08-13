@@ -112,6 +112,12 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
     description: "図鑑コンプリート・全地方ボス撃破・実績多数達成の先にある、隠された局面「はじめの夢」に決着をつける。",
     title: "最古の夢に寄り添う者",
   },
+  // 樽比べ(plan/tarukurabe-minigame.md)
+  {
+    id: "tarukurabePerfect",
+    name: "樽比べで満点を出す",
+    description: "樽比べで、近・中・遠すべての的に命中させて満点(6点)を出す。",
+  },
 ];
 
 const BY_ID = new Map(ACHIEVEMENTS.map((a) => [a.id, a]));

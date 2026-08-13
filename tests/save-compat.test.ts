@@ -12,6 +12,7 @@ import v9 from "./fixtures/save/v9-mountain-core.json";
 import v10 from "./fixtures/save/v10-true-awakening.json";
 import v11 from "./fixtures/save/v11-audio-playback.json";
 import v12 from "./fixtures/save/v12-settings-screen.json";
+import v13 from "./fixtures/save/v13-tarukurabe-minigame.json";
 import { withMockedLocalStorage } from "./helpers/localStorage";
 
 /**
@@ -310,6 +311,24 @@ describe("save-compat: v12-settings-screen(設定画面導入後、現行の全�
       expect(loaded.messageSpeed).toBe(v12.messageSpeed);
       expect(loaded.audioMuted).toBe(v12.audioMuted);
       expect(loaded.trueAwakeningCleared).toBe(v12.trueAwakeningCleared);
+    });
+  });
+
+  it("樽比べ(plan/tarukurabe-minigame.md)以前のセーブは、tarukurabeBestScoreが既定値で補われる", () => {
+    withMockedLocalStorage(v12, () => {
+      const loaded = loadSave();
+      expect(loaded.tarukurabeBestScore).toBe(DEFAULTS.tarukurabeBestScore);
+    });
+  });
+});
+
+describe("save-compat: v13-tarukurabe-minigame(樽比べ導入後、現行の全フィールド)", () => {
+  it("すべてのフィールドが保持される", () => {
+    withMockedLocalStorage(v13, () => {
+      const loaded = loadSave();
+      expect(loaded.tarukurabeBestScore).toBe(v13.tarukurabeBestScore);
+      expect(loaded.messageSpeed).toBe(v13.messageSpeed);
+      expect(loaded.achievements.tarukurabePerfect).toBe(v13.achievements.tarukurabePerfect);
     });
   });
 });
