@@ -705,10 +705,9 @@ export const SPECIES: readonly Species[] = [
     weight: 5,
   },
   {
-    // 消えていく足跡を追う鳥。新規モデル未制作のため、purunモデルを流用する
     id: "ashiatodori",
     name: "あしあとどり",
-    model: "purun",
+    model: "ashiatodori",
     maxHp: 10,
     atk: 8,
     def: 2,
