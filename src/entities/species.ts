@@ -799,10 +799,10 @@ export const SPECIES: readonly Species[] = [
 
   // 第四地方: 骨積みの回廊(design/regions.md 19〜24階)。+4
   {
-    // 積み重なった記憶の重み。honegarami模様そのものなので同モデルを流用する
+    // 積み重なった記憶の重み。専用モデル(plan/archive/model-honedatami.md)
     id: "honedatami",
     name: "ホネダタミ",
-    model: "honegarami",
+    model: "honedatami",
     // 「倒すと素材を多く落とす」は種族ごとのドロップ量を変える仕組みが
     // 存在しないため実装せず、guardらしい高め耐久のみで表現した(アーカイブ注記参照)
     maxHp: 56,
