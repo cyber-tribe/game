@@ -1,3 +1,54 @@
+> **実装済み。**
+>
+> **1. 操作説明パネルの既定非表示**: 「操作説明パネル」として重なっていた
+> 実体は、キー操作の一覧を常時表示していた静的な`#help`(画面右下)
+> だった。`H`キー/「≡」メニューの「操作説明」は既に`src/main.ts`の
+> `toggleHelp()`経由で全画面オーバーレイ(`Hud.showKeyHelp`、`#overlay`)を
+> 明示トリガーでしか開いておらず、この経路は変更していない。`#help`側を
+> `@media (pointer: coarse) { #help { display: none; } }`で常時非表示にし、
+> タッチ端末では「≡」→「操作説明」の全画面オーバーレイだけを操作説明の
+> 入口にする形にした(パネルを2つ持たず、既存の明示トリガー経路に一本化)。
+>
+> **2. ゾーンレイアウトへの一本化**: 未決事項だった分割案は、本文書が
+> 原案として挙げていた「左上・右上・左下・右下・下部帯」をそのまま採用。
+> ただし実装は専用のGrid/Flexコンテナへ丸ごと移行するのではなく、
+> `index.html`の既存の慣習(パネルごとの`position: absolute`)を保ったまま、
+> 同じゾーンに複数パネルが来る3箇所だけをCSS変数で連動させる形にした
+> (`design/`・`index.html`のスタイルは元々この書き方に統一されているため、
+> Grid化は今回の目的に対してオーバーエンジニアリングと判断)。
+> - 右上(ミニマップ + 「≡」メニューボタン): `--zone-tr-reserve`
+>   (`pointer: coarse`時は166px)を「≡」ボタン・展開メニューの`top`に
+>   加算し、ミニマップの高さぶんだけ下に押しやる。
+> - 左下(メッセージログ + 仮想パッド): `--zone-bottom-reserve`
+>   (同136px)を`#log`の`bottom`に加算し、パッドの高さぶんだけ上に
+>   押しやる。
+> - 右下(操作説明パネル + アクションボタン群): 1.で`#help`自体を
+>   `pointer: coarse`で非表示にしたため、この組は最初から同時に
+>   表示されず、ゾーンの奪い合いが起きない。
+>
+> Playwrightでのタッチエミュレーション(800×500)で、各要素の
+> `getBoundingClientRect()`を実測して重なりが無いことを確認済み
+> (`.touch-pad`・`.touch-actions`・`.touch-menu-btn`・`#minimap-wrap`・
+> `#log`・`#help`)。
+>
+> **3. 縦持ち案内**: `matchMedia("(pointer: coarse)")` /
+> `matchMedia("(orientation: portrait)")`を`src/ui/orientation-guard.ts`の
+> `OrientationGuard`で監視し、両方成立するときだけ`document.body`へ
+> `portrait-lock`クラスを付ける。判定そのもの(`shouldLockToPortraitPrompt`)は
+> `src/entities/orientation.ts`にDOM非依存の純粋関数として切り出し、
+> `tests/orientation.test.ts`でunitテスト済み(4パターン: タッチ×縦、
+> タッチ×横、非タッチ×縦、非タッチ×横)。表示切り替え自体はCSS
+> (`body.portrait-lock`で`#scene`・`#ui`・`#gallery-info`・`#village-hint`・
+> `#loading`を隠し、新設の`#rotatePrompt`だけを出す)に任せてあり、
+> `OrientationGuard`はクラスの付け外しだけを行う薄い配線。回転で
+> `matchMedia`の`change`イベントが飛べば自動的にクラスが外れ、横持ち
+> レイアウトへ戻る。案内文言は「画面を横向きにしてください」+
+> 補足1行という最小限の暫定文にした(未決事項参照)。
+>
+> 対象外としていた「縦持ち専用レイアウト」は今回も作っていない
+> (方針どおり案内のみ)。仮想パッド静止時の見た目は本文書の対象外の
+> ままなので変更していない。
+
 # タッチUIの重なり・見切れを解消する
 
 `#334` で報告された不具合の修正方針。スマホ実機のスクリーンショットで、
