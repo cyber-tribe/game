@@ -172,9 +172,21 @@
       body[data-font-size="large"] #stairsConfirm,
       body[data-font-size="large"] #town,
       body[data-font-size="large"] #naming,
+      body[data-font-size="large"] #village-hint,
       body[data-font-size="large"] .overlay-box,
       body[data-font-size="large"] .ending-box {
         zoom: 1.25;
+      }
+
+      /* ------------------------------------------------ 拠点の3D化(plan/town-3d-exploration.md) */
+      #village-hint {
+        display: none;
+        position: absolute;
+        left: 50%; bottom: 24px; transform: translateX(-50%);
+        padding: 8px 16px;
+        font-size: 13px;
+        font-weight: 600;
+        color: #7fd6ff;
       }
 
       /* ------------------------------------------------ 図鑑ギャラリー */
@@ -579,6 +591,7 @@
       </div>
 
       <div id="gallery-info" class="panel"></div>
+      <div id="village-hint" class="panel"></div>
 
       <div id="loading">
         <h1>少年ガルドと迷いの洞窟</h1>

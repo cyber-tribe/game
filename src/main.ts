@@ -11,6 +11,7 @@ import { Minimap } from "./view/minimap";
 import { Renderer } from "./view/renderer";
 import { GalleryView } from "./view/gallery";
 import { Stage } from "./view/stage";
+import { VillageView } from "./view/village";
 import { AudioPlayer } from "./audio/player";
 import { ja as jaDict } from "./i18n/ja";
 import { setLocale as applyLocaleDict } from "./i18n";
@@ -128,6 +129,12 @@ class App {
   private readonly galleryInfoEl: HTMLElement;
   /** 直前フレームでギャラリーが開いていたか。DOM表示切り替えを遷移時だけ行うために使う */
   private galleryWasOpen = false;
+  /** 拠点の3D化(plan/town-3d-exploration.md)。倉庫・工房等の中身は変えず、
+   * そこへ「歩いてたどり着く」入り口だけを差し替える */
+  private readonly village = new VillageView();
+  private readonly villageHintEl: HTMLElement;
+  /** 村なかを歩いている最中か。trueのあいだはダンジョン側のsubmitを止め、村の移動・確定だけを見る */
+  private villageActive = false;
 
   private game!: Game;
   private save: SaveData;
@@ -176,6 +183,7 @@ class App {
     this.slotSelect = new SlotSelectScreen(document.querySelector<HTMLElement>("#slotSelect")!);
     this.gallery = new GalleryView(this.assets);
     this.galleryInfoEl = document.querySelector<HTMLElement>("#gallery-info")!;
+    this.villageHintEl = document.querySelector<HTMLElement>("#village-hint")!;
     // スロット選択(start()内)が終わるまでの仮値。beginWithSlot()で選んだ枠に差し替わる
     this.save = initialSave();
 
@@ -251,6 +259,20 @@ class App {
     this.save = refreshUnlockedCostumes(this.save);
     // 章立て(plan/story-chapters.md): 拠点帰還のたびに、新しく跨いだ章が無いか確認する
     this.checkStoryChapterTransition();
+    // 拠点の3D化(plan/town-3d-exploration.md): 従来はここで即座に拠点画面
+    // (TownScreen)を開いていたが、まず村なかの3D空間を表示し、建物に
+    // 近づいて確定したときだけ`openTownScreen`経由でTownScreenを開く
+    this.villageActive = true;
+    this.village.reset();
+  }
+
+  /**
+   * 拠点の3D化(plan/town-3d-exploration.md)。村なかで近づいた建物に対応する
+   * 列を指定して、既存のTownScreenをそのまま開く。TownScreen自身の中身
+   * (各列の一覧・操作)は一切変えていない
+   */
+  private openTownScreen(initialColumn: number): void {
+    this.villageActive = false;
     this.town.show(
       this.save,
       (carry, storage, startDepth, trainingFocus, bringAllyUids, difficulty, dungeonId) => {
@@ -363,7 +385,15 @@ class App {
         this.applyLocale();
         this.town.refreshSave(this.save);
       },
+      initialColumn,
     );
+  }
+
+  /** 村なかで近づいた建物へ、確定キーで入る */
+  private tryEnterVillageBuilding(): void {
+    const building = this.village.nearBuilding();
+    if (!building) return;
+    this.openTownScreen(building.column);
   }
 
   /**
@@ -567,6 +597,20 @@ class App {
     this.renderer.renderer.render(this.gallery.scene, this.gallery.camera);
   }
 
+  /**
+   * 拠点の3D化(plan/town-3d-exploration.md)。図鑑ギャラリーと同じく、
+   * `Renderer`本体(ダンジョン用のシーン・カメラ)には触れず、
+   * 生の`renderer.renderer`にだけ相乗りして別シーンを描く
+   */
+  private renderVillage(): void {
+    this.village.setAspect(this.renderer.camera.aspect);
+    this.renderer.renderer.render(this.village.scene, this.village.camera);
+
+    const building = this.village.nearBuilding();
+    this.villageHintEl.textContent = building ? `Space: ${building.label}へ` : "";
+    this.villageHintEl.style.display = building ? "block" : "none";
+  }
+
   // ------------------------------------------------------------ ループ
 
   private loop = (): void => {
@@ -578,6 +622,8 @@ class App {
     const gallerySpeciesId = this.town.gallerySpeciesId;
     if (gallerySpeciesId) {
       this.renderGallery(dt, gallerySpeciesId);
+    } else if (this.villageActive) {
+      this.renderVillage();
     } else {
       if (this.galleryWasOpen) {
         this.uiRoot.style.display = "";
@@ -632,7 +678,11 @@ class App {
         action = this.input.takeAction();
         continue;
       }
-      if (
+      // 拠点の3D化(plan/town-3d-exploration.md): 村なかでは、確定キーで
+      // 近くの建物へ入る以外の行動(もちもの・技・タル等)は意味を持たないので捨てる
+      if (this.villageActive) {
+        if (action === "confirm") this.tryEnterVillageBuilding();
+      } else if (
         !this.ended &&
         !this.anyModalOpen() &&
         !this.photoMode &&
@@ -642,6 +692,11 @@ class App {
         this.handleAction(action);
       }
       action = this.input.takeAction();
+    }
+
+    if (this.villageActive) {
+      this.village.update(dt, this.input.direction());
+      return;
     }
 
     if (this.ended || this.anyModalOpen() || this.photoMode || this.helpVisible || this.lock > 0) {
@@ -728,7 +783,7 @@ class App {
       this.hud.hideOverlay();
       return;
     }
-    if (this.anyModalOpen() || this.photoMode || this.ended) {
+    if (this.anyModalOpen() || this.photoMode || this.villageActive || this.ended) {
       return;
     }
     this.helpVisible = true;
@@ -769,7 +824,7 @@ class App {
       this.uiRoot.style.display = "";
       return;
     }
-    if (this.anyModalOpen() || this.helpVisible || this.ended) {
+    if (this.anyModalOpen() || this.helpVisible || this.villageActive || this.ended) {
       return;
     }
     this.photoMode = true;
@@ -1173,6 +1228,17 @@ class App {
    */
   debugIdle(): boolean {
     return this.lock <= 0;
+  }
+
+  /** 拠点の3D化(plan/town-3d-exploration.md)。通しプレイ(tools/playtest.mjs、
+   * tools/auto-tester.mjs)が、村なかを歩いている最中かを判定するための入口 */
+  debugVillageActive(): boolean {
+    return this.villageActive;
+  }
+
+  /** 村なかで確定キーを押したときに入れる建物があれば、そのidを返す */
+  debugVillageNearBuildingId(): string | null {
+    return this.village.nearBuilding()?.id ?? null;
   }
 
   /** 倒れたときの流れを確かめるために、わざと力尽きさせる */

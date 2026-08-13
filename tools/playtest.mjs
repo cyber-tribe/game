@@ -116,11 +116,42 @@ await page.waitForFunction(
   { timeout: 60_000 },
 );
 await settle();
-await page.screenshot({ path: `${OUT}/00-town.png` });
 
-// 拠点。倉庫から2つ持ち込んでから潜る
+// セーブ枠選択
 await page.keyboard.press("Enter");
 await settle();
+await page.screenshot({ path: `${OUT}/00-village.png` });
+
+/**
+ * 拠点の3D化(plan/town-3d-exploration.md)。拠点は村を3D空間として
+ * 歩き回る場面に変わった。北へ歩けば必ず「旅の看板」(村の入口すぐの、
+ * 拠点画面(TownScreen)を既定の列で開くための建物)に着くようにしてある
+ * ので、決め打ちの方向で近づき、確定キーで拠点画面を開く。
+ */
+async function enterNearestVillageBuilding(key = "ArrowUp") {
+  await page.keyboard.down(key);
+  await page
+    .waitForFunction(() => globalThis.__app?.debugVillageNearBuildingId?.() !== null, {
+      timeout: 5_000,
+    })
+    .catch(() => {});
+  await page.keyboard.up(key);
+  await settle();
+  await page.keyboard.press("Space");
+  await settle();
+}
+
+await enterNearestVillageBuilding();
+const enteredTownFromVillage = await page.evaluate(
+  () => document.querySelector("#town")?.style.display === "flex",
+);
+console.log("村を歩いて拠点画面を開けた:", enteredTownFromVillage);
+if (!enteredTownFromVillage) {
+  console.error("村なかを歩いて建物に近づいても拠点画面が開かなかった。");
+  process.exitCode = 1;
+}
+
+// 拠点。倉庫から持ち込んでから潜る
 await page.keyboard.press("Enter");
 await settle();
 await page.keyboard.press("Space");
@@ -301,13 +332,16 @@ const overlayText = await page.evaluate(
 console.log("全滅表示:", overlayText);
 
 await page.keyboard.press("KeyR");
-await waitForDisplay("#town", true);
+await settle();
+// 拠点の3D化(plan/town-3d-exploration.md): R キーで戻る先も村なかの
+// 3D空間になったので、建物に近づいて確定するところまで確かめる
+await enterNearestVillageBuilding();
 const townShown = await page.evaluate(
   () => document.querySelector("#town")?.style.display === "flex",
 );
 console.log("拠点に戻った:", townShown, "/ メニュー表示:", menuShown);
 if (!townShown) {
-  console.error("倒れたあと R キーで拠点に戻れなかった。");
+  console.error("倒れたあと R キーで村へ戻り、建物に近づいても拠点画面が開かなかった。");
   process.exitCode = 1;
 }
 
