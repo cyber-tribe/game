@@ -9,6 +9,7 @@ import { FESTIVAL_SHOP_OFFERS, isYoimatsuri } from "./entities/festivals";
 import { HOKORA_DUST_DEF_ID, MARKS, MAX_MARK_SLOTS, MAX_PLUS } from "./entities/forging";
 import { MAX_ACTIVE_QUESTS, QUESTS, questDef, questsForDate, todayKey } from "./entities/quests";
 import type { TrainingFocus } from "./entities/player";
+import { MESSAGE_SPEEDS, type MessageSpeed } from "./entities/settings";
 import { type BondStage, bondStage } from "./entities/companionBond";
 import {
   OTAMA_VISIT_STORY,
@@ -263,6 +264,8 @@ export interface SaveData {
   audioMuted: boolean;
   /** サウンド再生(plan/audio-playback.md)。マスター音量(0..1)。既定0.7 */
   audioVolume: number;
+  /** 設定画面(plan/settings-screen.md)。メッセージ・演出の速さ。既定"normal" */
+  messageSpeed: MessageSpeed;
 }
 
 /** 腕試しの間(plan/hidden-dungeon.md)。踏破1回ぶんの記録 */
@@ -340,6 +343,7 @@ export function initialSave(): SaveData {
     trueAwakeningCleared: false,
     audioMuted: false,
     audioVolume: DEFAULT_AUDIO_VOLUME,
+    messageSpeed: "normal",
   };
 }
 
@@ -392,6 +396,7 @@ export function loadSave(slot: number = activeSlot): SaveData {
       trueAwakeningCleared: parsed.trueAwakeningCleared === true,
       audioMuted: parsed.audioMuted === true,
       audioVolume: clamp01(numberOr(parsed.audioVolume, DEFAULT_AUDIO_VOLUME)),
+      messageSpeed: sanitizeMessageSpeed(parsed.messageSpeed),
     };
   } catch {
     // 壊れた保存データで起動できなくなるほうが困るので、黙って初期値に戻す
@@ -520,6 +525,14 @@ export function setFontSize(current: SaveData, fontSize: FontSize): SaveData {
 export function setAudioMuted(current: SaveData, muted: boolean): SaveData {
   if (current.audioMuted === muted) return current;
   const next: SaveData = { ...current, audioMuted: muted };
+  saveData(next);
+  return next;
+}
+
+/** 設定画面(plan/settings-screen.md)。メッセージ・演出の速さを切り替える */
+export function setMessageSpeed(current: SaveData, messageSpeed: MessageSpeed): SaveData {
+  if (current.messageSpeed === messageSpeed) return current;
+  const next: SaveData = { ...current, messageSpeed };
   saveData(next);
   return next;
 }
@@ -723,6 +736,7 @@ export function recordRun(
     trueAwakeningCleared: current.trueAwakeningCleared || (result.trueAwakeningCleared ?? false),
     audioMuted: current.audioMuted,
     audioVolume: current.audioVolume,
+    messageSpeed: current.messageSpeed,
   };
   // 依頼板(plan/quest-board.md): 受注中の依頼を判定し、達成していれば報酬を渡して外す
   const withQuests = resolveQuests(next, result);
@@ -1600,6 +1614,12 @@ function sanitizeTrainingFocus(value: unknown): TrainingFocus {
 function sanitizeDifficulty(value: unknown): DifficultyMode {
   return typeof value === "string" && (DIFFICULTY_MODES as readonly string[]).includes(value)
     ? (value as DifficultyMode)
+    : "normal";
+}
+
+function sanitizeMessageSpeed(value: unknown): MessageSpeed {
+  return typeof value === "string" && (MESSAGE_SPEEDS as readonly string[]).includes(value)
+    ? (value as MessageSpeed)
     : "normal";
 }
 

@@ -11,6 +11,7 @@ import v8 from "./fixtures/save/v8-lost-and-found-vault.json";
 import v9 from "./fixtures/save/v9-mountain-core.json";
 import v10 from "./fixtures/save/v10-true-awakening.json";
 import v11 from "./fixtures/save/v11-audio-playback.json";
+import v12 from "./fixtures/save/v12-settings-screen.json";
 import { withMockedLocalStorage } from "./helpers/localStorage";
 
 /**
@@ -291,6 +292,24 @@ describe("save-compat: v11-audio-playback(サウンド再生導入後、現行�
       expect(loaded.audioMuted).toBe(v11.audioMuted);
       expect(loaded.audioVolume).toBe(v11.audioVolume);
       expect(loaded.trueAwakeningCleared).toBe(v11.trueAwakeningCleared);
+    });
+  });
+
+  it("設定画面(plan/settings-screen.md)以前のセーブは、messageSpeedが既定値で補われる", () => {
+    withMockedLocalStorage(v11, () => {
+      const loaded = loadSave();
+      expect(loaded.messageSpeed).toBe(DEFAULTS.messageSpeed);
+    });
+  });
+});
+
+describe("save-compat: v12-settings-screen(設定画面導入後、現行の全フィールド)", () => {
+  it("すべてのフィールドが保持される", () => {
+    withMockedLocalStorage(v12, () => {
+      const loaded = loadSave();
+      expect(loaded.messageSpeed).toBe(v12.messageSpeed);
+      expect(loaded.audioMuted).toBe(v12.audioMuted);
+      expect(loaded.trueAwakeningCleared).toBe(v12.trueAwakeningCleared);
     });
   });
 });

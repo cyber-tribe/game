@@ -60,6 +60,7 @@ import {
   setDifficulty,
   setEquippedTitle,
   setFontSize,
+  setMessageSpeed,
   setTrainingFocus,
   takeFromHut,
   talkToNpc,
@@ -75,6 +76,7 @@ import { DEFAULT_MOOD_ID, MOOD_VISUALS, moodForDate } from "./entities/moods";
 import { todayKey } from "./entities/quests";
 import { STORY_CHAPTER_MESSAGES, storyChapter, storyChapterEventId } from "./entities/story";
 import { REGION_BOSS_FLOORS, speciesById } from "./entities/species";
+import { KEY_REFERENCE, messageSpeedScale } from "./entities/settings";
 import { buildBugReportUrl } from "./entities/bugReport";
 import { speciesLore } from "./entities/speciesLore";
 import { TUTORIAL_TIPS, type TutorialTipId } from "./core/tutorial";
@@ -84,22 +86,6 @@ import type { TrainingFocus } from "./entities/player";
 /** 拠点に覆われているあいだ、洞窟を描き直す間隔(秒)。うっすら動いて見えれば足りる */
 const COVERED_RENDER_INTERVAL = 0.2;
 
-/** 操作の一括確認(plan/difficulty-modes.md アクセシビリティ節)。README操作表と揃える */
-const KEY_HELP_LINES: readonly string[] = [
-  "矢印/WASD/テンキー: 8方向に移動。モンスターがいる方向へ進むと攻撃",
-  "Shift+方向: その場で向きだけ変える(ターンを消費しない)",
-  "Space: 足元のものを拾う。階段の上なら次の階へ降りる",
-  ". / テンキー5: 足踏み(1ターンやり過ごす)",
-  "F: 正面か足元のタルを持ち上げる。抱えていれば下ろす",
-  "G: 抱えているタルを向いている方向へ投げる",
-  "I: もちものを開く",
-  "T: 仲間への指示(構え)を開く",
-  "C: 樽守りの技を繰り出す",
-  "Q / E: 視点を90度回す",
-  "+ / -: ズーム",
-  "R: めざめの階段の上で区切って持ち帰る。倒れたあとは拠点に戻る",
-  "P: フォトモードの切り替え",
-];
 
 class App {
   private readonly renderer: Renderer;
@@ -351,6 +337,10 @@ class App {
       (volume) => {
         this.save = setAudioVolume(this.save, volume);
         this.applyAudioSettings();
+        this.town.refreshSave(this.save);
+      },
+      (speed) => {
+        this.save = setMessageSpeed(this.save, speed);
         this.town.refreshSave(this.save);
       },
     );
@@ -731,7 +721,7 @@ class App {
       return;
     }
     this.helpVisible = true;
-    this.hud.showKeyHelp(KEY_HELP_LINES);
+    this.hud.showKeyHelp(KEY_REFERENCE);
   }
 
   /**
@@ -885,7 +875,12 @@ class App {
       this.updateDiveBgm();
     } else {
       this.stage.syncActors(this.game.floor);
-      this.lock = this.stage.applyEvents(events, this.game.floor, this.input.direction() !== null);
+      this.lock = this.stage.applyEvents(
+        events,
+        this.game.floor,
+        this.input.direction() !== null,
+        messageSpeedScale(this.save.messageSpeed),
+      );
       this.stage.updateActorVisibility(this.game.floor);
     }
 

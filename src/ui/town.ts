@@ -32,7 +32,9 @@ import { FESTIVAL_SHOP_OFFERS, isYoimatsuri } from "../entities/festivals";
 import { moodForDate } from "../entities/moods";
 import { MAX_ALLIES, type TrainingFocus } from "../entities/player";
 import { todayKey } from "../entities/quests";
+import { KEY_REFERENCE, MESSAGE_SPEEDS, type MessageSpeed } from "../entities/settings";
 import { SPECIES, speciesById } from "../entities/species";
+import { TUTORIAL_TIPS, TUTORIAL_TIP_IDS } from "../core/tutorial";
 import { DEFAULT_AUDIO_VOLUME, isCompendiumComplete, isTrueAwakeningUnlocked, isWeaponCompendiumComplete, type CompendiumStatus, type FontSize, type SaveData, type StoredItem, type StoredMonster } from "../save";
 import { ITEMS, itemDef } from "../items/catalog";
 import { MAX_ACTIVE_QUESTS, questDef } from "../entities/quests";
@@ -71,7 +73,7 @@ const TRAINING_FOCUS_DESCRIPTIONS: Record<TrainingFocus, string> = {
 export class TownScreen {
   private open = false;
   /** 0=倉庫 1=持ち込み 2=出発地点 3=鍛え方 4=つれていく仲間 5=ゲンドの工房 6=記録の間 7=モンスター図鑑 8=実績帳 9=装備図鑑 10=難易度 11=依頼板 12=潜るダンジョン 13=村の発展 14=アクセシビリティ 15=身支度 16=NPCと話す(plan/village-life.md) 17=宵祭りの出店(plan/yoimatsuri-festival.md) */
-  private column: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 = 0;
+  private column: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 = 0;
   private cursor: [number, number] = [0, 0];
   private storage: StoredItem[] = [];
   private carry: StoredItem[] = [];
@@ -172,6 +174,12 @@ export class TownScreen {
   private onSetAudioVolume: ((volume: number) => void) | null = null;
   /** サウンド再生: 音の設定列上のカーソル位置(0=ミュート、1=音量) */
   private audioSettingsCursor: 0 | 1 = 0;
+  /** 設定画面(plan/settings-screen.md) */
+  private onSetMessageSpeed: ((speed: MessageSpeed) => void) | null = null;
+  /** 設定画面の一覧上のカーソル位置(0=メッセージ速度、1=操作説明、2=キー配置) */
+  private settingsCursor: 0 | 1 | 2 = 0;
+  /** 設定画面: 操作説明・キー配置確認を全件表示しているあいだだけ非null */
+  private settingsSubView: "tutorialTips" | "keyReference" | null = null;
   /** 実績帳(plan/achievements.md)の一覧上のカーソル位置 */
   private achievementCursor = 0;
   /** 依頼板(plan/quest-board.md)の一覧上のカーソル位置 */
@@ -212,6 +220,7 @@ export class TownScreen {
     onBuyFestivalItem: (defId: string) => void,
     onSetAudioMuted: (muted: boolean) => void,
     onSetAudioVolume: (volume: number) => void,
+    onSetMessageSpeed: (speed: MessageSpeed) => void,
   ): void {
     this.save = save;
     this.storage = save.storage.map((s) => ({ ...s }));
@@ -257,6 +266,9 @@ export class TownScreen {
     this.onSetAudioMuted = onSetAudioMuted;
     this.onSetAudioVolume = onSetAudioVolume;
     this.audioSettingsCursor = 0;
+    this.onSetMessageSpeed = onSetMessageSpeed;
+    this.settingsCursor = 0;
+    this.settingsSubView = null;
     this.festivalShopCursor = 0;
     this.achievementCursor = 0;
     this.questCursor = 0;
@@ -357,6 +369,15 @@ export class TownScreen {
       // 既存のグローバル操作(main.tsのhandleGlobalAction)へ素通しする
       if (code === "KeyQ" || code === "KeyE" || code === "Equal" || code === "Minus") {
         return false;
+      }
+      return true;
+    }
+
+    // 設定画面(plan/settings-screen.md): 操作説明・キー配置確認を全件表示中は、閉じる操作だけを受け付ける
+    if (this.settingsSubView) {
+      if (code === "Escape" || code === "Enter" || code === "NumpadEnter") {
+        this.settingsSubView = null;
+        this.render();
       }
       return true;
     }
@@ -897,6 +918,10 @@ export class TownScreen {
         case "KeyA":
           this.column = 17;
           break;
+        case "ArrowRight":
+        case "KeyD":
+          this.column = 19;
+          break;
         case "Enter":
         case "NumpadEnter": {
           if (this.audioSettingsCursor === 0) {
@@ -905,6 +930,43 @@ export class TownScreen {
             const current = this.save?.audioVolume ?? DEFAULT_AUDIO_VOLUME;
             const stepped = Math.round((current + 0.1) * 10) / 10;
             this.onSetAudioVolume?.(stepped > 1 ? 0 : stepped);
+          }
+          break;
+        }
+        case "Space":
+          this.departNow();
+          return true;
+        default:
+          return true;
+      }
+      this.render();
+      return true;
+    }
+
+    if (this.column === 19) {
+      switch (code) {
+        case "ArrowUp":
+        case "KeyW":
+          this.settingsCursor = wrap(this.settingsCursor - 1, 3) as 0 | 1 | 2;
+          break;
+        case "ArrowDown":
+        case "KeyS":
+          this.settingsCursor = wrap(this.settingsCursor + 1, 3) as 0 | 1 | 2;
+          break;
+        case "ArrowLeft":
+        case "KeyA":
+          this.column = 18;
+          break;
+        case "Enter":
+        case "NumpadEnter": {
+          if (this.settingsCursor === 0) {
+            const speeds = MESSAGE_SPEEDS;
+            const idx = speeds.indexOf(this.save?.messageSpeed ?? "normal");
+            this.onSetMessageSpeed?.(speeds[(idx + 1) % speeds.length]!);
+          } else if (this.settingsCursor === 1) {
+            this.settingsSubView = "tutorialTips";
+          } else {
+            this.settingsSubView = "keyReference";
           }
           break;
         }
@@ -1315,6 +1377,7 @@ export class TownScreen {
       this.renderVillageLife(),
       this.renderYoimatsuriShop(),
       this.renderAudioSettings(),
+      this.renderSettings(),
     );
     box.appendChild(columns);
 
@@ -1431,6 +1494,13 @@ export class TownScreen {
         this.audioSettingsCursor === 0
           ? "Enterでミュートを切り替える。"
           : "Enterで音量を10%刻みで上げる(100%の次は0%に戻る)。";
+    } else if (this.column === 19) {
+      desc.textContent =
+        this.settingsCursor === 0
+          ? "Enterでメッセージ・演出の速さを切り替える(ふつう→はやい→ゆっくり→ふつう…)。"
+          : this.settingsCursor === 1
+            ? "Enterでこれまでの操作説明を一覧できる。"
+            : "Enterでキー配置を一覧できる(再割り当てはできない)。";
     } else {
       const selected = (this.column === 0 ? this.storage : this.carry)[this.cursor[this.column]];
       desc.textContent = selected ? itemDef(selected.defId).description : "";
@@ -1468,7 +1538,11 @@ export class TownScreen {
     } else if (this.column === 17) {
       hint.textContent = "←→ 列を移る / ↑↓ 選ぶ / Enter 買う / Space もぐる";
     } else if (this.column === 18) {
-      hint.textContent = "← 列を移る / ↑↓ 選ぶ / Enter 切り替え・音量変更 / Space もぐる";
+      hint.textContent = "←→ 列を移る / ↑↓ 選ぶ / Enter 切り替え・音量変更 / Space もぐる";
+    } else if (this.column === 19) {
+      hint.textContent = this.settingsSubView
+        ? "Enter / Esc でもどる"
+        : "← 列を移る / ↑↓ 選ぶ / Enter 切り替え・一覧を見る / Space もぐる";
     } else {
       hint.textContent = "←→ 列を移る / ↑↓ 選ぶ / Enter 移す / Space もぐる";
     }
@@ -2240,6 +2314,65 @@ export class TownScreen {
     volumeLi.textContent = `音量: ${Math.round(volume * 100)}%`;
     if (this.column === 18 && this.audioSettingsCursor === 1) volumeLi.classList.add("selected");
     list.appendChild(volumeLi);
+
+    wrapper.appendChild(list);
+    return wrapper;
+  }
+
+  /** 設定画面(plan/settings-screen.md)。メッセージ速度・操作説明の再表示・キー配置の確認 */
+  private renderSettings(): HTMLElement {
+    const wrapper = document.createElement("div");
+    wrapper.className = "town-col";
+    if (this.column === 19) wrapper.classList.add("active");
+
+    const heading = document.createElement("h3");
+    heading.className = "town-col-title";
+    heading.textContent = "設定";
+    wrapper.appendChild(heading);
+
+    if (this.settingsSubView === "tutorialTips") {
+      const list = document.createElement("ul");
+      list.setAttribute("role", "list");
+      for (const id of TUTORIAL_TIP_IDS) {
+        const li = document.createElement("li");
+        li.textContent = TUTORIAL_TIPS[id];
+        list.appendChild(li);
+      }
+      wrapper.appendChild(list);
+      return wrapper;
+    }
+
+    if (this.settingsSubView === "keyReference") {
+      const list = document.createElement("ul");
+      list.setAttribute("role", "list");
+      for (const line of KEY_REFERENCE) {
+        const li = document.createElement("li");
+        li.textContent = line;
+        list.appendChild(li);
+      }
+      wrapper.appendChild(list);
+      return wrapper;
+    }
+
+    const speed = this.save?.messageSpeed ?? "normal";
+    const speedLabel: Record<MessageSpeed, string> = { slow: "ゆっくり", normal: "ふつう", fast: "はやい" };
+    const list = document.createElement("ul");
+    list.setAttribute("role", "list");
+
+    const speedLi = document.createElement("li");
+    speedLi.textContent = `メッセージ・演出の速さ: ${speedLabel[speed]}`;
+    if (this.column === 19 && this.settingsCursor === 0) speedLi.classList.add("selected");
+    list.appendChild(speedLi);
+
+    const tipsLi = document.createElement("li");
+    tipsLi.textContent = "操作説明を見る";
+    if (this.column === 19 && this.settingsCursor === 1) tipsLi.classList.add("selected");
+    list.appendChild(tipsLi);
+
+    const keysLi = document.createElement("li");
+    keysLi.textContent = "キー配置を確認する";
+    if (this.column === 19 && this.settingsCursor === 2) keysLi.classList.add("selected");
+    list.appendChild(keysLi);
 
     wrapper.appendChild(list);
     return wrapper;
