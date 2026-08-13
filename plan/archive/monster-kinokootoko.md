@@ -1,3 +1,11 @@
+> **実装済み(コード変更なし)。** `src/entities/species.ts`の`id:
+> "kinokootoko"`エントリを確認し、本文書のデータ表(AI/maxHp/atk/def/exp/
+> weight/出現階)がすべて一致することを検証した。差分なし(なお実装には
+> 由来文の「胞子の満ちた部屋にいるほど力を増す」に対応する
+> `atkMulInSporedRoom`も入っているが、データ表の対象外の付随効果であり
+> 矛盾はない)。本文書はコードを伴わない記録用の文書のため、追加の実装は
+> 行わない。
+
 # きのこおとこ(kinokootoko)のモンスター実装
 
 `src/entities/species.ts`にすでに実装済みの内容を、正式なplanとして
