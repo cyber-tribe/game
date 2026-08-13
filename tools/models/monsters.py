@@ -2768,6 +2768,131 @@ def yamabikogitsune_animations():
     ]
 
 
+# ===================================================================== こだまぎつね
+
+# やまびこぎつねにこだまうさぎを繰り返し夢あわせすると育つ姿(配合限定)。
+# 骨格はyamabikogitsuneと同じ関節構成(gajiri由来)を踏襲しつつ、ひとまわり
+# 大きく育てる。「攻撃が2回まで反響する」性質を視覚化するため、
+# yamabikogitsuneの単発の発光する喉を、間隔を空けた2つの発光球に増やし、
+# 耳もkodamausagi譲りに長く伸ばして「うさぎとの夢あわせ」の痕跡を残す。
+KODAMAGITSUNE_HALF = {
+    "hip": (0.0, 0.185, 0.230),
+    "chest": (0.0, -0.028, 0.240),
+    "neck": (0.0, -0.196, 0.218),
+    "snout": (0.0, -0.430, 0.150),
+    "tail1": (0.0, 0.352, 0.224),
+    "tail2": (0.0, 0.536, 0.290),
+    "tail3": (0.0, 0.676, 0.390),
+    "ear.L": (0.098, -0.184, 0.440),
+    "hipF.L": (0.103, -0.073, 0.166),
+    "footF.L": (0.112, -0.117, 0.029),
+    "hipB.L": (0.125, 0.154, 0.173),
+    "footB.L": (0.134, 0.188, 0.029),
+}
+KODAMAGITSUNE_RADII_HALF = {
+    "hip": 0.128, "chest": 0.140, "neck": 0.092, "snout": 0.036,
+    "tail1": 0.045, "tail2": 0.038, "tail3": 0.022,
+    "ear.L": 0.048,
+    "hipF.L": 0.038, "footF.L": 0.031,
+    "hipB.L": 0.051, "footB.L": 0.033,
+}
+KODAMAGITSUNE_BONES_HALF = [
+    ("chest", "hip"), ("chest", "neck"), ("neck", "snout"),
+    ("hip", "tail1"), ("tail1", "tail2"), ("tail2", "tail3"),
+    ("neck", "ear.L"),
+    ("chest", "hipF.L"), ("hipF.L", "footF.L"),
+    ("hip", "hipB.L"), ("hipB.L", "footB.L"),
+]
+
+
+def build_kodamagitsune():
+    """
+    やまびこぎつねにこだまうさぎを繰り返し夢あわせすると育つ姿。
+    骨格はyamabikogitsuneと同じ構成をひとまわり大きく育てつつ、耳を
+    kodamausagi譲りに細く長く伸ばして夢あわせの痕跡を残す。「攻撃が
+    2回まで反響する」性質を、間隔を空けた2つの発光球(声の余韻)で
+    視覚化する。配色は第六地方(こだまの尾根)の岩肌の灰色と乾いた土色。
+    """
+    joints = C.mirrored(KODAMAGITSUNE_HALF)
+    radii = C.mirrored_radii(KODAMAGITSUNE_RADII_HALF)
+    bones = C.mirrored_bones(KODAMAGITSUNE_BONES_HALF)
+
+    body = C.build_skinned("kodamagitsune", joints, bones, radii, root="chest", subsurf=2)
+    rock = C.make_material("kodamagitsune_rock", (0.50, 0.49, 0.47), roughness=0.72)
+    earth = C.make_material("kodamagitsune_earth", (0.64, 0.51, 0.36), roughness=0.62)
+    accents = [Vector(joints["ear.L"]), Vector(joints["ear.R"]), Vector(joints["tail3"])]
+    C.assign_materials_by_region(
+        body, [rock, earth],
+        lambda c: 1 if min((c - a).length for a in accents) < 0.095 else 0,
+    )
+
+    extras = []
+    for side in (-1.0, 1.0):
+        extras += eyeball(f"kodamagitsune_eye{side}", (0.064 * side, -0.262, 0.262), 0.040,
+                          look=(0.25 * side, -1.0, 0.1))
+    jaw_upper = C.box("kodamagitsune_jaw_up", (0.0, -0.448, 0.168), (0.058, 0.084, 0.015), bevel=0.007)
+    C.assign_material(jaw_upper, rock)
+    extras.append(jaw_upper)
+    jaw_lower = C.box("kodamagitsune_jaw_lo", (0.0, -0.420, 0.120), (0.051, 0.076, 0.013), bevel=0.007)
+    C.assign_material(jaw_lower, rock)
+    extras.append(jaw_lower)
+    # 反響する2打ぶんの余韻を、口元から少し離した2つの発光球で表す
+    echo_mat = C.make_material("kodamagitsune_echo_m", (0.95, 0.75, 0.35), roughness=0.3, emission=2.0)
+    throat = C.uv_sphere("kodamagitsune_throat", (0.0, -0.402, 0.144), 0.034,
+                         segments=12, rings=9, scale=(0.85, 1.0, 0.75))
+    C.assign_material(throat, echo_mat)
+    extras.append(throat)
+    echo = C.uv_sphere("kodamagitsune_echo", (0.0, -0.470, 0.176), 0.020,
+                       segments=10, rings=8, scale=(0.85, 1.0, 0.75))
+    C.assign_material(echo, echo_mat)
+    extras.append(echo)
+
+    mesh = C.join([body] + extras, "kodamagitsune")
+    armature = C.build_armature("kodamagitsune", joints, bones, mesh, root="chest")
+    return [mesh, armature], armature
+
+
+def kodamagitsune_animations():
+    neck, snout = "chest-neck", "neck-snout"
+    t1, t2 = "hip-tail1", "tail1-tail2"
+    fL, fR = "chest-hipF.L", "chest-hipF.R"
+    bL, bR = "hip-hipB.L", "hip-hipB.R"
+    return [
+        ("idle", [
+            (1, {neck: (0, 0, 0), t1: (0, 6, 0)}),
+            (24, {neck: (-4, 10, 0), t1: (0, -6, 0), t2: (0, 8, 0)}),
+            (48, {neck: (3, -8, 0), t1: (0, 6, 0), t2: (0, -8, 0)}),
+            (66, {neck: (0, 0, 0), t1: (0, 6, 0)}),
+        ]),
+        ("walk", [
+            (1, {fL: (24, 0, 0), fR: (-24, 0, 0), bL: (-20, 0, 0), bR: (20, 0, 0), t1: (0, 10, 0)}),
+            (7, {fL: (0, 0, 0), fR: (0, 0, 0), bL: (0, 0, 0), bR: (0, 0, 0), t1: (0, -10, 0)}),
+            (13, {fL: (-24, 0, 0), fR: (24, 0, 0), bL: (20, 0, 0), bR: (-20, 0, 0), t1: (0, 10, 0)}),
+            (19, {fL: (0, 0, 0), fR: (0, 0, 0), bL: (0, 0, 0), bR: (0, 0, 0), t1: (0, -10, 0)}),
+        ]),
+        # 声を放ったあと、間を置いてもう一声(反響)ぶん短く追い足す
+        ("attack", [
+            (1, {snout: (0, 0, 0), neck: (0, 0, 0)}),
+            (5, {snout: (-28, 0, 0), neck: (-20, 0, 0)}),
+            (10, {snout: (14, 0, 0), neck: (8, 0, 0)}),
+            (14, {snout: (-16, 0, 0), neck: (-10, 0, 0)}),
+            (19, {snout: (10, 0, 0), neck: (6, 0, 0)}),
+            (26, {snout: (0, 0, 0), neck: (0, 0, 0)}),
+        ]),
+        ("hit", [
+            (1, {neck: (0, 0, 0)}),
+            (4, {neck: (18, 0, 0), t1: (0, -18, 0)}),
+            (14, {neck: (0, 0, 0), t1: (0, 6, 0)}),
+        ]),
+        ("die", [
+            (1, {neck: (0, 0, 0), t1: (0, 6, 0)}),
+            (10, {neck: (26, 0, 0), t1: (0, -30, 0), fL: (-30, 0, 0), fR: (-30, 0, 0)}),
+            (24, {neck: (40, 0, 0), t1: (0, -50, 0), fL: (-56, 0, 0), fR: (-56, 0, 0),
+                  bL: (30, 0, 0), bR: (30, 0, 0)}),
+        ]),
+    ]
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -2791,6 +2916,7 @@ MONSTERS = {
     "yamabikooni": (build_yamabikooni, yamabikooni_animations),
     "nedayamabiko": (build_nedayamabiko, nedayamabiko_animations),
     "yamabikogitsune": (build_yamabikogitsune, yamabikogitsune_animations),
+    "kodamagitsune": (build_kodamagitsune, kodamagitsune_animations),
 }
 
 
