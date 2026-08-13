@@ -1851,10 +1851,79 @@ def kodamausagi_animations():
     return purun_animations()
 
 
+# =========================================================================== こだまぐも
+
+KODAMAGUMO_JOINTS = {
+    "base": (0.0, 0.0, 0.065),
+    "mid": (0.0, 0.0, 0.145),
+    "top": (0.0, 0.0, 0.205),
+}
+KODAMAGUMO_RADII = {"base": 0.220, "mid": 0.195, "top": 0.135}
+KODAMAGUMO_BONES = [("base", "mid"), ("mid", "top")]
+
+# 芯の周りに膨らみを足す位置。(x, y, z, radius)。中心からのめり込ませて
+# 融合させ、継ぎ目のない一枚のもこもこした雲の輪郭にする
+KODAMAGUMO_PUFFS = [
+    (0.0, -0.03, 0.235, 0.088),
+    (0.135, 0.02, 0.185, 0.078),
+    (-0.135, 0.02, 0.185, 0.078),
+    (0.0, 0.115, 0.165, 0.075),
+    (0.08, -0.06, 0.14, 0.07),
+    (-0.08, -0.06, 0.14, 0.07),
+]
+
+
+def build_kodamagumo():
+    """
+    響きに寄ってくる、雲のような群れ。こだまうさぎと同じく`purun`の縦2本の
+    骨組みをそのまま流用するが、芯を雫形ではなく低く扁平な塊にし、周囲に
+    小さな膨らみ(uv_sphere)をめり込ませて融合させることで、もこもことした
+    雲の輪郭を作る。群れ配置(swarm AI)に合わせ、単体は簡略化した
+    小さなシルエットにとどめる。
+    """
+    body = C.build_skinned("kodamagumo", KODAMAGUMO_JOINTS, KODAMAGUMO_BONES,
+                           KODAMAGUMO_RADII, root="base", subsurf=2)
+    # 底を平らに均して、床に乗っている感じを出す(ぷるんと同じ処理)
+    for vert in body.data.vertices:
+        if vert.co.z < 0.02:
+            vert.co.z = 0.02 - (0.02 - vert.co.z) * 0.25
+
+    puffs = []
+    for i, (px, py, pz, pr) in enumerate(KODAMAGUMO_PUFFS):
+        puffs.append(C.uv_sphere(f"kodamagumo_puff{i}", (px, py, pz), pr,
+                                 segments=14, rings=10))
+    body = C.join([body] + puffs, "kodamagumo")
+
+    # 配色は岩肌の灰色を主体に、めくれた雲の縁だけ乾いた土色をのぞかせる
+    rock = C.make_material("kodamagumo_rock", (0.58, 0.57, 0.56), roughness=0.82)
+    earth = C.make_material("kodamagumo_earth", (0.60, 0.48, 0.34), roughness=0.7)
+    C.assign_materials_by_region(body, [rock, earth], lambda c: 1 if c.z < 0.155 else 0)
+
+    extras = []
+    for side in (-1.0, 1.0):
+        extras += eyeball(f"kodamagumo_eye{side}", (0.062 * side, -0.185, 0.165), 0.036,
+                          look=(0.2 * side, -1.0, 0.05))
+    mouth = C.uv_sphere("kodamagumo_mouth", (0.0, -0.205, 0.098), 0.028,
+                        segments=14, rings=10, scale=(1.3, 0.5, 0.55))
+    C.assign_material(mouth, C.make_material("kodamagumo_mouth_m", (0.28, 0.20, 0.15), roughness=0.3))
+    extras.append(mouth)
+
+    mesh = C.join([body] + extras, "kodamagumo")
+    armature = C.build_armature("kodamagumo", C.mirrored(KODAMAGUMO_JOINTS),
+                                KODAMAGUMO_BONES, mesh, root="base")
+    return [mesh, armature], armature
+
+
+def kodamagumo_animations():
+    """既存5クリップの構成をそのまま流用する(骨の名前がぷるんと同じため、そのまま使える)。"""
+    return purun_animations()
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
     "kodamausagi": (build_kodamausagi, kodamausagi_animations),
+    "kodamagumo": (build_kodamagumo, kodamagumo_animations),
     "akubitokage": (build_akubitokage, akubitokage_animations),
     "gajiri": (build_gajiri, gajiri_animations),
     "mabutamushi": (build_mabutamushi, mabutamushi_animations),
