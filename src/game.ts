@@ -2063,7 +2063,7 @@ export class Game {
     const lowHpMultiplier = 1 + lowHpBonusMax * (1 - hpRatio);
     // 60種化・追加種族(plan/monster-roster-expansion-species.md): きのこおとこは
     // 眠りの胞子で満ちた部屋(Room.spored)にいる間、攻撃力に倍率が乗る
-    const sporeBonusMax = attacker.speciesId ? speciesById(attacker.speciesId).atkMulInSporedRoom ?? 0 : 0;
+    const sporeBonusMax = attackerSpeciesId ? speciesById(attackerSpeciesId).atkMulInSporedRoom ?? 0 : 0;
     const sporeMultiplier =
       sporeBonusMax > 0 && roomOf(this.floor, attacker.pos)?.spored ? 1 + sporeBonusMax : 1;
     const effectivePower = Math.round(

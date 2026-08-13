@@ -219,7 +219,7 @@ function burrowSurfaceSpot(rng: Rng, floor: FloorState, near: Vec2): Vec2 | null
  * 射程が伸びる種族(きりみずち・なだかぜ)の実効射程。自分の足元が深みタイル、
  * または自分の周囲1マス以内に奔流タイルがあると、対応するボーナスを加算する
  */
-export function effectiveRangedRange(floor: FloorState, actor: Actor): number {
+export function effectiveRangedRange(floor: FloorState, actor: CombatantActor): number {
   const base = actor.rangedRange ?? 0;
   if (!actor.speciesId) return base;
   const species = speciesById(actor.speciesId);

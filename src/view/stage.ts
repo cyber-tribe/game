@@ -143,7 +143,7 @@ export class Stage {
   private syncWeapon(actor: Actor): void {
     const view = this.views.get(actor.id);
     if (!view) return;
-    const wanted = actor.equippedWeaponModel ?? null;
+    const wanted = (actor.kind === "player" ? actor.equippedWeaponModel : undefined) ?? null;
     if (this.weaponModelByActor.get(actor.id) === wanted) return;
     if (wanted !== null && !this.assets.has(wanted)) {
       this.assets.loadInBackground([wanted]);
