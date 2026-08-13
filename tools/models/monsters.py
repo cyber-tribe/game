@@ -4509,6 +4509,109 @@ def urumiguma_animations():
     ]
 
 
+# ======================================================================= なだかぜ
+
+# tsubuteと同じ関節構成(hip/chest/head/armF/handF/kneeB/ankleB/footB)を
+# ベースにするが、涙を誘う風そのものという由来から、ずんぐりした蛙の
+# 体つきを細く引き延ばし、四肢を尾を引くリボンのように長く尖らせる。
+# 「何かを放つための器官」として、頬を大きく膨らませた吹き出しの口を
+# 強調する。
+NADAKAZE_HALF = {
+    "hip": (0.0, 0.095, 0.135),
+    "chest": (0.0, -0.045, 0.150),
+    "head": (0.0, -0.235, 0.148),
+    "armF.L": (0.108, -0.110, 0.098),
+    "handF.L": (0.165, -0.145, 0.068),
+    "kneeB.L": (0.095, 0.165, 0.128),
+    "ankleB.L": (0.128, 0.240, 0.092),
+    "footB.L": (0.148, 0.310, 0.055),
+}
+NADAKAZE_RADII_HALF = {
+    "hip": 0.092, "chest": 0.100, "head": 0.082,
+    "armF.L": 0.026, "handF.L": 0.016,
+    "kneeB.L": 0.028, "ankleB.L": 0.018, "footB.L": 0.011,
+}
+NADAKAZE_BONES_HALF = [
+    ("chest", "hip"), ("chest", "head"),
+    ("chest", "armF.L"), ("armF.L", "handF.L"),
+    ("hip", "kneeB.L"), ("kneeB.L", "ankleB.L"), ("ankleB.L", "footB.L"),
+]
+
+
+def build_nadakaze():
+    """
+    涙を誘う風。tsubuteと同じ関節構成をベースに、ずんぐりした蛙の体を
+    細く引き延ばし、四肢を風になびくリボンのように長く尖らせる。
+    頬を大きく膨らませ、吹き出す口を強調する。配色は第五地方
+    (なみだの滝つぼ)の、涙と滝つぼを思わせる沈んだ青・藍色系を
+    薄めた、風らしい淡い色。
+    """
+    joints = C.mirrored(NADAKAZE_HALF)
+    radii = C.mirrored_radii(NADAKAZE_RADII_HALF)
+    bones = C.mirrored_bones(NADAKAZE_BONES_HALF)
+
+    body = C.build_skinned("nadakaze", joints, bones, radii, root="chest", subsurf=2)
+    wind = C.make_material("nadakaze_wind", (0.52, 0.60, 0.70), roughness=0.5)
+    C.assign_material(body, wind)
+
+    extras = []
+    for side in (-1.0, 1.0):
+        extras += eyeball(f"nadakaze_eye{side}", (0.058 * side, -0.255, 0.168), 0.030,
+                          look=(0.2 * side, -1.0, 0.05),
+                          white=(0.82, 0.88, 0.92), dark=(0.14, 0.18, 0.24))
+        # 大きく膨らませた頬
+        cheek = C.uv_sphere(f"nadakaze_cheek{side}", (0.082 * side, -0.240, 0.128), 0.046,
+                            segments=14, rings=10)
+        C.assign_material(cheek, wind)
+        extras.append(cheek)
+    mouth = C.uv_sphere("nadakaze_mouth", (0.0, -0.290, 0.118), 0.030,
+                        segments=14, rings=10, scale=(0.9, 0.7, 0.75))
+    C.assign_material(mouth, C.make_material("nadakaze_mouth_m", (0.16, 0.20, 0.28), roughness=0.4))
+    extras.append(mouth)
+
+    mesh = C.join([body] + extras, "nadakaze")
+    armature = C.build_armature("nadakaze", joints, bones, mesh, root="chest")
+    return [mesh, armature], armature
+
+
+def nadakaze_animations():
+    head = "chest-head"
+    armL, armR = "chest-armF.L", "chest-armF.R"
+    legL, legR = "hip-kneeB.L", "hip-kneeB.R"
+    return [
+        # 風になびくように、絶えずゆらゆらと揺れる
+        ("idle", [
+            (1, {head: (0, 0, 0), legL: (0, 0, 8), legR: (0, 0, -8)}),
+            (20, {head: (4, 6, 0), legL: (0, 0, -8), legR: (0, 0, 8)}),
+            (40, {head: (-3, -6, 0), legL: (0, 0, 8), legR: (0, 0, -8)}),
+        ]),
+        # 地を這わず、風のように滑らかに漂い進む
+        ("walk", [
+            (1, {legL: (0, 0, 14), legR: (0, 0, -14), armL: (0, 0, 10), armR: (0, 0, -10)}),
+            (8, {legL: (0, 0, -14), legR: (0, 0, 14), armL: (0, 0, -10), armR: (0, 0, 10)}),
+            (16, {legL: (0, 0, 14), legR: (0, 0, -14), armL: (0, 0, 10), armR: (0, 0, -10)}),
+        ]),
+        # 頬を膨らませてためてから、勢いよく吹きつける
+        ("attack", [
+            (1, {head: (0, 0, 0)}),
+            (5, {head: (-16, 0, 0)}),
+            (10, {head: (22, 0, 0)}),
+            (18, {head: (0, 0, 0)}),
+        ]),
+        ("hit", [
+            (1, {head: (0, 0, 0)}),
+            (4, {head: (18, 0, 0), armL: (-16, 0, 14), armR: (-16, 0, -14)}),
+            (12, {head: (0, 0, 0)}),
+        ]),
+        # 風がやむように、輪郭がほどけて消える
+        ("die", [
+            (1, {head: (0, 0, 0)}),
+            (9, {head: (0, 8, 0), legL: (0, 0, -24), legR: (0, 0, 24)}),
+            (20, {head: (0, 16, 0), legL: (0, 0, -50), legR: (0, 0, 50)}),
+        ]),
+    ]
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -4547,6 +4650,7 @@ MONSTERS = {
     "fuchiNoNushi": (build_fuchiNoNushi, fuchiNoNushi_animations),
     "shizukuuo": (build_shizukuuo, shizukuuo_animations),
     "urumiguma": (build_urumiguma, urumiguma_animations),
+    "nadakaze": (build_nadakaze, nadakaze_animations),
 }
 
 

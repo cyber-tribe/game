@@ -865,10 +865,10 @@ export const SPECIES: readonly Species[] = [
 
   // 第五地方: なみだの滝つぼ(design/regions.md 25〜30階)。+4
   {
-    // 涙を誘う風。ranged主力のtsubuteモデルを流用する
+    // 涙を誘う風。専用モデル(plan/models/archive/model-nadakaze.md)
     id: "nadakaze",
     name: "なだかぜ",
-    model: "tsubute",
+    model: "nadakaze",
     maxHp: 26,
     atk: 17,
     def: 7,
