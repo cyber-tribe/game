@@ -884,9 +884,10 @@ export const SPECIES: readonly Species[] = [
     // 涙で色あせた花。purunモデルを流用する
     id: "shioresakura",
     name: "しおれざくら",
-    model: "purun",
+    model: "shioresakura",
     // 「攻撃を受けるたびわずかに弱る」の持続ダウンは実装せず、瀕死になると
-    // 攻撃力が上がる後半だけをlowHpAtkBonusMax(なみだぐまと同じ仕組み)で実装した(アーカイブ注記参照)
+    // 攻撃力が上がる後半だけをlowHpAtkBonusMax(なみだぐまと同じ仕組み)で実装した
+    // (アーカイブ注記参照)。専用モデル(plan/models/archive/model-shioresakura.md)
     maxHp: 30,
     atk: 18,
     def: 6,
