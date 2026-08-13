@@ -139,9 +139,17 @@ export class Stage {
    * 1ターンぶんのイベントを見た目に反映し、入力を止めておくべき秒数を返す。
    * イベントは順番にではなく同時に走らせる。そうしないとモンスターが増えるほど
    * 1ターンが長くなり、遊べたものではなくなる。
+   *
+   * @param messageSpeedScale メッセージ速度(plan/settings-screen.md)。専用の
+   *   文字送り演出は無いため、既存のこの再生速度そのものを基準値として流用する
    */
-  applyEvents(events: readonly GameEvent[], floor: FloorState, hurry: boolean): number {
-    const scale = hurry ? HURRY : 1;
+  applyEvents(
+    events: readonly GameEvent[],
+    floor: FloorState,
+    hurry: boolean,
+    messageSpeedScale = 1,
+  ): number {
+    const scale = (hurry ? HURRY : 1) * messageSpeedScale;
     let lock = 0;
 
     for (const event of events) {
