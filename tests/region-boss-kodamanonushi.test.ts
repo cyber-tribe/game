@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Rng } from "../src/core/rng";
-import type { Actor, FloorState } from "../src/core/types";
+import type { Actor, FloorState, MonsterActor, PlayerActor } from "../src/core/types";
 import { roomContains } from "../src/core/types";
 import { decideMonsterAction } from "../src/entities/ai";
 import { REGION_BOSS_ORDER, speciesById } from "../src/entities/species";
@@ -8,7 +8,7 @@ import { Game } from "../src/game";
 import { access } from "./helpers/access";
 import { makeEmptyFloor } from "./helpers/floor";
 
-function bossActor(overrides: Partial<Actor> = {}): Actor {
+function bossActor(overrides: Partial<MonsterActor> = {}): MonsterActor {
   const species = speciesById("kodamaNoNushi");
   return {
     // プレイヤー(id: 1固定、src/game.tsのcreatePlayer(1))との衝突を避ける
@@ -32,7 +32,7 @@ function bossActor(overrides: Partial<Actor> = {}): Actor {
   };
 }
 
-function player(pos = { x: 5, y: 6 }): Actor {
+function player(pos = { x: 5, y: 6 }): PlayerActor {
   return {
     id: 2,
     kind: "player",
@@ -127,7 +127,9 @@ describe("game.ts: 地方ボスの階(depth 36、表の寝穴)", () => {
 
   it("撃破すると地方限定素材(こだまのかけら)を確定ドロップする", () => {
     const game = new Game({ seed: 1, startDepth: 36 });
-    const boss = game.floor.actors.find((a) => a.speciesId === "kodamaNoNushi")!;
+    const boss = game.floor.actors.find(
+      (a): a is MonsterActor => a.kind === "monster" && a.speciesId === "kodamaNoNushi",
+    )!;
 
     const killActor = access(game).killActor.bind(game);
     killActor(boss, []);
@@ -142,7 +144,9 @@ describe("game.ts: 地方ボスの階(depth 36、表の寝穴)", () => {
 describe("game.ts: 大技(summonEcho)がHPを共有する分身を呼び出す", () => {
   it("予兆済みのボスに隣接した状態で行動させると、分身が2体まで現れる", () => {
     const game = new Game({ seed: 1, startDepth: 36 });
-    const boss = game.floor.actors.find((a) => a.speciesId === "kodamaNoNushi")!;
+    const boss = game.floor.actors.find(
+      (a): a is MonsterActor => a.kind === "monster" && a.speciesId === "kodamaNoNushi",
+    )!;
     const room = game.floor.rooms.find((r) => roomContains(r, boss.pos))!;
     expect(room).toBeDefined();
 
@@ -165,7 +169,9 @@ describe("game.ts: 大技(summonEcho)がHPを共有する分身を呼び出す",
 
     const events = game.command({ type: "wait" });
 
-    const echoes = game.floor.actors.filter((a) => a.sharesHpWith === boss.id);
+    const echoes = game.floor.actors.filter(
+      (a): a is MonsterActor => a.kind === "monster" && a.sharesHpWith === boss.id,
+    );
     expect(echoes).toHaveLength(2);
     for (const echo of echoes) {
       expect(echo.speciesId).toBe("kodamaNoNushi");

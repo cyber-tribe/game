@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Rng } from "../src/core/rng";
-import type { Actor, FloorState } from "../src/core/types";
+import type { FloorState, MonsterActor, PlayerActor } from "../src/core/types";
 import { decideMonsterAction } from "../src/entities/ai";
 import { DEFAULT_MOOD_ID, MOODS, moodDef, moodForDate } from "../src/entities/moods";
 import { speciesById } from "../src/entities/species";
@@ -46,7 +46,7 @@ function emptyFloor(): FloorState {
   });
 }
 
-function monsterActor(pos: { x: number; y: number }): Actor {
+function monsterActor(pos: { x: number; y: number }): MonsterActor {
   const species = speciesById("gajiri");
   return {
     id: 100,
@@ -68,7 +68,7 @@ function monsterActor(pos: { x: number; y: number }): Actor {
   };
 }
 
-function playerActor(pos: { x: number; y: number }): Actor {
+function playerActor(pos: { x: number; y: number }): PlayerActor {
   return {
     id: 2,
     kind: "player",

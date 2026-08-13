@@ -8,6 +8,7 @@ import {
 } from "../src/entities/dungeons";
 import { speciesById } from "../src/entities/species";
 import { Game } from "../src/game";
+import type { MonsterActor } from "../src/core/types";
 
 describe("entities/dungeons.ts: 夜ごとの夢のモンスター強化カーブ(plan/nightly-dream-scaling.md)", () => {
   it("48階以下は倍率1(頭打ちにならない範囲)", () => {
@@ -38,7 +39,9 @@ describe("game.ts: 夜ごとの夢で48階を超えると、湧くモンスタ�
     const depth = MAIN_CAVE_MAX_DEPTH + NIGHTLY_DREAM_OVERFLOW_LAP + 1; // 倍率1.15
     const game = new Game({ seed: 3, dungeonId: NIGHTLY_DREAM_ID, startDepth: depth });
     // 近道屋の行商人(kind: "monster"のNPC)はspeciesIdを持たないので除く
-    const monsters = game.floor.actors.filter((a) => a.kind === "monster" && a.speciesId);
+    const monsters = game.floor.actors.filter(
+      (a): a is MonsterActor => a.kind === "monster" && !!a.speciesId,
+    );
     expect(monsters.length).toBeGreaterThan(0);
     for (const monster of monsters) {
       const species = speciesById(monster.speciesId!);
@@ -57,7 +60,9 @@ describe("game.ts: 夜ごとの夢で48階を超えると、湧くモンスタ�
     // たまたま引くようになったため、引かないseedに差し替えた
     const game = new Game({ seed: 1, dungeonId: NIGHTLY_DREAM_ID, startDepth: MAIN_CAVE_MAX_DEPTH });
     // 近道屋の行商人(kind: "monster"のNPC)はspeciesIdを持たないので除く
-    const monsters = game.floor.actors.filter((a) => a.kind === "monster" && a.speciesId);
+    const monsters = game.floor.actors.filter(
+      (a): a is MonsterActor => a.kind === "monster" && !!a.speciesId,
+    );
     expect(monsters.length).toBeGreaterThan(0);
     for (const monster of monsters) {
       const species = speciesById(monster.speciesId!);

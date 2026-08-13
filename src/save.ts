@@ -1,5 +1,5 @@
 import { TUTORIAL_TIP_IDS, type TutorialTipId } from "./core/tutorial";
-import type { Actor, FloorState, Item, MarkId, SkillId, Tile } from "./core/types";
+import type { AllyActor, FloorState, Item, MarkId, SkillId, Tile } from "./core/types";
 import { ACHIEVEMENTS, achievementDef } from "./entities/achievements";
 import { COSTUMES, DEFAULT_COSTUME_ID, type CostumeDef } from "./entities/costumes";
 import { DIFFICULTY_MODES, type DifficultyMode } from "./entities/difficulty";
@@ -713,7 +713,7 @@ export function recordRun(
      * 踏破・区切りで生きて連れ帰った仲間(plan/monster-fusion.mdの
      * 「帰還時の処理」)。全滅時は呼び出し側が空配列を渡す(道具と同じ扱い)
      */
-    broughtBackAllies?: Actor[];
+    broughtBackAllies?: AllyActor[];
     /** 記録の間(plan/records-hall.md)。このダイブ中に倒した・捕まえた数 */
     defeats?: number;
     captures?: number;
@@ -937,7 +937,7 @@ function resolveQuests(
 }
 
 /** ダイブ中のAllyアクターを、ねむり小屋に保存する形へ変換する */
-export function actorToStoredMonster(uid: number, actor: Actor): StoredMonster {
+export function actorToStoredMonster(uid: number, actor: AllyActor): StoredMonster {
   const speciesId = actor.speciesId ?? "";
   const native = NATIVE_SKILL_BY_SPECIES[speciesId];
   return {

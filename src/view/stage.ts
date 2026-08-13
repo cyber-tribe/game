@@ -117,7 +117,9 @@ export class Stage {
           continue;
         }
         // 小ネタ・遊び心(plan/flavor-and-dialogue.md): 種族ごとの待機仕草の再生速度
-        const idleSpeedMul = actor.speciesId ? (speciesById(actor.speciesId).idleSpeedMul ?? 1) : 1;
+        // (speciesIdを持てるのはmonster/allyだけ)
+        const speciesId = actor.kind === "monster" || actor.kind === "ally" ? actor.speciesId : undefined;
+        const idleSpeedMul = speciesId ? (speciesById(speciesId).idleSpeedMul ?? 1) : 1;
         const view = new ActorView(this.assets.instantiate(actor.model), actor.pos, actor.facing, idleSpeedMul);
         this.actorRoot.add(view.root);
         this.views.set(actor.id, view);
@@ -141,7 +143,7 @@ export class Stage {
   private syncWeapon(actor: Actor): void {
     const view = this.views.get(actor.id);
     if (!view) return;
-    const wanted = actor.equippedWeaponModel ?? null;
+    const wanted = (actor.kind === "player" ? actor.equippedWeaponModel : undefined) ?? null;
     if (this.weaponModelByActor.get(actor.id) === wanted) return;
     if (wanted !== null && !this.assets.has(wanted)) {
       this.assets.loadInBackground([wanted]);

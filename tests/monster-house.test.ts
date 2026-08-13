@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Rng } from "../src/core/rng";
 import { ALL_DIRS, dirDelta, dirFromDelta } from "../src/core/grid";
-import { isFree, isWalkable, roomContains, walkableAt } from "../src/core/types";
+import { isFree, isWalkable, roomContains, walkableAt, type MonsterActor } from "../src/core/types";
 import { generateFloor, reachableFrom, validate } from "../src/dungeon/generate";
 import {
   type IdSource,
@@ -98,7 +98,7 @@ describe("モンスターハウスの中身", () => {
       populateFloor(rng, floor, makeIds(), floor.stairs);
 
       const inRoom = floor.actors.filter(
-        (a) => a.kind === "monster" && roomContains(room, a.pos),
+        (a): a is MonsterActor => a.kind === "monster" && roomContains(room, a.pos),
       );
       expect(inRoom.length, `seed=${seed}`).toBeGreaterThanOrEqual(5);
       expect(inRoom.length, `seed=${seed}`).toBeLessThanOrEqual(8);

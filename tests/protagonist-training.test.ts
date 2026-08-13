@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Game } from "../src/game";
+import type { MonsterActor } from "../src/core/types";
 import { createPlayer, expForLevel, gainExp } from "../src/entities/player";
 import {
   initialSave,
@@ -55,7 +56,9 @@ describe("鍛え方によるレベルアップの成長配分", () => {
 describe("Gameとトレーニングフォーカスの連携", () => {
   it("RunOptions.trainingFocusを指定すると、レベルアップ時にその配分が使われる", () => {
     const game = new Game({ seed: 3, maxDepth: 10, trainingFocus: "offense" });
-    const monster = game.floor.actors.find((a) => a.kind === "monster" && a.alive);
+    const monster = game.floor.actors.find(
+      (a): a is MonsterActor => a.kind === "monster" && a.alive,
+    );
     expect(monster).toBeDefined();
 
     const beforeAtk = game.player.atk;
@@ -83,7 +86,9 @@ describe("Gameとトレーニングフォーカスの連携", () => {
     const snapshot = JSON.parse(JSON.stringify(game.toSnapshot()));
     const resumed = new Game({ seed: 0, resume: snapshot });
 
-    const monster = resumed.floor.actors.find((a) => a.kind === "monster" && a.alive);
+    const monster = resumed.floor.actors.find(
+      (a): a is MonsterActor => a.kind === "monster" && a.alive,
+    );
     expect(monster).toBeDefined();
     const beforeAtk = resumed.player.atk;
     const beforeDef = resumed.player.def;
@@ -106,7 +111,9 @@ describe("Gameとトレーニングフォーカスの連携", () => {
 
   it("trainingFocusを省略すると既定でbalanceになる", () => {
     const game = new Game({ seed: 5, maxDepth: 10 });
-    const monster = game.floor.actors.find((a) => a.kind === "monster" && a.alive);
+    const monster = game.floor.actors.find(
+      (a): a is MonsterActor => a.kind === "monster" && a.alive,
+    );
     expect(monster).toBeDefined();
 
     const beforeAtk = game.player.atk;

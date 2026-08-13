@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { Game } from "../src/game";
-import type { Actor } from "../src/core/types";
+import type { MonsterActor } from "../src/core/types";
 
-function makeMonster(id: number, pos: { x: number; y: number }, overrides: Partial<Actor> = {}): Actor {
+function makeMonster(
+  id: number,
+  pos: { x: number; y: number },
+  overrides: Partial<MonsterActor> = {},
+): MonsterActor {
   return {
     id,
     kind: "monster",

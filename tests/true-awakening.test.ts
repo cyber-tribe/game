@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Actor } from "../src/core/types";
+import type { Actor, MonsterActor } from "../src/core/types";
 import type { GameEvent } from "../src/core/events";
 import { DUNGEONS, TRUE_AWAKENING_ID, dungeonById } from "../src/entities/dungeons";
 import { HAJIME_NO_YUME_ID, REGION_BOSS_ORDER, SPECIES, speciesById } from "../src/entities/species";
@@ -57,7 +57,9 @@ function callDamageActor(game: Game, target: Actor, damage: number, events: Game
 describe("game.ts: 「はじめの夢」のHPが0になると、通常のkillActorではなく専用の締めくくりに分岐する", () => {
   it("trueAwakeningClearedイベントが出て、statusがclearedになる。討伐メッセージ・経験値は出さない", () => {
     const game = new Game({ seed: 1, dungeonId: TRUE_AWAKENING_ID, startDepth: 3, maxDepth: 3 });
-    const boss = game.floor.actors.find((a) => a.speciesId === HAJIME_NO_YUME_ID)!;
+    const boss = game.floor.actors.find(
+      (a): a is MonsterActor => a.kind === "monster" && a.speciesId === HAJIME_NO_YUME_ID,
+    )!;
 
     const events = callDamageActor(game, boss, boss.hp);
 
@@ -70,7 +72,9 @@ describe("game.ts: 「はじめの夢」のHPが0になると、通常のkillAct
 
   it("仲間を連れていない場合はソロ用の一言になる", () => {
     const game = new Game({ seed: 1, dungeonId: TRUE_AWAKENING_ID, startDepth: 3, maxDepth: 3 });
-    const boss = game.floor.actors.find((a) => a.speciesId === HAJIME_NO_YUME_ID)!;
+    const boss = game.floor.actors.find(
+      (a): a is MonsterActor => a.kind === "monster" && a.speciesId === HAJIME_NO_YUME_ID,
+    )!;
     expect(game.allies).toHaveLength(0);
 
     const events = callDamageActor(game, boss, boss.hp);
@@ -79,7 +83,9 @@ describe("game.ts: 「はじめの夢」のHPが0になると、通常のkillAct
 
   it("絆(なじみ)が最も深い仲間の段階に応じた一言になる", () => {
     const game = new Game({ seed: 1, dungeonId: TRUE_AWAKENING_ID, startDepth: 3, maxDepth: 3 });
-    const boss = game.floor.actors.find((a) => a.speciesId === HAJIME_NO_YUME_ID)!;
+    const boss = game.floor.actors.find(
+      (a): a is MonsterActor => a.kind === "monster" && a.speciesId === HAJIME_NO_YUME_ID,
+    )!;
     (game.allies as Actor[]).push({
       id: 500,
       kind: "ally",

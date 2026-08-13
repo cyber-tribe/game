@@ -10,6 +10,7 @@ import {
   STATUS_SEAL,
   STATUS_SLEEP,
   type Actor,
+  type AllyActor,
   type StatusKind,
   hasStatus,
 } from "../core/types";
@@ -71,7 +72,7 @@ export class Hud {
     must(root, "#hud-satiety-label").textContent = t("ui.hud.satiety");
   }
 
-  update(player: PlayerState, depth: number, allies: readonly Actor[] = []): void {
+  update(player: PlayerState, depth: number, allies: readonly AllyActor[] = []): void {
     this.depthEl.textContent = t("hud.depth", { depth });
     this.levelEl.textContent = t("hud.level", { level: player.level });
 
@@ -105,7 +106,7 @@ export class Hud {
     this.renderAllies(allies);
   }
 
-  private renderAllies(allies: readonly Actor[]): void {
+  private renderAllies(allies: readonly AllyActor[]): void {
     if (allies.length === 0) {
       this.alliesEl.style.display = "none";
       return;

@@ -17,6 +17,7 @@ import {
   type Actor,
   type BossMoveId,
   type FloorState,
+  type MonsterActor,
   type StatusKind,
   STATUS_SEAL,
   STATUS_SLEEP,
@@ -59,7 +60,7 @@ export type BossMoveActionId = Exclude<BossMoveId, "targetedStrike">;
 
 /** 大技の実行に必要な最小限のGameアクセス */
 export interface BossMoveContext {
-  actor: Actor;
+  actor: MonsterActor;
   floor: FloorState;
   rng: Rng;
   ids: IdSource;
@@ -92,7 +93,7 @@ function roomOccupantsOf(ctx: BossMoveContext): readonly Actor[] {
 function spawnCopies(
   ctx: BossMoveContext,
   count: number,
-  tag: (copy: Actor) => void,
+  tag: (copy: MonsterActor) => void,
 ): void {
   const species = ctx.actor.speciesId ? speciesById(ctx.actor.speciesId) : undefined;
   if (!species) return;
@@ -163,7 +164,9 @@ export const BOSS_MOVES: Readonly<Record<BossMoveActionId, BossMoveDef>> = {
     // 地方ボス(plan/region-boss-kodamanonushi.md): 予兆を消費した大技。
     // HPを共有する分身を、既存の生存数に応じて最大2体まで補充する
     execute(ctx) {
-      const existingEchoes = ctx.floor.actors.filter((a) => a.alive && a.sharesHpWith === ctx.actor.id);
+      const existingEchoes = ctx.floor.actors.filter(
+        (a): a is MonsterActor => a.alive && a.kind === "monster" && a.sharesHpWith === ctx.actor.id,
+      );
       const toSpawn = Math.max(0, 2 - existingEchoes.length);
       if (toSpawn > 0 && ctx.actor.speciesId) {
         ctx.events.push({ type: "message", text: `${displayActorName(ctx.actor)}が分身を呼び出した!` });

@@ -6,7 +6,14 @@ import { generateFloor } from "../src/dungeon/generate";
 import { decideMonsterAction } from "../src/entities/ai";
 import { shopPrice, WARY_PRICE_MULTIPLIER } from "../src/entities/shop";
 import { itemDef } from "../src/items/catalog";
-import { roomCenter, roomContains, type Actor, type FloorState, type Tile } from "../src/core/types";
+import {
+  roomCenter,
+  roomContains,
+  type Actor,
+  type FloorState,
+  type MonsterActor,
+  type Tile,
+} from "../src/core/types";
 
 function putActor(game: Game, pos: { x: number; y: number }, overrides: Partial<Actor>): Actor {
   const actor: Actor = {
@@ -179,7 +186,7 @@ describe("game.ts: 近道屋の出店(購入・万引き)", () => {
       aiKind: "shopkeeper",
       hp: 999,
       maxHp: 999,
-    });
+    }) as MonsterActor;
 
     // 部屋の外(部屋の範囲外)へ、部屋の境界の外側まで移動する
     const outside = { x: room.x - 2, y: roomCenter(room).y };
@@ -209,7 +216,7 @@ describe("game.ts: 近道屋の出店(購入・万引き)", () => {
 describe("entities/ai.ts: 近道屋の店主のAI", () => {
   it("豹変前は何もせず待つ", () => {
     const floor = makeOpenFloor();
-    const keeper: Actor = makeActor({ pos: { x: 2, y: 2 }, aiKind: "shopkeeper", angry: false });
+    const keeper: MonsterActor = makeActor({ pos: { x: 2, y: 2 }, aiKind: "shopkeeper", angry: false }) as MonsterActor;
     const player: Actor = makeActor({ pos: { x: 2, y: 3 }, kind: "player" });
     const action = decideMonsterAction(new Rng(1), floor, keeper, player, new Int32Array(floor.width * floor.height).fill(-1));
     expect(action).toEqual({ type: "wait" });
@@ -217,7 +224,12 @@ describe("entities/ai.ts: 近道屋の店主のAI", () => {
 
   it("豹変後、隣接していれば攻撃する", () => {
     const floor = makeOpenFloor();
-    const keeper: Actor = makeActor({ pos: { x: 2, y: 2 }, aiKind: "shopkeeper", angry: true, id: 77 });
+    const keeper: MonsterActor = makeActor({
+      pos: { x: 2, y: 2 },
+      aiKind: "shopkeeper",
+      angry: true,
+      id: 77,
+    }) as MonsterActor;
     const player: Actor = makeActor({ pos: { x: 2, y: 3 }, kind: "player", id: 1 });
     floor.actors.push(keeper, player);
     const action = decideMonsterAction(new Rng(1), floor, keeper, player, new Int32Array(floor.width * floor.height).fill(-1));
@@ -226,7 +238,7 @@ describe("entities/ai.ts: 近道屋の店主のAI", () => {
 
   it("豹変後でも隣接していなければ待つ(店を離れない)", () => {
     const floor = makeOpenFloor();
-    const keeper: Actor = makeActor({ pos: { x: 2, y: 2 }, aiKind: "shopkeeper", angry: true });
+    const keeper: MonsterActor = makeActor({ pos: { x: 2, y: 2 }, aiKind: "shopkeeper", angry: true }) as MonsterActor;
     const player: Actor = makeActor({ pos: { x: 4, y: 4 }, kind: "player" });
     floor.actors.push(keeper, player);
     const action = decideMonsterAction(new Rng(1), floor, keeper, player, new Int32Array(floor.width * floor.height).fill(-1));
@@ -237,7 +249,7 @@ describe("entities/ai.ts: 近道屋の店主のAI", () => {
 describe("entities/ai.ts: スリガラスのAI", () => {
   it("盗んだあとは戦わず、プレイヤーから遠ざかる方向へ逃げる", () => {
     const floor = makeOpenFloor();
-    const thief: Actor = makeActor({ pos: { x: 2, y: 2 }, aiKind: "thief", stolenGold: 5 });
+    const thief: MonsterActor = makeActor({ pos: { x: 2, y: 2 }, aiKind: "thief", stolenGold: 5 }) as MonsterActor;
     const player: Actor = makeActor({ pos: { x: 2, y: 3 }, kind: "player" });
     const action = decideMonsterAction(new Rng(1), floor, thief, player, new Int32Array(floor.width * floor.height).fill(-1));
     expect(action.type).toBe("move");
@@ -301,7 +313,7 @@ describe("game.ts: スリガラスの盗み・逃走・討伐", () => {
     const game = new Game({ seed: 1 });
     game.floor.actors = game.floor.actors.filter((a) => a.kind === "player");
     game.player.gold = 100;
-    const thief = putActor(game, { ...game.player.pos, x: game.player.pos.x + 1 }, { aiKind: "thief" });
+    const thief = putActor(game, { ...game.player.pos, x: game.player.pos.x + 1 }, { aiKind: "thief" }) as MonsterActor;
     const attemptSteal = (
       game as unknown as {
         attemptSteal: (thief: Actor, target: Actor, events: unknown[]) => void;
@@ -329,7 +341,7 @@ describe("game.ts: スリガラスの盗み・逃走・討伐", () => {
     const game = new Game({ seed: 1 });
     game.floor.actors = game.floor.actors.filter((a) => a.kind === "player");
     game.player.gold = 0;
-    const thief = putActor(game, { ...game.player.pos, x: game.player.pos.x + 1 }, { aiKind: "thief" });
+    const thief = putActor(game, { ...game.player.pos, x: game.player.pos.x + 1 }, { aiKind: "thief" }) as MonsterActor;
     const attemptSteal = (
       game as unknown as {
         attemptSteal: (thief: Actor, target: Actor, events: unknown[]) => void;

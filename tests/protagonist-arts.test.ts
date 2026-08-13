@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Game } from "../src/game";
 import { ARTS, artsForLevel } from "../src/entities/arts";
-import { isFree, type Actor } from "../src/core/types";
+import { isFree, type MonsterActor } from "../src/core/types";
 import { captureChance } from "../src/game";
 
 function newGame(seed = 1) {
@@ -29,8 +29,12 @@ function faceOpenDirection(game: Game) {
   return null;
 }
 
-function putMonster(game: Game, pos: { x: number; y: number }, overrides: Partial<Actor> = {}): Actor {
-  const monster: Actor = {
+function putMonster(
+  game: Game,
+  pos: { x: number; y: number },
+  overrides: Partial<MonsterActor> = {},
+): MonsterActor {
+  const monster: MonsterActor = {
     id: 8001 + Math.floor(Math.random() * 100000),
     kind: "monster",
     name: "テスト用モンスター",

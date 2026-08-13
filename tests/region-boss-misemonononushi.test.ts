@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Rng } from "../src/core/rng";
-import type { Actor, FloorState } from "../src/core/types";
+import type { FloorState, MonsterActor, PlayerActor } from "../src/core/types";
 import { roomContains } from "../src/core/types";
 import { decideMonsterAction } from "../src/entities/ai";
 import { REGION_BOSS_ORDER, speciesById } from "../src/entities/species";
@@ -8,7 +8,7 @@ import { Game } from "../src/game";
 import { access } from "./helpers/access";
 import { makeEmptyFloor } from "./helpers/floor";
 
-function bossActor(overrides: Partial<Actor> = {}): Actor {
+function bossActor(overrides: Partial<MonsterActor> = {}): MonsterActor {
   const species = speciesById("misemonoNoNushi");
   return {
     // プレイヤー(id: 1固定、src/game.tsのcreatePlayer(1))との衝突を避ける
@@ -32,7 +32,7 @@ function bossActor(overrides: Partial<Actor> = {}): Actor {
   };
 }
 
-function player(pos = { x: 5, y: 6 }): Actor {
+function player(pos = { x: 5, y: 6 }): PlayerActor {
   return {
     id: 2,
     kind: "player",
@@ -129,7 +129,9 @@ describe("game.ts: 地方ボスの階(depth 42、表の寝穴)", () => {
 
   it("撃破すると地方限定素材(見世物の面)を確定ドロップする", () => {
     const game = new Game({ seed: 1, startDepth: 42 });
-    const boss = game.floor.actors.find((a) => a.speciesId === "misemonoNoNushi")!;
+    const boss = game.floor.actors.find(
+      (a): a is MonsterActor => a.kind === "monster" && a.speciesId === "misemonoNoNushi",
+    )!;
 
     const killActor = access(game).killActor.bind(game);
     killActor(boss, []);
@@ -144,7 +146,9 @@ describe("game.ts: 地方ボスの階(depth 42、表の寝穴)", () => {
 describe("game.ts: 大技(summonMirror)が本体そっくりの幻影を呼び出す", () => {
   it("予兆済みのボスに隣接した状態で行動させると、幻影が3体まで現れる", () => {
     const game = new Game({ seed: 1, startDepth: 42 });
-    const boss = game.floor.actors.find((a) => a.speciesId === "misemonoNoNushi")!;
+    const boss = game.floor.actors.find(
+      (a): a is MonsterActor => a.kind === "monster" && a.speciesId === "misemonoNoNushi",
+    )!;
     const room = game.floor.rooms.find((r) => roomContains(r, boss.pos))!;
     expect(room).toBeDefined();
 
@@ -167,7 +171,9 @@ describe("game.ts: 大技(summonMirror)が本体そっくりの幻影を呼び�
 
     const events = game.command({ type: "wait" });
 
-    const mirrors = game.floor.actors.filter((a) => a.mirrorOf === boss.id);
+    const mirrors = game.floor.actors.filter(
+      (a): a is MonsterActor => a.kind === "monster" && a.mirrorOf === boss.id,
+    );
     expect(mirrors.length).toBeGreaterThan(0);
     expect(mirrors.length).toBeLessThanOrEqual(3);
     for (const mirror of mirrors) expect(mirror.speciesId).toBe("misemonoNoNushi");
