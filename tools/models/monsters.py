@@ -3022,6 +3022,112 @@ def kodamaNoNushi_animations():
     ]
 
 
+# =================================================================== めんかぶりこぞう
+
+# tsubuteと同じ関節構成(hip/chest/head/armF/handF/kneeB/ankleB/footB)を
+# ベースにするが、「隣接するまで気配を消す」(ambush AI)由来から、
+# tsubuteのずんぐりした立体感を潰し、全体を平たく低いシルエットにする。
+# 顔には出し物の陰に潜む由来にちなんだ祭り面を正面に貼り付ける。
+MENKABURIKOZO_HALF = {
+    "hip": (0.0, 0.115, 0.098),
+    "chest": (0.0, -0.055, 0.108),
+    "head": (0.0, -0.215, 0.112),
+    "armF.L": (0.148, -0.148, 0.052),
+    "handF.L": (0.168, -0.205, 0.014),
+    "kneeB.L": (0.200, 0.108, 0.112),
+    "ankleB.L": (0.182, -0.038, 0.034),
+    "footB.L": (0.168, -0.148, 0.013),
+}
+MENKABURIKOZO_RADII_HALF = {
+    "hip": 0.152, "chest": 0.160, "head": 0.098,
+    "armF.L": 0.034, "handF.L": 0.038,
+    "kneeB.L": 0.068, "ankleB.L": 0.044, "footB.L": 0.040,
+}
+MENKABURIKOZO_BONES_HALF = [
+    ("chest", "hip"), ("chest", "head"),
+    ("chest", "armF.L"), ("armF.L", "handF.L"),
+    ("hip", "kneeB.L"), ("kneeB.L", "ankleB.L"), ("ankleB.L", "footB.L"),
+]
+
+
+def build_menkaburikozo():
+    """
+    出し物の陰に潜む悪戯。tsubuteと同じ関節構成をベースに、立体感を
+    潰して平たく低いシルエットにし、周囲に溶け込みやすくする。正面には
+    出し物の陰に潜む由来にちなんだ祭り面(くすんだ紅色に金色の縁取り)を
+    貼り付け、目の穴だけ暗く落とし込んで不意打ちの気配を隠す。
+    """
+    joints = C.mirrored(MENKABURIKOZO_HALF)
+    radii = C.mirrored_radii(MENKABURIKOZO_RADII_HALF)
+    bones = C.mirrored_bones(MENKABURIKOZO_BONES_HALF)
+
+    body = C.build_skinned("menkaburikozo", joints, bones, radii, root="chest", subsurf=2)
+    cloth = C.make_material("menkaburikozo_cloth", (0.30, 0.26, 0.24), roughness=0.8)
+    C.assign_material(body, cloth)
+
+    extras = []
+    mask_red = C.make_material("menkaburikozo_mask_m", (0.62, 0.24, 0.22), roughness=0.5)
+    mask_gold = C.make_material("menkaburikozo_gold", (0.68, 0.56, 0.28), roughness=0.35, metallic=0.3)
+    dark = C.make_material("menkaburikozo_hole", (0.04, 0.04, 0.05), roughness=0.9)
+
+    mask = C.uv_sphere("menkaburikozo_mask", (0.0, -0.235, 0.118), 0.115,
+                       segments=20, rings=14, scale=(1.0, 0.30, 0.92))
+    C.assign_material(mask, mask_red)
+    extras.append(mask)
+    rim = C.uv_sphere("menkaburikozo_rim", (0.0, -0.220, 0.118), 0.128,
+                      segments=20, rings=14, scale=(1.0, 0.22, 1.0))
+    C.assign_material(rim, mask_gold)
+    extras.append(rim)
+    for side in (-1.0, 1.0):
+        hole = C.uv_sphere(f"menkaburikozo_hole{side}", (0.052 * side, -0.255, 0.135), 0.026,
+                           segments=12, rings=9, scale=(1.0, 0.4, 0.7))
+        C.assign_material(hole, dark)
+        extras.append(hole)
+
+    mesh = C.join([body] + extras, "menkaburikozo")
+    armature = C.build_armature("menkaburikozo", joints, bones, mesh, root="chest")
+    return [mesh, armature], armature
+
+
+def menkaburikozo_animations():
+    head = "chest-head"
+    armL, armR = "chest-armF.L", "chest-armF.R"
+    legL, legR = "hip-kneeB.L", "hip-kneeB.R"
+    return [
+        # 気配を消してじっと潜む。ほとんど動かない
+        ("idle", [
+            (1, {head: (0, 0, 0)}),
+            (40, {head: (2, 3, 0)}),
+            (80, {head: (0, 0, 0)}),
+        ]),
+        # 低い姿勢のまま、音も無く忍び寄る
+        ("walk", [
+            (1, {legL: (0, 0, 0), legR: (0, 0, 0), head: (0, 0, 0)}),
+            (5, {legL: (30, 0, 0), legR: (30, 0, 0), head: (6, 0, 0)}),
+            (9, {legL: (-24, 0, 0), legR: (-24, 0, 0), head: (-6, 0, 0)}),
+            (14, {legL: (0, 0, 0), legR: (0, 0, 0), head: (0, 0, 0)}),
+        ]),
+        # 面を突き出すように跳びかかる不意打ち
+        ("attack", [
+            (1, {armL: (0, 0, 0), armR: (0, 0, 0), head: (0, 0, 0)}),
+            (4, {armL: (-40, 0, 20), armR: (-40, 0, -20), head: (-24, 0, 0)}),
+            (8, {armL: (30, 0, -10), armR: (30, 0, 10), head: (14, 0, 0)}),
+            (16, {armL: (0, 0, 0), armR: (0, 0, 0), head: (0, 0, 0)}),
+        ]),
+        ("hit", [
+            (1, {head: (0, 0, 0)}),
+            (4, {head: (18, 0, 0), armL: (-20, 0, 16), armR: (-20, 0, -16)}),
+            (14, {head: (0, 0, 0)}),
+        ]),
+        ("die", [
+            (1, {head: (0, 0, 0)}),
+            (9, {head: (24, 0, 0), legL: (-32, 0, 0), legR: (-32, 0, 0)}),
+            (22, {head: (36, 0, 0), legL: (-60, 0, 0), legR: (-60, 0, 0),
+                  armL: (-54, 0, 22), armR: (-54, 0, -22)}),
+        ]),
+    ]
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -3047,6 +3153,7 @@ MONSTERS = {
     "yamabikogitsune": (build_yamabikogitsune, yamabikogitsune_animations),
     "kodamagitsune": (build_kodamagitsune, kodamagitsune_animations),
     "kodamaNoNushi": (build_kodamaNoNushi, kodamaNoNushi_animations),
+    "menkaburikozo": (build_menkaburikozo, menkaburikozo_animations),
 }
 
 
