@@ -1001,10 +1001,10 @@ export const SPECIES: readonly Species[] = [
     inflicts: { kind: "sleep", chance: 0.2, turns: 3 },
   },
   {
-    // 甘い匂いに誘われる夢。purunモデルを流用する
+    // 甘い匂いに誘われる夢。専用モデル(plan/models/archive/model-wataamenoobake.md)
     id: "wataamenoobake",
     name: "わたあめのおばけ",
-    model: "purun",
+    model: "wataamenoobake",
     // 「触れると幻を残して逃げる」は計画書自身が「演出のみ、実害の分裂はしない」と
     // 明記しているため、素のcowardのまま実装した
     maxHp: 26,
