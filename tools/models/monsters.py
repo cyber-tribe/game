@@ -5137,6 +5137,116 @@ def nemurimogura_animations():
     ]
 
 
+# ========================================================================= ヌシガエル
+
+NUSHIGAERU_HALF = {
+    "hip": (0.0, 0.135, 0.23),
+    "chest": (0.0, -0.068, 0.257),
+    "head": (0.0, -0.27, 0.243),
+    "armF.L": (0.19, -0.19, 0.122),
+    "handF.L": (0.216, -0.27, 0.027),
+    "kneeB.L": (0.257, 0.135, 0.257),
+    "ankleB.L": (0.23, -0.054, 0.081),
+    "footB.L": (0.216, -0.19, 0.030),
+}
+NUSHIGAERU_RADII_HALF = {
+    "hip": 0.225, "chest": 0.24, "head": 0.20,
+    "armF.L": 0.052, "handF.L": 0.058,
+    "kneeB.L": 0.10, "ankleB.L": 0.068, "footB.L": 0.062,
+}
+NUSHIGAERU_BONES_HALF = [
+    ("chest", "hip"), ("chest", "head"),
+    ("chest", "armF.L"), ("armF.L", "handF.L"),
+    ("hip", "kneeB.L"), ("kneeB.L", "ankleB.L"), ("ankleB.L", "footB.L"),
+]
+
+
+def build_nushigaeru():
+    """
+    ツブテガエルが霧深い湿地でたどり着いた、最も重たい遠い記憶の姿。
+    tsubuteと同じ関節構成をベースに、並より一回り大きな図体に拡大し、
+    この地方の主にふさわしい貫禄を持たせる。喉に石つぶてを溜め込む
+    大きな喉袋を足し、背には歳月を経た証のいぼを散らす。目は主の
+    証として淡く発光させる。配色は第二地方(忘れ潮の湿地)の、
+    霧と水を思わせる灰みがかった水色・青緑系。
+    """
+    joints = C.mirrored(NUSHIGAERU_HALF)
+    radii = C.mirrored_radii(NUSHIGAERU_RADII_HALF)
+    bones = C.mirrored_bones(NUSHIGAERU_BONES_HALF)
+
+    body = C.build_skinned("nushigaeru", joints, bones, radii, root="chest", subsurf=2)
+    hide = C.make_material("nushigaeru_hide", (0.36, 0.46, 0.48), roughness=0.7)
+    belly = C.make_material("nushigaeru_belly", (0.56, 0.64, 0.62), roughness=0.6)
+    C.assign_materials_by_region(body, [hide, belly], lambda c: 1 if c.z < 0.145 else 0)
+
+    extras = []
+    glow = C.make_material("nushigaeru_eye", (0.68, 0.86, 0.82), roughness=0.25, emission=1.4)
+    for side in (-1.0, 1.0):
+        eye = C.uv_sphere(f"nushigaeru_eye{side}", (0.082 * side, -0.335, 0.288), 0.040,
+                          segments=16, rings=12, scale=(1.0, 1.0, 0.9))
+        C.assign_material(eye, glow)
+        extras.append(eye)
+    # 石つぶてを溜め込む大きな喉袋
+    throat = C.uv_sphere("nushigaeru_throat", (0.0, -0.335, 0.165), 0.088,
+                         segments=18, rings=14, scale=(1.0, 0.95, 0.78))
+    C.assign_material(throat, belly)
+    extras.append(throat)
+    mouth = C.uv_sphere("nushigaeru_mouth", (0.0, -0.385, 0.205), 0.040,
+                        segments=14, rings=10, scale=(1.15, 0.55, 0.5))
+    C.assign_material(mouth, C.make_material("nushigaeru_mouth_m", (0.14, 0.16, 0.16), roughness=0.4))
+    extras.append(mouth)
+    # 歳月を経た証のいぼ
+    wart_mat = C.make_material("nushigaeru_wart", (0.26, 0.34, 0.36), roughness=0.75)
+    for i, (x, y, z, r) in enumerate([
+        (0.10, 0.04, 0.315, 0.030), (-0.13, 0.10, 0.30, 0.026),
+        (0.05, 0.19, 0.29, 0.024), (-0.06, -0.04, 0.32, 0.022),
+        (0.16, 0.16, 0.275, 0.022),
+    ]):
+        wart = C.uv_sphere(f"nushigaeru_wart{i}", (x, y, z), r, segments=10, rings=8)
+        C.assign_material(wart, wart_mat)
+        extras.append(wart)
+
+    mesh = C.join([body] + extras, "nushigaeru")
+    armature = C.build_armature("nushigaeru", joints, bones, mesh, root="chest")
+    return [mesh, armature], armature
+
+
+def nushigaeru_animations():
+    head = "chest-head"
+    armL, armR = "chest-armF.L", "chest-armF.R"
+    legL, legR = "hip-kneeB.L", "hip-kneeB.R"
+    return [
+        ("idle", [
+            (1, {head: (0, 0, 0)}),
+            (36, {head: (2, 0, 1)}),
+            (72, {head: (0, 0, 0)}),
+        ]),
+        # 重い図体を踏みしめて進む
+        ("walk", [
+            (1, {legL: (0, 0, 16), legR: (0, 0, -16), armL: (0, 0, -10), armR: (0, 0, 10)}),
+            (10, {legL: (0, 0, -16), legR: (0, 0, 16), armL: (0, 0, 10), armR: (0, 0, -10)}),
+            (20, {legL: (0, 0, 16), legR: (0, 0, -16), armL: (0, 0, -10), armR: (0, 0, 10)}),
+        ]),
+        # 喉袋を大きく膨らませてから、石つぶてを吐き出す
+        ("attack", [
+            (1, {head: (0, 0, 0)}),
+            (6, {head: (-18, 0, 0)}),
+            (12, {head: (26, 0, 0)}),
+            (22, {head: (0, 0, 0)}),
+        ]),
+        ("hit", [
+            (1, {head: (0, 0, 0)}),
+            (4, {head: (16, 0, 0), armL: (-14, 0, 12), armR: (-14, 0, -12)}),
+            (14, {head: (0, 0, 0), armL: (0, 0, 0), armR: (0, 0, 0)}),
+        ]),
+        ("die", [
+            (1, {head: (0, 0, 0)}),
+            (10, {head: (0, 8, 0), legL: (0, 0, -20), legR: (0, 0, 20)}),
+            (24, {head: (0, 16, 0), legL: (0, 0, -46), legR: (0, 0, 46)}),
+        ]),
+    ]
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -5181,6 +5291,7 @@ MONSTERS = {
     "nakimushi": (build_nakimushi, nakimushi_animations),
     "namidaguma": (build_namidaguma, namidaguma_animations),
     "nemurimogura": (build_nemurimogura, nemurimogura_animations),
+    "nushigaeru": (build_nushigaeru, nushigaeru_animations),
 }
 
 
