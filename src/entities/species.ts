@@ -645,7 +645,7 @@ export const SPECIES: readonly Species[] = [
   // 第一地方: うたたねの参道(design/regions.md 1〜6階)。控えめに+2。
   // plan/archive/tutorial-floor-easing.mdの方針どおり、1階目には出さずminFloor2から
   {
-    // あくびの合間に紛れ込んだ影。専用モデル(plan/archive/model-akubitokage.md)
+    // あくびの合間に紛れ込んだ影。専用モデル(plan/models/archive/model-akubitokage.md)
     id: "akubitokage",
     name: "あくびとかげ",
     model: "akubitokage",
@@ -658,7 +658,7 @@ export const SPECIES: readonly Species[] = [
     weight: 9,
   },
   {
-    // 閉じかけた瞼の隙間に湧く小さな夢。この作品最初のswarm。専用モデル(plan/archive/model-mabutamushi.md)
+    // 閉じかけた瞼の隙間に湧く小さな夢。この作品最初のswarm。専用モデル(plan/models/archive/model-mabutamushi.md)
     id: "mabutamushi",
     name: "まぶたむし",
     model: "mabutamushi",
@@ -690,7 +690,7 @@ export const SPECIES: readonly Species[] = [
     rangeBonusOnQuagmire: 2,
   },
   {
-    // 足を取られた思い出。専用モデル(plan/archive/model-nukarumigani.md)
+    // 足を取られた思い出。専用モデル(plan/models/archive/model-nukarumigani.md)
     id: "nukarumigani",
     name: "ぬかるみがに",
     model: "nukarumigani",
@@ -718,7 +718,7 @@ export const SPECIES: readonly Species[] = [
     swarmSize: [3, 4],
   },
   {
-    // すっかり忘れられた水霊。専用モデル(plan/archive/model-wasuremizuchi.md)
+    // すっかり忘れられた水霊。専用モデル(plan/models/archive/model-wasuremizuchi.md)
     id: "wasuremizuchi",
     name: "わすれみずち",
     model: "wasuremizuchi",
@@ -780,7 +780,7 @@ export const SPECIES: readonly Species[] = [
     weight: 4,
   },
   {
-    // ツブテガエルの遠い親戚。専用モデル(plan/archive/model-nebosukegaeru.md)
+    // ツブテガエルの遠い親戚。専用モデル(plan/models/archive/model-nebosukegaeru.md)
     id: "nebosukegaeru",
     name: "ねぼすけがえる",
     model: "nebosukegaeru",
