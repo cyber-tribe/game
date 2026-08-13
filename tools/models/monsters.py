@@ -4399,6 +4399,116 @@ def shizukuuo_animations():
     ]
 
 
+# ===================================================================== うるみぐま
+
+# honegaramiと同じ人型骨組みをベースにするが、「ふさぎ込んだ古い悲しみ」
+# (guard AI、動かず攻撃を受けなければ癒える)という由来から、
+# nedayamabikoと同じ低い重心・前傾した姿勢に、熊らしい丸い耳と
+# 厚みのある体格を組み合わせる。fuchiNoNushiとは違い、甲羅ではなく
+# 熊そのものの体つきで「悲しみに沈んで丸くなった」様子を表す。
+URUMIGUMA_HALF = {
+    "hip": (0.0, 0.0, 0.185),
+    "chest": (0.0, 0.022, 0.320),
+    "neck": (0.0, 0.032, 0.392),
+    "head": (0.0, 0.008, 0.455),
+    "crown": (0.0, 0.018, 0.508),
+    "shoulder.L": (0.178, 0.022, 0.335),
+    "elbow.L": (0.208, 0.042, 0.222),
+    "hand.L": (0.188, 0.012, 0.112),
+    "thigh.L": (0.116, 0.0, 0.170),
+    "knee.L": (0.121, 0.0, 0.080),
+    "foot.L": (0.116, -0.045, 0.018),
+}
+URUMIGUMA_RADII_HALF = {
+    "hip": 0.136, "chest": 0.150, "neck": 0.063, "head": 0.130, "crown": 0.038,
+    "shoulder.L": 0.073, "elbow.L": 0.059, "hand.L": 0.063,
+    "thigh.L": 0.083, "knee.L": 0.067, "foot.L": 0.071,
+}
+URUMIGUMA_BONES_HALF = [
+    ("hip", "chest"), ("chest", "neck"), ("neck", "head"), ("head", "crown"),
+    ("chest", "shoulder.L"), ("shoulder.L", "elbow.L"), ("elbow.L", "hand.L"),
+    ("hip", "thigh.L"), ("thigh.L", "knee.L"), ("knee.L", "foot.L"),
+]
+
+
+def build_urumiguma():
+    """
+    ふさぎ込んだ古い悲しみ。honegaramiと同じ人型骨組みをベースに、
+    nedayamabikoと同じ低い重心・前傾した姿勢にし、熊らしい丸い耳を
+    足す。悲しみに沈んで丸くなった様子を、垂れた瞼の眠たげな目で
+    表す。配色は第五地方(なみだの滝つぼ)の、沈んだ青・藍色系。
+    """
+    joints = C.mirrored(URUMIGUMA_HALF)
+    radii = C.mirrored_radii(URUMIGUMA_RADII_HALF)
+    bones = C.mirrored_bones(URUMIGUMA_BONES_HALF)
+
+    body = C.build_skinned("urumiguma", joints, bones, radii, root="hip", subsurf=2)
+    fur = C.make_material("urumi_fur", (0.22, 0.26, 0.42), roughness=0.85)
+    C.assign_material(body, fur)
+
+    extras = []
+    for side in (-1.0, 1.0):
+        ear = C.uv_sphere(f"urumi_ear{side}", (0.098 * side, 0.030, 0.545), 0.052,
+                          segments=16, rings=12, scale=(1.0, 0.7, 1.0))
+        C.assign_material(ear, fur)
+        extras.append(ear)
+        # 垂れた瞼の眠たげな目(nebosukegaeruと同じ手法)
+        extras += eyeball(f"urumi_eye{side}", (0.085 * side, -0.118, 0.470), 0.038,
+                          look=(0.2 * side, -0.85, -0.1), squash=0.45,
+                          white=(0.70, 0.72, 0.80), dark=(0.10, 0.10, 0.16))
+        lid = C.uv_sphere(f"urumi_lid{side}", (0.085 * side, -0.112, 0.484), 0.040,
+                          segments=14, rings=10, scale=(1.0, 0.85, 0.5))
+        C.assign_material(lid, fur)
+        extras.append(lid)
+    snout = C.uv_sphere("urumi_snout", (0.0, -0.155, 0.415), 0.058,
+                        segments=16, rings=12, scale=(0.85, 1.0, 0.7))
+    C.assign_material(snout, C.make_material("urumi_snout_m", (0.30, 0.34, 0.48), roughness=0.75))
+    extras.append(snout)
+
+    mesh = C.join([body] + extras, "urumiguma")
+    armature = C.build_armature("urumiguma", joints, bones, mesh, root="hip")
+    return [mesh, armature], armature
+
+
+def urumiguma_animations():
+    hipc, neck = "hip-chest", "neck-head"
+    armL, armR = "chest-shoulder.L", "chest-shoulder.R"
+    legL, legR = "hip-thigh.L", "hip-thigh.R"
+    return [
+        # 悲しみに沈んだまま、ほとんど動かない
+        ("idle", [
+            (1, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+            (44, {hipc: (1.5, 0, 1), neck: (2, 0, 0)}),
+            (88, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+        ]),
+        ("walk", [
+            (1, {legL: (14, 0, 0), legR: (-14, 0, 0), armL: (-10, 0, 5), armR: (10, 0, -5)}),
+            (12, {legL: (0, 0, 0), legR: (0, 0, 0), armL: (0, 0, 5), armR: (0, 0, -5)}),
+            (23, {legL: (-14, 0, 0), legR: (14, 0, 0), armL: (10, 0, 5), armR: (-10, 0, -5)}),
+            (34, {legL: (0, 0, 0), legR: (0, 0, 0), armL: (0, 0, 5), armR: (0, 0, -5)}),
+        ]),
+        # 重い前足を、ためてから鈍く振り下ろす
+        ("attack", [
+            (1, {armR: (0, 0, -6), hipc: (0, 0, 0)}),
+            (9, {armR: (-64, 0, -14), hipc: (-6, 0, -8)}),
+            (15, {armR: (28, 0, 8), hipc: (10, 0, 8), neck: (-6, 0, 0)}),
+            (26, {armR: (0, 0, -6), hipc: (0, 0, 0)}),
+        ]),
+        ("hit", [
+            (1, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+            (5, {hipc: (-8, 0, 0), neck: (-9, 0, 0), armL: (-10, 0, 12), armR: (-10, 0, -12)}),
+            (18, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+        ]),
+        # 悲しみそのものが崩れ落ちるように、その場でゆっくり沈む
+        ("die", [
+            (1, {hipc: (0, 0, 0)}),
+            (12, {hipc: (-10, 0, 4), neck: (-14, 0, 0), armL: (-20, 0, 20), armR: (-20, 0, -20)}),
+            (32, {hipc: (-58, 0, 10), neck: (-26, 0, 0), legL: (30, 0, 0), legR: (26, 0, 0),
+                  armL: (-46, 0, 32), armR: (-46, 0, -32)}),
+        ]),
+    ]
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -4436,6 +4546,7 @@ MONSTERS = {
     "yorishironozankyo": (build_yorishironozankyo, yorishironozankyo_animations),
     "fuchiNoNushi": (build_fuchiNoNushi, fuchiNoNushi_animations),
     "shizukuuo": (build_shizukuuo, shizukuuo_animations),
+    "urumiguma": (build_urumiguma, urumiguma_animations),
 }
 
 

@@ -537,9 +537,10 @@ export const SPECIES: readonly Species[] = [
     fieldSkill: "leap",
   },
   {
+    // ふさぎ込んだ古い悲しみ。専用モデル(plan/models/archive/model-urumiguma.md)
     id: "urumiguma",
     name: "うるみぐま",
-    model: "honegarami",
+    model: "urumiguma",
     maxHp: 60,
     atk: 22,
     def: 18,
