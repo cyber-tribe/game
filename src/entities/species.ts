@@ -364,7 +364,7 @@ export const SPECIES: readonly Species[] = [
     // なく、HPを共有する分身を2体まで呼び出す(plan/region-boss-kodamanonushi.md)
     id: "kodamaNoNushi",
     name: "こだまの主",
-    model: "gajiri",
+    model: "kodamaNoNushi",
     maxHp: 76,
     atk: 31,
     def: 13,
