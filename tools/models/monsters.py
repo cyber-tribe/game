@@ -756,6 +756,156 @@ def honegarami_animations():
     ]
 
 
+# =================================================================== きりみずち
+
+KIRI_HALF = {
+    "hip": (0.0, 0.02, 0.10),
+    "chest": (0.0, -0.03, 0.34),
+    "head": (0.0, -0.075, 0.58),
+    "armF.L": (0.165, -0.02, 0.31),
+    "handF.L": (0.185, 0.05, 0.07),
+    "kneeB.L": (0.15, 0.15, 0.015),
+    "ankleB.L": (0.14, 0.06, 0.005),
+    "footB.L": (0.12, -0.02, 0.0),
+}
+KIRI_RADII_HALF = {
+    "hip": 0.135, "chest": 0.10, "head": 0.072,
+    "armF.L": 0.026, "handF.L": 0.016,
+    "kneeB.L": 0.042, "ankleB.L": 0.028, "footB.L": 0.020,
+}
+KIRI_BONES_HALF = [
+    ("chest", "hip"), ("chest", "head"),
+    ("chest", "armF.L"), ("armF.L", "handF.L"),
+    ("hip", "kneeB.L"), ("kneeB.L", "ankleB.L"), ("ankleB.L", "footB.L"),
+]
+
+
+def build_kirimizuchi():
+    """
+    霧を纏う、忘れられかけた道しるべの成れの果て。近づかず離れたところから
+    水弾を飛ばす`ranged`の主力にふさわしく、tsubuteと同じ関節構成(胴・頭・
+    腕・脚をつなぐ7本の骨)をそのまま流用するが、ずんぐりした蛙とは違い、
+    縦に伸びて頭が前へ傾いだ、朽ちた道しるべのシルエットにする。
+    腕は水を飛ばす触手として長く垂らし、頭には水を吐く注ぎ口と、
+    霧の奥にかすかに灯るような弱い光の目をつける。
+    """
+    joints = C.mirrored(KIRI_HALF)
+    radii = C.mirrored_radii(KIRI_RADII_HALF)
+    bones = C.mirrored_bones(KIRI_BONES_HALF)
+
+    body = C.build_skinned("kirimizuchi", joints, bones, radii, root="chest", subsurf=2)
+
+    body_lower = C.make_material("kiri_body_lower", (0.30, 0.40, 0.43), roughness=0.75)
+    body_upper = C.make_material("kiri_body_upper", (0.58, 0.70, 0.72), roughness=0.5)
+    tendril_mat = C.make_material("kiri_tendril", (0.72, 0.84, 0.85), roughness=0.3, emission=0.12)
+
+    # 腕(触手)だけを別トーンにする。高さだけで切ると胴に巻き込むので、
+    # 腕・手の関節からの距離で判定する(gajiriの耳と同じ手法)
+    arm_pts = [Vector(joints["armF.L"]), Vector(joints["armF.R"]),
+               Vector(joints["handF.L"]), Vector(joints["handF.R"])]
+
+    def classify(c):
+        if min((c - p).length for p in arm_pts) < 0.045:
+            return 2
+        return 1 if c.z > 0.28 else 0
+
+    C.assign_materials_by_region(body, [body_lower, body_upper, tendril_mat], classify)
+
+    extras = []
+    # 霧の奥にかすかに灯る目。眼窩は影にして、その奥に小さな光点だけを置く
+    for side in (-1.0, 1.0):
+        socket = C.uv_sphere(f"kiri_socket{side}", (0.032 * side, -0.128, 0.598), 0.020,
+                             segments=12, rings=8, scale=(1.0, 0.7, 1.0))
+        C.assign_material(socket, C.make_material(f"kiri_socket{side}_m", (0.05, 0.06, 0.08),
+                                                   roughness=0.85))
+        extras.append(socket)
+        glow = C.uv_sphere(f"kiri_glow{side}", (0.032 * side, -0.138, 0.598), 0.009,
+                           segments=10, rings=8)
+        C.assign_material(glow, C.make_material(f"kiri_glow{side}_m", (0.55, 0.85, 0.90),
+                                                roughness=0.25, emission=2.5))
+        extras.append(glow)
+
+    # 水を吐く注ぎ口。先端に凝った水滴を結ばせる
+    spout = C.box("kiri_spout", (0.0, -0.185, 0.505), (0.048, 0.095, 0.032), bevel=0.011)
+    C.assign_material(spout, C.make_material("kiri_spout_m", (0.24, 0.30, 0.32), roughness=0.6))
+    extras.append(spout)
+    droplet = C.uv_sphere("kiri_droplet", (0.0, -0.238, 0.498), 0.026, segments=14, rings=10)
+    C.assign_material(droplet, C.make_material("kiri_droplet_m", (0.55, 0.78, 0.85),
+                                               roughness=0.15, emission=0.6))
+    extras.append(droplet)
+
+    # 割れた道しるべの木片。頭の上に棘のように突き出す
+    spike_mat = C.make_material("kiri_spike_m", (0.22, 0.27, 0.29), roughness=0.65)
+    for i, (angle_deg, dist, height) in enumerate([
+        (30.0, 0.032, 0.075), (150.0, 0.030, 0.062), (270.0, 0.026, 0.055),
+    ]):
+        angle = math.radians(angle_deg)
+        spike = C.cone(
+            f"kiri_spike{i}",
+            (math.cos(angle) * dist, -0.075 + math.sin(angle) * dist * 0.4, 0.635),
+            0.018, 0.003, height, segments=8,
+        )
+        C.assign_material(spike, spike_mat)
+        extras.append(spike)
+
+    mesh = C.join([body] + extras, "kirimizuchi")
+    armature = C.build_armature("kirimizuchi", joints, bones, mesh, root="chest")
+    return [mesh, armature], armature
+
+
+def kirimizuchi_animations():
+    head = "chest-head"
+    trunk = "chest-hip"
+    armL, armR = "chest-armF.L", "chest-armF.R"
+    foreL, foreR = "armF.L-handF.L", "armF.R-handF.R"
+    legL, legR = "hip-kneeB.L", "hip-kneeB.R"
+    return [
+        # 霧がゆっくり渦を巻くように、頭と触手が漂う
+        ("idle", [
+            (1, {head: (0, 0, 0), armL: (0, 0, 0), armR: (0, 0, 0)}),
+            (22, {head: (-4, 3, 0), armL: (6, 0, 4), armR: (6, 0, -4),
+                  foreL: (8, 0, 0), foreR: (8, 0, 0)}),
+            (44, {head: (3, -3, 0), armL: (-4, 0, -3), armR: (-4, 0, 3),
+                  foreL: (-4, 0, 0), foreR: (-4, 0, 0)}),
+            (60, {head: (0, 0, 0), armL: (0, 0, 0), armR: (0, 0, 0),
+                  foreL: (0, 0, 0), foreR: (0, 0, 0)}),
+        ]),
+        # 脚をほとんど使わず、体ごと傾いで滑るように進む
+        ("walk", [
+            (1, {legL: (0, 0, 0), legR: (0, 0, 0), trunk: (0, 0, 0), head: (0, 0, 0)}),
+            (8, {legL: (14, 0, 0), legR: (-10, 0, 0), trunk: (-3, 0, 2), head: (4, 0, 0),
+                 armL: (-10, 0, 6), armR: (10, 0, -6)}),
+            (16, {legL: (-10, 0, 0), legR: (14, 0, 0), trunk: (3, 0, -2), head: (-4, 0, 0),
+                  armL: (10, 0, -6), armR: (-10, 0, 6)}),
+            (24, {legL: (0, 0, 0), legR: (0, 0, 0), trunk: (0, 0, 0), head: (0, 0, 0)}),
+        ]),
+        # 頭を引いてため、注ぎ口を突き出すように水弾を放つ
+        ("attack", [
+            (1, {head: (0, 0, 0), armL: (0, 0, 0), armR: (0, 0, 0),
+                 foreL: (0, 0, 0), foreR: (0, 0, 0)}),
+            (5, {head: (-10, 0, 0), armL: (-18, 0, 10), armR: (-18, 0, -10),
+                 foreL: (-14, 0, 0), foreR: (-14, 0, 0)}),
+            (10, {head: (14, 0, 0), armL: (22, 0, -8), armR: (22, 0, 8),
+                  foreL: (20, 0, 0), foreR: (20, 0, 0)}),
+            (20, {head: (0, 0, 0), armL: (0, 0, 0), armR: (0, 0, 0),
+                  foreL: (0, 0, 0), foreR: (0, 0, 0)}),
+        ]),
+        ("hit", [
+            (1, {head: (0, 0, 0), trunk: (0, 0, 0)}),
+            (4, {head: (16, 0, 0), trunk: (-10, 0, 0), armL: (-14, 0, 14), armR: (-14, 0, -14)}),
+            (14, {head: (0, 0, 0), trunk: (0, 0, 0)}),
+        ]),
+        # 実体を失って霧に紛れるように、前へ崩れ落ちる
+        ("die", [
+            (1, {trunk: (0, 0, 0), head: (0, 0, 0)}),
+            (12, {trunk: (-30, 0, 0), head: (20, 0, 0), armL: (-30, 0, 20), armR: (-30, 0, -20),
+                  legL: (-20, 0, 0), legR: (-20, 0, 0)}),
+            (26, {trunk: (-70, 0, 0), head: (40, 0, 0), armL: (-60, 0, 40), armR: (-60, 0, -40),
+                  legL: (-40, 0, 0), legR: (-40, 0, 0)}),
+        ]),
+    ]
+
+
 # =========================================================================== 一覧
 
 MONSTERS = {
@@ -766,6 +916,7 @@ MONSTERS = {
     "tsubute": (build_tsubute, tsubute_animations),
     "madoromi": (build_madoromi, madoromi_animations),
     "honegarami": (build_honegarami, honegarami_animations),
+    "kirimizuchi": (build_kirimizuchi, kirimizuchi_animations),
 }
 
 

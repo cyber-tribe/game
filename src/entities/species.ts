@@ -674,10 +674,10 @@ export const SPECIES: readonly Species[] = [
 
   // 第二地方: 忘れ潮の湿地(design/regions.md 7〜12階)。+4
   {
-    // 霧を纏う、忘れられかけた道しるべ。ranged主力のtsubuteモデルを流用する
+    // 霧を纏う、忘れられかけた道しるべ。専用モデルkirimizuchiを使う
     id: "kirimizuchi",
     name: "きりみずち",
-    model: "tsubute",
+    model: "kirimizuchi",
     maxHp: 20,
     atk: 11,
     def: 4,
