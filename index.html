@@ -326,7 +326,7 @@
         backdrop-filter: blur(8px);
       }
       .menu-title {
-        font-size: 13px; font-weight: 700; letter-spacing: 0.1em;
+        margin: 0; font-size: 13px; font-weight: 700; letter-spacing: 0.1em;
         color: var(--dim); padding-bottom: 8px;
         border-bottom: 1px solid var(--edge);
       }
@@ -391,8 +391,8 @@
       }
       .town-col.active { border-color: #7fd6ff; box-shadow: 0 0 0 1px rgba(127, 214, 255, 0.35); }
       .town-col-title {
-        font-size: 12px; color: var(--dim); letter-spacing: 0.08em;
-        padding-bottom: 7px; border-bottom: 1px solid var(--edge); margin-bottom: 7px;
+        margin: 0 0 7px; font-size: 12px; font-weight: 400; color: var(--dim); letter-spacing: 0.08em;
+        padding-bottom: 7px; border-bottom: 1px solid var(--edge);
       }
       .town-col ul { list-style: none; margin: 0; padding: 0; }
       .town-col li { padding: 4px 8px; border-radius: 5px; font-size: 13.5px; }
@@ -531,27 +531,27 @@
       <canvas id="scene"></canvas>
 
       <div id="ui">
-        <div id="status" class="panel">
+        <div id="status" class="panel" aria-label="ステータス">
           <div class="row">
             <span id="hud-depth">地下 1 階</span>
             <span id="hud-level">Lv 1</span>
           </div>
           <div class="label"><span>HP</span><span id="hud-hp-text">25 / 25</span></div>
-          <div class="bar"><i id="hud-hp-fill"></i></div>
+          <div class="bar"><i id="hud-hp-fill" aria-hidden="true"></i></div>
           <div class="label"><span>まんぷく</span><span id="hud-satiety-text">100</span></div>
-          <div class="bar"><i id="hud-satiety-fill"></i></div>
+          <div class="bar"><i id="hud-satiety-fill" aria-hidden="true"></i></div>
           <div id="hud-exp">次のLvまで 10</div>
           <div id="hud-status"></div>
           <div id="hud-carry"></div>
         </div>
 
-        <div id="allies" class="panel"></div>
+        <div id="allies" class="panel" aria-label="なかま"></div>
 
-        <div id="minimap-wrap" class="panel">
+        <div id="minimap-wrap" class="panel" aria-hidden="true">
           <canvas id="minimap" width="180" height="140"></canvas>
         </div>
 
-        <div id="log" class="panel"></div>
+        <div id="log" class="panel" aria-live="polite" aria-atomic="false"></div>
 
         <div id="help" class="panel">
           <b>矢印 / WASD / テンキー</b> 移動・攻撃<br />

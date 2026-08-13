@@ -78,7 +78,7 @@ export class ArtsMenu {
     this.root.replaceChildren();
     if (!player) return;
 
-    const title = document.createElement("div");
+    const title = document.createElement("h3");
     title.className = "menu-title";
     title.textContent = "技";
     this.root.appendChild(title);
@@ -91,6 +91,7 @@ export class ArtsMenu {
       this.root.appendChild(empty);
     } else {
       const list = document.createElement("ul");
+      list.setAttribute("role", "list");
       list.className = "menu-list";
       known.forEach((art, index) => {
         const cooldown = player.artCooldowns[art.id] ?? 0;

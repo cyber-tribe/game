@@ -106,6 +106,7 @@ export class SlotSelectScreen {
     box.appendChild(heading);
 
     const list = document.createElement("ul");
+    list.setAttribute("role", "list");
     this.summaries.forEach((summary, i) => {
       const row = document.createElement("li");
       row.className = "slot-row" + (i === this.cursor ? " selected" : "") + (!summary.exists ? " empty" : "");

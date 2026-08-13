@@ -1484,12 +1484,16 @@ export class TownScreen {
     wrapper.className = "town-col";
     if (this.column === column) wrapper.classList.add("active");
 
-    const heading = document.createElement("div");
+    // スクリーンリーダー対応(plan/screen-reader-support.md): 各列の見出しをh3にする
+    const heading = document.createElement("h3");
     heading.className = "town-col-title";
     heading.textContent = label;
     wrapper.appendChild(heading);
 
     const list = document.createElement("ul");
+    // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
+    // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
+    list.setAttribute("role", "list");
     if (items.length === 0) {
       const li = document.createElement("li");
       li.className = "empty";
@@ -1516,12 +1520,16 @@ export class TownScreen {
     wrapper.className = "town-col";
     if (this.column === 2) wrapper.classList.add("active");
 
-    const heading = document.createElement("div");
+    // スクリーンリーダー対応(plan/screen-reader-support.md): 各列の見出しをh3にする
+    const heading = document.createElement("h3");
     heading.className = "town-col-title";
     heading.textContent = "出発地点";
     wrapper.appendChild(heading);
 
     const list = document.createElement("ul");
+    // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
+    // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
+    list.setAttribute("role", "list");
     this.checkpoints().forEach((depth, index) => {
       const li = document.createElement("li");
       li.textContent = depth === 1 ? "表の寝穴の入口(1階)" : `めざめの階段(地下${depth}階)`;
@@ -1538,12 +1546,16 @@ export class TownScreen {
     wrapper.className = "town-col";
     if (this.column === 3) wrapper.classList.add("active");
 
-    const heading = document.createElement("div");
+    // スクリーンリーダー対応(plan/screen-reader-support.md): 各列の見出しをh3にする
+    const heading = document.createElement("h3");
     heading.className = "town-col-title";
     heading.textContent = "鍛え方";
     wrapper.appendChild(heading);
 
     const list = document.createElement("ul");
+    // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
+    // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
+    list.setAttribute("role", "list");
     TRAINING_FOCI.forEach((focus, index) => {
       const li = document.createElement("li");
       li.textContent = TRAINING_FOCUS_LABELS[focus];
@@ -1560,13 +1572,17 @@ export class TownScreen {
     wrapper.className = "town-col";
     if (this.column === 4) wrapper.classList.add("active");
 
-    const heading = document.createElement("div");
+    // スクリーンリーダー対応(plan/screen-reader-support.md): 各列の見出しをh3にする
+    const heading = document.createElement("h3");
     heading.className = "town-col-title";
     heading.textContent = `つれていく仲間 (${this.bringUids.length} / ${MAX_ALLIES})`;
     wrapper.appendChild(heading);
 
     const hut = this.hut();
     const list = document.createElement("ul");
+    // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
+    // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
+    list.setAttribute("role", "list");
     if (hut.length === 0) {
       const li = document.createElement("li");
       li.className = "empty";
@@ -1600,13 +1616,17 @@ export class TownScreen {
     wrapper.className = "town-col";
     if (this.column === 5) wrapper.classList.add("active");
 
-    const heading = document.createElement("div");
+    // スクリーンリーダー対応(plan/screen-reader-support.md): 各列の見出しをh3にする
+    const heading = document.createElement("h3");
     heading.className = "town-col-title";
     heading.textContent = "ゲンドの工房";
     wrapper.appendChild(heading);
 
     const targets = this.workshopTargets();
     const list = document.createElement("ul");
+    // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
+    // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
+    list.setAttribute("role", "list");
     if (targets.length === 0) {
       const li = document.createElement("li");
       li.className = "empty";
@@ -1626,6 +1646,7 @@ export class TownScreen {
 
     if (this.workshopMarkChoices) {
       const sub = document.createElement("ul");
+      sub.setAttribute("role", "list");
       sub.className = "menu-sub";
       this.workshopMarkChoices.forEach((markId, index) => {
         const li = document.createElement("li");
@@ -1638,6 +1659,7 @@ export class TownScreen {
 
     if (this.workshopSynthesisChoices) {
       const sub = document.createElement("ul");
+      sub.setAttribute("role", "list");
       sub.className = "menu-sub";
       this.workshopSynthesisChoices.forEach((markId, index) => {
         const li = document.createElement("li");
@@ -1660,13 +1682,17 @@ export class TownScreen {
     wrapper.className = "town-col";
     if (this.column === 6) wrapper.classList.add("active");
 
-    const heading = document.createElement("div");
+    // スクリーンリーダー対応(plan/screen-reader-support.md): 各列の見出しをh3にする
+    const heading = document.createElement("h3");
     heading.className = "town-col-title";
     heading.textContent = "記録の間";
     wrapper.appendChild(heading);
 
     const save = this.save;
     const list = document.createElement("ul");
+    // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
+    // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
+    list.setAttribute("role", "list");
     const rows: [string, number][] = save
       ? [
           ["最深到達(表の寝穴)", save.deepest],
@@ -1705,7 +1731,8 @@ export class TownScreen {
     wrapper.className = "town-col";
     if (this.column === 7) wrapper.classList.add("active");
 
-    const heading = document.createElement("div");
+    // スクリーンリーダー対応(plan/screen-reader-support.md): 各列の見出しをh3にする
+    const heading = document.createElement("h3");
     heading.className = "town-col-title";
     heading.textContent = "モンスター図鑑";
     wrapper.appendChild(heading);
@@ -1717,6 +1744,9 @@ export class TownScreen {
     wrapper.appendChild(summary);
 
     const list = document.createElement("ul");
+    // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
+    // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
+    list.setAttribute("role", "list");
     SPECIES.forEach((species, index) => {
       const status = compendium[species.id];
       const label = status === "captured" ? "捕まえた" : status === "seen" ? "見た" : "未確認";
@@ -1738,7 +1768,8 @@ export class TownScreen {
     wrapper.className = "town-col";
     if (this.column === 8) wrapper.classList.add("active");
 
-    const heading = document.createElement("div");
+    // スクリーンリーダー対応(plan/screen-reader-support.md): 各列の見出しをh3にする
+    const heading = document.createElement("h3");
     heading.className = "town-col-title";
     heading.textContent = "実績帳";
     wrapper.appendChild(heading);
@@ -1750,6 +1781,9 @@ export class TownScreen {
     wrapper.appendChild(summary);
 
     const list = document.createElement("ul");
+    // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
+    // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
+    list.setAttribute("role", "list");
     ACHIEVEMENTS.forEach((def, index) => {
       const unlockedAt = achievements[def.id];
       const li = document.createElement("li");
@@ -1773,7 +1807,8 @@ export class TownScreen {
     wrapper.className = "town-col";
     if (this.column === 9) wrapper.classList.add("active");
 
-    const heading = document.createElement("div");
+    // スクリーンリーダー対応(plan/screen-reader-support.md): 各列の見出しをh3にする
+    const heading = document.createElement("h3");
     heading.className = "town-col-title";
     heading.textContent = "装備図鑑";
     wrapper.appendChild(heading);
@@ -1783,6 +1818,9 @@ export class TownScreen {
     const materials = this.save?.materialCompendium ?? {};
 
     const list = document.createElement("ul");
+    // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
+    // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
+    list.setAttribute("role", "list");
     const weaponIds = ITEMS.filter((i) => i.category === "weapon").map((i) => i.id);
     const mastered = weaponIds.filter((id) => equipment[id] === "mastered").length;
     const summary = document.createElement("li");
@@ -1818,12 +1856,16 @@ export class TownScreen {
     wrapper.className = "town-col";
     if (this.column === 10) wrapper.classList.add("active");
 
-    const heading = document.createElement("div");
+    // スクリーンリーダー対応(plan/screen-reader-support.md): 各列の見出しをh3にする
+    const heading = document.createElement("h3");
     heading.className = "town-col-title";
     heading.textContent = "難易度";
     wrapper.appendChild(heading);
 
     const list = document.createElement("ul");
+    // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
+    // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
+    list.setAttribute("role", "list");
     DIFFICULTY_MODES.forEach((mode, index) => {
       const li = document.createElement("li");
       li.textContent = DIFFICULTY_NAMES[mode];
@@ -1843,7 +1885,8 @@ export class TownScreen {
     wrapper.className = "town-col";
     if (this.column === 12) wrapper.classList.add("active");
 
-    const heading = document.createElement("div");
+    // スクリーンリーダー対応(plan/screen-reader-support.md): 各列の見出しをh3にする
+    const heading = document.createElement("h3");
     heading.className = "town-col-title";
     heading.textContent = "潜るダンジョン";
     wrapper.appendChild(heading);
@@ -1869,6 +1912,9 @@ export class TownScreen {
     const defeatedRegionBosses = this.save?.defeatedRegionBosses ?? [];
     const unlocked = this.unlockedDungeons();
     const list = document.createElement("ul");
+    // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
+    // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
+    list.setAttribute("role", "list");
     // 真の目覚め(plan/true-awakening.md)は隠し要素として扱う。3条件が
     // すべて揃うまでは、未解放のヒント表示すらこの一覧に出さない
     DUNGEONS.filter((d) => d.id !== TRUE_AWAKENING_ID).forEach((dungeon) => {
@@ -1922,7 +1968,8 @@ export class TownScreen {
     wrapper.className = "town-col";
     if (this.column === 11) wrapper.classList.add("active");
 
-    const heading = document.createElement("div");
+    // スクリーンリーダー対応(plan/screen-reader-support.md): 各列の見出しをh3にする
+    const heading = document.createElement("h3");
     heading.className = "town-col-title";
     heading.textContent = "依頼板";
     wrapper.appendChild(heading);
@@ -1933,6 +1980,9 @@ export class TownScreen {
     wrapper.appendChild(summary);
 
     const list = document.createElement("ul");
+    // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
+    // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
+    list.setAttribute("role", "list");
     if (rows.length === 0) {
       const li = document.createElement("li");
       li.className = "empty";
@@ -1964,7 +2014,8 @@ export class TownScreen {
     wrapper.className = "town-col";
     if (this.column === 13) wrapper.classList.add("active");
 
-    const heading = document.createElement("div");
+    // スクリーンリーダー対応(plan/screen-reader-support.md): 各列の見出しをh3にする
+    const heading = document.createElement("h3");
     heading.className = "town-col-title";
     heading.textContent = "村の発展";
     wrapper.appendChild(heading);
@@ -1976,6 +2027,9 @@ export class TownScreen {
     wrapper.appendChild(summary);
 
     const list = document.createElement("ul");
+    // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
+    // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
+    list.setAttribute("role", "list");
     VILLAGE_STAGE_REQUIREMENTS.forEach((requirement) => {
       const li = document.createElement("li");
       const done = stage >= requirement.stage;
@@ -2005,13 +2059,17 @@ export class TownScreen {
     wrapper.className = "town-col";
     if (this.column === 14) wrapper.classList.add("active");
 
-    const heading = document.createElement("div");
+    // スクリーンリーダー対応(plan/screen-reader-support.md): 各列の見出しをh3にする
+    const heading = document.createElement("h3");
     heading.className = "town-col-title";
     heading.textContent = "アクセシビリティ";
     wrapper.appendChild(heading);
 
     const fontSize = this.save?.fontSize ?? "normal";
     const list = document.createElement("ul");
+    // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
+    // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
+    list.setAttribute("role", "list");
     (["normal", "large"] as const).forEach((size) => {
       const li = document.createElement("li");
       li.textContent = size === "normal" ? "文字サイズ: ふつう" : "文字サイズ: 大きめ";
@@ -2041,7 +2099,8 @@ export class TownScreen {
     wrapper.className = "town-col";
     if (this.column === 15) wrapper.classList.add("active");
 
-    const heading = document.createElement("div");
+    // スクリーンリーダー対応(plan/screen-reader-support.md): 各列の見出しをh3にする
+    const heading = document.createElement("h3");
     heading.className = "town-col-title";
     heading.textContent = "身支度";
     wrapper.appendChild(heading);
@@ -2049,6 +2108,9 @@ export class TownScreen {
     const unlockedCostumes = this.save?.unlockedCostumes ?? [];
     const equipped = this.save?.equippedCostume;
     const list = document.createElement("ul");
+    // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
+    // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
+    list.setAttribute("role", "list");
     COSTUMES.forEach((costume: CostumeDef, index) => {
       const unlocked = unlockedCostumes.includes(costume.id);
       const li = document.createElement("li");
@@ -2092,13 +2154,17 @@ export class TownScreen {
     wrapper.className = "town-col";
     if (this.column === 16) wrapper.classList.add("active");
 
-    const heading = document.createElement("div");
+    // スクリーンリーダー対応(plan/screen-reader-support.md): 各列の見出しをh3にする
+    const heading = document.createElement("h3");
     heading.className = "town-col-title";
     heading.textContent = "NPCと話す";
     wrapper.appendChild(heading);
 
     const npcs = visibleVillageNpcs(this.currentStoryChapter());
     const list = document.createElement("ul");
+    // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
+    // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
+    list.setAttribute("role", "list");
     npcs.forEach((npc, index) => {
       const level = this.save?.bonds[npc.id] ?? 0;
       const label = bondStageLabel(bondStage(level));
@@ -2120,12 +2186,16 @@ export class TownScreen {
     wrapper.className = "town-col";
     if (this.column === 17) wrapper.classList.add("active");
 
-    const heading = document.createElement("div");
+    // スクリーンリーダー対応(plan/screen-reader-support.md): 各列の見出しをh3にする
+    const heading = document.createElement("h3");
     heading.className = "town-col-title";
     heading.textContent = "宵祭りの出店";
     wrapper.appendChild(heading);
 
     const list = document.createElement("ul");
+    // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
+    // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
+    list.setAttribute("role", "list");
     if (isYoimatsuri(todayKey())) {
       FESTIVAL_SHOP_OFFERS.forEach((offer, index) => {
         const li = document.createElement("li");
@@ -2148,7 +2218,8 @@ export class TownScreen {
     wrapper.className = "town-col";
     if (this.column === 18) wrapper.classList.add("active");
 
-    const heading = document.createElement("div");
+    // スクリーンリーダー対応(plan/screen-reader-support.md): 各列の見出しをh3にする
+    const heading = document.createElement("h3");
     heading.className = "town-col-title";
     heading.textContent = "音";
     wrapper.appendChild(heading);
@@ -2156,6 +2227,9 @@ export class TownScreen {
     const muted = this.save?.audioMuted ?? false;
     const volume = this.save?.audioVolume ?? DEFAULT_AUDIO_VOLUME;
     const list = document.createElement("ul");
+    // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
+    // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
+    list.setAttribute("role", "list");
 
     const muteLi = document.createElement("li");
     muteLi.textContent = `ミュート: ${muted ? "オン" : "オフ"}`;

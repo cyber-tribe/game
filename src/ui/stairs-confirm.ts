@@ -64,7 +64,7 @@ export class StairsConfirmModal {
   private render(): void {
     this.root.replaceChildren();
 
-    const title = document.createElement("div");
+    const title = document.createElement("h3");
     title.className = "menu-title";
     title.textContent = "確認";
     this.root.appendChild(title);
@@ -75,6 +75,7 @@ export class StairsConfirmModal {
     this.root.appendChild(desc);
 
     const list = document.createElement("ul");
+    list.setAttribute("role", "list");
     list.className = "menu-list";
     (["降りる", "やめる"] as const).forEach((label, index) => {
       const li = document.createElement("li");
