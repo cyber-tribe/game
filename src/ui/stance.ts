@@ -1,7 +1,7 @@
 import type { Command } from "../game";
 import { ALLY_STANCE_NAMES } from "../entities/displayNames";
 import type { AllyActor, AllyStance } from "../core/types";
-import { wrap } from "./util";
+import { createMenuDesc, createMenuHint, createMenuList, createMenuTitle, wrap } from "./util";
 
 const STANCES: readonly AllyStance[] = ["free", "guard", "hold", "vanguard"];
 
@@ -113,14 +113,9 @@ export class StanceMenu {
   private render(): void {
     this.root.replaceChildren();
 
-    const title = document.createElement("h3");
-    title.className = "menu-title";
-    title.textContent = "指示";
-    this.root.appendChild(title);
+    this.root.appendChild(createMenuTitle("指示"));
 
-    const list = document.createElement("ul");
-    list.setAttribute("role", "list");
-    list.className = "menu-list";
+    const list = createMenuList();
     this.targets.forEach((target, index) => {
       const li = document.createElement("li");
       li.textContent = target.label;
@@ -141,15 +136,9 @@ export class StanceMenu {
       });
       this.root.appendChild(sub);
 
-      const desc = document.createElement("div");
-      desc.className = "menu-desc";
-      desc.textContent = STANCE_DESCRIPTIONS[this.submenu[this.subCursor]!];
-      this.root.appendChild(desc);
+      this.root.appendChild(createMenuDesc(STANCE_DESCRIPTIONS[this.submenu[this.subCursor]!]));
     }
 
-    const hint = document.createElement("div");
-    hint.className = "menu-hint";
-    hint.textContent = "↑↓ 選ぶ / Enter 決定 / Esc もどる";
-    this.root.appendChild(hint);
+    this.root.appendChild(createMenuHint("↑↓ 選ぶ / Enter 決定 / Esc もどる"));
   }
 }

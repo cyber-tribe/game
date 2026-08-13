@@ -3,7 +3,7 @@ import type { PlayerState } from "../entities/player";
 import { t } from "../i18n";
 import { itemDef } from "../items/catalog";
 import { displayName, isEquipped } from "../items/inventory";
-import { wrap } from "./util";
+import { createMenuDesc, createMenuHint, createMenuList, createMenuTitle, wrap } from "./util";
 
 type Choice = { label: string; run: () => void };
 
@@ -138,10 +138,7 @@ export class InventoryMenu {
 
     this.root.replaceChildren();
 
-    const title = document.createElement("h3");
-    title.className = "menu-title";
-    title.textContent = t("ui.menu.inventory", { count: items.length, max: player.inventory.maxSize });
-    this.root.appendChild(title);
+    this.root.appendChild(createMenuTitle(t("ui.menu.inventory", { count: items.length, max: player.inventory.maxSize })));
 
     if (items.length === 0) {
       const empty = document.createElement("div");
@@ -150,11 +147,7 @@ export class InventoryMenu {
       this.root.appendChild(empty);
     }
 
-    const list = document.createElement("ul");
-    // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulの
-    // list roleが一部環境で外れるため、明示的に付け直す
-    list.setAttribute("role", "list");
-    list.className = "menu-list";
+    const list = createMenuList();
     items.forEach((item, index) => {
       const li = document.createElement("li");
       li.textContent = displayName(player.inventory, item);
@@ -165,10 +158,7 @@ export class InventoryMenu {
 
     const selected = items[this.cursor];
     if (selected) {
-      const desc = document.createElement("div");
-      desc.className = "menu-desc";
-      desc.textContent = itemDef(selected.defId).description;
-      this.root.appendChild(desc);
+      this.root.appendChild(createMenuDesc(itemDef(selected.defId).description));
     }
 
     if (this.submenu) {
@@ -184,9 +174,6 @@ export class InventoryMenu {
       this.root.appendChild(sub);
     }
 
-    const hint = document.createElement("div");
-    hint.className = "menu-hint";
-    hint.textContent = t("menu.hint");
-    this.root.appendChild(hint);
+    this.root.appendChild(createMenuHint(t("menu.hint")));
   }
 }
