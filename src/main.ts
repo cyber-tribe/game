@@ -13,6 +13,7 @@ import { GalleryView } from "./view/gallery";
 import { Stage } from "./view/stage";
 import { AudioPlayer } from "./audio/player";
 import { ArtsMenu } from "./ui/arts";
+import { EndingScreen } from "./ui/ending";
 import { InventoryMenu } from "./ui/menu";
 import { NamingDialog } from "./ui/naming-dialog";
 import { StairsConfirmModal } from "./ui/stairs-confirm";
@@ -114,6 +115,8 @@ class App {
   private readonly artsMenu: ArtsMenu;
   /** 階段を降りる前の確認モーダル(plan/stairs-confirm-modal.md) */
   private readonly stairsConfirm: StairsConfirmModal;
+  /** エンドロール(plan/ending-sequence.md) */
+  private readonly endingScreen: EndingScreen;
   private readonly town: TownScreen;
   private readonly namingDialog: NamingDialog;
   /** セーブ枠選択(plan/save-slots.md) */
@@ -144,6 +147,8 @@ class App {
   private mountainCoreClearedThisRun = false;
   /** 真の目覚め(plan/true-awakening.md)。このダイブで「はじめの夢」との決着イベントを経験したか */
   private trueAwakeningClearedThisRun = false;
+  /** エンドロール(plan/ending-sequence.md)。次にRキーで拠点へ戻るとき、その前にエンドロールを挟むか */
+  private pendingEndingSequence = false;
   /** フォトモード(plan/gallery-mode.md)。HUDを隠し、移動・行動を止めて画角だけ動かせる */
   private photoMode = false;
   /** 操作説明(plan/difficulty-modes.md アクセシビリティ節)。表示中は行動を止める */
@@ -162,6 +167,7 @@ class App {
     this.stanceMenu = new StanceMenu(document.querySelector<HTMLElement>("#stance")!);
     this.artsMenu = new ArtsMenu(document.querySelector<HTMLElement>("#arts")!);
     this.stairsConfirm = new StairsConfirmModal(document.querySelector<HTMLElement>("#stairsConfirm")!);
+    this.endingScreen = new EndingScreen(document.querySelector<HTMLElement>("#ending")!);
     // タッチ操作(plan/touch-controls.md): Inputへ直接press/releaseするだけの
     // 入力ソースなので、以後参照する必要が無く、フィールドには保持しない
     new TouchControls(document.querySelector<HTMLElement>("#touch")!, this.canvas, this.input);
@@ -179,7 +185,8 @@ class App {
       this.menu.handleKey(code) ||
       this.stanceMenu.handleKey(code) ||
       this.artsMenu.handleKey(code) ||
-      this.stairsConfirm.handleKey(code);
+      this.stairsConfirm.handleKey(code) ||
+      this.endingScreen.handleKey(code);
 
     // サウンド再生(plan/audio-playback.md): ブラウザの自動再生制限を避けるため、
     // AudioContextは最初の入力(キー入力)のタイミングで初めて作る
@@ -666,7 +673,14 @@ class App {
         return false;
       case "restart":
         if (this.ended) {
-          this.showTown();
+          // エンドロール(plan/ending-sequence.md): 物語クリアで初めてstoryCleared
+          // が立った回だけ、拠点へ戻る前に挟む
+          if (this.pendingEndingSequence) {
+            this.pendingEndingSequence = false;
+            this.endingScreen.show(() => this.showTown());
+          } else {
+            this.showTown();
+          }
           return true;
         }
         // 生きていてめざめの階段の上にいれば、そこで区切って持ち帰る
@@ -894,6 +908,10 @@ class App {
   private finish(reason: string): void {
     this.ended = true;
     const cleared = this.game.status === "cleared";
+    // エンドロール(plan/ending-sequence.md): 物語クリアで初めてstoryClearedが
+    // 立つ回だけ、拠点へ戻る前にエンドロールを挟む。recordRunでsave.storyCleared
+    // が更新される前に判定する必要がある
+    this.pendingEndingSequence = this.mountainCoreClearedThisRun && !this.save.storyCleared;
     // 踏破したときだけ、持っていたもの・生きて連れていた仲間を持ち帰れる。倒れたら全部失う
     const broughtBack = cleared ? this.game.player.inventory.items : [];
     const broughtBackAllies = cleared ? [...this.game.allyList] : [];
@@ -925,11 +943,15 @@ class App {
       mountainCoreCleared: this.mountainCoreClearedThisRun,
       trueAwakeningCleared: this.trueAwakeningClearedThisRun,
     });
+    const detail = cleared
+      ? `${reason}  持ち帰った ${broughtBack.length} 個を倉庫に、${broughtBackAllies.length} 体をねむり小屋にしまった。`
+      : `${reason}  持ち込んだ道具・仲間はすべて失った。`;
+    // エンドロール(plan/ending-sequence.md): 真の目覚めの締めくくりは、
+    // エンドロールをまるごと再度流さず、短い一言だけを添える
+    const trueAwakeningLine = this.trueAwakeningClearedThisRun ? " はじめの夢は、もう独りではないと知った。" : "";
     this.hud.showOverlay(
       cleared ? "だっしゅつ成功!" : "ちからつきた……",
-      cleared
-        ? `${reason}  持ち帰った ${broughtBack.length} 個を倉庫に、${broughtBackAllies.length} 体をねむり小屋にしまった。`
-        : `${reason}  持ち込んだ道具・仲間はすべて失った。`,
+      detail + trueAwakeningLine,
       `Lv ${this.game.player.level} / ${this.game.turnCount} ターン ・ ` +
         `最深記録 ${this.save.deepest} 階 — R キーで拠点にもどる`,
     );
