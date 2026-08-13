@@ -68,6 +68,18 @@ const AXIS_KEYS = {
  */
 export const ATTACK_KEY_CODE = "KeyX";
 
+/**
+ * 一歩とダッシュを分けるしきい値(秒)。plan/step-movement-and-dash.md。
+ * 方向キーをこの秒数未満で離せば1マスだけ進んで止まり(タップ)、これ以上
+ * 押し続けると現状どおりの「押しっぱなしで歩き続ける」ダッシュに移行する。
+ * 計画書の目安(250ms)をそのまま採用した。実装時に体感で確かめたが、
+ * これより短いとタップのつもりが軽くダッシュへ化けやすく、長いとダッシュの
+ * 立ち上がりがもたつく体感だったので、この値を初期値として固定してある
+ * (チューニングの余地があるという計画書の注記どおり、この定数1つを
+ * 直せば済むようにしてある)
+ */
+export const DASH_HOLD_THRESHOLD = 0.25;
+
 const ACTION_KEYS: Record<string, ActionKey> = {
   Space: "confirm",
   Enter: "confirm",
@@ -103,6 +115,20 @@ export class Input {
   /** メニュー操作を横取りするための受け口 */
   onKey: ((code: string, shift: boolean) => boolean) | null = null;
 
+  // ---- 一歩/ダッシュ(plan/step-movement-and-dash.md) ----------------
+  /** 現在計測中の方向。direction() が変わる・null になるたびに計測をやり直す */
+  private dashDir: Dir | null = null;
+  /** dashDir を押し続けている秒数(update()で積み上げる) */
+  private dashHeldFor = 0;
+  /** この方向入力ぶんの「一歩」をすでに発行済みか */
+  private tapMoveTaken = false;
+  /**
+   * この方向入力を打ち切り済みか(壁・押し出しでその場に留まった等)。
+   * true の間は direction() が変わらない限り、一歩もダッシュも発行しない
+   * (cancelDash() 参照)
+   */
+  private dirBlocked = false;
+
   constructor(target: EventTarget = window) {
     target.addEventListener("keydown", (raw) => {
       const event = raw as KeyboardEvent;
@@ -129,7 +155,10 @@ export class Input {
     });
 
     // 画面外に出たあいだのキーは押しっぱなし扱いにしない
-    window.addEventListener("blur", () => this.held.clear());
+    // (テスト実行時など window が無い環境では単に何もしない)
+    if (typeof window !== "undefined") {
+      window.addEventListener("blur", () => this.held.clear());
+    }
   }
 
   /**
@@ -172,6 +201,55 @@ export class Input {
   private anyHeld(codes: readonly string[]): boolean {
     for (const code of codes) if (this.held.has(code)) return true;
     return false;
+  }
+
+  /**
+   * 一歩/ダッシュの計測を1フレームぶん進める。呼び出し側(main.ts)は
+   * ロック中・メニュー表示中かに関わらず、毎フレーム欠かさず呼ぶこと
+   * (実際にキーを押していた実時間で判定したいので、移動コマンドを
+   * 送れない間だけ計測が止まってしまうと、しきい値の意味がずれる)
+   */
+  update(dt: number): void {
+    const dir = this.direction();
+    if (dir === null || dir !== this.dashDir) {
+      this.dashDir = dir;
+      this.dashHeldFor = 0;
+      this.tapMoveTaken = false;
+      this.dirBlocked = false;
+      return;
+    }
+    this.dashHeldFor += dt;
+  }
+
+  /**
+   * しきい値(DASH_HOLD_THRESHOLD)を超えて同じ方向を押し続けているか。
+   * true のあいだは、押しっぱなしで歩き続ける従来どおりの挙動になる
+   */
+  isDashing(): boolean {
+    return !this.dirBlocked && this.dashDir !== null && this.dashHeldFor >= DASH_HOLD_THRESHOLD;
+  }
+
+  /**
+   * この方向入力ぶんの「一歩」をまだ発行していなければ、発行済みに
+   * 記録して true を返す(呼び出し側はそのまま1回だけ移動コマンドを
+   * 送る)。タップ(短く押して離す)がしきい値未満で終わっても必ず
+   * 1マスぶん進むのは、この最初の1回のおかげ
+   */
+  consumeTapMove(): boolean {
+    if (this.dirBlocked || this.tapMoveTaken) return false;
+    this.tapMoveTaken = true;
+    return true;
+  }
+
+  /**
+   * 移動が壁・押し出し失敗などでその場に留まったとき、呼び出し側から
+   * 呼ぶ。以後は同じ方向入力(離すまで)で一歩もダッシュも発行しなく
+   * なる。壁に向けてダッシュしても連打状態にならず、モンスターを
+   * 押し出した場合もそこでダッシュが止まる(plan/step-movement-and-
+   * dash.md の「壁バンプと同じ扱い」を、押し出しにも一律で適用する形)
+   */
+  cancelDash(): void {
+    this.dirBlocked = true;
   }
 
   /** 向きだけ変えたいとき(Shift を押しながら) */

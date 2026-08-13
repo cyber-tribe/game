@@ -670,6 +670,10 @@ class App {
 
   private step(dt: number): void {
     this.lock = Math.max(0, this.lock - dt);
+    // 一歩/ダッシュ(plan/step-movement-and-dash.md): ロック中・メニュー
+    // 表示中でも押している実時間はそのまま数えたいので、下の早期returnより
+    // 前、毎フレーム欠かさず呼ぶ
+    this.input.update(dt);
 
     // カメラ操作はいつでも受け付ける
     let action = this.input.takeAction();
@@ -709,7 +713,18 @@ class App {
       this.submit({ type: "face", dir });
       return;
     }
+
+    // 一歩/ダッシュ(plan/step-movement-and-dash.md): 押した瞬間の1回は
+    // 必ず一歩ぶん送る(タップ)。しきい値を超えて押し続けているあいだは
+    // 従来どおり毎フレーム送り続ける(ダッシュ)
+    if (!this.input.consumeTapMove() && !this.input.isDashing()) return;
+
+    const before = this.game.player.pos;
     this.submit({ type: "move", dir });
+    // 壁バンプ・敵の押し出しなど、その場に留まった場合はダッシュを打ち切る
+    // (押し出しは移動コマンドとしては成立するが、プレイヤー自身は動かない
+    // ので、壁にぶつかったときと同じ「その場で止まる」扱いにする)
+    if (eq(this.game.player.pos, before)) this.input.cancelDash();
   }
 
   /** メニュー中でも受け付ける操作 */
