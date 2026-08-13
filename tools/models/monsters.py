@@ -2279,6 +2279,125 @@ def madoromigumo_animations():
 
 
 
+# =================================================================== かえるこだま
+
+# ツブテガエルの遠い親戚(design/characters.md)。ねぼすけがえると同じく
+# TSUBUTE_HALFと同じ関節の"種類"を踏襲しつつ座標はゼロから設計するが、
+# 性格は正反対: 眠りこけるねぼすけがえるに対し、かえるこだまは「気配に
+# 敏感ですぐ逃げる」臆病者(coward AI)。逃げ足の速さを見せるため、後ろ足
+# (kneeB/ankleB/footB)をtsubuteよりも高く大きく張り出させ、いつでも
+# 跳べる姿勢にする。石は持たない(遠隔攻撃はせず、追い詰められたときだけ
+# 跳んで反撃するcounterDamageRatio)。
+KAERUKODAMA_HALF = {
+    "hip": (0.0, 0.125, 0.150),
+    "chest": (0.0, -0.048, 0.168),
+    "head": (0.0, -0.192, 0.166),
+    "armF.L": (0.118, -0.118, 0.078),
+    "handF.L": (0.136, -0.176, 0.018),
+    "kneeB.L": (0.232, 0.128, 0.214),
+    "ankleB.L": (0.204, -0.028, 0.062),
+    "footB.L": (0.188, -0.128, 0.020),
+}
+KAERUKODAMA_RADII_HALF = {
+    "hip": 0.118, "chest": 0.128, "head": 0.106,
+    "armF.L": 0.026, "handF.L": 0.029,
+    "kneeB.L": 0.056, "ankleB.L": 0.036, "footB.L": 0.032,
+}
+KAERUKODAMA_BONES_HALF = [
+    ("chest", "hip"), ("chest", "head"),
+    ("chest", "armF.L"), ("armF.L", "handF.L"),
+    ("hip", "kneeB.L"), ("kneeB.L", "ankleB.L"), ("ankleB.L", "footB.L"),
+]
+
+
+def build_kaerukodama():
+    """
+    跳ね返る声を追いかける、tsubuteの小柄で華奢な遠縁。いつでも跳べるよう
+    後ろ足を高く畳んだ姿勢にし、常に周囲をうかがう大きく見開いた目で
+    「気配に敏感ですぐ逃げる」性質を表す。配色は第六地方(こだまの尾根)の
+    岩肌の灰色と乾いた土色。喉には、声を跳ね返す由来にちなんだ小さな
+    鳴き袋を足す。
+    """
+    joints = C.mirrored(KAERUKODAMA_HALF)
+    radii = C.mirrored_radii(KAERUKODAMA_RADII_HALF)
+    bones = C.mirrored_bones(KAERUKODAMA_BONES_HALF)
+
+    body = C.build_skinned("kaerukodama", joints, bones, radii, root="chest", subsurf=2)
+    rock = C.make_material("kaerukodama_rock", (0.56, 0.55, 0.53), roughness=0.78)
+    earth = C.make_material("kaerukodama_earth", (0.62, 0.50, 0.36), roughness=0.65)
+    # 腹は下から見上げたときだけ見えるよう、真下を向いた面に限る
+    # (tsubuteと同じく、高さだけで切ると横腹に水平の線が入って不自然になる)
+    C.assign_materials_by_region(
+        body, [rock, earth],
+        lambda c: 1 if (c.z < 0.095 and abs(c.x) < 0.13) else 0,
+    )
+
+    extras = []
+    for side in (-1.0, 1.0):
+        # 常に警戒しているような、大きく見開いた目
+        extras += eyeball(f"kaerukodama_eye{side}", (0.084 * side, -0.222, 0.258), 0.058,
+                          look=(0.3 * side, -0.85, 0.2))
+    mouth = C.box("kaerukodama_mouth", (0.0, -0.296, 0.132), (0.166, 0.040, 0.017), bevel=0.008)
+    C.assign_material(mouth, C.make_material("kaerukodama_mouth_m", (0.20, 0.17, 0.13), roughness=0.45))
+    extras.append(mouth)
+    # 声を跳ね返す由来にちなんだ、喉の小さな鳴き袋
+    pouch = C.uv_sphere("kaerukodama_pouch", (0.0, -0.245, 0.098), 0.040,
+                        segments=12, rings=9, scale=(1.0, 0.9, 0.75))
+    C.assign_material(pouch, earth)
+    extras.append(pouch)
+
+    mesh = C.join([body] + extras, "kaerukodama")
+    armature = C.build_armature("kaerukodama", joints, bones, mesh, root="chest")
+    return [mesh, armature], armature
+
+
+def kaerukodama_animations():
+    head = "chest-head"
+    armL, armR = "chest-armF.L", "chest-armF.R"
+    legL, legR = "hip-kneeB.L", "hip-kneeB.R"
+    return [
+        # 常にそわそわと周囲をうかがう、落ち着かない待機
+        ("idle", [
+            (1, {head: (0, 0, 0)}),
+            (10, {head: (10, 14, 0)}),
+            (20, {head: (8, -16, 0)}),
+            (30, {head: (0, 0, 0)}),
+        ]),
+        # tsubuteより素早く、小刻みに跳ねて逃げる
+        ("walk", [
+            (1, {legL: (0, 0, 0), legR: (0, 0, 0), head: (0, 0, 0)}),
+            (3, {legL: (44, 0, 0), legR: (44, 0, 0), head: (14, 0, 0)}),
+            (7, {legL: (-34, 0, 0), legR: (-34, 0, 0), head: (-16, 0, 0),
+                 armL: (-30, 0, 0), armR: (-30, 0, 0)}),
+            (11, {legL: (0, 0, 0), legR: (0, 0, 0), head: (0, 0, 0)}),
+        ]),
+        # 石は投げず、追い詰められて仕方なく全身で跳びかかる一撃
+        ("attack", [
+            (1, {legL: (0, 0, 0), legR: (0, 0, 0), head: (0, 0, 0),
+                 armL: (0, 0, 0), armR: (0, 0, 0)}),
+            (4, {legL: (56, 0, 0), legR: (56, 0, 0), head: (20, 0, 0),
+                 armL: (34, 0, 0), armR: (34, 0, 0)}),
+            (8, {legL: (-68, 0, 0), legR: (-68, 0, 0), head: (-28, 0, 0),
+                 armL: (-60, 0, 0), armR: (-60, 0, 0)}),
+            (14, {legL: (8, 0, 0), legR: (8, 0, 0), head: (4, 0, 0),
+                  armL: (-8, 0, 0), armR: (-8, 0, 0)}),
+            (20, {legL: (0, 0, 0), legR: (0, 0, 0), head: (0, 0, 0),
+                  armL: (0, 0, 0), armR: (0, 0, 0)}),
+        ]),
+        ("hit", [
+            (1, {head: (0, 0, 0)}),
+            (4, {head: (24, 0, 0), armL: (-30, 0, 22), armR: (-30, 0, -22)}),
+            (12, {head: (0, 0, 0)}),
+        ]),
+        ("die", [
+            (1, {head: (0, 0, 0)}),
+            (9, {head: (26, 0, 0), legL: (-38, 0, 0), legR: (-38, 0, 0)}),
+            (20, {head: (38, 0, 0), legL: (-74, 0, 0), legR: (-74, 0, 0),
+                  armL: (-66, 0, 26), armR: (-66, 0, -26)}),
+        ]),
+    ]
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -2298,6 +2417,7 @@ MONSTERS = {
     "houshitobi": (build_houshitobi, houshitobi_animations),
     "nebosukegaeru": (build_nebosukegaeru, nebosukegaeru_animations),
     "madoromigumo": (build_madoromigumo, madoromigumo_animations),
+    "kaerukodama": (build_kaerukodama, kaerukodama_animations),
 }
 
 
