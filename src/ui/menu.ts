@@ -136,7 +136,7 @@ export class InventoryMenu {
 
     this.root.replaceChildren();
 
-    const title = document.createElement("div");
+    const title = document.createElement("h3");
     title.className = "menu-title";
     title.textContent = `もちもの  ${items.length} / ${player.inventory.maxSize}`;
     this.root.appendChild(title);
@@ -149,6 +149,9 @@ export class InventoryMenu {
     }
 
     const list = document.createElement("ul");
+    // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulの
+    // list roleが一部環境で外れるため、明示的に付け直す
+    list.setAttribute("role", "list");
     list.className = "menu-list";
     items.forEach((item, index) => {
       const li = document.createElement("li");
@@ -168,6 +171,7 @@ export class InventoryMenu {
 
     if (this.submenu) {
       const sub = document.createElement("ul");
+      sub.setAttribute("role", "list");
       sub.className = "menu-sub";
       this.submenu.forEach((choice, index) => {
         const li = document.createElement("li");

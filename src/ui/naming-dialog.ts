@@ -49,6 +49,7 @@ export class NamingDialog {
     box.className = "naming-box";
 
     const heading = document.createElement("h3");
+    heading.id = "naming-heading";
     heading.textContent = title;
     box.appendChild(heading);
 
@@ -57,6 +58,7 @@ export class NamingDialog {
     input.className = "naming-input";
     input.maxLength = MAX_NICKNAME_LENGTH;
     input.value = initial;
+    input.setAttribute("aria-labelledby", "naming-heading");
     input.addEventListener("keydown", (event) => {
       event.stopPropagation();
       if (event.key === "Enter") {

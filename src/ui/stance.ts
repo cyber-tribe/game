@@ -111,12 +111,13 @@ export class StanceMenu {
   private render(): void {
     this.root.replaceChildren();
 
-    const title = document.createElement("div");
+    const title = document.createElement("h3");
     title.className = "menu-title";
     title.textContent = "指示";
     this.root.appendChild(title);
 
     const list = document.createElement("ul");
+    list.setAttribute("role", "list");
     list.className = "menu-list";
     this.targets.forEach((target, index) => {
       const li = document.createElement("li");
@@ -128,6 +129,7 @@ export class StanceMenu {
 
     if (this.submenu) {
       const sub = document.createElement("ul");
+      sub.setAttribute("role", "list");
       sub.className = "menu-sub";
       this.submenu.forEach((stance, index) => {
         const li = document.createElement("li");

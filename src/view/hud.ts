@@ -129,6 +129,7 @@ export class Hud {
       const bar = document.createElement("div");
       bar.className = "ally-bar";
       const fill = document.createElement("i");
+      fill.setAttribute("aria-hidden", "true"); // 隣のHPテキストと重複するので、読み上げからは隠す
       const ratio = Math.max(0, ally.hp) / ally.maxHp;
       fill.style.width = `${ratio * 100}%`;
       fill.dataset.level = ratio < 0.3 ? "danger" : ratio < 0.6 ? "warn" : "ok";

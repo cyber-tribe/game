@@ -88,6 +88,7 @@ export class EndingScreen {
 
     if (page.items) {
       const list = document.createElement("ul");
+      list.setAttribute("role", "list");
       for (const item of page.items) {
         const li = document.createElement("li");
         li.textContent = item;
