@@ -1018,6 +1018,47 @@ export function fromStored(stored: StoredItem, uid: number): Item {
 
 const VALID_MARK_IDS = new Set(MARKS.map((m) => m.id));
 
+/**
+ * セーブ内の3つの繰り返しパターンをまとめた汎用コンビネータ(plan外の
+ * リファクタリング、Martin Fowler PR13)。壊れたセーブ・改変されたセーブへの
+ * 耐性(ADR 0009)はここに集約し、個々のsanitizeXxxは「何が妥当か」だけを
+ * 渡す薄いラッパーにする。field-by-fieldで複雑な検証をする関数
+ * (sanitizeStorage・sanitizeHut等)はこの3パターンに当てはまらないため、
+ * 従来どおり個別に書く
+ */
+
+/** 配列フィールド: validIdsに無い要素は捨てる。dedupなら初出順を保って重複除去する */
+function sanitizeIdList<T extends string>(
+  value: unknown,
+  validIds: ReadonlySet<T>,
+  opts?: { dedup?: boolean },
+): T[] {
+  if (!Array.isArray(value)) return [];
+  const filtered = value.filter((v): v is T => typeof v === "string" && validIds.has(v as T));
+  return opts?.dedup ? [...new Set(filtered)] : filtered;
+}
+
+/** Record<id, 値>フィールド: validKeysに無いキーと、sanitizeValueがundefinedを返した値は捨てる */
+function sanitizeRecordOf<K extends string, V>(
+  value: unknown,
+  validKeys: ReadonlySet<K>,
+  sanitizeValue: (raw: unknown) => V | undefined,
+): Record<K, V> {
+  const out = {} as Record<K, V>;
+  if (typeof value !== "object" || value === null) return out;
+  for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
+    if (!validKeys.has(key as K)) continue;
+    const sanitized = sanitizeValue(raw);
+    if (sanitized !== undefined) out[key as K] = sanitized;
+  }
+  return out;
+}
+
+/** 単一の値フィールド: validValuesのどれとも一致しなければfallbackに差し替える */
+function sanitizeEnum<T>(value: unknown, validValues: readonly T[], fallback: T): T {
+  return (validValues as readonly unknown[]).includes(value) ? (value as T) : fallback;
+}
+
 function sanitizeStorage(value: unknown): StoredItem[] {
   if (!Array.isArray(value)) return initialSave().storage;
   const out: StoredItem[] = [];
@@ -1069,21 +1110,15 @@ function sanitizeRecords(value: unknown): DiveRecords {
 const VALID_COMPENDIUM_STATUSES: readonly CompendiumStatus[] = ["seen", "captured"];
 
 function sanitizeCompendium(value: unknown): Record<string, CompendiumStatus> {
-  const out: Record<string, CompendiumStatus> = {};
-  if (typeof value !== "object" || value === null) return out;
-  for (const [speciesId, status] of Object.entries(value as Record<string, unknown>)) {
-    if (!VALID_SPECIES_IDS.has(speciesId)) continue;
-    if (typeof status !== "string" || !(VALID_COMPENDIUM_STATUSES as readonly string[]).includes(status)) continue;
-    out[speciesId] = status as CompendiumStatus;
-  }
-  return out;
+  return sanitizeRecordOf<string, CompendiumStatus>(value, VALID_SPECIES_IDS, (status) =>
+    sanitizeEnum<CompendiumStatus | undefined>(status, VALID_COMPENDIUM_STATUSES, undefined),
+  );
 }
 
 const VALID_QUEST_IDS = new Set(QUESTS.map((q) => q.id));
 
 function sanitizeQuestIdList(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter((v): v is string => typeof v === "string" && VALID_QUEST_IDS.has(v));
+  return sanitizeIdList(value, VALID_QUEST_IDS);
 }
 
 function sanitizeActiveQuests(value: unknown): { defId: string; progress: number }[] {
@@ -1198,14 +1233,9 @@ export function isTrueAwakeningUnlocked(save: SaveData): boolean {
 }
 
 function sanitizeAchievements(value: unknown): Record<string, string> {
-  const out: Record<string, string> = {};
-  if (typeof value !== "object" || value === null) return out;
-  for (const [id, date] of Object.entries(value as Record<string, unknown>)) {
-    if (!VALID_ACHIEVEMENT_IDS.has(id)) continue;
-    if (typeof date !== "string") continue;
-    out[id] = date;
-  }
-  return out;
+  return sanitizeRecordOf<string, string>(value, VALID_ACHIEVEMENT_IDS, (date) =>
+    typeof date === "string" ? date : undefined,
+  );
 }
 
 const VALID_EQUIPMENT_DEF_IDS = new Set(
@@ -1217,14 +1247,9 @@ const VALID_MATERIAL_DEF_IDS = new Set(ITEMS.filter((i) => i.category === "mater
 const WEAPON_DEF_IDS = new Set(ITEMS.filter((i) => i.category === "weapon").map((i) => i.id));
 
 function sanitizeEquipmentCompendium(value: unknown): Record<string, EquipmentCompendiumStatus> {
-  const out: Record<string, EquipmentCompendiumStatus> = {};
-  if (typeof value !== "object" || value === null) return out;
-  for (const [defId, status] of Object.entries(value as Record<string, unknown>)) {
-    if (!VALID_EQUIPMENT_DEF_IDS.has(defId)) continue;
-    if (status !== "owned" && status !== "mastered") continue;
-    out[defId] = status;
-  }
-  return out;
+  return sanitizeRecordOf<string, EquipmentCompendiumStatus>(value, VALID_EQUIPMENT_DEF_IDS, (status) =>
+    status === "owned" || status === "mastered" ? status : undefined,
+  );
 }
 
 function sanitizeEquippedTitle(value: unknown, achievements: Record<string, string>): string | undefined {
@@ -1291,23 +1316,15 @@ export function setEquippedTitle(current: SaveData, id: string | undefined): Sav
 }
 
 function sanitizeMarkCompendium(value: unknown): Record<string, "owned"> {
-  const out: Record<string, "owned"> = {};
-  if (typeof value !== "object" || value === null) return out;
-  for (const [markId, status] of Object.entries(value as Record<string, unknown>)) {
-    if (!VALID_MARK_IDS.has(markId as MarkId) || status !== "owned") continue;
-    out[markId] = "owned";
-  }
-  return out;
+  return sanitizeRecordOf<string, "owned">(value, VALID_MARK_IDS, (status) =>
+    status === "owned" ? "owned" : undefined,
+  );
 }
 
 function sanitizeMaterialCompendium(value: unknown): Record<string, "owned"> {
-  const out: Record<string, "owned"> = {};
-  if (typeof value !== "object" || value === null) return out;
-  for (const [defId, status] of Object.entries(value as Record<string, unknown>)) {
-    if (!VALID_MATERIAL_DEF_IDS.has(defId) || status !== "owned") continue;
-    out[defId] = "owned";
-  }
-  return out;
+  return sanitizeRecordOf<string, "owned">(value, VALID_MATERIAL_DEF_IDS, (status) =>
+    status === "owned" ? "owned" : undefined,
+  );
 }
 
 /**
@@ -1401,15 +1418,10 @@ function nextHutUidFrom(hut: readonly StoredMonster[]): number {
   return hut.reduce((max, m) => Math.max(max, m.uid), 0) + 1;
 }
 
-const VALID_TIP_IDS = new Set<string>(TUTORIAL_TIP_IDS);
+const VALID_TIP_IDS = new Set(TUTORIAL_TIP_IDS);
 
 function sanitizeTutorialTips(value: unknown): TutorialTipId[] {
-  if (!Array.isArray(value)) return [];
-  const seen = new Set<TutorialTipId>();
-  for (const entry of value) {
-    if (typeof entry === "string" && VALID_TIP_IDS.has(entry)) seen.add(entry as TutorialTipId);
-  }
-  return [...seen];
+  return sanitizeIdList(value, VALID_TIP_IDS, { dedup: true });
 }
 
 // ---------------------------------------------------------------- ダイブ中オートセーブ
@@ -1606,39 +1618,31 @@ function isValidSnapshot(value: Partial<RunSnapshot>): value is RunSnapshot {
 const VALID_TRAINING_FOCI: readonly TrainingFocus[] = ["offense", "defense", "balance"];
 
 function sanitizeTrainingFocus(value: unknown): TrainingFocus {
-  return typeof value === "string" && (VALID_TRAINING_FOCI as readonly string[]).includes(value)
-    ? (value as TrainingFocus)
-    : "balance";
+  return sanitizeEnum(value, VALID_TRAINING_FOCI, "balance");
 }
 
 function sanitizeDifficulty(value: unknown): DifficultyMode {
-  return typeof value === "string" && (DIFFICULTY_MODES as readonly string[]).includes(value)
-    ? (value as DifficultyMode)
-    : "normal";
+  return sanitizeEnum(value, DIFFICULTY_MODES, "normal");
 }
 
 function sanitizeMessageSpeed(value: unknown): MessageSpeed {
-  return typeof value === "string" && (MESSAGE_SPEEDS as readonly string[]).includes(value)
-    ? (value as MessageSpeed)
-    : "normal";
+  return sanitizeEnum(value, MESSAGE_SPEEDS, "normal");
 }
 
 function sanitizeVillageStage(value: unknown): VillageStage {
-  return value === 1 || value === 2 || value === 3 || value === 4 ? value : 1;
+  return sanitizeEnum<VillageStage>(value, [1, 2, 3, 4], 1);
 }
 
 const VALID_COSTUME_IDS = new Set(COSTUMES.map((c) => c.id));
 
 /** 衣装・見た目カスタマイズ(plan/costumes.md): 既知の衣装idだけを残し、"default"は必ず含める */
 function sanitizeUnlockedCostumes(value: unknown): string[] {
-  const known = Array.isArray(value)
-    ? value.filter((id): id is string => typeof id === "string" && VALID_COSTUME_IDS.has(id))
-    : [];
+  const known = sanitizeIdList(value, VALID_COSTUME_IDS);
   return known.includes(DEFAULT_COSTUME_ID) ? known : [DEFAULT_COSTUME_ID, ...known];
 }
 
 function sanitizeEquippedCostume(value: unknown, unlocked: string[]): string {
-  return typeof value === "string" && unlocked.includes(value) ? value : DEFAULT_COSTUME_ID;
+  return sanitizeEnum(value, unlocked, DEFAULT_COSTUME_ID);
 }
 
 /** 腕試しの間(plan/hidden-dungeon.md): 壊れた要素は捨て、正しい形のものだけ残す */
@@ -1660,14 +1664,9 @@ const VALID_VILLAGE_NPC_IDS = new Set(VILLAGE_NPCS.map((n) => n.id));
 
 /** 村の暮らし(plan/village-life.md): 既知のNPCidだけを残し、負の値は0に切り詰める */
 function sanitizeBonds(value: unknown): Record<string, number> {
-  const out: Record<string, number> = {};
-  if (typeof value !== "object" || value === null) return out;
-  for (const [npcId, level] of Object.entries(value as Record<string, unknown>)) {
-    if (!VALID_VILLAGE_NPC_IDS.has(npcId as VillageNpcId)) continue;
-    if (typeof level !== "number" || !Number.isFinite(level)) continue;
-    out[npcId] = Math.max(0, Math.floor(level));
-  }
-  return out;
+  return sanitizeRecordOf<string, number>(value, VALID_VILLAGE_NPC_IDS, (level) =>
+    typeof level === "number" && Number.isFinite(level) ? Math.max(0, Math.floor(level)) : undefined,
+  );
 }
 
 function sanitizeStringList(value: unknown): string[] {
@@ -1676,14 +1675,9 @@ function sanitizeStringList(value: unknown): string[] {
 }
 
 function sanitizeLastGiftDates(value: unknown): Record<string, string> {
-  const out: Record<string, string> = {};
-  if (typeof value !== "object" || value === null) return out;
-  for (const [npcId, date] of Object.entries(value as Record<string, unknown>)) {
-    if (!VALID_VILLAGE_NPC_IDS.has(npcId as VillageNpcId)) continue;
-    if (typeof date !== "string") continue;
-    out[npcId] = date;
-  }
-  return out;
+  return sanitizeRecordOf<string, string>(value, VALID_VILLAGE_NPC_IDS, (date) =>
+    typeof date === "string" ? date : undefined,
+  );
 }
 
 /** 村の暮らし(plan/village-life.md): NPCの絆を上げる。存在しないNPCidは無視する */
@@ -1818,16 +1812,12 @@ const VALID_REGION_IDS = new Set(Array.from({ length: 8 }, (_, i) => `region${i 
 
 /** 忘れ物蔵(plan/lost-and-found-vault.md): 既知の地方idだけを残す */
 function sanitizeFoundVaultPassages(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  const found = new Set(value.filter((v): v is string => typeof v === "string" && VALID_REGION_IDS.has(v)));
-  return [...found];
+  return sanitizeIdList(value, VALID_REGION_IDS, { dedup: true });
 }
 
 /** 山の芯(plan/mountain-core.md): 実在する種族idだけを残す。重複しない */
 function sanitizeDefeatedRegionBosses(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  const found = new Set(value.filter((v): v is string => typeof v === "string" && VALID_SPECIES_IDS.has(v)));
-  return [...found];
+  return sanitizeIdList(value, VALID_SPECIES_IDS, { dedup: true });
 }
 
 /** 忘れ物蔵(plan/lost-and-found-vault.md): 隠し通路を見つけた記録を追加する。重複しない */
