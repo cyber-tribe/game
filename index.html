@@ -17,6 +17,16 @@
         --ok: #58c98a;
         --warn: #e6b455;
         --bad: #e05f6b;
+
+        /*
+         * ゾーンレイアウト(plan/touch-ui-overlap-fix.md)。画面を左上・右上・
+         * 左下・右下・下部帯のゾーンに分け、同じゾーンに置かれるパネル同士は
+         * これらの変数を基準に縦へ積む(バラバラな絶対座標をやめ、タッチの
+         * パッド・ボタン・≡メニューと既存HUDが重ならないことを保証する)。
+         * 既定(pointer: fine)では触UIが存在しないため0のまま
+         */
+        --zone-tr-reserve: 0px; /* 右上: ミニマップの高さぶん、≡メニューボタンを下へ押しやる */
+        --zone-bottom-reserve: 0px; /* 左下: 仮想パッドの高さぶん、ログを上へ押しやる */
       }
       * { box-sizing: border-box; }
       html, body {
@@ -137,13 +147,17 @@
       .ally-status { font-size: 10.5px; color: #f2d27a; margin-top: 2px; }
 
       /* ------------------------------------------------ ミニマップ */
+      /* ゾーン: 右上。触UIの≡メニューボタン(#touch側)も同じ右上ゾーンに
+         入るため、常にこのパネルの高さぶんだけ下にずれる(--zone-tr-reserve) */
       #minimap-wrap { position: absolute; top: 14px; right: 14px; padding: 8px; }
       #minimap { display: block; image-rendering: pixelated; }
 
       /* ------------------------------------------------ ログ */
+      /* ゾーン: 左下。触UIの仮想パッド(#touch側)も同じ左下ゾーンに入るため、
+         パッドの高さぶんだけ上にずれる(--zone-bottom-reserve) */
       #log {
         position: absolute;
-        left: 14px; bottom: 14px;
+        left: 14px; bottom: calc(14px + var(--zone-bottom-reserve));
         max-width: 46vw;
         padding: 10px 14px;
         font-size: 13px;
@@ -151,6 +165,11 @@
       }
 
       /* ------------------------------------------------ 操作説明 */
+      /* ゾーン: 右下。#334: タッチ端末では触UIのアクションボタン群
+         (.touch-actions)が同じ右下ゾーンに常時表示されるため、キーボード
+         向けのこのパネルは pointer: coarse では出さない(操作説明自体は
+         「≡」メニューのH相当から`showKeyHelp`の全画面オーバーレイで見られる、
+         plan/touch-ui-overlap-fix.md) */
       #help {
         position: absolute;
         right: 14px; bottom: 14px;
@@ -161,6 +180,9 @@
         text-align: right;
       }
       #help b { color: var(--ink); font-weight: 600; }
+      @media (pointer: coarse) {
+        #help { display: none; }
+      }
 
       /* ------------------------------------------------ アクセシビリティ */
       /* plan/difficulty-modes.md: メッセージログ・メニューの文字サイズを2段階から選べる */
@@ -235,7 +257,21 @@
       }
       @media (pointer: coarse) {
         #touch { display: block; }
+        :root {
+          /*
+           * ゾーンレイアウト: 触UIが同居する2ゾーンぶんだけ、既存HUDの
+           * パネルをずらす予約量。
+           *   右上: ミニマップ(高さ約158px = canvas140 + padding16 + border2)
+           *         + 隙間10px の下に「≡」ボタンを置く
+           *   左下: 仮想パッド(bottom26px + 直径108px) + 隙間12px の上に
+           *         ログを置く
+           */
+          --zone-tr-reserve: 166px;
+          --zone-bottom-reserve: 132px;
+        }
       }
+      /* ゾーン: 左下。#log(メッセージログ)と同じゾーンに入るため、ログ側が
+         --zone-bottom-reserveぶん上へ押しやられる(このパッド自体は動かない) */
       .touch-pad {
         position: absolute;
         left: 26px; bottom: 26px;
@@ -257,6 +293,8 @@
         pointer-events: none;
         transition: transform 0.05s linear;
       }
+      /* ゾーン: 右下。#help(操作説明)は同ゾーンに入るが pointer: coarse では
+         非表示にしてある(#help側の定義を参照)ため、常に単独で使える */
       .touch-actions {
         position: absolute;
         right: 18px; bottom: 22px;
@@ -291,9 +329,11 @@
         border-color: rgba(255, 138, 128, 0.55);
         font-weight: 700;
       }
+      /* ゾーン: 右上。ミニマップ(#minimap-wrap)と同じゾーンに入るため、
+         --zone-tr-reserveぶんだけその下に押しやる */
       .touch-menu-btn {
         position: absolute;
-        right: 16px; top: 16px;
+        right: 16px; top: calc(16px + var(--zone-tr-reserve));
         pointer-events: auto;
         width: 42px; height: 42px;
         border-radius: 8px;
@@ -305,7 +345,7 @@
       }
       .touch-menu {
         position: absolute;
-        right: 16px; top: 64px;
+        right: 16px; top: calc(64px + var(--zone-tr-reserve));
         pointer-events: auto;
         display: flex;
         flex-direction: column;
@@ -327,6 +367,39 @@
         text-align: left;
         touch-action: none;
       }
+
+      /* ------------------------------------------------ 縦持ち案内(plan/touch-ui-overlap-fix.md) */
+      /*
+       * タッチ端末(pointer: coarse)かつ縦持ち(orientation: portrait)のときだけ、
+       * `src/ui/orientation-guard.ts`がdocument.bodyへportrait-lockクラスを
+       * 付ける。専用の縦持ちレイアウトは作らず(意図的に対象外)、ゲーム画面
+       * (3Dビューポート・HUD一式)を隠して案内だけを表示する。横向きに戻せば
+       * クラスが外れ、自動的に元のレイアウトへ戻る
+       */
+      #rotatePrompt {
+        display: none;
+        position: absolute;
+        inset: 0;
+        z-index: 40;
+        flex-direction: column;
+        align-items: center; justify-content: center;
+        gap: 14px;
+        padding: 24px;
+        text-align: center;
+        background: #05060c;
+      }
+      #rotatePrompt .rotate-icon { font-size: 42px; }
+      #rotatePrompt p { margin: 0; font-size: 15px; line-height: 1.75; color: var(--ink); }
+      #rotatePrompt .hint { font-size: 12px; color: var(--dim); }
+
+      body.portrait-lock #scene,
+      body.portrait-lock #ui,
+      body.portrait-lock #gallery-info,
+      body.portrait-lock #village-hint,
+      body.portrait-lock #loading {
+        display: none;
+      }
+      body.portrait-lock #rotatePrompt { display: flex; }
 
       /* ------------------------------------------------ メニュー */
       #menu, #stance, #arts, #stairsConfirm {
@@ -642,6 +715,14 @@
       <div id="loading">
         <h1>少年ガルドと迷いの洞窟</h1>
         <p>モデルを読み込んでいます…</p>
+      </div>
+
+      <!-- 縦持ち案内(plan/touch-ui-overlap-fix.md)。表示切り替えはCSS
+           (body.portrait-lock)まかせで、中身のJS依存は無い -->
+      <div id="rotatePrompt">
+        <div class="rotate-icon" aria-hidden="true">📱↻</div>
+        <p>画面を横向きにしてください</p>
+        <p class="hint">この端末は横向き専用のレイアウトです</p>
       </div>
     </div>
 

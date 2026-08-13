@@ -19,6 +19,7 @@ import { ArtsMenu } from "./ui/arts";
 import { EndingScreen } from "./ui/ending";
 import { InventoryMenu } from "./ui/menu";
 import { NamingDialog } from "./ui/naming-dialog";
+import { OrientationGuard } from "./ui/orientation-guard";
 import { StairsConfirmModal } from "./ui/stairs-confirm";
 import { StanceMenu } from "./ui/stance";
 import { TouchControls } from "./ui/touch-controls";
@@ -180,6 +181,9 @@ class App {
     // タッチ操作(plan/touch-controls.md): Inputへ直接press/releaseするだけの
     // 入力ソースなので、以後参照する必要が無く、フィールドには保持しない
     new TouchControls(document.querySelector<HTMLElement>("#touch")!, this.canvas, this.input);
+    // 縦持ち案内(plan/touch-ui-overlap-fix.md): matchMediaの監視結果を
+    // document.bodyへクラスとして反映するだけなので、以後参照する必要が無い
+    new OrientationGuard();
     this.town = new TownScreen(document.querySelector<HTMLElement>("#town")!);
     this.namingDialog = new NamingDialog(document.querySelector<HTMLElement>("#naming")!);
     this.slotSelect = new SlotSelectScreen(document.querySelector<HTMLElement>("#slotSelect")!);
