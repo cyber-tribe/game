@@ -735,10 +735,10 @@ export const SPECIES: readonly Species[] = [
 
   // 第三地方: まどろみの茸林(design/regions.md 13〜18階)。+4
   {
-    // 眠気を吸い込んで育った茸そのもの。madoromiモデルを流用する
+    // 眠気を吸い込んで育った茸そのものが人の形に育ったもの。専用モデル
     id: "kinokootoko",
     name: "きのこおとこ",
-    model: "madoromi",
+    model: "kinokootoko",
     maxHp: 34,
     atk: 19,
     def: 9,
