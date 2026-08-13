@@ -1,5 +1,6 @@
 import type { Command } from "../game";
-import { ALLY_STANCE_NAMES, type AllyActor, type AllyStance } from "../core/types";
+import { ALLY_STANCE_NAMES } from "../entities/displayNames";
+import type { AllyActor, AllyStance } from "../core/types";
 
 const STANCES: readonly AllyStance[] = ["free", "guard", "hold", "vanguard"];
 

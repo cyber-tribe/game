@@ -438,13 +438,6 @@ export function hasStatus(actor: Actor, kind: StatusKind): boolean {
  */
 export type AllyStance = "free" | "guard" | "hold" | "vanguard";
 
-export const ALLY_STANCE_NAMES: Record<AllyStance, string> = {
-  free: "おまかせ",
-  guard: "そばにいろ",
-  hold: "そこで待て",
-  vanguard: "先陣を切れ",
-};
-
 /** 夢あわせ(plan/monster-fusion.md)で引き継げる特技。定義は entities/skills.ts */
 export type SkillId =
   | "quickStart"
@@ -666,12 +659,6 @@ export interface Barrel {
    */
   decoy?: boolean;
 }
-
-export const BARREL_NAMES: Record<BarrelKind, string> = {
-  empty: "からのタル",
-  bomb: "ばくはつタル",
-  caught: "モンスター入りのタル",
-};
 
 // ---------------------------------------------------------------- フロアギミック
 

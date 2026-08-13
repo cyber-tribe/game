@@ -12,8 +12,6 @@ import {
 } from "./core/grid";
 import type { GameEvent } from "./core/events";
 import {
-  ALLY_STANCE_NAMES,
-  BARREL_NAMES,
   STATUS_CONFUSE,
   STATUS_FEAR,
   STATUS_INVISIBLE,
@@ -77,6 +75,7 @@ import {
   spawnWanderingMonster,
 } from "./dungeon/populate";
 import { displayActorName } from "./entities/naming";
+import { ALLY_STANCE_NAMES, BARREL_NAMES } from "./entities/displayNames";
 import {
   CHAPTER3_COLLAPSE_DEPTH,
   type DungeonDef,

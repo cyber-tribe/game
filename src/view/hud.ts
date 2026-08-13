@@ -1,11 +1,10 @@
 import * as THREE from "three";
 import type { DamageFx } from "./stage";
 import { displayActorName } from "../entities/naming";
+import { ALLY_STANCE_NAMES, BARREL_NAMES } from "../entities/displayNames";
 import { MAX_SATIETY, type PlayerState, expToNext } from "../entities/player";
 import { t } from "../i18n";
 import {
-  ALLY_STANCE_NAMES,
-  BARREL_NAMES,
   STATUS_CONFUSE,
   STATUS_SEAL,
   STATUS_SLEEP,
