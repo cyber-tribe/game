@@ -4802,6 +4802,106 @@ def mizukagami_animations():
     ]
 
 
+# ========================================================================= なきむし
+
+NAKIMUSHI_HALF = {
+    "hip": (0.0, 0.06, 0.10),
+    "chest": (0.0, -0.03, 0.115),
+    "head": (0.0, -0.12, 0.115),
+    "armF.L": (0.075, -0.08, 0.06),
+    "handF.L": (0.09, -0.11, 0.02),
+    "kneeB.L": (0.10, 0.06, 0.10),
+    "ankleB.L": (0.09, -0.02, 0.03),
+    "footB.L": (0.085, -0.075, 0.012),
+}
+NAKIMUSHI_RADII_HALF = {
+    "hip": 0.095, "chest": 0.10, "head": 0.085,
+    "armF.L": 0.022, "handF.L": 0.026,
+    "kneeB.L": 0.024, "ankleB.L": 0.016, "footB.L": 0.010,
+}
+NAKIMUSHI_BONES_HALF = [
+    ("chest", "hip"), ("chest", "head"),
+    ("chest", "armF.L"), ("armF.L", "handF.L"),
+    ("hip", "kneeB.L"), ("kneeB.L", "ankleB.L"), ("ankleB.L", "footB.L"),
+]
+
+
+def build_nakimushi():
+    """
+    泣きやまない小さな夢。tsubuteと同じ関節構成をベースに、群れの1体分
+    として簡略化した小さなシルエットに縮める。目を大きく見開いて
+    しゃくり上げ、頬に涙の筋を垂らし、口を大きく開けて泣き叫ぶ顔にする。
+    配色は第五地方(なみだの滝つぼ)の、涙と滝つぼを思わせる沈んだ
+    青・藍色系。
+    """
+    joints = C.mirrored(NAKIMUSHI_HALF)
+    radii = C.mirrored_radii(NAKIMUSHI_RADII_HALF)
+    bones = C.mirrored_bones(NAKIMUSHI_BONES_HALF)
+
+    body = C.build_skinned("nakimushi", joints, bones, radii, root="chest", subsurf=2)
+    skin = C.make_material("nakimushi_skin", (0.24, 0.28, 0.42), roughness=0.65)
+    C.assign_material(body, skin)
+
+    extras = []
+    for side in (-1.0, 1.0):
+        extras += eyeball(f"nakimushi_eye{side}", (0.048 * side, -0.155, 0.135), 0.026,
+                          look=(0.2 * side, -1.0, 0.1),
+                          white=(0.86, 0.90, 0.94), dark=(0.12, 0.16, 0.26))
+        # 頬を伝う涙の筋
+        tear = C.uv_sphere(f"nakimushi_tear{side}", (0.052 * side, -0.140, 0.095), 0.016,
+                           segments=10, rings=8, scale=(0.7, 0.7, 1.7))
+        C.assign_material(tear, C.make_material(f"nakimushi_tear{side}_m", (0.66, 0.78, 0.90),
+                                                roughness=0.2))
+        extras.append(tear)
+    mouth = C.uv_sphere("nakimushi_mouth", (0.0, -0.175, 0.078), 0.038,
+                        segments=14, rings=10, scale=(0.85, 0.7, 1.0))
+    C.assign_material(mouth, C.make_material("nakimushi_mouth_m", (0.10, 0.08, 0.14), roughness=0.5))
+    extras.append(mouth)
+
+    mesh = C.join([body] + extras, "nakimushi")
+    armature = C.build_armature("nakimushi", joints, bones, mesh, root="chest")
+    return [mesh, armature], armature
+
+
+def nakimushi_animations():
+    head = "chest-head"
+    armL, armR = "chest-armF.L", "chest-armF.R"
+    legL, legR = "hip-kneeB.L", "hip-kneeB.R"
+    return [
+        # しゃくり上げるように、絶えず小刻みに震える
+        ("idle", [
+            (1, {head: (0, 0, 0)}),
+            (6, {head: (5, 0, 0), armL: (0, 0, 6), armR: (0, 0, -6)}),
+            (12, {head: (0, 0, 0), armL: (0, 0, 0), armR: (0, 0, 0)}),
+            (18, {head: (5, 0, 0), armL: (0, 0, 6), armR: (0, 0, -6)}),
+            (24, {head: (0, 0, 0), armL: (0, 0, 0), armR: (0, 0, 0)}),
+        ]),
+        ("walk", [
+            (1, {legL: (0, 0, 20), legR: (0, 0, -20), armL: (0, 0, -14), armR: (0, 0, 14)}),
+            (7, {legL: (0, 0, -20), legR: (0, 0, 20), armL: (0, 0, 14), armR: (0, 0, -14)}),
+            (14, {legL: (0, 0, 20), legR: (0, 0, -20), armL: (0, 0, -14), armR: (0, 0, 14)}),
+        ]),
+        # 小さな体を反らせて、精一杯泣き声を上げる
+        ("attack", [
+            (1, {head: (0, 0, 0)}),
+            (5, {head: (-18, 0, 0), armL: (-14, 0, 10), armR: (-14, 0, -10)}),
+            (10, {head: (14, 0, 0), armL: (10, 0, -8), armR: (10, 0, 8)}),
+            (18, {head: (0, 0, 0), armL: (0, 0, 0), armR: (0, 0, 0)}),
+        ]),
+        ("hit", [
+            (1, {head: (0, 0, 0)}),
+            (4, {head: (16, 0, 0), armL: (-10, 0, 12), armR: (-10, 0, -12)}),
+            (12, {head: (0, 0, 0), armL: (0, 0, 0), armR: (0, 0, 0)}),
+        ]),
+        # 声を上げきったように、体がしぼんで消える
+        ("die", [
+            (1, {head: (0, 0, 0)}),
+            (9, {head: (10, 0, 0), legL: (0, 0, -18), legR: (0, 0, 18)}),
+            (20, {head: (20, 0, 0), legL: (0, 0, -40), legR: (0, 0, 40)}),
+        ]),
+    ]
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -4843,6 +4943,7 @@ MONSTERS = {
     "nadakaze": (build_nadakaze, nadakaze_animations),
     "shioresakura": (build_shioresakura, shioresakura_animations),
     "mizukagami": (build_mizukagami, mizukagami_animations),
+    "nakimushi": (build_nakimushi, nakimushi_animations),
 }
 
 
