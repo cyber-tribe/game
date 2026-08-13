@@ -1,3 +1,10 @@
+> **実装済み(コード変更なし)。** `src/entities/species.ts`の`id:
+> "subetenopurun"`エントリを確認し、本文書のデータ表(AI/maxHp/atk/def/
+> exp/weight/出現階/sleep付与率/瀕死時攻撃力ボーナス)がすべて一致すること
+> を検証した(`inflicts: { kind: "sleep", chance: 0.12, turns: 2 }`、
+> `lowHpAtkBonusMax: 0.15`)。差分なし。本文書はコードを伴わない記録用の
+> 文書のため、追加の実装は行わない。
+
 # すべてのぷるん(subetenopurun)のモンスター実装
 
 `src/entities/species.ts`にすでに実装済みの内容を、正式なplanとして
