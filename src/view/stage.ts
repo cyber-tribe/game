@@ -313,6 +313,7 @@ export class Stage {
       crackWarning: noop,
       mountainCoreCleared: noop,
       trueAwakeningCleared: noop,
+      tarukurabeFinished: noop,
     };
   }
 

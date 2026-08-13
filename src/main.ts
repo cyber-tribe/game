@@ -48,6 +48,7 @@ import {
   markVillageEventSeen,
   migrateLegacySaveIfNeeded,
   recordRun,
+  recordTarukurabeResult,
   refreshBoard,
   refreshUnlockedCostumes,
   releaseCompanion,
@@ -71,7 +72,7 @@ import {
 } from "./save";
 import type { DifficultyMode } from "./entities/difficulty";
 import { costumeById } from "./entities/costumes";
-import { MAIN_CAVE_ID, REGION_SIZE, TRUE_AWAKENING_ID } from "./entities/dungeons";
+import { MAIN_CAVE_ID, REGION_SIZE, TARUKURABE_ID, TRUE_AWAKENING_ID } from "./entities/dungeons";
 import { DEFAULT_MOOD_ID, MOOD_VISUALS, moodForDate } from "./entities/moods";
 import { todayKey } from "./entities/quests";
 import { STORY_CHAPTER_MESSAGES, storyChapter, storyChapterEventId } from "./entities/story";
@@ -407,10 +408,16 @@ class App {
       deepest: this.save.deepest,
     });
     this.presentFloor();
-    this.hud.log(`地下${this.game.depth}階。最深記録は ${this.save.deepest} 階。`);
-    this.hud.log("洞窟に降りた。階段をさがそう。");
-    // 「移動と攻撃」だけは特定のGameEventに紐づかないので、ここで直接出す
-    this.showTutorialTip("moveAndAttack");
+    // 樽比べ(plan/tarukurabe-minigame.md): 通常ダイブの「階段をさがそう」は
+    // 移動もできない専用モードでは的外れなので、専用の案内に差し替える
+    if (dungeonId === TARUKURABE_ID) {
+      this.hud.log(`タルは${this.game.tarukurabeBarrelsLeft}個。Fで持ち上げ、Gで投げて的を狙おう。`);
+    } else {
+      this.hud.log(`地下${this.game.depth}階。最深記録は ${this.save.deepest} 階。`);
+      this.hud.log("洞窟に降りた。階段をさがそう。");
+      // 「移動と攻撃」だけは特定のGameEventに紐づかないので、ここで直接出す
+      this.showTutorialTip("moveAndAttack");
+    }
   }
 
   /**
@@ -915,6 +922,10 @@ class App {
       trueAwakeningCleared: () => {
         this.trueAwakeningClearedThisRun = true;
       },
+      // 樽比べ(plan/tarukurabe-minigame.md): 実際の終了処理はgameOverと同じく
+      // 下のevents.find(over)側で行う(finishTarukurabeがgame.tarukurabeScoreを
+      // 直接読む)。このイベント自体はUI側への通知用で、ハンドラは無し
+      tarukurabeFinished: noop,
     };
   }
 
@@ -972,7 +983,32 @@ class App {
     const over = events.find((e): e is Extract<GameEvent, { type: "gameOver" }> =>
       e.type === "gameOver",
     );
-    if (over) this.finish(over.reason);
+    if (over) {
+      // 樽比べ(plan/tarukurabe-minigame.md): 通常のダイブ結果(持ち帰り・
+      // 実績・依頼の集計)とは全く別物なので、finish()には通さない
+      if (this.game.dungeonId === TARUKURABE_ID) {
+        this.finishTarukurabe(over.reason);
+      } else {
+        this.finish(over.reason);
+      }
+    }
+  }
+
+  /**
+   * 樽比べ(plan/tarukurabe-minigame.md)。recordRunは呼ばない(deepest・
+   * 依頼板集計・持ち帰りといった通常ダイブの記録は一切発生しない、完全に
+   * 独立したミニゲームのため)。自己ベスト・報酬・実績だけをrecordTarukurabeResult
+   * にまとめて反映する
+   */
+  private finishTarukurabe(reason: string): void {
+    this.ended = true;
+    this.save = recordTarukurabeResult(this.save, this.game.tarukurabeScore);
+    saveData(this.save);
+    this.hud.showOverlay(
+      "樽比べ終了!",
+      `合計 ${this.game.tarukurabeScore} 点 ・ 自己ベスト ${this.save.tarukurabeBestScore} 点`,
+      `${reason} — R キーで拠点にもどる`,
+    );
   }
 
   private finish(reason: string): void {

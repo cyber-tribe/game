@@ -66,6 +66,14 @@ export const MOUNTAIN_CORE_ID = "mountainCore";
  * (src/save.ts)で解放判定してから別枠で表示する
  */
 export const TRUE_AWAKENING_ID = "trueAwakening";
+/**
+ * 樽比べ(plan/tarukurabe-minigame.md)。村はずれの的当てミニゲーム。
+ * unlockはtrueAwakeningと同じ理由で"always"にしている。日付ベースの
+ * 開催判定(isTarukurabeDay、src/entities/festivals.ts)は`DungeonDef.unlock`
+ * の型に乗らないため、src/ui/town.tsが通常の一覧から明示的に除外し、
+ * 開催日にだけ末尾に追加する
+ */
+export const TARUKURABE_ID = "tarukurabe";
 
 export const DUNGEONS: readonly DungeonDef[] = [
   {
@@ -126,6 +134,13 @@ export const DUNGEONS: readonly DungeonDef[] = [
     unlock: "always",
     // 山の芯と同じく、第八地方相当のモンスターテーブルを流用する
     floorOffset: 42,
+  },
+  {
+    id: TARUKURABE_ID,
+    name: "樽比べ",
+    description: "村はずれの的当て。タル10個で3つの的すべてに命中させ、自己ベストを縮める。",
+    maxDepth: 1,
+    unlock: "always",
   },
 ];
 

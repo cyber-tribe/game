@@ -87,7 +87,13 @@ export interface Status {
 
 // ---------------------------------------------------------------- アクター
 
-export type ActorKind = "player" | "monster" | "ally";
+/**
+ * "target"は樽比べ(plan/tarukurabe-minigame.md)専用の非戦闘アクター。
+ * hpは1、aiKindを持たず、isRegionBoss等のボス系フラグも一切持たない
+ * 軽量な的。teamOf/isHostileは他の非モンスターと同じ扱い(0陣営)になるが、
+ * 樽比べの部屋には野生モンスターが存在しないため実害はない
+ */
+export type ActorKind = "player" | "monster" | "ally" | "target";
 
 /**
  * 陣営。プレイヤーと仲間が 0、モンスターが 1。
@@ -359,6 +365,10 @@ export interface Actor {
    * 直後は未設定(ダイブ中は夢あわせを行えないため、この値自体は変化しない)
    */
   recentFusionMaterials?: string[];
+
+  // ---- 以下は target(樽比べ、plan/tarukurabe-minigame.md)のみ ----
+  /** 命中したときに加算する得点(近1・中2・遠3) */
+  tarukurabePoints?: number;
 }
 
 export function hasStatus(actor: Actor, kind: StatusKind): boolean {

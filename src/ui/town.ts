@@ -23,12 +23,13 @@ import { COSTUMES, type CostumeDef } from "../entities/costumes";
 import {
   DUNGEONS,
   type DungeonDef,
+  TARUKURABE_ID,
   TRUE_AWAKENING_ID,
   dungeonById,
   isDungeonUnlocked,
 } from "../entities/dungeons";
 import { dialogueContext, dialoguePoolFor } from "../entities/dialogue";
-import { FESTIVAL_SHOP_OFFERS, isYoimatsuri } from "../entities/festivals";
+import { FESTIVAL_SHOP_OFFERS, isTarukurabeDay, isYoimatsuri } from "../entities/festivals";
 import { moodForDate } from "../entities/moods";
 import { MAX_ALLIES, type TrainingFocus } from "../entities/player";
 import { todayKey } from "../entities/quests";
@@ -315,7 +316,9 @@ export class TownScreen {
    * 複数のダンジョン(plan/multiple-dungeons.md)。解放済みのものだけを選択できる。
    * 真の目覚め(plan/true-awakening.md、TRUE_AWAKENING_ID)は通常のunlock判定には
    * 乗せず(dungeons.tsのコメント参照)、isTrueAwakeningUnlockedを満たした
-   * ときだけ末尾に追加する隠し要素として扱う
+   * ときだけ末尾に追加する隠し要素として扱う。樽比べ(plan/tarukurabe-
+   * minigame.md、TARUKURABE_ID)も同じ理由で除外し、isTarukurabeDayの日
+   * だけ末尾に追加する
    */
   private unlockedDungeons(): DungeonDef[] {
     const deepest = this.save?.deepest ?? 0;
@@ -325,10 +328,14 @@ export class TownScreen {
     const normal = DUNGEONS.filter(
       (d) =>
         d.id !== TRUE_AWAKENING_ID &&
+        d.id !== TARUKURABE_ID &&
         isDungeonUnlocked(d, deepest, villageStage, foundPassageCount, defeatedRegionBosses),
     );
     if (this.save && isTrueAwakeningUnlocked(this.save)) {
       normal.push(dungeonById(TRUE_AWAKENING_ID));
+    }
+    if (isTarukurabeDay(todayKey())) {
+      normal.push(dungeonById(TARUKURABE_ID));
     }
     return normal;
   }
@@ -1299,14 +1306,21 @@ export class TownScreen {
 
   private departNow(): void {
     const depart = this.depart;
-    const carry = this.carry.map((s) => ({ ...s }));
-    const storage = this.storage.map((s) => ({ ...s }));
     const dungeon = this.unlockedDungeons()[this.dungeonIndex] ?? DUNGEONS[0]!;
+    // 樽比べ(plan/tarukurabe-minigame.md): 持ち込み品・仲間は使い道が無い
+    // 専用モードなので、選択中でも一切連れて行かせない(倉庫に留め置く)。
+    // recordRun経由の「踏破時に持ち帰る」処理を樽比べでは呼ばないため、
+    // ここで持ち出させないことが唯一のロスト防止策になる
+    const isTarukurabe = dungeon.id === TARUKURABE_ID;
+    const carry = isTarukurabe ? [] : this.carry.map((s) => ({ ...s }));
+    const storage = (isTarukurabe ? [...this.storage, ...this.carry] : this.storage).map((s) => ({
+      ...s,
+    }));
     // 出発地点(めざめの階段)は表の寝穴だけの仕組み。他のダンジョンは常に1階から
     const startDepth = dungeon.id === DUNGEONS[0]!.id ? this.checkpoints()[this.startDepthIndex] ?? 1 : 1;
     const trainingFocus = TRAINING_FOCI[this.trainingFocusIndex] ?? "balance";
     const difficulty = DIFFICULTY_MODES[this.difficultyIndex] ?? "normal";
-    const bringAllyUids = [...this.bringUids];
+    const bringAllyUids = isTarukurabe ? [] : [...this.bringUids];
     this.hide();
     depart?.(carry, storage, startDepth, trainingFocus, bringAllyUids, difficulty, dungeon.id);
   }
@@ -1990,8 +2004,10 @@ export class TownScreen {
     // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
     list.setAttribute("role", "list");
     // 真の目覚め(plan/true-awakening.md)は隠し要素として扱う。3条件が
-    // すべて揃うまでは、未解放のヒント表示すらこの一覧に出さない
-    DUNGEONS.filter((d) => d.id !== TRUE_AWAKENING_ID).forEach((dungeon) => {
+    // すべて揃うまでは、未解放のヒント表示すらこの一覧に出さない。
+    // 樽比べ(plan/tarukurabe-minigame.md)も同じく、開催日以外は一覧に出さない
+    // (宵祭りの出店と同じく、開催日以外は存在自体を示さない扱い)
+    DUNGEONS.filter((d) => d.id !== TRUE_AWAKENING_ID && d.id !== TARUKURABE_ID).forEach((dungeon) => {
       const li = document.createElement("li");
       if (isDungeonUnlocked(dungeon, deepest, villageStage, foundPassageCount, defeatedRegionBosses)) {
         li.textContent = dungeon.name;
@@ -2014,6 +2030,15 @@ export class TownScreen {
       const li = document.createElement("li");
       li.textContent = trueAwakening.name;
       if (this.column === 12 && unlocked[this.dungeonIndex]?.id === trueAwakening.id) {
+        li.classList.add("selected");
+      }
+      list.appendChild(li);
+    }
+    if (isTarukurabeDay(todayKey())) {
+      const tarukurabe = dungeonById(TARUKURABE_ID);
+      const li = document.createElement("li");
+      li.textContent = `${tarukurabe.name}(自己ベスト: ${this.save?.tarukurabeBestScore ?? 0}点)`;
+      if (this.column === 12 && unlocked[this.dungeonIndex]?.id === tarukurabe.id) {
         li.classList.add("selected");
       }
       list.appendChild(li);
