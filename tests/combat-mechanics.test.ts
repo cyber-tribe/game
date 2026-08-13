@@ -92,7 +92,7 @@ describe("不意打ち", () => {
       const setup = faceOpenDirection(game);
       if (!setup) continue;
       const monster = putMonster(game, setup.front, { aware: false });
-      const events = game.command({ type: "move", dir: setup.dir });
+      const events = game.command({ type: "attack" });
       const damage = events.find(
         (e): e is Extract<typeof events[number], { type: "damage" }> =>
           e.type === "damage" && e.actorId === monster.id,
@@ -114,7 +114,7 @@ describe("不意打ち", () => {
       if (!setup) continue;
       const monster = putMonster(game, setup.front, { aware: true, hp: 100000, maxHp: 100000 });
       for (let i = 0; i < 20; i++) {
-        const events = game.command({ type: "move", dir: setup.dir });
+        const events = game.command({ type: "attack" });
         const damage = events.find(
           (e): e is Extract<typeof events[number], { type: "damage" }> =>
             e.type === "damage" && e.actorId === monster.id,
@@ -176,11 +176,11 @@ describe("身構え(足踏み)", () => {
     for (let seed = 1; seed <= 20; seed++) {
       const setup = setupAdjacentBrawl(seed);
       if (!setup) continue;
-      const { game, dir } = setup;
+      const { game } = setup;
 
       game.player.guarding = true;
       const before = game.player.hp;
-      game.command({ type: "move", dir }); // 攻撃 → 同一ターン内でモンスターが反撃
+      game.command({ type: "attack" }); // 攻撃 → 同一ターン内でモンスターが反撃
       const guardedDamage = before - game.player.hp;
       if (guardedDamage <= 0) continue; // 反撃が起きなければ別seedで試す
 
@@ -189,7 +189,7 @@ describe("身構え(足踏み)", () => {
       // 同じ seed・同じ手順で、身構えていない場合のダメージと比較する
       const unguarded = setupAdjacentBrawl(seed)!;
       const beforeU = unguarded.game.player.hp;
-      unguarded.game.command({ type: "move", dir: unguarded.dir });
+      unguarded.game.command({ type: "attack" });
       const unguardedDamage = beforeU - unguarded.game.player.hp;
 
       expect(guardedDamage, `seed=${seed}`).toBeLessThan(unguardedDamage);

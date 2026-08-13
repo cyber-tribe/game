@@ -193,7 +193,7 @@ describe("印の戦闘効果", () => {
       const setup = faceOpenDirection(game);
       if (!setup) continue;
       const monster = putMonster(game, setup.front);
-      const events = game.command({ type: "move", dir: setup.dir });
+      const events = game.command({ type: "attack" });
       const damage = events.find(
         (e): e is Extract<(typeof events)[number], { type: "damage" }> =>
           e.type === "damage" && e.actorId === monster.id,
@@ -254,7 +254,7 @@ describe("印の戦闘効果", () => {
       const monster = putMonster(game, setup.front, { hp: 10_000_000, maxHp: 10_000_000, aware: true });
       let slept = false;
       for (let i = 0; i < 60 && !slept; i++) {
-        game.command({ type: "move", dir: setup.dir });
+        game.command({ type: "attack" });
         if (hasStatus(monster, STATUS_SLEEP)) slept = true;
       }
       if (!slept) continue; // このseedでは60回でも眠らなかった。念のため別seedで試す

@@ -19,7 +19,7 @@ export type TutorialTipId =
   | "allyOrders";
 
 export const TUTORIAL_TIPS: Record<TutorialTipId, string> = {
-  moveAndAttack: "矢印かWASDで歩けるよ。モンスターのいる方へ進むと、そのまま殴りかかる。",
+  moveAndAttack: "矢印かWASDで歩けるよ。モンスターのいる方へ進むと1マス押し出せる。Xキーで、向いている方向へ攻撃できる。",
   pickup: "足元に落ちているものは Space で拾えるよ。",
   barrel: "F でタルを持ち上げ、G で投げられる。抱えている間は拾いものができないよ。",
   weakenThenThrow: "からのタルは、モンスターを弱らせてからぶつけると吸い込みやすくなるよ。",

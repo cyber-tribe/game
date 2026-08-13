@@ -1,4 +1,4 @@
-import type { Input } from "../view/input";
+import { ATTACK_KEY_CODE, type Input } from "../view/input";
 
 /**
  * タッチ操作(plan/touch-controls.md)。`Input.held`/`pending`はキーコードの
@@ -6,8 +6,10 @@ import type { Input } from "../view/input";
  * ("ArrowUp"・"Space"等)を`Input.press`/`release`へ渡すだけで済み、
  * `src/core`・`src/game.ts`には一切手を入れていない。
  *
- * `plan/attack-button.md`(専用の攻撃キー)は本セッション時点で未実装のため、
- * 攻撃ボタンは設けていない(現行どおり、パッドでの移動が敵への接触攻撃を兼ねる)。
+ * `plan/attack-button.md`(専用の攻撃キー)対応: パッドでの移動は敵の方向へ
+ * 進むと「押し出し」になり(攻撃ではない)、常時表示のアクションボタン群に
+ * 攻撃専用ボタン(`ATTACK_KEY_CODE`)を新設した。攻撃はプレイヤーが向いている
+ * 方向へその場から動かず繰り出す。
  */
 
 const DEAD_ZONE_RADIUS = 18;
@@ -85,6 +87,7 @@ export class TouchControls {
         <div class="touch-pad-knob"></div>
       </div>
       <div class="touch-actions">
+        <button type="button" class="touch-btn touch-btn-attack" data-code="${ATTACK_KEY_CODE}">攻撃</button>
         <button type="button" class="touch-btn" data-code="KeyF">タル</button>
         <button type="button" class="touch-btn" data-code="KeyG">投げる</button>
         <button type="button" class="touch-btn" data-code="KeyI">道具</button>

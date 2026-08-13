@@ -69,7 +69,7 @@ describe("2つ目の刻印(plan/dual-mark-equipment.md)", () => {
       const setup = faceOpenDirection(game);
       if (!setup) continue;
       const monster = putMonster(game, setup.front);
-      const events = game.command({ type: "move", dir: setup.dir });
+      const events = game.command({ type: "attack" });
       const damage = events.find(
         (e): e is Extract<(typeof events)[number], { type: "damage" }> =>
           e.type === "damage" && e.actorId === monster.id,

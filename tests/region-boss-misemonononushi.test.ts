@@ -195,7 +195,7 @@ describe("game.ts: 幻影を攻撃するとダメージなしで消え、本体�
     game.player.facing = 2; // 東(mirrorの方向)
     const hpBefore = game.player.hp;
 
-    const events = game.command({ type: "move", dir: 2 });
+    const events = game.command({ type: "attack" });
 
     expect(game.floor.actors.some((a) => a.id === mirror.id)).toBe(false);
     expect(game.player.hp).toBeLessThan(hpBefore);
@@ -212,7 +212,8 @@ describe("game.ts: 幻影を攻撃するとダメージなしで消え、本体�
     game.player.pos = { x: 5, y: 5 };
     const bossHpBefore = boss.hp;
 
-    game.command({ type: "move", dir: 2 });
+    game.command({ type: "face", dir: 2 });
+    game.command({ type: "attack" });
 
     expect(boss.hp).toBeLessThan(bossHpBefore);
     expect(game.floor.actors.some((a) => a.id === mirror1.id)).toBe(false);

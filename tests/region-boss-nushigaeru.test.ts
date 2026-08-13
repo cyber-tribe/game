@@ -229,7 +229,8 @@ describe("game.ts: 深みタイルでの潜伏(STATUS_INVISIBLE)", () => {
 
     game.player.pos = from;
     const dir = dirFromDelta(boss.pos.x - from.x, boss.pos.y - from.y);
-    game.command({ type: "move", dir });
+    game.command({ type: "face", dir });
+    game.command({ type: "attack" });
 
     expect(boss.hp).toBe(beforeHp);
   });

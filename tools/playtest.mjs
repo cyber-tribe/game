@@ -228,13 +228,19 @@ for (let i = 0; i < STEP_IN_PLACE; i++) {
 console.log(`足踏み${STEP_IN_PLACE}回後:`, JSON.stringify(await readHud(), null, 1));
 
 // モンスターの隣に立って殴り合う。攻撃・被弾・撃破の流れを見る
+//
+// 攻撃専用キー(plan/attack-button.md)導入により、移動キーで敵の方向へ
+// 進んでも「押し出し」になるだけで攻撃にはならない。debugFightNearest()は
+// 既にモンスターの方向へ向かせたうえで攻撃キーのコードを返すので、それを
+// tapする。keydownのrepeatは無視される作りのため、押しっぱなしではなく
+// 1手ごとにtapを繰り返す(他の一度きり操作と同じやり方)
 const fight = await page.evaluate(() => globalThis.__app.debugFightNearest());
 console.log("戦闘準備:", fight);
-// 移動と攻撃は「押しっぱなし」を見て判定しているので、press では動かない
-await page.keyboard.down(fight.key ?? "ArrowRight");
-await page.waitForTimeout(1900);
-await page.keyboard.up(fight.key ?? "ArrowRight");
-await settle();
+const ATTACK_KEY = "KeyX"; // src/view/input.ts の ATTACK_KEY_CODE と合わせる
+for (let i = 0; i < 6; i++) {
+  await page.keyboard.press(fight.key ?? ATTACK_KEY);
+  await settle();
+}
 await page.screenshot({ path: `${OUT}/08-after-fight.png` });
 console.log("戦闘後:", JSON.stringify(await readHud(), null, 1));
 
@@ -273,11 +279,13 @@ if (front) {
   await page.evaluate(() => globalThis.__app.debugGiveBarrel("empty"));
   await settle();
 
-  // HP満タンだと吸い込みにくいので、まず殴って弱らせる
-  await page.keyboard.down(front.key);
-  await page.waitForTimeout(1200);
-  await page.keyboard.up(front.key);
-  await settle();
+  // HP満タンだと吸い込みにくいので、まず殴って弱らせる。debugMonsterInFront()が
+  // 既にモンスターの方を向かせてあるので、移動キー(押し出しになってしまう)
+  // ではなく攻撃専用キー(front.key、plan/attack-button.md)をtapで繰り返す
+  for (let i = 0; i < 6; i++) {
+    await page.keyboard.press(front.key);
+    await settle();
+  }
 
   await page.keyboard.press("KeyG");
   await settle();

@@ -74,7 +74,7 @@ describe("Gameとトレーニングフォーカスの連携", () => {
     monster!.pos = { x: game.player.pos.x + delta.x, y: game.player.pos.y + delta.y };
 
     game.command({ type: "face", dir: dir! });
-    game.command({ type: "move", dir: dir! });
+    game.command({ type: "attack" });
 
     expect(game.player.level).toBeGreaterThan(1);
     expect(game.player.atk).toBeGreaterThan(beforeAtk);
@@ -102,7 +102,7 @@ describe("Gameとトレーニングフォーカスの連携", () => {
     monster!.pos = { x: resumed.player.pos.x + delta.x, y: resumed.player.pos.y + delta.y };
 
     resumed.command({ type: "face", dir: dir! });
-    resumed.command({ type: "move", dir: dir! });
+    resumed.command({ type: "attack" });
 
     expect(resumed.player.level).toBeGreaterThan(1);
     expect(resumed.player.atk).toBeGreaterThan(beforeAtk);
@@ -128,7 +128,7 @@ describe("Gameとトレーニングフォーカスの連携", () => {
     monster!.pos = { x: game.player.pos.x + delta.x, y: game.player.pos.y + delta.y };
 
     game.command({ type: "face", dir: dir! });
-    game.command({ type: "move", dir: dir! });
+    game.command({ type: "attack" });
 
     expect(game.player.level).toBeGreaterThan(1);
     expect(game.player.atk).toBeGreaterThan(beforeAtk);
