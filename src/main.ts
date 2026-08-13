@@ -648,16 +648,22 @@ class App {
   private handleGlobalAction(action: string): boolean {
     switch (action) {
       case "rotateLeft":
-        this.renderer.rotate(1);
+        // 手動カメラ操作(plan/gallery-interactive-camera.md): 図鑑ギャラリー表示中は
+        // ダンジョンのカメラではなく回転台を回す
+        if (this.town.gallerySpeciesId) this.gallery.rotate(1);
+        else this.renderer.rotate(1);
         return true;
       case "rotateRight":
-        this.renderer.rotate(-1);
+        if (this.town.gallerySpeciesId) this.gallery.rotate(-1);
+        else this.renderer.rotate(-1);
         return true;
       case "zoomIn":
-        this.renderer.zoom(-1.5);
+        if (this.town.gallerySpeciesId) this.gallery.zoom(-1);
+        else this.renderer.zoom(-1.5);
         return true;
       case "zoomOut":
-        this.renderer.zoom(1.5);
+        if (this.town.gallerySpeciesId) this.gallery.zoom(1);
+        else this.renderer.zoom(1.5);
         return true;
       case "photoMode":
         this.togglePhotoMode();

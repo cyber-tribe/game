@@ -350,6 +350,13 @@ export class TownScreen {
       if (code === "Escape" || code === "Enter" || code === "NumpadEnter") {
         this.galleryOpen = false;
         this.render();
+        return true;
+      }
+      // 手動カメラ操作(plan/gallery-interactive-camera.md): Q/E(回転)・+/-(ズーム)は
+      // ダンジョン内フォトモードと同じキーをそのまま流用するため、ここでは横取りせず
+      // 既存のグローバル操作(main.tsのhandleGlobalAction)へ素通しする
+      if (code === "KeyQ" || code === "KeyE" || code === "Equal" || code === "Minus") {
+        return false;
       }
       return true;
     }
