@@ -1,3 +1,13 @@
+> **実装済み(コード変更なし)。** `src/entities/species.ts`の`id:
+> "wasuremizuchi"`エントリを確認し、本文書のデータ表(AI/maxHp/atk/def/
+> exp/weight/出現階)がすべて一致することを確認した。同エントリの
+> コードコメントにあるとおり、由来にある「触れられると深みタイルへ
+> 逃げ込む」逃走先誘導は`plan/archive/monster-roster-expansion-
+> species.md`側で既存の`coward`(瀕死で離脱)のまま簡略化する判断が
+> 済んでおり、本文書のデータ表自体はそれを含まないため矛盾はない。
+> 本文書自体は追加のコード変更を要求していないため、記録としてそのまま
+> アーカイブする。
+
 # わすれみずち(wasuremizuchi)のモンスター実装
 
 `src/entities/species.ts`にすでに実装済みの内容を、正式なplanとして
