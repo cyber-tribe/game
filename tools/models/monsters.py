@@ -902,6 +902,194 @@ def kirimizuchi_animations():
                   legL: (-20, 0, 0), legR: (-20, 0, 0)}),
             (26, {trunk: (-70, 0, 0), head: (40, 0, 0), armL: (-60, 0, 40), armR: (-60, 0, -40),
                   legL: (-40, 0, 0), legR: (-40, 0, 0)}),
+# =================================================================== ぬかるみがに
+
+# 現在流用している`honegarami`と同じ関節の"種類"(胴の芯+腕+脚)を踏襲しつつ、
+# 「がっしりした低い体格」に合わせて座標・太さは全面的に作り直した
+# (honegaramiは直立二足の細身、こちらは低く這うがに股の甲殻)。
+NUKARUMIGANI_HALF = {
+    # tsubute(蛙)と同じく、胴の関節はZをほぼ揃えたまま前後(Y)で並べる
+    # (Zまで一緒に上げると関節列が弧を描いて「くの字のイモムシ」になる、
+    # 最初の試作の失敗)。
+    #
+    # honegaramiのように「胴の芯をhip-chestの2関節に分け、それぞれに
+    # 左右対称の脚・腕をぶら下げる」構成を最初は試したが、隣接する2つの
+    # 分岐点(hip・chest)がどちらも「親1つ+左右対称の子2つ」を持つと、
+    # 関節位置をどう調整してもSkinモディファイアが面を正しく解決できず、
+    # 平らな破れ面や裂け目ができることを検証用スクリプトで突き止めた
+    # (honegarami自身はhip・chestの左右対称の子がどちらもY(前後)を
+    # 親と揃えているため問題が起きない、と分かった)。
+    # 対策として胴の芯を"hip"1関節に一本化し、腕(shoulder)・脚(thigh)の
+    # 左右対称の子はどちらもhipとほぼ同じY(前後位置)に揃えている。
+    "hip": (0.0, 0.020, 0.170),
+    "neck": (0.0, -0.110, 0.165),
+    "head": (0.0, -0.190, 0.150),
+    "crown": (0.0, -0.210, 0.170),
+    "shoulder.L": (0.235, 0.010, 0.170),
+    "elbow.L": (0.330, -0.070, 0.145),
+    "hand.L": (0.410, -0.150, 0.120),
+    "thigh.L": (0.225, 0.030, 0.075),
+    "knee.L": (0.278, 0.065, 0.035),
+    "foot.L": (0.240, 0.015, 0.010),
+}
+NUKARUMIGANI_RADII_HALF = {
+    # 胴(hip・neck・head)は大きな半径どうしを重ねて低く丸い甲羅にする。
+    # 手足は関節どうしの間隔を狭く・太さは太めにして、丸太のようにずんぐり
+    # したがっしりした手足にする(ただし胴の半径は明確に超える距離まで
+    # 離し、まぶたむしで脚が消えた反省を踏まえている)。
+    "hip": 0.190, "neck": 0.115, "head": 0.090, "crown": 0.035,
+    "shoulder.L": 0.090, "elbow.L": 0.105, "hand.L": 0.058,
+    "thigh.L": 0.066, "knee.L": 0.050, "foot.L": 0.032,
+}
+NUKARUMIGANI_BONES_HALF = [
+    ("hip", "neck"), ("neck", "head"), ("head", "crown"),
+    ("hip", "shoulder.L"), ("shoulder.L", "elbow.L"), ("elbow.L", "hand.L"),
+    ("hip", "thigh.L"), ("thigh.L", "knee.L"), ("knee.L", "foot.L"),
+]
+
+
+def build_nukarumigani():
+    """
+    ぬかるみに根を張るように動きが鈍いが、力比べになると存外強いがに股の甲殻。
+    honegaramiと同じ「胴の芯+腕+脚」の関節の"種類"を踏襲するが、直立させず、
+    胴の芯を1関節(hip)に一本化して低く丸いドーム状にし、腕の先
+    (elbow-hand)を大ぶりなハサミに仕立てる。
+    """
+    joints = C.mirrored(NUKARUMIGANI_HALF)
+    radii = C.mirrored_radii(NUKARUMIGANI_RADII_HALF)
+    bones = C.mirrored_bones(NUKARUMIGANI_BONES_HALF)
+
+    body = C.build_skinned("nukarumigani", joints, bones, radii, root="hip", subsurf=2)
+
+    shell = C.make_material("nukaru_shell", (0.38, 0.50, 0.52), roughness=0.55)
+    under = C.make_material("nukaru_under", (0.22, 0.30, 0.34), roughness=0.62)
+
+    # 脚(thigh-knee-foot)の関節に近い面だけ暗い色にし、甲殻とハサミは
+    # 明るい灰みの水色系のまま残す(gajiriの耳の塗り分けと同じ、関節からの
+    # 距離で判定する手法)。閾値は甲殻(半径0.15〜0.17)を巻き込まない
+    # 0.10に絞り、実際の面数を数えて偏りがないか検証している
+    leg_joints = [
+        Vector(joints[name])
+        for side in ("L", "R")
+        for name in (f"thigh.{side}", f"knee.{side}", f"foot.{side}")
+    ]
+    C.assign_materials_by_region(
+        body, [shell, under],
+        lambda c: 1 if min((c - j).length for j in leg_joints) < 0.10 else 0,
+    )
+    leg_faces = sum(1 for p in body.data.polygons if p.material_index == 1)
+    total_faces = len(body.data.polygons)
+    print(f"nukarumigani: 脚の暗色面 {leg_faces}/{total_faces} "
+          f"({leg_faces / total_faces:.1%})")
+
+    extras = []
+
+    # 目は関節ではなく、甲殻の前縁から突き出た柄付きの目にする(がに股の
+    # 甲殻らしさを出すための飾りで、eyeball()を柄の先端に乗せる)
+    stalk_mat = C.make_material("nukaru_stalk", (0.30, 0.40, 0.42), roughness=0.5)
+    for side in (-1.0, 1.0):
+        stalk = C.cylinder(f"nukaru_stalk{side}", (0.050 * side, -0.175, 0.235),
+                           0.014, 0.060, segments=10)
+        C.assign_material(stalk, stalk_mat)
+        extras.append(stalk)
+        extras += eyeball(f"nukaru_eye{side}", (0.050 * side, -0.195, 0.268), 0.020,
+                          look=(0.15 * side, -1.0, 0.05),
+                          white=(0.86, 0.90, 0.82), dark=(0.09, 0.08, 0.07))
+
+    # ハサミの先端。爪の丸い塊そのものはelbow-handの太い皮(Skin)に任せ、
+    # 先端の「はさむ2枚」だけを小さいboxで足す(honegaramiの歯と同じ、
+    # 主形状に対して控えめな大きさの飾りにする。板状メッシュを手動で
+    # シアーさせるのはmabutamushiで壊れたので避け、box+条件付きスケールで
+    # 先端を絞るだけにする)
+    claw_mat = C.make_material("nukaru_claw", (0.30, 0.40, 0.42), roughness=0.5)
+    claw_edge = C.make_material("nukaru_claw_edge", (0.66, 0.76, 0.74), roughness=0.32)
+    for side in (-1.0, 1.0):
+        hx, hy, hz = NUKARUMIGANI_HALF["hand.L"]
+        hx *= side
+        for tag, dz, length in (("upper", 0.016, 0.052), ("lower", -0.016, 0.040)):
+            finger = C.box(f"nukaru_claw_{tag}{side}", (hx, hy - 0.018, hz + dz),
+                          (0.026, length, 0.020), bevel=0.007)
+            for vert in finger.data.vertices:
+                if vert.co.y < hy - 0.018 - length * 0.3:
+                    vert.co.x *= 0.4
+                    vert.co.z *= 0.5
+            C.assign_material(finger, claw_mat)
+            extras.append(finger)
+            tip = C.uv_sphere(f"nukaru_claw_{tag}_tip{side}",
+                              (hx, hy - 0.018 - length * 0.55, hz + dz * 0.5), 0.012,
+                              segments=10, rings=8)
+            C.assign_material(tip, claw_edge)
+            extras.append(tip)
+
+    # 背の甲殻に小さな瘤を3つ並べて質感を足す(kirimizuchiの棘と同じ、
+    # primitiveを貼るだけの安全な手法)
+    ridge_mat = C.make_material("nukaru_ridge", (0.44, 0.56, 0.56), roughness=0.5)
+    for i, (y, z, r) in enumerate([
+        (0.050, 0.215, 0.036), (-0.020, 0.245, 0.040), (-0.090, 0.235, 0.034),
+    ]):
+        ridge = C.uv_sphere(f"nukaru_ridge{i}", (0.0, y, z), r,
+                            segments=14, rings=10, scale=(1.0, 1.0, 0.55))
+        C.assign_material(ridge, ridge_mat)
+        extras.append(ridge)
+
+    mesh = C.join([body] + extras, "nukarumigani")
+    armature = C.build_armature("nukarumigani", joints, bones, mesh, root="hip")
+    return [mesh, armature], armature
+
+
+def nukarumigani_animations():
+    spine = "hip-neck"
+    headb = "neck-head"
+    armL, armR = "hip-shoulder.L", "hip-shoulder.R"
+    foreL, foreR = "shoulder.L-elbow.L", "shoulder.R-elbow.R"
+    handL, handR = "elbow.L-hand.L", "elbow.R-hand.R"
+    legL, legR = "hip-thigh.L", "hip-thigh.R"
+    shinL, shinR = "thigh.L-knee.L", "thigh.R-knee.R"
+    return [
+        # 動きが鈍い分、腰(spine)は据わったまま、ハサミだけがゆっくり開閉する
+        ("idle", [
+            (1, {spine: (0, 0, 0), armL: (0, 0, 10), armR: (0, 0, -10)}),
+            (26, {spine: (2, 0, 0), headb: (2, 0, 0),
+                  armL: (0, 0, 18), armR: (0, 0, -18),
+                  handL: (0, 0, -8), handR: (0, 0, 8)}),
+            (52, {spine: (0, 0, 0), armL: (0, 0, 10), armR: (0, 0, -10)}),
+        ]),
+        # がに股のまま、左右の脚を交互に踏みしめて重く進む
+        ("walk", [
+            (1, {legL: (18, 0, 0), legR: (-18, 0, 0), shinL: (-14, 0, 0), shinR: (10, 0, 0),
+                 armL: (0, 0, 6), armR: (0, 0, -6)}),
+            (11, {legL: (0, 0, 0), legR: (0, 0, 0), shinL: (0, 0, 0), shinR: (0, 0, 0),
+                  armL: (0, 0, 10), armR: (0, 0, -10)}),
+            (21, {legL: (-18, 0, 0), legR: (18, 0, 0), shinL: (10, 0, 0), shinR: (-14, 0, 0),
+                  armL: (0, 0, 6), armR: (0, 0, -6)}),
+            (31, {legL: (0, 0, 0), legR: (0, 0, 0), shinL: (0, 0, 0), shinR: (0, 0, 0),
+                  armL: (0, 0, 10), armR: (0, 0, -10)}),
+            (41, {legL: (18, 0, 0), legR: (-18, 0, 0), shinL: (-14, 0, 0), shinR: (10, 0, 0),
+                  armL: (0, 0, 6), armR: (0, 0, -6)}),
+        ]),
+        # 両方のハサミを大きく開いてから、力比べで挟み潰すように閉じる
+        ("attack", [
+            (1, {armL: (0, 0, 10), armR: (0, 0, -10), handL: (0, 0, 0), handR: (0, 0, 0)}),
+            (7, {armL: (-14, 0, 40), armR: (-14, 0, -40),
+                 handL: (0, 0, -34), handR: (0, 0, 34), spine: (-6, 0, 0)}),
+            (13, {armL: (18, 0, -6), armR: (18, 0, 6),
+                  handL: (0, 0, 30), handR: (0, 0, -30), spine: (8, 0, 0)}),
+            (24, {armL: (0, 0, 10), armR: (0, 0, -10), handL: (0, 0, 0), handR: (0, 0, 0)}),
+        ]),
+        ("hit", [
+            (1, {spine: (0, 0, 0), headb: (0, 0, 0)}),
+            (5, {spine: (-10, 0, 0), headb: (-14, 0, 0),
+                 armL: (-8, 0, 20), armR: (-8, 0, -20)}),
+            (16, {spine: (0, 0, 0), headb: (0, 0, 0)}),
+        ]),
+        # 力尽きて、がに股の脚から順にぬかるみへ沈み込むように崩れる
+        ("die", [
+            (1, {spine: (0, 0, 0)}),
+            (10, {spine: (-14, 0, 4), legL: (-30, 0, 0), legR: (-30, 0, 0),
+                  armL: (-20, 0, 30), armR: (-20, 0, -30)}),
+            (26, {spine: (-40, 0, 10), legL: (-64, 0, 0), legR: (-64, 0, 0),
+                  shinL: (-50, 0, 0), shinR: (-50, 0, 0),
+                  armL: (-46, 0, 55), armR: (-46, 0, -55)}),
         ]),
     ]
 
@@ -917,6 +1105,7 @@ MONSTERS = {
     "madoromi": (build_madoromi, madoromi_animations),
     "honegarami": (build_honegarami, honegarami_animations),
     "kirimizuchi": (build_kirimizuchi, kirimizuchi_animations),
+    "nukarumigani": (build_nukarumigani, nukarumigani_animations),
 }
 
 
