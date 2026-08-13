@@ -4180,6 +4180,129 @@ def yorishironozankyo_animations():
     ]
 
 
+# ======================================================================= 淵の主
+
+# 第五地方(なみだの滝つぼ)のボス。honegarami・yamabikooniと同じ人型
+# 骨組みをベースに、「滝つぼの一番深いところに沈んだ、もっとも重い
+# 悲しみが凝った姿」という由来から、yamabikooniの力強い直立ではなく、
+# nedayamabikoと同じ低い重心・前傾した姿勢にする(悲しみの重さで
+# うつむいているような佇まい)。配色は涙と滝つぼを思わせる沈んだ
+# 青・藍色系。肩や顎から涙のしずくが垂れ下がる。
+FUCHINONUSHI_HALF = {
+    "hip": (0.0, 0.0, 0.310),
+    "chest": (0.0, 0.025, 0.520),
+    "neck": (0.0, 0.038, 0.615),
+    "head": (0.0, 0.014, 0.725),
+    "crown": (0.0, 0.026, 0.815),
+    "shoulder.L": (0.192, 0.025, 0.545),
+    "elbow.L": (0.266, 0.055, 0.395),
+    "hand.L": (0.260, 0.020, 0.245),
+    "thigh.L": (0.113, 0.0, 0.298),
+    "knee.L": (0.120, 0.0, 0.150),
+    "foot.L": (0.126, -0.040, 0.020),
+}
+FUCHINONUSHI_RADII_HALF = {
+    "hip": 0.133, "chest": 0.146, "neck": 0.059, "head": 0.153, "crown": 0.041,
+    "shoulder.L": 0.071, "elbow.L": 0.057, "hand.L": 0.065,
+    "thigh.L": 0.079, "knee.L": 0.064, "foot.L": 0.069,
+}
+FUCHINONUSHI_BONES_HALF = [
+    ("hip", "chest"), ("chest", "neck"), ("neck", "head"), ("head", "crown"),
+    ("chest", "shoulder.L"), ("shoulder.L", "elbow.L"), ("elbow.L", "hand.L"),
+    ("hip", "thigh.L"), ("thigh.L", "knee.L"), ("knee.L", "foot.L"),
+]
+
+
+def build_fuchiNoNushi():
+    """
+    滝つぼの一番深いところに沈んだ、この地方でもっとも重い悲しみが
+    凝った姿。honegarami・yamabikooniと同じ人型骨組みをベースに、
+    悲しみの重さでうつむいているような、低い重心の前傾姿勢にする。
+    配色は涙と滝つぼを思わせる沈んだ青・藍色系。肩や顎から涙の
+    しずくが垂れ下がる。
+    """
+    joints = C.mirrored(FUCHINONUSHI_HALF)
+    radii = C.mirrored_radii(FUCHINONUSHI_RADII_HALF)
+    bones = C.mirrored_bones(FUCHINONUSHI_BONES_HALF)
+
+    body = C.build_skinned("fuchiNoNushi", joints, bones, radii, root="hip", subsurf=2)
+    deep = C.make_material("fuchi_deep", (0.16, 0.20, 0.38), roughness=0.55)
+    indigo = C.make_material("fuchi_indigo", (0.24, 0.30, 0.48), roughness=0.5)
+    C.assign_materials_by_region(body, [deep, indigo], lambda c: 1 if c.z > 0.470 else 0)
+
+    extras = []
+    glow = C.make_material("fuchi_eye", (0.55, 0.75, 0.92), roughness=0.25, emission=1.6)
+    for side in (-1.0, 1.0):
+        eye = C.uv_sphere(f"fuchi_eye{side}", (0.062 * side, -0.148, 0.735), 0.026,
+                          segments=14, rings=10, scale=(1.0, 0.6, 0.75))
+        C.assign_material(eye, glow)
+        extras.append(eye)
+
+    # 涙のしずく。肩と顎から垂れ下がる、半透明感のある青いしずく形
+    tear_mat = C.make_material("fuchi_tear", (0.42, 0.62, 0.82), roughness=0.2, emission=0.4)
+    tear_specs = [
+        (0.0, -0.155, 0.655, 0.026),
+        (0.205 * -1.0, 0.03, 0.500, 0.020),
+        (0.205 * 1.0, 0.03, 0.500, 0.020),
+    ]
+    for i, (tx, ty, tz, tr) in enumerate(tear_specs):
+        tear = C.uv_sphere(f"fuchi_tear{i}", (tx, ty, tz), tr, segments=12, rings=10,
+                           scale=(0.8, 0.8, 1.6))
+        C.assign_material(tear, tear_mat)
+        extras.append(tear)
+
+    mesh = C.join([body] + extras, "fuchiNoNushi")
+    armature = C.build_armature("fuchiNoNushi", joints, bones, mesh, root="hip")
+    return [mesh, armature], armature
+
+
+def fuchiNoNushi_animations():
+    hipc, neck = "hip-chest", "neck-head"
+    armL, armR = "chest-shoulder.L", "chest-shoulder.R"
+    foreL, foreR = "shoulder.L-elbow.L", "shoulder.R-elbow.R"
+    legL, legR = "hip-thigh.L", "hip-thigh.R"
+    shinL, shinR = "thigh.L-knee.L", "thigh.R-knee.R"
+    return [
+        # 悲しみの重さでうつむいたまま、動じることなく淵の底に居座る
+        ("idle", [
+            (1, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+            (36, {hipc: (2, 0, 1), neck: (2, 0, 0)}),
+            (72, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+        ]),
+        ("walk", [
+            (1, {legL: (16, 0, 0), legR: (-16, 0, 0), shinL: (-7, 0, 0), shinR: (5, 0, 0),
+                 armL: (-12, 0, 6), armR: (12, 0, -6)}),
+            (11, {legL: (0, 0, 0), legR: (0, 0, 0), armL: (0, 0, 6), armR: (0, 0, -6)}),
+            (21, {legL: (-16, 0, 0), legR: (16, 0, 0), shinL: (5, 0, 0), shinR: (-7, 0, 0),
+                  armL: (12, 0, 6), armR: (-12, 0, -6)}),
+            (31, {legL: (0, 0, 0), legR: (0, 0, 0), armL: (0, 0, 6), armR: (0, 0, -6)}),
+        ]),
+        # 淵の水を巻き込むように、重々しく両腕を振り下ろす
+        ("attack", [
+            (1, {armR: (0, 0, -8), foreR: (0, 0, 0), armL: (0, 0, 8), foreL: (0, 0, 0),
+                 hipc: (0, 0, 0)}),
+            (8, {armR: (-120, 0, -22), foreR: (-32, 0, 0), armL: (-38, 0, 28), foreL: (-10, 0, 0),
+                 hipc: (-10, 0, -14), neck: (-6, 0, 0)}),
+            (14, {armR: (66, 0, 14), foreR: (10, 0, 0), armL: (26, 0, -4), foreL: (0, 0, 0),
+                  hipc: (16, 0, 14), neck: (-8, 0, 0)}),
+            (25, {armR: (0, 0, -8), foreR: (0, 0, 0), armL: (0, 0, 8), foreL: (0, 0, 0),
+                  hipc: (0, 0, 0)}),
+        ]),
+        ("hit", [
+            (1, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+            (5, {hipc: (-10, 0, 0), neck: (-10, 0, 0), armL: (-14, 0, 16), armR: (-14, 0, -16)}),
+            (16, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+        ]),
+        # 溜め込んだ悲しみが崩れ落ちるように、水底へ沈み込む
+        ("die", [
+            (1, {hipc: (0, 0, 0)}),
+            (11, {hipc: (-12, 0, 5), neck: (-18, 0, 0), armL: (-30, 0, 30), armR: (-30, 0, -30)}),
+            (28, {hipc: (-78, 0, 16), neck: (-34, 0, 0), legL: (46, 0, 0), legR: (40, 0, 0),
+                  armL: (-68, 0, 46), armR: (-68, 0, -46)}),
+        ]),
+    ]
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -4215,6 +4338,7 @@ MONSTERS = {
     "misemonoNoNushi": (build_misemonoNoNushi, misemonoNoNushi_animations),
     "yumemayoinokage": (build_yumemayoinokage, yumemayoinokage_animations),
     "yorishironozankyo": (build_yorishironozankyo, yorishironozankyo_animations),
+    "fuchiNoNushi": (build_fuchiNoNushi, fuchiNoNushi_animations),
 }
 
 
