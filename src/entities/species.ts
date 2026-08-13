@@ -718,10 +718,10 @@ export const SPECIES: readonly Species[] = [
     swarmSize: [3, 4],
   },
   {
-    // すっかり忘れられた水霊。モヤウツボの成れの果てに近い存在なので同じtsubuteモデルを流用する
+    // すっかり忘れられた水霊。専用モデル(plan/archive/model-wasuremizuchi.md)
     id: "wasuremizuchi",
     name: "わすれみずち",
-    model: "tsubute",
+    model: "wasuremizuchi",
     // 「触れられると深みタイルへ逃げ込む」は逃走先をquagmireへ誘導する
     // 経路選択までは実装せず、既存coward(瀕死で離脱)のまま簡略化した(アーカイブ注記参照)
     maxHp: 16,

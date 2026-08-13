@@ -906,8 +906,6 @@ def kirimizuchi_animations():
     ]
 
 
-# =========================================================================== 一覧
-
 # =================================================================== ぬかるみがに
 
 # 現在流用している`honegarami`と同じ関節の"種類"(胴の芯+腕+脚)を踏襲しつつ、
@@ -1270,6 +1268,164 @@ def ashiatodori_animations():
     ]
 
 
+# =================================================================== わすれみずち
+
+# 現在流用している`tsubute`と同じ関節の"種類"(胴の芯+頭+腕+脚、7本の骨)を
+# そのまま踏襲する(plan/archive/model-wasuremizuchi.md参照)。ただし
+# ずんぐりした蛙とは違い、coward(瀕死で離脱)らしい「小柄で華奢な、
+# 逃げ足の速さを感じさせる軽いシルエット」にするため、胴・頭・手足の
+# 半径をtsubuteよりはっきり細くし、関節間の距離も詰めて小柄にまとめている。
+WASURE_HALF = {
+    "hip": (0.0, 0.055, 0.150),
+    "chest": (0.0, -0.020, 0.185),
+    "head": (0.0, -0.110, 0.205),
+    "armF.L": (0.105, -0.060, 0.140),
+    "handF.L": (0.130, -0.110, 0.065),
+    "kneeB.L": (0.115, 0.110, 0.100),
+    "ankleB.L": (0.105, 0.020, 0.035),
+    "footB.L": (0.090, -0.040, 0.010),
+}
+WASURE_RADII_HALF = {
+    "hip": 0.095, "chest": 0.088, "head": 0.078,
+    "armF.L": 0.020, "handF.L": 0.016,
+    "kneeB.L": 0.034, "ankleB.L": 0.020, "footB.L": 0.016,
+}
+WASURE_BONES_HALF = [
+    ("chest", "hip"), ("chest", "head"),
+    ("chest", "armF.L"), ("armF.L", "handF.L"),
+    ("hip", "kneeB.L"), ("kneeB.L", "ankleB.L"), ("ankleB.L", "footB.L"),
+]
+
+
+def build_wasuremizuchi():
+    """
+    すっかり忘れ去られた水霊。モヤウツボの成れの果てに近い存在で、
+    触れられるとすぐ深みへ逃げ込む(coward)。tsubuteと同じ関節構成を
+    使うが、丸々とした蛙ではなく、実体の薄い、今にも霧へ紛れて消えそうな
+    小柄で華奢なシルエットにする。頭の後ろから尾のように霧が尾を引き、
+    先端ほど小さく淡く消えていく(常に逃げる準備ができている様子)。
+    """
+    joints = C.mirrored(WASURE_HALF)
+    radii = C.mirrored_radii(WASURE_RADII_HALF)
+    bones = C.mirrored_bones(WASURE_BONES_HALF)
+
+    body = C.build_skinned("wasuremizuchi", joints, bones, radii, root="chest", subsurf=2)
+
+    # 第2地方(忘れ潮の湿地)のテーマに合わせ、霧と水を思わせる灰みがかった
+    # 水色・青緑系でまとめる。背は明るい霧色、腹は沈んだ暗い青灰色、
+    # 手足は実体を失いかけた霧そのもののような淡い色の3トーンに塗り分ける。
+    dorsal = C.make_material("wasure_dorsal", (0.62, 0.74, 0.75), roughness=0.5, emission=0.05)
+    ventral = C.make_material("wasure_ventral", (0.26, 0.34, 0.40), roughness=0.65)
+    misty_limb = C.make_material("wasure_limb", (0.78, 0.88, 0.88), roughness=0.35, emission=0.12)
+
+    # 手足(腕・脚)は関節からの距離で判定する(kirimizuchiの触手・
+    # nukarumiganiの脚と同じ手法)。胴は高さと中心からの距離で腹面だけを
+    # 切り出す(tsubuteと同じ、下から見上げたときだけ見える面に絞る手法)。
+    limb_pts = [
+        Vector(joints[name])
+        for side in ("L", "R")
+        for name in (f"armF.{side}", f"handF.{side}", f"kneeB.{side}",
+                     f"ankleB.{side}", f"footB.{side}")
+    ]
+
+    def classify(c):
+        if min((c - p).length for p in limb_pts) < 0.033:
+            return 2
+        if c.z < 0.115 and abs(c.x) < 0.075:
+            return 1
+        return 0
+
+    C.assign_materials_by_region(body, [dorsal, ventral, misty_limb], classify)
+    counts = [0, 0, 0]
+    for poly in body.data.polygons:
+        counts[poly.material_index] += 1
+    total = sum(counts)
+    print(f"wasuremizuchi: 背{counts[0]} 腹{counts[1]} 手足{counts[2]} "
+          f"/ 計{total} ({[f'{c / total:.1%}' for c in counts]})")
+
+    extras = []
+    # 怯えて見開いた大きめの目。頭の前面から半分飛び出させる
+    for side in (-1.0, 1.0):
+        extras += eyeball(f"wasure_eye{side}", (0.032 * side, -0.172, 0.220), 0.028,
+                          look=(0.35 * side, -0.9, 0.15), squash=1.1,
+                          white=(0.90, 0.95, 0.96), dark=(0.10, 0.15, 0.20))
+
+    # 頭の両脇に、水に紛れる薄い膜状のひれを1枚ずつ
+    fin_mat = C.make_material("wasure_fin", (0.70, 0.85, 0.86), roughness=0.3, emission=0.10)
+    for side in (-1.0, 1.0):
+        fin = C.box(f"wasure_fin{side}", (0.098 * side, -0.095, 0.195),
+                    (0.005, 0.052, 0.048), bevel=0.004)
+        C.assign_material(fin, fin_mat)
+        extras.append(fin)
+
+    # 頭の後ろから尾のように霧が尾を引く。先端ほど小さく・淡く・
+    # 発光を強めて、霧へ溶けていく途中のように見せる
+    for i, (y, z, r, glow) in enumerate([
+        (0.145, 0.165, 0.048, 0.06), (0.215, 0.205, 0.034, 0.18),
+        (0.270, 0.245, 0.022, 0.45), (0.310, 0.275, 0.012, 0.9),
+    ]):
+        wisp_mat = C.make_material(f"wasure_wisp{i}", (0.80, 0.90, 0.90),
+                                   roughness=0.25, emission=glow)
+        wisp = C.uv_sphere(f"wasure_wisp{i}", (0.0, y, z), r, segments=12, rings=9)
+        C.assign_material(wisp, wisp_mat)
+        extras.append(wisp)
+
+    mesh = C.join([body] + extras, "wasuremizuchi")
+    armature = C.build_armature("wasuremizuchi", joints, bones, mesh, root="chest")
+    return [mesh, armature], armature
+
+
+def wasuremizuchi_animations():
+    head = "chest-head"
+    trunk = "chest-hip"
+    armL, armR = "chest-armF.L", "chest-armF.R"
+    legL, legR = "hip-kneeB.L", "hip-kneeB.R"
+    shinL, shinR = "kneeB.L-ankleB.L", "kneeB.R-ankleB.R"
+    return [
+        # 絶えず怯えているような、小刻みで落ち着かない待機
+        ("idle", [
+            (1, {head: (0, 0, 0), armL: (0, 0, 4), armR: (0, 0, -4)}),
+            (10, {head: (-6, 3, 0), armL: (-8, 0, 6), armR: (-8, 0, -6)}),
+            (20, {head: (4, -3, 0), armL: (4, 0, -4), armR: (4, 0, 4)}),
+            (30, {head: (0, 0, 0), armL: (0, 0, 4), armR: (0, 0, -4)}),
+        ]),
+        # 逃げ足の速さそのまま、小さく素早く跳ねるように進む
+        ("walk", [
+            (1, {legL: (0, 0, 0), legR: (0, 0, 0), shinL: (0, 0, 0), shinR: (0, 0, 0),
+                 head: (0, 0, 0)}),
+            (4, {legL: (40, 0, 0), legR: (-30, 0, 0), shinL: (-24, 0, 0), shinR: (18, 0, 0),
+                 head: (6, 0, 0)}),
+            (8, {legL: (0, 0, 0), legR: (0, 0, 0), shinL: (0, 0, 0), shinR: (0, 0, 0),
+                 head: (0, 0, 0)}),
+            (12, {legL: (-30, 0, 0), legR: (40, 0, 0), shinL: (18, 0, 0), shinR: (-24, 0, 0),
+                  head: (-6, 0, 0)}),
+            (16, {legL: (0, 0, 0), legR: (0, 0, 0), shinL: (0, 0, 0), shinR: (0, 0, 0),
+                  head: (0, 0, 0)}),
+        ]),
+        # 怯えながらも一瞬だけ突く弱々しい攻撃。当てたらすぐ引く
+        ("attack", [
+            (1, {head: (0, 0, 0), armL: (0, 0, 4), armR: (0, 0, -4)}),
+            (4, {head: (-10, 0, 0), armL: (-30, 0, 14), armR: (-30, 0, -14)}),
+            (8, {head: (10, 0, 0), armL: (14, 0, -6), armR: (14, 0, 6)}),
+            (16, {head: (0, 0, 0), armL: (0, 0, 4), armR: (0, 0, -4)}),
+        ]),
+        # 大きく仰け反り、すぐさま深みへ逃げ込もうとする
+        ("hit", [
+            (1, {trunk: (0, 0, 0), head: (0, 0, 0)}),
+            (3, {trunk: (-16, 0, 0), head: (18, 0, 0), armL: (-20, 0, 20), armR: (-20, 0, -20)}),
+            (12, {trunk: (0, 0, 0), head: (0, 0, 0)}),
+        ]),
+        # 霧に溶けるように、輪郭を失ってしゃがみ込む
+        ("die", [
+            (1, {trunk: (0, 0, 0), head: (0, 0, 0)}),
+            (10, {trunk: (-20, 0, 10), head: (24, 0, 0), legL: (-30, 0, 0), legR: (-30, 0, 0),
+                  armL: (-40, 0, 30), armR: (-40, 0, -30)}),
+            (22, {trunk: (-50, 0, 22), head: (40, 0, 0), legL: (-60, 0, 0), legR: (-60, 0, 0),
+                  armL: (-70, 0, 50), armR: (-70, 0, -50)}),
+        ]),
+    ]
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -1282,6 +1438,7 @@ MONSTERS = {
     "kirimizuchi": (build_kirimizuchi, kirimizuchi_animations),
     "nukarumigani": (build_nukarumigani, nukarumigani_animations),
     "ashiatodori": (build_ashiatodori, ashiatodori_animations),
+    "wasuremizuchi": (build_wasuremizuchi, wasuremizuchi_animations),
 }
 
 
