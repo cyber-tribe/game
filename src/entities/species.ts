@@ -966,10 +966,10 @@ export const SPECIES: readonly Species[] = [
     counterDamageRatio: 0.2,
   },
   {
-    // 尾根に根を張った古い響き。honegaramiモデルを流用する
+    // 尾根に根を張った古い響き。専用モデル(plan/models/archive/model-nedayamabiko.md)
     id: "nedayamabiko",
     name: "ねだやまびこ",
-    model: "honegarami",
+    model: "nedayamabiko",
     // 「周囲の物音を増幅して他を呼び寄せる」は汎用の物音システムが無いため、
     // 既存のalertsFloorOnSight(視認した瞬間フロア中に気づかせる)で近似した(アーカイブ注記参照)
     maxHp: 46,

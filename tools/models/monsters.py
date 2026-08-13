@@ -2524,6 +2524,127 @@ def yamabikooni_animations():
     ]
 
 
+# ===================================================================== ねだやまびこ
+
+# honegarami・yamabikooniと同じ人型骨組みをベースにするが、「尾根に根を
+# 張ってしまった、ほとんど動かない古い響き」(guard AI)という由来から、
+# 背が低く前傾した、どっしり構えたシルエットにする。関節の高さを全体的に
+# 下げて低い重心を作り、胸から頭にかけて-Y方向(正面側)へわずかに
+# 突き出させることで前傾姿勢にする。四肢はyamabikooniよりさらに太く短い。
+NEDAYAMABIKO_HALF = {
+    "hip": (0.0, 0.0, 0.235),
+    "chest": (0.0, 0.020, 0.395),
+    "neck": (0.0, 0.032, 0.470),
+    "head": (0.0, 0.012, 0.560),
+    "crown": (0.0, 0.024, 0.628),
+    "shoulder.L": (0.190, 0.020, 0.415),
+    "elbow.L": (0.248, 0.050, 0.295),
+    "hand.L": (0.240, 0.020, 0.175),
+    "thigh.L": (0.108, 0.0, 0.222),
+    "knee.L": (0.118, 0.0, 0.108),
+    "foot.L": (0.122, -0.038, 0.020),
+}
+NEDAYAMABIKO_RADII_HALF = {
+    "hip": 0.148, "chest": 0.158, "neck": 0.064, "head": 0.132, "crown": 0.032,
+    "shoulder.L": 0.078, "elbow.L": 0.064, "hand.L": 0.070,
+    "thigh.L": 0.092, "knee.L": 0.075, "foot.L": 0.078,
+}
+NEDAYAMABIKO_BONES_HALF = [
+    ("hip", "chest"), ("chest", "neck"), ("neck", "head"), ("head", "crown"),
+    ("chest", "shoulder.L"), ("shoulder.L", "elbow.L"), ("elbow.L", "hand.L"),
+    ("hip", "thigh.L"), ("thigh.L", "knee.L"), ("knee.L", "foot.L"),
+]
+
+
+def build_nedayamabiko():
+    """
+    尾根に根を張ってしまった、ほとんど動かない古い響き(guard AI)。
+    honegarami・yamabikooniと同じ人型骨組みを、背が低く前傾しどっしりと
+    構えたシルエットに作り替え、厚い甲羅状の装甲を背に3つ重ねて岩の塊が
+    根を張ったような輪郭にする。配色は第六地方(こだまの尾根)の
+    岩肌の灰色(甲羅)と乾いた土色(肌)。
+    """
+    joints = C.mirrored(NEDAYAMABIKO_HALF)
+    radii = C.mirrored_radii(NEDAYAMABIKO_RADII_HALF)
+    bones = C.mirrored_bones(NEDAYAMABIKO_BONES_HALF)
+
+    body = C.build_skinned("nedayamabiko", joints, bones, radii, root="hip", subsurf=2)
+    skin = C.make_material("nedayamabiko_skin", (0.44, 0.32, 0.22), roughness=0.8)
+    C.assign_material(body, skin)
+
+    extras = []
+    shell_mat = C.make_material("nedayamabiko_shell", (0.62, 0.61, 0.58), roughness=0.85)
+    # 甲羅は頭より確実に低く、背中側(+Y)へはっきり離して重ね、
+    # 頭部の輪郭と混ざらないようにする(肩からお尻にかけての上背だけを覆う)
+    for dy, dz, r, scale in [
+        (0.190, 0.415, 0.145, (1.0, 0.95, 0.85)),
+        (0.165, 0.310, 0.112, (0.95, 0.85, 0.80)),
+        (0.175, 0.485, 0.098, (0.90, 0.80, 0.72)),
+    ]:
+        shell = C.uv_sphere(f"nedayamabiko_shell{dz}", (0.0, dy, dz), r,
+                            segments=18, rings=13, scale=scale)
+        C.assign_material(shell, shell_mat)
+        extras.append(shell)
+
+    dark = C.make_material("nedayamabiko_socket", (0.05, 0.05, 0.07), roughness=0.9)
+    for side in (-1.0, 1.0):
+        socket = C.uv_sphere(f"nedayamabiko_socket{side}", (0.052 * side, -0.038, 0.575), 0.028,
+                             segments=12, rings=9, scale=(1.0, 0.85, 1.0))
+        C.assign_material(socket, dark)
+        extras.append(socket)
+    jaw = C.uv_sphere("nedayamabiko_jaw", (0.0, -0.048, 0.512), 0.088,
+                      segments=18, rings=12, scale=(0.9, 1.05, 0.55))
+    C.assign_material(jaw, shell_mat)
+    extras.append(jaw)
+
+    mesh = C.join([body] + extras, "nedayamabiko")
+    armature = C.build_armature("nedayamabiko", joints, bones, mesh, root="hip")
+    return [mesh, armature], armature
+
+
+def nedayamabiko_animations():
+    hipc, neck = "hip-chest", "neck-head"
+    armL, armR = "chest-shoulder.L", "chest-shoulder.R"
+    legL, legR = "hip-thigh.L", "hip-thigh.R"
+    shinL, shinR = "thigh.L-knee.L", "thigh.R-knee.R"
+    return [
+        # 根を張ったように、ほとんど動かない。かすかな呼吸だけ
+        ("idle", [
+            (1, {hipc: (0, 0, 0)}),
+            (50, {hipc: (1.5, 0, 0.5), neck: (-2, 0, 0)}),
+            (100, {hipc: (0, 0, 0)}),
+        ]),
+        # guard AIでも移動自体は起こりうるため、重く鈍い足取りを用意する
+        ("walk", [
+            (1, {legL: (14, 0, 0), legR: (-14, 0, 0), shinL: (-6, 0, 0), shinR: (5, 0, 0),
+                 armL: (-8, 0, 4), armR: (8, 0, -4)}),
+            (14, {legL: (0, 0, 0), legR: (0, 0, 0), armL: (0, 0, 4), armR: (0, 0, -4)}),
+            (27, {legL: (-14, 0, 0), legR: (14, 0, 0), shinL: (5, 0, 0), shinR: (-6, 0, 0),
+                  armL: (8, 0, 4), armR: (-8, 0, -4)}),
+            (40, {legL: (0, 0, 0), legR: (0, 0, 0), armL: (0, 0, 4), armR: (0, 0, -4)}),
+        ]),
+        # 溜めてから、根を張った重心のまま短く鈍く打ち下ろす
+        ("attack", [
+            (1, {armR: (0, 0, -6), hipc: (0, 0, 0)}),
+            (9, {armR: (-70, 0, -16), hipc: (-6, 0, -8)}),
+            (15, {armR: (30, 0, 10), hipc: (10, 0, 8), neck: (-6, 0, 0)}),
+            (26, {armR: (0, 0, -6), hipc: (0, 0, 0)}),
+        ]),
+        ("hit", [
+            (1, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+            (5, {hipc: (-8, 0, 0), neck: (-10, 0, 0), armL: (-10, 0, 12), armR: (-10, 0, -12)}),
+            (18, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+        ]),
+        # 根が抜けるように、その場でゆっくりと崩れ落ちる
+        ("die", [
+            (1, {hipc: (0, 0, 0)}),
+            (12, {hipc: (-10, 0, 3), neck: (-14, 0, 0), armL: (-20, 0, 20), armR: (-20, 0, -20)}),
+            (32, {hipc: (-60, 0, 10), neck: (-26, 0, 0), legL: (30, 0, 0), legR: (26, 0, 0),
+                  armL: (-46, 0, 32), armR: (-46, 0, -32)}),
+        ]),
+    ]
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -2545,6 +2666,7 @@ MONSTERS = {
     "madoromigumo": (build_madoromigumo, madoromigumo_animations),
     "kaerukodama": (build_kaerukodama, kaerukodama_animations),
     "yamabikooni": (build_yamabikooni, yamabikooni_animations),
+    "nedayamabiko": (build_nedayamabiko, nedayamabiko_animations),
 }
 
 
