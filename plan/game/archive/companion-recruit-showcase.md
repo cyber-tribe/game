@@ -1,5 +1,75 @@
 # 仲間になった瞬間に一旦ストップし、命名とモデル披露をまとめて行う
 
+> **実装済み。** `src/core/events.ts`(`splitEventsAtRecruits`。1ターンぶんの
+> `GameEvent[]`をrecruitイベントの直後で区切って複数の「再生単位」に
+> 分ける純粋関数。テストは`tests/companion-recruit-showcase.test.ts`)・
+> `src/main.ts`(`turnPlayback`/`pendingRecruitShowcase`/
+> `recruitShowcaseActive`の状態、`advanceTurnPlayback`/`showRecruitShowcase`/
+> `endRecruitShowcase`/`renderRecruitShowcase`、`loop()`・`anyModalOpen()`・
+> `submit()`の配線)・`index.html`(`#naming`を`#uiRoot`の外へ移動、
+> `.naming-showcase`修飾クラス)。
+>
+> **一時停止の仕組み。** `submit()`は`events`をそのまま`Stage.applyEvents`
+> に渡すのをやめ、`splitEventsAtRecruits`で区切ってから`turnPlayback`に
+> 保持し、`advanceTurnPlayback()`で先頭の区切りだけ`applyEvents`する。
+> 区切りの末尾がrecruitなら、その場ではまだダイアログを開かず
+> `pendingRecruitShowcase`に記録するだけに留め、`loop()`側で
+> `this.lock <= 0`(=recruit直前までの演出が最後まで再生し終わる)を
+> 待ってから`showRecruitShowcase()`でダイアログを開く。これは、タルが
+> 飛んでいく演出などrecruit直前の見せ場を中途半端に止めたくなかったため
+> (「そのターンの残り」に限って保留する、という本文の意図をそのまま
+> 汲んだ形)。ダイアログを閉じると`endRecruitShowcase()`→
+> `advanceTurnPlayback()`で次の区切りを再生する。1ターンで複数体が
+> 同時に仲間になった場合も、区切りが複数生まれて自然に1体ずつ順番に
+> ダイアログが出る(未決事項の1つ。下記参照)。
+>
+> 入力遮断は本文の指示どおり、既存の`document.activeElement`ガード
+> (`src/view/input.ts`)をそのまま流用した。追加で`anyModalOpen()`に
+> `namingDialog.isOpen`を加え、タッチ操作(`src/ui/touch-controls.ts`は
+> `Input.press`を直接呼ぶため上記ガードを経由しない)経由の行動発火も
+> 塞いだ。
+>
+> **モデル表示。** `GalleryView`(`src/view/gallery.ts`)を新規シーンなしで
+> そのまま再利用し、`renderRecruitShowcase()`が図鑑ギャラリーの
+> `renderGallery()`と同じパターンで`renderer.renderer.render(gallery.scene,
+> gallery.camera)`に描画先を丸ごと差し替える。`GalleryView.show(model,
+> false)`(シルエットにしない)。
+>
+> 未決事項だった点は次のとおり決めた。
+> - **HUDは隠す。** フォトモード・図鑑ギャラリーの前例に倣い、
+>   `showRecruitShowcase()`で`uiRoot.style.display = "none"`にする。
+>   `#naming`が`#uiRoot`の子だとHUDごと隠れてしまうため、`index.html`側で
+>   `#naming`を`#uiRoot`の外(`#gallery-info`・`#village-hint`と同じ階層)
+>   へ移した(`#app`が`position: relative`なので`inset: 0`の意味は
+>   変わらない)。
+> - **1ターンに複数体が同時に仲間になった場合は1体ずつ順番に。**
+>   `splitEventsAtRecruits`がrecruitごとに区切りを作る設計そのものが、
+>   自然に「1体分の演出→ダイアログ→次の1体分の演出→ダイアログ…」を
+>   実現する。まとめて1画面に並べる案は採らなかった(本文の想定どおり、
+>   現状の仕様では発生しにくいケースのため、複雑な方の実装は避けた)。
+>
+> レイアウトについて1点、本文の想定から変えた判断がある。`GalleryView`の
+> カメラ構図はどの種族も画面下寄り・やや小さめに映す(図鑑ギャラリーと
+> 共通の構図で、ここは変えていない)。命名ボックスを図鑑の`#gallery-info`
+> と同じく画面下側に置くと、ちょうどモデルと重なって隠れてしまうことが
+> 実機確認で分かったため、`.naming-showcase`は入力ボックスを画面**上側**
+> に置くことにした(構図そのものは既存の図鑑ギャラリーを踏襲し、変えて
+> いない)。
+>
+> **動作確認。** `npx tsc --noEmit`・`npx vitest run`(既存1129件+新規5件、
+> 全て成功)・`npm run build`に加え、`tools/playtest.mjs`のブラウザ/
+> SwiftShader起動を流用したPlaywrightで実機確認した。特に「一時停止が
+> 見た目だけでなく本物か」を検証するため、仲間にする個体とは別に敵性
+> モンスターを隣接させたまま同じターンでタルを投げ、両者が同一ターン内で
+> 殴り合う状況を作った上で: (1) ダイアログが開いている500ms間、敵の
+> `Stage.worldOf()`(見た目のワールド座標)が完全に静止していること
+> (2) ダイアログを閉じると位置が動き出すこと (3) 図鑑ギャラリーと同じ
+> 5秒待機後の自動回転が実際に始まること (4) Enter確定でニックネームが
+> HUDに反映されること (5) コンソール/ページエラーが出ないこと、を
+> それぞれ確認した。`npm run playtest`(既存の通しプレイスクリプト、
+> Escで「あとで」を選ぶ既存の仲間化テストを含む)も2回実行しどちらも
+> エラーなしで完走した。
+
 ## 経緯
 
 `plan/archive/companion-naming.md` で、仲間になった直後に名前を尋ねる

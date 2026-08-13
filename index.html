@@ -405,6 +405,7 @@
       body.portrait-lock #ui,
       body.portrait-lock #gallery-info,
       body.portrait-lock #village-hint,
+      body.portrait-lock #naming,
       body.portrait-lock #loading {
         display: none;
       }
@@ -522,13 +523,26 @@
         cursor: pointer;
       }
 
-      /* ------------------------------------------------ 命名(plan/companion-naming.md) */
+      /* ------------------------------------------------ 命名(plan/game/archive/companion-naming.md) */
       #naming {
         position: absolute; inset: 0;
         display: none;
         align-items: center; justify-content: center;
         background: rgba(3, 4, 10, 0.82);
         pointer-events: auto;
+      }
+      /*
+       * 仲間になった瞬間の一時停止(plan/game/archive/companion-recruit-showcase.md):
+       * 背後は暗転させたモーダルではなく、実際に見せたい回転台のモデル
+       * (GalleryView)そのものなので、通常の命名(ねむり小屋の改名)と違って
+       * 暗い幕を張らない。GalleryViewはどの種族も画面下寄り・やや小さめに
+       * 映す構図なので(図鑑ギャラリーと共通の構図。ここは変えない)、
+       * 入力欄は逆に画面上側へ置き、モデルの姿にかぶらないようにする
+       */
+      #naming.naming-showcase {
+        background: transparent;
+        align-items: flex-start;
+        padding-top: 28px;
       }
       .naming-box {
         width: min(320px, 90vw);
@@ -722,7 +736,6 @@
         <div id="arts"></div>
         <div id="stairsConfirm"></div>
         <div id="town"></div>
-        <div id="naming"></div>
         <div id="slotSelect"></div>
         <div id="overlay"></div>
         <div id="ending"></div>
@@ -731,6 +744,13 @@
 
       <div id="gallery-info" class="panel"></div>
       <div id="village-hint" class="panel"></div>
+      <!--
+        仲間になった瞬間の一時停止(plan/game/archive/companion-recruit-showcase.md):
+        #uiRoot(#ui)ごとHUDを隠している間もこのダイアログ自体は見せたいので、
+        #uiの外(#appの直下)に置く。#appはposition:relativeなので、
+        inset:0の意味は#uiの中にあった時と変わらない
+      -->
+      <div id="naming"></div>
 
       <div id="loading">
         <h1>少年ガルドと迷いの洞窟</h1>

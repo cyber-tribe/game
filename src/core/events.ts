@@ -87,3 +87,29 @@ export type GameEvent =
 export function msg(text: string): GameEvent {
   return { type: "message", text };
 }
+
+/**
+ * 仲間になった瞬間の一時停止(plan/game/archive/companion-recruit-showcase.md)。
+ * 1ターンぶんのイベント列を、recruitイベントの直後で区切って複数の
+ * 「再生単位」に分ける。区切りの末尾は必ずrecruitイベントになる
+ * (最後の区切りだけ、recruitを含まないことがある)。recruitが1つも
+ * 無ければ、配列全体をそのまま1つの区切りとして返す。
+ *
+ * 呼び出し側(main.ts)はこの区切りを先頭から順に再生し、末尾がrecruitの
+ * 区切りを再生し終えたら、そこでいったん止めて命名ダイアログを開く。
+ * 1ターンで複数体が同時に仲間になった場合も、区切りが複数生まれるので
+ * 自然に1体ずつ順番にダイアログが出る。
+ */
+export function splitEventsAtRecruits(events: readonly GameEvent[]): GameEvent[][] {
+  const segments: GameEvent[][] = [];
+  let current: GameEvent[] = [];
+  for (const event of events) {
+    current.push(event);
+    if (event.type === "recruit") {
+      segments.push(current);
+      current = [];
+    }
+  }
+  if (current.length > 0) segments.push(current);
+  return segments;
+}
