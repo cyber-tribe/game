@@ -3716,6 +3716,104 @@ def wataamenoobake_animations():
     ]
 
 
+# ======================================================================= やぐらもり
+
+# madoromiと同じ関節構成(root/stem/capbase/captop)をベースにするが、
+# きのこの傘ではなく祭りの櫓を思わせる姿にする。stemをmadoromiより長く
+# 細く伸ばして櫓の柱にし、cap側は高さを大きく詰めて平たい屋根板にする。
+# 「矢のような一撃」を放つ由来から、屋根の中心に鏃のような棘を立てる。
+YAGURAMORI_JOINTS = {
+    "root": (0.0, 0.0, 0.045),
+    "stem": (0.0, 0.0, 0.300),
+    "capbase": (0.0, 0.0, 0.400),
+    "captop": (0.0, 0.0, 0.460),
+}
+YAGURAMORI_RADII = {"root": 0.095, "stem": 0.058, "capbase": 0.235, "captop": 0.190}
+YAGURAMORI_BONES = [("root", "stem"), ("stem", "capbase"), ("capbase", "captop")]
+
+
+def build_yaguramori():
+    """
+    祭りの櫓に住み着いた古い霊。madoromiと同じ関節構成をベースに、
+    柱を長く細く、屋根を平たく広く作り替えて祭りの櫓を思わせる姿にする。
+    屋根の中心には矢のような一撃を放つ由来にちなんだ鏃形の棘を立て、
+    屋根の陰から覗く目と口を軒下に潜ませる。配色は第七地方
+    (わすれられた祭りの跡)の、くすんだ紅色・金色の名残と古びた柱の木色。
+    """
+    body = C.build_skinned("yaguramori", YAGURAMORI_JOINTS, YAGURAMORI_BONES,
+                           YAGURAMORI_RADII, root="root", subsurf=3)
+    wood = C.make_material("yaguramori_wood", (0.34, 0.24, 0.18), roughness=0.8)
+    roof = C.make_material("yaguramori_roof", (0.56, 0.20, 0.19), roughness=0.55)
+    C.assign_materials_by_region(body, [wood, roof], lambda c: 1 if c.z > 0.355 else 0)
+
+    extras = []
+    for side in (-1.0, 1.0):
+        eye = C.uv_sphere(f"yaguramori_eye{side}", (0.058 * side, -0.100, 0.330), 0.028,
+                          segments=14, rings=10, scale=(1.0, 0.6, 0.9))
+        C.assign_material(eye, C.make_material(f"yaguramori_eye{side}_m", EYE_DARK, roughness=0.3))
+        extras.append(eye)
+    mouth = C.uv_sphere("yaguramori_mouth", (0.0, -0.100, 0.280), 0.028,
+                        segments=12, rings=8, scale=(0.85, 0.5, 0.7))
+    C.assign_material(mouth, C.make_material("yaguramori_mouth_m", (0.30, 0.16, 0.18), roughness=0.4))
+    extras.append(mouth)
+
+    # 屋根の中心に立つ鏃形の棘。cone()はZ軸沿いにしか作れないので回転は
+    # かけず、根元(半径大)を屋根の高さに置いて真上へ伸ばす
+    gold = C.make_material("yaguramori_gold", (0.68, 0.55, 0.27), roughness=0.35, metallic=0.3)
+    spike = C.cone("yaguramori_spike", (0.0, 0.0, 0.458), 0.055, 0.006, 0.135, segments=12)
+    C.assign_material(spike, gold)
+    extras.append(spike)
+    for i, (angle_deg, dist) in enumerate([(40.0, 0.150), (160.0, 0.150), (280.0, 0.150)]):
+        angle = math.radians(angle_deg)
+        finial = C.cone(f"yaguramori_finial{i}",
+                        (math.cos(angle) * dist, math.sin(angle) * dist, 0.452),
+                        0.026, 0.004, 0.062, segments=8)
+        C.assign_material(finial, gold)
+        extras.append(finial)
+
+    mesh = C.join([body] + extras, "yaguramori")
+    armature = C.build_armature("yaguramori", YAGURAMORI_JOINTS, YAGURAMORI_BONES,
+                                mesh, root="root")
+    return [mesh, armature], armature
+
+
+def yaguramori_animations():
+    lower, mid, upper = "root-stem", "stem-capbase", "capbase-captop"
+    return [
+        # 櫓の上でじっと見下ろす、ほとんど動かない待機
+        ("idle", [
+            (1, {mid: (0, 0, 0)}),
+            (40, {mid: (2, 0, 1)}),
+            (80, {mid: (0, 0, 0)}),
+        ]),
+        # 柱そのものは歩かず、軋むように小さく揺れて進む
+        ("walk", [
+            (1, {lower: (0, 0, 0), mid: (0, 0, 0)}),
+            (8, {lower: (4, 0, 3), mid: (-3, 0, -2)}),
+            (16, {lower: (-4, 0, -3), mid: (3, 0, 2)}),
+            (24, {lower: (0, 0, 0), mid: (0, 0, 0)}),
+        ]),
+        # 屋根を大きく傾け、鏃の棘を狙いに合わせてから矢のように放つ
+        ("attack", [
+            (1, {upper: (0, 0, 0), mid: (0, 0, 0)}),
+            (6, {upper: (-26, 0, 0), mid: (-14, 0, 0)}),
+            (11, {upper: (16, 0, 0), mid: (10, 0, 0)}),
+            (20, {upper: (0, 0, 0), mid: (0, 0, 0)}),
+        ]),
+        ("hit", [
+            (1, {mid: (0, 0, 0)}),
+            (4, {mid: (14, 0, 0), upper: (10, 0, 0)}),
+            (14, {mid: (0, 0, 0), upper: (0, 0, 0)}),
+        ]),
+        # 古い柱が朽ち崩れるように、大きく傾いて倒れる
+        ("die", [
+            (1, {lower: (0, 0, 0), mid: (0, 0, 0)}),
+            (10, {lower: (20, 0, 12), mid: (14, 0, 8), upper: (10, 0, 6)}),
+            (24, {lower: (54, 0, 30), mid: (34, 0, 20), upper: (24, 0, 14)}),
+        ]),
+    ]
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -3747,6 +3845,7 @@ MONSTERS = {
     "kageboushi": (build_kageboushi, kageboushi_animations),
     "chouchinokuri": (build_chouchinokuri, chouchinokuri_animations),
     "wataamenoobake": (build_wataamenoobake, wataamenoobake_animations),
+    "yaguramori": (build_yaguramori, yaguramori_animations),
 }
 
 

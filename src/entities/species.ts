@@ -1016,10 +1016,10 @@ export const SPECIES: readonly Species[] = [
     weight: 4,
   },
   {
-    // 祭りの櫓に住み着いた古い霊。madoromiモデルを流用する
+    // 祭りの櫓に住み着いた古い霊。専用モデル(plan/models/archive/model-yaguramori.md)
     id: "yaguramori",
     name: "やぐらもり",
-    model: "madoromi",
+    model: "yaguramori",
     maxHp: 36,
     atk: 22,
     def: 10,
