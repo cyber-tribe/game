@@ -217,7 +217,7 @@ export const SPECIES: readonly Species[] = [
     // 夢あわせを重ねて育った姿。攻撃が2回まで反響するように連続発動する
     id: "kodamagitsune",
     name: "こだまぎつね",
-    model: "gajiri",
+    model: "kodamagitsune",
     maxHp: 60,
     atk: 29,
     def: 13,
