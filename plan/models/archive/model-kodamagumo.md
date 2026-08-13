@@ -32,7 +32,7 @@
 >
 > **`src/entities/species.ts`の`kodamagumo.model`を`"purun"`→
 > `"kodamagumo"`に変更した。** `kodamagumo`は
-> `plan/archive/monster-roster-expansion-species.md`(60種化)由来の種族でも
+> `plan/game/archive/monster-roster-expansion-species.md`(60種化)由来の種族でも
 > あるため、`tests/monster-roster-expansion-species.test.ts`の
 > `KNOWN_MODEL_IDS`(「新規3Dモデルは作らず既存5種を流用する」という
 > ロースター拡張時の前提を検査する集合)に`kodamagumo`を追記し、

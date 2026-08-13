@@ -1271,7 +1271,7 @@ def ashiatodori_animations():
 # =================================================================== わすれみずち
 
 # 現在流用している`tsubute`と同じ関節の"種類"(胴の芯+頭+腕+脚、7本の骨)を
-# そのまま踏襲する(plan/archive/model-wasuremizuchi.md参照)。ただし
+# そのまま踏襲する(plan/models/archive/model-wasuremizuchi.md参照)。ただし
 # ずんぐりした蛙とは違い、coward(瀕死で離脱)らしい「小柄で華奢な、
 # 逃げ足の速さを感じさせる軽いシルエット」にするため、胴・頭・手足の
 # 半径をtsubuteよりはっきり細くし、関節間の距離も詰めて小柄にまとめている。
@@ -1430,7 +1430,7 @@ def wasuremizuchi_animations():
 
 # =================================================================== きのこおとこ
 
-# plan/archive/model-kinokootoko.md: 現在流用しているmadoromiの関節構成
+# plan/models/archive/model-kinokootoko.md: 現在流用しているmadoromiの関節構成
 # (root-stem-capbase-captop の縦一本、傘は太い→細いの円錐)をベースにしつつ、
 # 「眠気を吸い込んで育った茸そのものが人の形に育ったもの」という設定に
 # 合わせ、humanoidとして腕・脚を新たに生やす(mabutamushi/nukarumigani/
@@ -2059,7 +2059,7 @@ def nebosukegaeru_animations():
 
 # =================================================================== まどろみぐも
 
-# plan/archive/model-madoromigumo.md: 現在流用しているtsubuteの「胴の芯+そこから
+# plan/models/archive/model-madoromigumo.md: 現在流用しているtsubuteの「胴の芯+そこから
 # 伸びる肢」という関節構成の"種類"を踏襲する。
 #
 # 【試作の失敗、繰り返し】まどろみぐもは蜘蛛らしい多脚のシルエットが要になる
