@@ -27,7 +27,13 @@ import {
   type VillageStage,
 } from "./entities/village";
 import { MAX_SKILLS, NATIVE_SKILL_BY_SPECIES, SKILLS, fullSkillSet } from "./entities/skills";
-import { HAJIME_NO_YUME_ID, REGION_BOSS_ORDER, SPECIES, speciesById } from "./entities/species";
+import {
+  HAJIME_NO_YUME_ID,
+  REGION_BOSS_ORDER,
+  SPECIES,
+  foodValueMultiplier,
+  speciesById,
+} from "./entities/species";
 import type { StoredMonster } from "./entities/storedMonster";
 import { TARUKURABE_PERFECT_SCORE, type RunSnapshot, type RunStatus } from "./game";
 import { ITEMS } from "./items/catalog";
@@ -305,49 +311,111 @@ const STARTER: StoredItem[] = [
 
 const VALID_IDS = new Set(ITEMS.map((i) => i.id));
 
+/**
+ * SaveDataの1フィールドぶんの仕様(plan外のリファクタリング、Martin Fowler
+ * PR14)。以前はSaveData33フィールドがinterface宣言・initialSave()・
+ * loadSave()の3箇所に個別に列挙されており、フィールドを1つ足すたびに
+ * 3箇所すべてに手を入れる必要があった。ここでは値レベルの情報源を
+ * SAVE_FIELDS 1箇所にまとめ、initialSave/loadSaveはそこから機械的に
+ * 組み立てる。recordRun()はフィールドごとに合流ルールが異なる
+ * (加算・上限更新・条件付き更新など)本質的な複雑さのため、この表には
+ * 含めていない
+ */
+interface SaveFieldSpec<T> {
+  /** 新規セーブでの初期値。配列・オブジェクトは呼び出しのたびに新しいインスタンスを作る関数で渡す */
+  default: T | (() => T);
+  /** JSON.parse直後の(信頼できない)Partial<SaveData>から、妥当な値を1つ取り出す */
+  sanitize: (parsed: Partial<SaveData>) => T;
+}
+
+type SaveFieldSpecs = { [K in keyof SaveData]-?: SaveFieldSpec<SaveData[K]> };
+
+const SAVE_FIELDS: SaveFieldSpecs = {
+  deepest: { default: 0, sanitize: (p) => numberOr(p.deepest, 0) },
+  runs: { default: 0, sanitize: (p) => numberOr(p.runs, 0) },
+  clears: { default: 0, sanitize: (p) => numberOr(p.clears, 0) },
+  bestLevel: { default: 1, sanitize: (p) => numberOr(p.bestLevel, 1) },
+  storage: { default: () => STARTER.map((s) => ({ ...s })), sanitize: (p) => sanitizeStorage(p.storage) },
+  knownCheckpoints: { default: () => [1], sanitize: (p) => sanitizeCheckpoints(p.knownCheckpoints) },
+  seenTutorialTips: { default: () => [], sanitize: (p) => sanitizeTutorialTips(p.seenTutorialTips) },
+  trainingFocus: { default: "balance", sanitize: (p) => sanitizeTrainingFocus(p.trainingFocus) },
+  hut: { default: () => [], sanitize: (p) => sanitizeHut(p.hut) },
+  nextHutUid: { default: 1, sanitize: (p) => numberOr(p.nextHutUid, nextHutUidFrom(sanitizeHut(p.hut))) },
+  records: {
+    default: () => ({ totalDefeats: 0, totalCaptures: 0 }),
+    sanitize: (p) => sanitizeRecords(p.records),
+  },
+  compendium: { default: () => ({}), sanitize: (p) => sanitizeCompendium(p.compendium) },
+  achievements: { default: () => ({}), sanitize: (p) => sanitizeAchievements(p.achievements) },
+  equippedTitle: {
+    default: undefined,
+    sanitize: (p) => sanitizeEquippedTitle(p.equippedTitle, sanitizeAchievements(p.achievements)),
+  },
+  equipmentCompendium: {
+    default: () => ({}),
+    sanitize: (p) => sanitizeEquipmentCompendium(p.equipmentCompendium),
+  },
+  markCompendium: { default: () => ({}), sanitize: (p) => sanitizeMarkCompendium(p.markCompendium) },
+  materialCompendium: { default: () => ({}), sanitize: (p) => sanitizeMaterialCompendium(p.materialCompendium) },
+  difficulty: { default: "normal", sanitize: (p) => sanitizeDifficulty(p.difficulty) },
+  gold: { default: 0, sanitize: (p) => Math.max(0, numberOr(p.gold, 0)) },
+  boardDate: { default: "", sanitize: (p) => (typeof p.boardDate === "string" ? p.boardDate : "") },
+  boardOffers: { default: () => [], sanitize: (p) => sanitizeQuestIdList(p.boardOffers) },
+  activeQuests: { default: () => [], sanitize: (p) => sanitizeActiveQuests(p.activeQuests) },
+  completedQuestIds: { default: () => [], sanitize: (p) => sanitizeQuestIdList(p.completedQuestIds) },
+  nightlyDreamBestDepth: { default: 0, sanitize: (p) => Math.max(0, numberOr(p.nightlyDreamBestDepth, 0)) },
+  villageStage: { default: 1, sanitize: (p) => sanitizeVillageStage(p.villageStage) },
+  fontSize: { default: "normal", sanitize: (p) => (p.fontSize === "large" ? "large" : "normal") },
+  unlockedCostumes: {
+    default: () => [DEFAULT_COSTUME_ID],
+    sanitize: (p) => sanitizeUnlockedCostumes(p.unlockedCostumes),
+  },
+  equippedCostume: {
+    default: DEFAULT_COSTUME_ID,
+    sanitize: (p) => sanitizeEquippedCostume(p.equippedCostume, sanitizeUnlockedCostumes(p.unlockedCostumes)),
+  },
+  arenaRecords: { default: () => [], sanitize: (p) => sanitizeArenaRecords(p.arenaRecords) },
+  bonds: { default: () => ({}), sanitize: (p) => sanitizeBonds(p.bonds) },
+  seenVillageEvents: { default: () => [], sanitize: (p) => sanitizeStringList(p.seenVillageEvents) },
+  lastGiftDates: { default: () => ({}), sanitize: (p) => sanitizeLastGiftDates(p.lastGiftDates) },
+  foundVaultPassages: { default: () => [], sanitize: (p) => sanitizeFoundVaultPassages(p.foundVaultPassages) },
+  lastPlayedAt: {
+    default: () => new Date().toISOString(),
+    sanitize: (p) => (typeof p.lastPlayedAt === "string" ? p.lastPlayedAt : new Date(0).toISOString()),
+  },
+  defeatedRegionBosses: {
+    default: () => [],
+    sanitize: (p) => sanitizeDefeatedRegionBosses(p.defeatedRegionBosses),
+  },
+  storyCleared: { default: false, sanitize: (p) => p.storyCleared === true },
+  trueAwakeningCleared: { default: false, sanitize: (p) => p.trueAwakeningCleared === true },
+  audioMuted: { default: false, sanitize: (p) => p.audioMuted === true },
+  audioVolume: {
+    default: DEFAULT_AUDIO_VOLUME,
+    sanitize: (p) => clamp01(numberOr(p.audioVolume, DEFAULT_AUDIO_VOLUME)),
+  },
+  messageSpeed: { default: "normal", sanitize: (p) => sanitizeMessageSpeed(p.messageSpeed) },
+  tarukurabeBestScore: { default: 0, sanitize: (p) => Math.max(0, numberOr(p.tarukurabeBestScore, 0)) },
+};
+
+const SAVE_FIELD_KEYS = Object.keys(SAVE_FIELDS) as (keyof SaveData)[];
+
+function resolveDefault<T>(spec: SaveFieldSpec<T>): T {
+  return typeof spec.default === "function" ? (spec.default as () => T)() : (spec.default as T);
+}
+
+/** equippedTitleのように値がundefinedなフィールドは、キー自体を持たせない(元のinitialSave()と同じ挙動) */
+function buildSaveData(resolve: (key: keyof SaveData) => unknown): SaveData {
+  const out: Record<string, unknown> = {};
+  for (const key of SAVE_FIELD_KEYS) {
+    const value = resolve(key);
+    if (value !== undefined) out[key] = value;
+  }
+  return out as unknown as SaveData;
+}
+
 export function initialSave(): SaveData {
-  return {
-    deepest: 0,
-    runs: 0,
-    clears: 0,
-    bestLevel: 1,
-    storage: STARTER.map((s) => ({ ...s })),
-    knownCheckpoints: [1],
-    seenTutorialTips: [],
-    trainingFocus: "balance",
-    hut: [],
-    nextHutUid: 1,
-    records: { totalDefeats: 0, totalCaptures: 0 },
-    compendium: {},
-    achievements: {},
-    equipmentCompendium: {},
-    markCompendium: {},
-    materialCompendium: {},
-    difficulty: "normal",
-    gold: 0,
-    boardDate: "",
-    boardOffers: [],
-    activeQuests: [],
-    completedQuestIds: [],
-    nightlyDreamBestDepth: 0,
-    villageStage: 1,
-    fontSize: "normal",
-    unlockedCostumes: [DEFAULT_COSTUME_ID],
-    equippedCostume: DEFAULT_COSTUME_ID,
-    arenaRecords: [],
-    bonds: {},
-    seenVillageEvents: [],
-    lastGiftDates: {},
-    foundVaultPassages: [],
-    lastPlayedAt: new Date().toISOString(),
-    defeatedRegionBosses: [],
-    storyCleared: false,
-    trueAwakeningCleared: false,
-    audioMuted: false,
-    audioVolume: DEFAULT_AUDIO_VOLUME,
-    messageSpeed: "normal",
-    tarukurabeBestScore: 0,
-  };
+  return buildSaveData((key) => resolveDefault(SAVE_FIELDS[key] as SaveFieldSpec<unknown>));
 }
 
 /** @param slot セーブ枠(plan/save-slots.md)。省略時は現在のアクティブ枠 */
@@ -356,52 +424,7 @@ export function loadSave(slot: number = activeSlot): SaveData {
     const raw = localStorage.getItem(slotKey(slot));
     if (!raw) return initialSave();
     const parsed = JSON.parse(raw) as Partial<SaveData>;
-    return {
-      deepest: numberOr(parsed.deepest, 0),
-      runs: numberOr(parsed.runs, 0),
-      clears: numberOr(parsed.clears, 0),
-      bestLevel: numberOr(parsed.bestLevel, 1),
-      storage: sanitizeStorage(parsed.storage),
-      knownCheckpoints: sanitizeCheckpoints(parsed.knownCheckpoints),
-      seenTutorialTips: sanitizeTutorialTips(parsed.seenTutorialTips),
-      trainingFocus: sanitizeTrainingFocus(parsed.trainingFocus),
-      hut: sanitizeHut(parsed.hut),
-      nextHutUid: numberOr(parsed.nextHutUid, nextHutUidFrom(sanitizeHut(parsed.hut))),
-      records: sanitizeRecords(parsed.records),
-      compendium: sanitizeCompendium(parsed.compendium),
-      achievements: sanitizeAchievements(parsed.achievements),
-      equippedTitle: sanitizeEquippedTitle(parsed.equippedTitle, sanitizeAchievements(parsed.achievements)),
-      equipmentCompendium: sanitizeEquipmentCompendium(parsed.equipmentCompendium),
-      markCompendium: sanitizeMarkCompendium(parsed.markCompendium),
-      materialCompendium: sanitizeMaterialCompendium(parsed.materialCompendium),
-      difficulty: sanitizeDifficulty(parsed.difficulty),
-      gold: Math.max(0, numberOr(parsed.gold, 0)),
-      boardDate: typeof parsed.boardDate === "string" ? parsed.boardDate : "",
-      boardOffers: sanitizeQuestIdList(parsed.boardOffers),
-      activeQuests: sanitizeActiveQuests(parsed.activeQuests),
-      completedQuestIds: sanitizeQuestIdList(parsed.completedQuestIds),
-      nightlyDreamBestDepth: Math.max(0, numberOr(parsed.nightlyDreamBestDepth, 0)),
-      villageStage: sanitizeVillageStage(parsed.villageStage),
-      fontSize: parsed.fontSize === "large" ? "large" : "normal",
-      unlockedCostumes: sanitizeUnlockedCostumes(parsed.unlockedCostumes),
-      equippedCostume: sanitizeEquippedCostume(
-        parsed.equippedCostume,
-        sanitizeUnlockedCostumes(parsed.unlockedCostumes),
-      ),
-      arenaRecords: sanitizeArenaRecords(parsed.arenaRecords),
-      bonds: sanitizeBonds(parsed.bonds),
-      seenVillageEvents: sanitizeStringList(parsed.seenVillageEvents),
-      lastGiftDates: sanitizeLastGiftDates(parsed.lastGiftDates),
-      foundVaultPassages: sanitizeFoundVaultPassages(parsed.foundVaultPassages),
-      lastPlayedAt: typeof parsed.lastPlayedAt === "string" ? parsed.lastPlayedAt : new Date(0).toISOString(),
-      defeatedRegionBosses: sanitizeDefeatedRegionBosses(parsed.defeatedRegionBosses),
-      storyCleared: parsed.storyCleared === true,
-      trueAwakeningCleared: parsed.trueAwakeningCleared === true,
-      audioMuted: parsed.audioMuted === true,
-      audioVolume: clamp01(numberOr(parsed.audioVolume, DEFAULT_AUDIO_VOLUME)),
-      messageSpeed: sanitizeMessageSpeed(parsed.messageSpeed),
-      tarukurabeBestScore: Math.max(0, numberOr(parsed.tarukurabeBestScore, 0)),
-    };
+    return buildSaveData((key) => (SAVE_FIELDS[key] as SaveFieldSpec<unknown>).sanitize(parsed));
   } catch {
     // 壊れた保存データで起動できなくなるほうが困るので、黙って初期値に戻す
     return initialSave();
@@ -471,6 +494,11 @@ export function batchSaves<T>(run: () => T): T {
       writeSave(data, slot);
     }
   }
+}
+
+/** 最深記録(deepest)を、既存の記録より深ければ更新する。ダイブ中フロアを移動するたびに呼ぶ */
+export function recordDeepest(current: SaveData, depth: number): SaveData {
+  return { ...current, deepest: Math.max(current.deepest, depth) };
 }
 
 /** めざめの階段(チェックポイント)を既知にする。すでに知っていれば何もしない */
@@ -1010,12 +1038,9 @@ export function fuseMonsters(
   const recentFusionMaterials = [...axis.recentFusionMaterials, food.speciesId].slice(
     -MAX_RECENT_FUSION_MATERIALS,
   );
-  // 地方ボス(plan/region-bosses.md): 糧にすると通常個体3体分の経験値換算になる
-  // (仲間にする体験を、単なる効率アイテムにしないための特別ルール)
-  const foodValueMultiplier = speciesById(food.speciesId).isRegionBoss ? 3 : 1;
   const fused: StoredMonster = {
     ...axis,
-    level: axis.level + Math.floor((food.level * foodValueMultiplier) / 2) + 1,
+    level: axis.level + Math.floor((food.level * foodValueMultiplier(speciesById(food.speciesId))) / 2) + 1,
     skills,
     recentFusionMaterials,
   };

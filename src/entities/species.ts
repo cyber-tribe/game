@@ -678,6 +678,18 @@ export function speciesForDepth(depth: number): Species[] {
   return SPECIES.filter((s) => depth >= s.minFloor && (s.maxFloor === undefined || depth <= s.maxFloor));
 }
 
+/** 地方ボス(plan/region-bosses.md)。夢あわせの糧にすると、通常個体の何体分の経験値換算になるか */
+export const REGION_BOSS_FOOD_VALUE_MULTIPLIER = 3;
+
+/**
+ * 夢あわせ(plan/monster-fusion.md)。糧にした種族の経験値換算倍率。
+ * 地方ボスは通常個体3体分になる(仲間にする体験を、単なる効率アイテムに
+ * しないための特別ルール)
+ */
+export function foodValueMultiplier(species: Species): number {
+  return species.isRegionBoss ? REGION_BOSS_FOOD_VALUE_MULTIPLIER : 1;
+}
+
 /**
  * 地方ボス(plan/region-bosses.md)。表の寝穴(MAIN_CAVE_ID)で、その階の
  * 地方の最終階(6階目)にだけ専用に配置する種族id。design/regions.mdの
