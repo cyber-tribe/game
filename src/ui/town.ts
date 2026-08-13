@@ -227,11 +227,17 @@ export class TownScreen {
     onSetAudioVolume: (volume: number) => void,
     onSetMessageSpeed: (speed: MessageSpeed) => void,
     onSetSaveLocale: (locale: LocaleId) => void,
+    /**
+     * 拠点の3D化(plan/town-3d-exploration.md)。村なかで近づいた建物に
+     * 対応する列を開いた状態で表示する。省略時は常に0(倉庫)から始まる
+     * 従来どおりの挙動
+     */
+    initialColumn = 0,
   ): void {
     this.save = save;
     this.storage = save.storage.map((s) => ({ ...s }));
     this.carry = [];
-    this.column = 0;
+    this.column = Math.min(19, Math.max(0, Math.trunc(initialColumn))) as typeof this.column;
     this.cursor = [0, 0];
     // 既知のめざめの階段のうち、最も深いところから出発する状態で開く
     this.startDepthIndex = Math.max(0, this.checkpoints().length - 1);

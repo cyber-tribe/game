@@ -82,8 +82,16 @@ const readHud = (page) =>
   page.evaluate(() => {
     const app = globalThis.__app;
     if (!app?.game) return null;
+    // 拠点の3D化(plan/town-3d-exploration.md): 拠点は「村を歩く→建物へ
+    // 確定で入る→TownScreen」の2段構えになった。debugVillageActive()が
+    // 無い(=このビルドより前の)実装でも動くよう、任意呼び出しにしてある
+    const screen = app.debugVillageActive?.()
+      ? "village"
+      : document.querySelector("#town")?.style.display === "flex"
+        ? "town"
+        : "dungeon";
     return {
-      screen: document.querySelector("#town")?.style.display === "flex" ? "town" : "dungeon",
+      screen,
       depth: app.game.depth,
       pos: { x: app.game.player.pos.x, y: app.game.player.pos.y },
       hp: app.game.player.hp,
@@ -120,7 +128,13 @@ async function runSession(browser, index) {
     });
     await page.waitForTimeout(800);
 
-    // 拠点から、既定の持ち込みのまま即座に潜る
+    // 拠点の3D化(plan/town-3d-exploration.md): 起動直後は村なかの3D空間から
+    // 始まる。北へ少し歩けば「旅の看板」に着くので、近づいて確定してから、
+    // 既定の持ち込みのまま即座に潜る
+    await page.keyboard.down("ArrowUp");
+    await page.waitForTimeout(1200);
+    await page.keyboard.up("ArrowUp");
+    await page.waitForTimeout(300);
     await page.keyboard.press("Space");
     await page.waitForTimeout(700);
 
@@ -163,16 +177,29 @@ async function runSession(browser, index) {
         triedDirections.clear();
       }
 
-      // ダイブが終わっている(全滅・踏破など)か、拠点で待機している状態。
-      // このエージェントの通常アクション(move/wait/menu/rotate/orders)には
-      // 「R で拠点へ戻る」「Space で潜る」が無いため、ここで拾わないと
-      // ターン予算が尽きるまでHUDが一切変化せず、本物の進行不能と見分けが
-      // つかない「ソフトロック疑い」を大量に誤検知してしまう
-      if (hud.status !== "playing" || hud.screen === "town") {
-        await page.keyboard.press("KeyR").catch(() => {});
-        await page.waitForTimeout(400);
-        await page.keyboard.press("Space").catch(() => {});
-        await page.waitForTimeout(700);
+      // ダイブが終わっている(全滅・踏破など)か、拠点(村なか・TownScreen)で
+      // 待機している状態。このエージェントの通常アクション(move/wait/menu/
+      // rotate/orders)には「R で拠点へ戻る」「村なかで確定して建物へ入る」
+      // 「Space で潜る」が無いため、ここで拾わないとターン予算が尽きるまで
+      // HUDが一切変化せず、本物の進行不能と見分けがつかない
+      // 「ソフトロック疑い」を大量に誤検知してしまう
+      if (hud.status !== "playing" || hud.screen === "town" || hud.screen === "village") {
+        if (hud.screen === "village") {
+          // 拠点の3D化(plan/town-3d-exploration.md): どの建物に近いかは
+          // 分からないので、軽く動いてから確定を試す程度に留める。
+          // 外れてもunchangedTurnsは毎回0に戻すので、誤検知にはならない
+          const dir = DIRECTIONS[Math.floor(rng() * DIRECTIONS.length)];
+          await page.keyboard.down(dir).catch(() => {});
+          await page.waitForTimeout(400);
+          await page.keyboard.up(dir).catch(() => {});
+          await page.keyboard.press("Space").catch(() => {});
+          await page.waitForTimeout(400);
+        } else {
+          await page.keyboard.press("KeyR").catch(() => {});
+          await page.waitForTimeout(400);
+          await page.keyboard.press("Space").catch(() => {});
+          await page.waitForTimeout(700);
+        }
         unchangedTurns = 0;
         triedDirections.clear();
         continue;
