@@ -273,7 +273,8 @@ export const SPECIES: readonly Species[] = [
     // HPが半分を切ると深みタイルに身を潜める2フェーズ制(plan/region-boss-nushigaeru.md)
     id: "nushigaeru",
     name: "ヌシガエル",
-    model: "tsubute",
+    // 専用モデル(plan/models/archive/model-nushigaeru.md)
+    model: "nushigaeru",
     maxHp: 68,
     atk: 20,
     def: 8,
