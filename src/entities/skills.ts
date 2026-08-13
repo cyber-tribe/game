@@ -94,6 +94,10 @@ export const NATIVE_SKILL_BY_SPECIES: Record<string, SkillId> = {
   menkaburikozo: "ambushStrike",
   yumemayoinokage: "disguise",
   // オイテケボシ・しずくうお・こだまうさぎ・かざりだるま・ヨリシロの残響: 特技なし
+  // ---- ここから plan/monster-roster-expansion-species.md ----
+  // まどろみぐも: モヤウツボと同系統のambushStrike。他29種は「特技なし」が大半という
+  // 既存比率(plan/archive/monster-compendium.md参照)を踏襲し、意図的に増やさない
+  madoromigumo: "ambushStrike",
   // ---- ここから plan/companion-evolution.md ----
   tokoshiepurun: "steadfastBody",
   // いしずえねずみ: 特技なし(coward→guardのAI変化とステータス底上げが本体)

@@ -13,6 +13,7 @@ import {
   hasStatus,
   isHostile,
   isWalkable,
+  tileAt,
   walkableAt,
 } from "../core/types";
 import { canSee } from "../dungeon/visibility";
@@ -211,6 +212,31 @@ function burrowSurfaceSpot(rng: Rng, floor: FloorState, near: Vec2): Vec2 | null
 }
 
 /**
+ * 60種化・追加種族(plan/monster-roster-expansion-species.md)。地形連動で
+ * 射程が伸びる種族(きりみずち・なだかぜ)の実効射程。自分の足元が深みタイル、
+ * または自分の周囲1マス以内に奔流タイルがあると、対応するボーナスを加算する
+ */
+export function effectiveRangedRange(floor: FloorState, actor: Actor): number {
+  const base = actor.rangedRange ?? 0;
+  if (!actor.speciesId) return base;
+  const species = speciesById(actor.speciesId);
+  let bonus = 0;
+  if (species.rangeBonusOnQuagmire && tileAt(floor, actor.pos)?.quagmire) {
+    bonus += species.rangeBonusOnQuagmire;
+  }
+  if (species.rangeBonusNearTorrent) {
+    const nearTorrent =
+      tileAt(floor, actor.pos)?.torrent !== undefined ||
+      ALL_DIRS.some((dir) => {
+        const delta = dirDelta(dir);
+        return tileAt(floor, { x: actor.pos.x + delta.x, y: actor.pos.y + delta.y })?.torrent !== undefined;
+      });
+    if (nearTorrent) bonus += species.rangeBonusNearTorrent;
+  }
+  return base + bonus;
+}
+
+/**
  * モンスターの行動を決める。
  * target は距離場の元になっている陣営の代表(モンスターにとってはプレイヤー)。
  */
@@ -343,7 +369,7 @@ export function decideMonsterAction(
   const visible = nearestVisibleFoe(floor, monster);
   if (monster.rangedRange !== undefined && visible && !hasStatus(monster, STATUS_SEAL)) {
     const distance = chebyshev(monster.pos, visible.pos);
-    if (distance <= monster.rangedRange && isStraightLine(monster.pos, visible.pos)) {
+    if (distance <= effectiveRangedRange(floor, monster) && isStraightLine(monster.pos, visible.pos)) {
       return { type: "ranged", targetId: visible.id };
     }
   }
@@ -394,7 +420,7 @@ function freeAction(
   if (foe) {
     if (ally.rangedRange !== undefined) {
       const distance = chebyshev(ally.pos, foe.pos);
-      if (distance <= ally.rangedRange && isStraightLine(ally.pos, foe.pos)) {
+      if (distance <= effectiveRangedRange(floor, ally) && isStraightLine(ally.pos, foe.pos)) {
         return { type: "ranged", targetId: foe.id };
       }
     }
@@ -447,7 +473,7 @@ function vanguardAction(
   if (foe) {
     if (ally.rangedRange !== undefined) {
       const distance = chebyshev(ally.pos, foe.pos);
-      if (distance <= ally.rangedRange && isStraightLine(ally.pos, foe.pos)) {
+      if (distance <= effectiveRangedRange(floor, ally) && isStraightLine(ally.pos, foe.pos)) {
         return { type: "ranged", targetId: foe.id };
       }
     }

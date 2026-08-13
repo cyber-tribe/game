@@ -637,6 +637,476 @@ export const SPECIES: readonly Species[] = [
     weight: 1,
   },
 
+  // ---- plan/monster-roster-expansion-species.md: 60種化・追加種族 ----
+  // 新規3Dモデルは今回のスコープでも制作せず、既存5種のモデルを流用する
+  // (surigarasuと同じ考え方)。数値はdesign/balance-philosophy.mdの
+  // 「1地方(6階)あたり実効戦力1.3〜1.5倍」を目安に、地方内の既存種族から補間した
+
+  // 第一地方: うたたねの参道(design/regions.md 1〜6階)。控えめに+2。
+  // plan/archive/tutorial-floor-easing.mdの方針どおり、1階目には出さずminFloor2から
+  {
+    // あくびの合間に紛れ込んだ影。新規モデル未制作のため、purunモデルを流用する
+    id: "akubitokage",
+    name: "あくびとかげ",
+    model: "purun",
+    maxHp: 6,
+    atk: 3,
+    def: 0,
+    exp: 4,
+    ai: "coward",
+    minFloor: 2,
+    weight: 9,
+  },
+  {
+    // 閉じかけた瞼の隙間に湧く小さな夢。この作品最初のswarm。新規モデル未制作のため、gajiriモデルを流用する
+    id: "mabutamushi",
+    name: "まぶたむし",
+    model: "gajiri",
+    maxHp: 5,
+    atk: 3,
+    def: 0,
+    exp: 3,
+    ai: "swarm",
+    minFloor: 2,
+    weight: 6,
+    swarmSize: [2, 3],
+  },
+
+  // 第二地方: 忘れ潮の湿地(design/regions.md 7〜12階)。+4
+  {
+    // 霧を纏う、忘れられかけた道しるべ。ranged主力のtsubuteモデルを流用する
+    id: "kirimizuchi",
+    name: "きりみずち",
+    model: "tsubute",
+    maxHp: 20,
+    atk: 11,
+    def: 4,
+    exp: 18,
+    ai: "ranged",
+    range: 4,
+    minFloor: 7,
+    weight: 5,
+    // 深みタイルの上にいると射程が伸びる(ai.ts effectiveRangedRange参照)
+    rangeBonusOnQuagmire: 2,
+  },
+  {
+    // 足を取られた思い出。honegarami(甲殻・防御寄り)モデルを流用する
+    id: "nukarumigani",
+    name: "ぬかるみがに",
+    model: "honegarami",
+    // 「深みタイル上では動きが遅くなる代わりに攻撃力が上がる」は地形連動の
+    // 移動速度変化まで実装せず、常時やや高めのatkに寄せる簡略化とした(アーカイブ注記参照)
+    maxHp: 30,
+    atk: 16,
+    def: 10,
+    exp: 24,
+    ai: "melee",
+    minFloor: 8,
+    weight: 5,
+  },
+  {
+    // 消えていく足跡を追う鳥。新規モデル未制作のため、purunモデルを流用する
+    id: "ashiatodori",
+    name: "あしあとどり",
+    model: "purun",
+    maxHp: 10,
+    atk: 8,
+    def: 2,
+    exp: 8,
+    ai: "swarm",
+    minFloor: 7,
+    weight: 5,
+    swarmSize: [3, 4],
+  },
+  {
+    // すっかり忘れられた水霊。モヤウツボの成れの果てに近い存在なので同じtsubuteモデルを流用する
+    id: "wasuremizuchi",
+    name: "わすれみずち",
+    model: "tsubute",
+    // 「触れられると深みタイルへ逃げ込む」は逃走先をquagmireへ誘導する
+    // 経路選択までは実装せず、既存coward(瀕死で離脱)のまま簡略化した(アーカイブ注記参照)
+    maxHp: 16,
+    atk: 9,
+    def: 3,
+    exp: 14,
+    ai: "coward",
+    minFloor: 9,
+    weight: 4,
+  },
+
+  // 第三地方: まどろみの茸林(design/regions.md 13〜18階)。+4
+  {
+    // 眠気を吸い込んで育った茸そのもの。madoromiモデルを流用する
+    id: "kinokootoko",
+    name: "きのこおとこ",
+    model: "madoromi",
+    maxHp: 34,
+    atk: 19,
+    def: 9,
+    exp: 32,
+    ai: "melee",
+    minFloor: 13,
+    weight: 5,
+    // 眠りの胞子で満ちた部屋(Room.spored)では攻撃力が上がる(game.ts attack参照)
+    atkMulInSporedRoom: 0.25,
+  },
+  {
+    // 舞い散る胞子の化身。madoromiモデルを流用する
+    id: "houshitobi",
+    name: "ほうしとび",
+    model: "madoromi",
+    maxHp: 20,
+    atk: 14,
+    def: 5,
+    exp: 20,
+    ai: "ranged",
+    range: 4,
+    minFloor: 14,
+    weight: 4,
+    inflicts: { kind: "sleep", chance: 0.15, turns: 3 },
+  },
+  {
+    // まどろみの隙間に糸を張る蜘蛛。ambush主力のtsubuteモデルを流用する
+    id: "madoromigumo",
+    name: "まどろみぐも",
+    model: "tsubute",
+    maxHp: 26,
+    atk: 17,
+    def: 7,
+    exp: 26,
+    ai: "ambush",
+    // 特技ふいのいちげき(ambushStrike)はモヤウツボと同系統。
+    // NATIVE_SKILL_BY_SPECIES(entities/skills.ts)側で紐づける
+    minFloor: 14,
+    weight: 4,
+  },
+  {
+    // ツブテガエルの遠い親戚。同じtsubuteモデルを流用する
+    id: "nebosukegaeru",
+    name: "ねぼすけがえる",
+    model: "tsubute",
+    maxHp: 22,
+    atk: 13,
+    def: 6,
+    exp: 22,
+    ai: "coward",
+    minFloor: 15,
+    weight: 4,
+    // 攻撃を受けると跳ねて反撃する。ヨロイオイテケと同じcounterDamageRatioを流用
+    counterDamageRatio: 0.2,
+  },
+
+  // 第四地方: 骨積みの回廊(design/regions.md 19〜24階)。+4
+  {
+    // 積み重なった記憶の重み。honegarami模様そのものなので同モデルを流用する
+    id: "honedatami",
+    name: "ホネダタミ",
+    model: "honegarami",
+    // 「倒すと素材を多く落とす」は種族ごとのドロップ量を変える仕組みが
+    // 存在しないため実装せず、guardらしい高め耐久のみで表現した(アーカイブ注記参照)
+    maxHp: 56,
+    atk: 22,
+    def: 20,
+    exp: 42,
+    ai: "guard",
+    minFloor: 19,
+    weight: 4,
+  },
+  {
+    // 誰のものかも忘れられた骨。honegaramiモデルを流用する
+    id: "wasurebone",
+    name: "わすれぼね",
+    model: "honegarami",
+    // 「倒されると近くの骨系モンスターの攻撃力を上げる」は種族横断の
+    // on-death連携が必要になり本文書の規模を超えるため実装せず、
+    // 素の非力なcowardとした(アーカイブ注記参照)
+    maxHp: 24,
+    atk: 14,
+    def: 8,
+    exp: 26,
+    ai: "coward",
+    minFloor: 19,
+    weight: 4,
+  },
+  {
+    // 意固地になった古い意地。スリガラスの上位種なので同じgajiriモデルを流用する
+    id: "katakunagani",
+    name: "かたくなガニ",
+    model: "gajiri",
+    maxHp: 20,
+    atk: 15,
+    def: 8,
+    exp: 30,
+    ai: "thief",
+    minFloor: 21,
+    weight: 3,
+  },
+  {
+    // ホネヅカのぬしに仕える小さな使い。オイテケボシと同じmadoromiモデルを流用する
+    id: "honezukanotsukai",
+    name: "ホネヅカのつかい",
+    model: "madoromi",
+    maxHp: 28,
+    atk: 18,
+    def: 8,
+    exp: 34,
+    ai: "ranged",
+    // オイテケボシ(range4)より射程は短い
+    range: 2,
+    minFloor: 22,
+    weight: 4,
+    drainsSatiety: true,
+  },
+
+  // 第五地方: なみだの滝つぼ(design/regions.md 25〜30階)。+4
+  {
+    // 涙を誘う風。ranged主力のtsubuteモデルを流用する
+    id: "nadakaze",
+    name: "なだかぜ",
+    model: "tsubute",
+    maxHp: 26,
+    atk: 17,
+    def: 7,
+    exp: 26,
+    ai: "ranged",
+    range: 4,
+    minFloor: 25,
+    weight: 4,
+    // 奔流タイルの近くで射程が伸びる(ai.ts effectiveRangedRange参照)
+    rangeBonusNearTorrent: 2,
+  },
+  {
+    // 涙で色あせた花。purunモデルを流用する
+    id: "shioresakura",
+    name: "しおれざくら",
+    model: "purun",
+    // 「攻撃を受けるたびわずかに弱る」の持続ダウンは実装せず、瀕死になると
+    // 攻撃力が上がる後半だけをlowHpAtkBonusMax(なみだぐまと同じ仕組み)で実装した(アーカイブ注記参照)
+    maxHp: 30,
+    atk: 18,
+    def: 6,
+    exp: 28,
+    ai: "melee",
+    minFloor: 26,
+    weight: 4,
+    lowHpAtkBonusMax: 0.3,
+  },
+  {
+    // 水面に映る古い姿。ゆめまよいの影と同系統なので同じmadoromiモデルを流用する
+    id: "mizukagami",
+    name: "みずかがみ",
+    model: "madoromi",
+    maxHp: 34,
+    atk: 20,
+    def: 9,
+    exp: 30,
+    ai: "mimic",
+    // タルではなくアイテムに擬態する水辺版(mimicAsはデータのみで見た目までは再現しない)
+    mimicAs: "item",
+    minFloor: 27,
+    weight: 3,
+  },
+  {
+    // 泣きやまない小さな夢。tsubuteモデルを流用する
+    id: "nakimushi",
+    name: "なきむし",
+    model: "tsubute",
+    // 「倒されるたび残りの個体の攻撃力が上がる」は群れ内の連携バフの
+    // 仕組みが必要になるため実装せず、swarmとしての基本挙動のみとした(アーカイブ注記参照)
+    maxHp: 16,
+    atk: 13,
+    def: 5,
+    exp: 18,
+    ai: "swarm",
+    minFloor: 25,
+    weight: 4,
+    swarmSize: [3, 4],
+  },
+
+  // 第六地方: こだまの尾根(design/regions.md 31〜36階)。+4
+  {
+    // 響きに寄ってくる雲のような群れ。purunモデルを流用する
+    id: "kodamagumo",
+    name: "こだまぐも",
+    model: "purun",
+    maxHp: 16,
+    atk: 15,
+    def: 6,
+    exp: 20,
+    ai: "swarm",
+    minFloor: 31,
+    weight: 4,
+    swarmSize: [3, 4],
+  },
+  {
+    // 声そのものが実体化した鬼。honegaramiモデルを流用する
+    id: "yamabikooni",
+    name: "やまびこおに",
+    model: "honegarami",
+    // やまびこぎつねのalertsFloorOnSightで自動的に呼び起こされる(このspecies自体に追加のフィールドは不要)
+    maxHp: 52,
+    atk: 28,
+    def: 14,
+    exp: 50,
+    ai: "melee",
+    minFloor: 32,
+    weight: 3,
+  },
+  {
+    // 跳ね返る声を追いかける小さな生き物。tsubuteモデルを流用する
+    id: "kaerukodama",
+    name: "かえるこだま",
+    model: "tsubute",
+    maxHp: 30,
+    atk: 17,
+    def: 8,
+    exp: 28,
+    ai: "coward",
+    minFloor: 31,
+    weight: 4,
+    // 追い詰めると跳ねて反撃する
+    counterDamageRatio: 0.2,
+  },
+  {
+    // 尾根に根を張った古い響き。honegaramiモデルを流用する
+    id: "nedayamabiko",
+    name: "ねだやまびこ",
+    model: "honegarami",
+    // 「周囲の物音を増幅して他を呼び寄せる」は汎用の物音システムが無いため、
+    // 既存のalertsFloorOnSight(視認した瞬間フロア中に気づかせる)で近似した(アーカイブ注記参照)
+    maxHp: 46,
+    atk: 20,
+    def: 16,
+    exp: 32,
+    ai: "guard",
+    minFloor: 33,
+    weight: 3,
+    alertsFloorOnSight: true,
+  },
+
+  // 第七地方: わすれられた祭りの跡(design/regions.md 37〜42階)。+4
+  {
+    // 祭りの影絵芝居の忘れ物。めんかぶりこぞうと同じtsubuteモデルを流用する
+    id: "kageboushi",
+    name: "かげぼうし",
+    model: "tsubute",
+    maxHp: 38,
+    atk: 24,
+    def: 10,
+    exp: 48,
+    ai: "ambush",
+    minFloor: 37,
+    weight: 4,
+    inflicts: { kind: "sleep", chance: 0.2, turns: 3 },
+  },
+  {
+    // 甘い匂いに誘われる夢。purunモデルを流用する
+    id: "wataamenoobake",
+    name: "わたあめのおばけ",
+    model: "purun",
+    // 「触れると幻を残して逃げる」は計画書自身が「演出のみ、実害の分裂はしない」と
+    // 明記しているため、素のcowardのまま実装した
+    maxHp: 26,
+    atk: 15,
+    def: 6,
+    exp: 30,
+    ai: "coward",
+    minFloor: 37,
+    weight: 4,
+  },
+  {
+    // 祭りの櫓に住み着いた古い霊。madoromiモデルを流用する
+    id: "yaguramori",
+    name: "やぐらもり",
+    model: "madoromi",
+    maxHp: 36,
+    atk: 22,
+    def: 10,
+    exp: 44,
+    ai: "ranged",
+    range: 5,
+    minFloor: 38,
+    weight: 3,
+  },
+  {
+    // 消えかけた祭りの灯り。purunモデルを流用する
+    id: "chouchinokuri",
+    name: "ちょうちんおくり",
+    model: "purun",
+    // 「倒すと周囲が一瞬照らされ視界が広がる」は視界演出フックが必要になるため
+    // 実装せず、swarmとしての基本挙動のみとした(アーカイブ注記参照)
+    maxHp: 18,
+    atk: 14,
+    def: 6,
+    exp: 22,
+    ai: "swarm",
+    minFloor: 37,
+    weight: 4,
+    swarmSize: [3, 4],
+  },
+
+  // 第八地方: めざめの前庭(design/regions.md 43〜48階)。+4。エリート個体
+  {
+    // 全地方の記憶が混ざり合ったぷるん。purunモデルを流用する
+    id: "subetenopurun",
+    name: "すべてのぷるん",
+    model: "purun",
+    // マドロミダケ(眠り付与)となみだぐま(瀕死で攻撃力上昇)を薄く併せ持つ集大成として実装した
+    maxHp: 56,
+    atk: 30,
+    def: 16,
+    exp: 70,
+    ai: "melee",
+    minFloor: 43,
+    weight: 3,
+    inflicts: { kind: "sleep", chance: 0.12, turns: 2 },
+    lowHpAtkBonusMax: 0.15,
+  },
+  {
+    // ガジリねずみといしずえねずみが混ざった姿。gajiriモデルを流用する
+    id: "mazarinezumi",
+    name: "まざりねずみ",
+    model: "gajiri",
+    maxHp: 60,
+    atk: 34,
+    def: 12,
+    exp: 72,
+    ai: "guard",
+    minFloor: 44,
+    weight: 3,
+  },
+  {
+    // 様々な地方の残響が寄り集まった群れ。この作品唯一のエリートswarm。gajiriモデルを流用する
+    id: "yoseatsume",
+    name: "よせあつめ",
+    model: "gajiri",
+    // 「群れの中に複数種族の性質が混在する」は群れが単一speciesという
+    // populate.tsの前提を超えるため実装せず、通常のswarmとした(アーカイブ注記参照)
+    maxHp: 24,
+    atk: 20,
+    def: 8,
+    exp: 40,
+    ai: "swarm",
+    minFloor: 43,
+    weight: 3,
+    swarmSize: [3, 4],
+  },
+  {
+    // ゆめまよいの影のもう一つの姿。同じmadoromiモデルを流用する
+    id: "mouhitotsunokage",
+    name: "もうひとつのかげ",
+    model: "madoromi",
+    maxHp: 48,
+    atk: 29,
+    def: 15,
+    exp: 62,
+    ai: "mimic",
+    // タルではなくアイテムに擬態する対をなす個体
+    mimicAs: "item",
+    minFloor: 45,
+    weight: 3,
+  },
+
   // 真の目覚め(隠し最終局面、plan/true-awakening.md)。ヨリシロがいちばん
   // 最初に見た夢が、ひとり分の姿を取ったもの。REGION_BOSS_ORDER・
   // SaveData.defeatedRegionBossesが前提とする「地方ボス8体」には含めない

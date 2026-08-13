@@ -52,7 +52,10 @@ describe("game.ts: 夜ごとの夢で48階を超えると、湧くモンスタ�
   });
 
   it("48階以下(頭打ちにならない範囲)では、種族基準どおりのステータスのまま", () => {
-    const game = new Game({ seed: 5, dungeonId: NIGHTLY_DREAM_ID, startDepth: MAIN_CAVE_MAX_DEPTH });
+    // seed: 60種化(plan/monster-roster-expansion-species.md)でSPECIES総重みが
+    // 変わり、旧seed5はごく低確率のかがやきの夢のかけら(shining、1%)を
+    // たまたま引くようになったため、引かないseedに差し替えた
+    const game = new Game({ seed: 1, dungeonId: NIGHTLY_DREAM_ID, startDepth: MAIN_CAVE_MAX_DEPTH });
     // 近道屋の行商人(kind: "monster"のNPC)はspeciesIdを持たないので除く
     const monsters = game.floor.actors.filter((a) => a.kind === "monster" && a.speciesId);
     expect(monsters.length).toBeGreaterThan(0);

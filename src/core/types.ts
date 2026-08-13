@@ -258,6 +258,21 @@ export interface Species {
    * 再生速度・タイミングだけで個性を出す
    */
   idleSpeedMul?: number;
+  /**
+   * 60種化・追加種族(plan/monster-roster-expansion-species.md)。深みタイル
+   * (quagmire)の上にいる間、rangeにこの値を加算する(きりみずち)
+   */
+  rangeBonusOnQuagmire?: number;
+  /**
+   * 60種化・追加種族(plan/monster-roster-expansion-species.md)。奔流タイル
+   * (torrent)に隣接(自分のマス含む)している間、rangeにこの値を加算する(なだかぜ)
+   */
+  rangeBonusNearTorrent?: number;
+  /**
+   * 60種化・追加種族(plan/monster-roster-expansion-species.md)。胞子部屋
+   * (Room.spored)にいる間、攻撃力に掛ける倍率の上乗せぶん(きのこおとこ)
+   */
+  atkMulInSporedRoom?: number;
 }
 
 /** あうんの呼吸(plan/ally-field-gimmicks.md)。障害物が要求する仲間の性質 */
