@@ -3945,6 +3945,108 @@ def misemonoNoNushi_animations():
     ]
 
 
+# ================================================================= ゆめまよいの影
+
+# 主を見失った夢。madoromiと同じ関節構成(root/stem/capbase/captop)を
+# ベースにするが、mimic AI(タルに擬態し、持ち上げる/投げるまで見分けが
+# つかない)に合わせ、madoromiの「歩くきのこ」らしい表情豊かな造形とは
+# 逆に、目立つ特徴を抑えた寸胴なシルエットにする。傘は開ききらせず
+# フードのように深く被らせ、顔を大きく覆い隠す。
+YUMEMAYOINOKAGE_JOINTS = {
+    "root": (0.0, 0.0, 0.05),
+    "stem": (0.0, 0.0, 0.20),
+    "capbase": (0.0, 0.0, 0.315),
+    "captop": (0.0, 0.0, 0.400),
+}
+YUMEMAYOINOKAGE_RADII = {"root": 0.135, "stem": 0.130, "capbase": 0.215, "captop": 0.075}
+YUMEMAYOINOKAGE_BONES = [("root", "stem"), ("stem", "capbase"), ("capbase", "captop")]
+
+
+def build_yumemayoinokage():
+    """
+    主を見失った夢。madoromiと同じ関節構成をベースに、タルに擬態する
+    mimic AIらしく寸胴で目立たないシルエットに作り替え、傘をフードの
+    ように深く被らせて顔を覆い隠す。配色は第八地方(めざめの前庭)の
+    テーマに合わせ、第一〜第七地方の色が淡く混ざり合った、統一感のない
+    燻んだ配色にする。
+    """
+    body = C.build_skinned("yumemayoinokage", YUMEMAYOINOKAGE_JOINTS, YUMEMAYOINOKAGE_BONES,
+                           YUMEMAYOINOKAGE_RADII, root="root", subsurf=2)
+    husk = C.make_material("yumemayoi_husk", (0.42, 0.40, 0.44), roughness=0.75)
+    hood = C.make_material("yumemayoi_hood", (0.34, 0.32, 0.40), roughness=0.7)
+    C.assign_materials_by_region(body, [husk, hood], lambda c: 1 if c.z > 0.300 else 0)
+
+    extras = []
+    for side in (-1.0, 1.0):
+        # フードの陰に半分沈んだ、眠たげで生気の薄い目
+        eye = C.uv_sphere(f"yumemayoi_eye{side}", (0.055 * side, -0.170, 0.235), 0.026,
+                          segments=14, rings=10, scale=(1.0, 0.55, 0.6))
+        C.assign_material(eye, C.make_material(f"yumemayoi_eye{side}_m", (0.62, 0.60, 0.68),
+                                               roughness=0.4))
+        extras.append(eye)
+    mouth = C.uv_sphere("yumemayoi_mouth", (0.0, -0.175, 0.185), 0.022,
+                        segments=12, rings=8, scale=(0.85, 0.5, 0.7))
+    C.assign_material(mouth, C.make_material("yumemayoi_mouth_m", (0.20, 0.18, 0.22), roughness=0.5))
+    extras.append(mouth)
+
+    # 各地方の記憶の名残として、傘に淡い色の欠片を6つ散らす
+    fragments = [
+        (0.62, 0.85, 0.62, "purun"), (0.42, 0.30, 0.24, "gajiri"),
+        (0.55, 0.62, 0.42, "tsubute"), (0.68, 0.44, 0.56, "madoromi"),
+        (0.32, 0.58, 0.66, "kirimizuchi"), (0.60, 0.48, 0.34, "kodama"),
+    ]
+    for i, (angle_deg, dist, r, (fr, fg, fb, _label)) in enumerate(
+        zip([20.0, 90.0, 150.0, 210.0, 270.0, 330.0], [0.16] * 6, [0.026] * 6, fragments)
+    ):
+        angle = math.radians(angle_deg)
+        frag = C.uv_sphere(f"yumemayoi_frag{i}", (math.cos(angle) * dist, math.sin(angle) * dist, 0.315),
+                           r, segments=10, rings=8, scale=(1.0, 1.0, 0.4))
+        C.assign_material(frag, C.make_material(f"yumemayoi_frag{i}_m", (fr * 0.75, fg * 0.75, fb * 0.75),
+                                                roughness=0.6))
+        extras.append(frag)
+
+    mesh = C.join([body] + extras, "yumemayoinokage")
+    armature = C.build_armature("yumemayoinokage", YUMEMAYOINOKAGE_JOINTS, YUMEMAYOINOKAGE_BONES,
+                                mesh, root="root")
+    return [mesh, armature], armature
+
+
+def yumemayoinokage_animations():
+    lower, mid, upper = "root-stem", "stem-capbase", "capbase-captop"
+    return [
+        # タルのふりをして、ほとんど動かずじっと潜む
+        ("idle", [
+            (1, {mid: (0, 0, 0)}),
+            (48, {mid: (1.5, 0, 1)}),
+            (96, {mid: (0, 0, 0)}),
+        ]),
+        # タルらしからぬ、正体を現したときのぎこちない転がるような足取り
+        ("walk", [
+            (1, {lower: (0, 0, 0), mid: (0, 0, 0)}),
+            (7, {lower: (10, 0, 6), mid: (-8, 0, -4)}),
+            (14, {lower: (-10, 0, -6), mid: (8, 0, 4)}),
+            (21, {lower: (0, 0, 0), mid: (0, 0, 0)}),
+        ]),
+        ("attack", [
+            (1, {upper: (0, 0, 0), mid: (0, 0, 0)}),
+            (6, {upper: (-24, 0, 0), mid: (-16, 0, 0)}),
+            (11, {upper: (14, 0, 0), mid: (10, 0, 0)}),
+            (20, {upper: (0, 0, 0), mid: (0, 0, 0)}),
+        ]),
+        ("hit", [
+            (1, {mid: (0, 0, 0)}),
+            (4, {mid: (12, 0, 0), upper: (8, 0, 0)}),
+            (14, {mid: (0, 0, 0), upper: (0, 0, 0)}),
+        ]),
+        # 見失った夢そのものが、輪郭を保てず崩れて消える
+        ("die", [
+            (1, {lower: (0, 0, 0), mid: (0, 0, 0)}),
+            (10, {lower: (16, 0, 10), mid: (12, 0, 8), upper: (10, 0, 6)}),
+            (24, {lower: (44, 0, 26), mid: (30, 0, 20), upper: (24, 0, 16)}),
+        ]),
+    ]
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -3978,6 +4080,7 @@ MONSTERS = {
     "wataamenoobake": (build_wataamenoobake, wataamenoobake_animations),
     "yaguramori": (build_yaguramori, yaguramori_animations),
     "misemonoNoNushi": (build_misemonoNoNushi, misemonoNoNushi_animations),
+    "yumemayoinokage": (build_yumemayoinokage, yumemayoinokage_animations),
 }
 
 

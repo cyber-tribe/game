@@ -616,8 +616,8 @@ export const SPECIES: readonly Species[] = [
     id: "yumemayoinokage",
     name: "ゆめまよいの影",
     // mimicAs: "barrel" はデータ上の設定に留め、実際のモデルはタルの
-    // 見た目までは再現しない(既存モンスターモデルの流用。アーカイブ注記参照)
-    model: "madoromi",
+    // 見た目までは再現しない。専用モデル(plan/models/archive/model-yumemayoinokage.md)
+    model: "yumemayoinokage",
     maxHp: 46,
     atk: 28,
     def: 14,
