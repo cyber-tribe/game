@@ -1586,7 +1586,13 @@ export class TownScreen {
     columns.querySelector(".town-col.active")?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }
 
-  private renderList(label: string, items: StoredItem[], column: 0 | 1): HTMLElement {
+  /**
+   * 拠点の各列に共通の骨格(plan外のリファクタリング、Martin Fowler PR19)。
+   * 「town-colのdiv+アクティブ判定+town-col-titleのh3見出し」という同型の
+   * 前置きが19個のrenderXxx()すべてに重複していたため、ここに1本化する
+   * (Form Template Method)。中身(リスト・補足文言等)はbuildへ委譲する
+   */
+  private renderColumn(column: TownColumn, label: string, build: (wrapper: HTMLElement) => void): HTMLElement {
     const wrapper = document.createElement("div");
     wrapper.className = "town-col";
     if (this.column === column) wrapper.classList.add("active");
@@ -1597,187 +1603,156 @@ export class TownScreen {
     heading.textContent = label;
     wrapper.appendChild(heading);
 
-    const list = document.createElement("ul");
-    // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
-    // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
-    list.setAttribute("role", "list");
-    if (items.length === 0) {
-      const li = document.createElement("li");
-      li.className = "empty";
-      li.textContent = column === 0 ? "からっぽ" : "手ぶら";
-      list.appendChild(li);
-    }
-    items.forEach((item, index) => {
-      const def = itemDef(item.defId);
-      const li = document.createElement("li");
-      li.textContent =
-        def.category === "staff" && item.charges !== undefined
-          ? `${def.name}[${item.charges}]`
-          : def.name;
-      if (this.column === column && index === this.cursor[column]) li.classList.add("selected");
-      list.appendChild(li);
-    });
-    wrapper.appendChild(list);
+    build(wrapper);
     return wrapper;
+  }
+
+  private renderList(label: string, items: StoredItem[], column: 0 | 1): HTMLElement {
+    return this.renderColumn(column, label, (wrapper) => {
+      const list = document.createElement("ul");
+      // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
+      // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
+      list.setAttribute("role", "list");
+      if (items.length === 0) {
+        const li = document.createElement("li");
+        li.className = "empty";
+        li.textContent = column === 0 ? "からっぽ" : "手ぶら";
+        list.appendChild(li);
+      }
+      items.forEach((item, index) => {
+        const def = itemDef(item.defId);
+        const li = document.createElement("li");
+        li.textContent =
+          def.category === "staff" && item.charges !== undefined
+            ? `${def.name}[${item.charges}]`
+            : def.name;
+        if (this.column === column && index === this.cursor[column]) li.classList.add("selected");
+        list.appendChild(li);
+      });
+      wrapper.appendChild(list);
+    });
   }
 
   /** 既知のめざめの階段(チェックポイント)から出発地点を選ぶ一覧 */
   private renderCheckpoints(): HTMLElement {
-    const wrapper = document.createElement("div");
-    wrapper.className = "town-col";
-    if (this.column === 2) wrapper.classList.add("active");
-
-    // スクリーンリーダー対応(plan/screen-reader-support.md): 各列の見出しをh3にする
-    const heading = document.createElement("h3");
-    heading.className = "town-col-title";
-    heading.textContent = "出発地点";
-    wrapper.appendChild(heading);
-
-    const list = document.createElement("ul");
-    // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
-    // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
-    list.setAttribute("role", "list");
-    this.checkpoints().forEach((depth, index) => {
-      const li = document.createElement("li");
-      li.textContent = depth === 1 ? "表の寝穴の入口(1階)" : `めざめの階段(地下${depth}階)`;
-      if (this.column === 2 && index === this.startDepthIndex) li.classList.add("selected");
-      list.appendChild(li);
+    return this.renderColumn(2, "出発地点", (wrapper) => {
+      const list = document.createElement("ul");
+      // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
+      // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
+      list.setAttribute("role", "list");
+      this.checkpoints().forEach((depth, index) => {
+        const li = document.createElement("li");
+        li.textContent = depth === 1 ? "表の寝穴の入口(1階)" : `めざめの階段(地下${depth}階)`;
+        if (this.column === 2 && index === this.startDepthIndex) li.classList.add("selected");
+        list.appendChild(li);
+      });
+      wrapper.appendChild(list);
     });
-    wrapper.appendChild(list);
-    return wrapper;
   }
 
   /** 鍛え方(plan/protagonist-training.md、アーカイブ済み)を選ぶ一覧 */
   private renderTrainingFocus(): HTMLElement {
-    const wrapper = document.createElement("div");
-    wrapper.className = "town-col";
-    if (this.column === 3) wrapper.classList.add("active");
-
-    // スクリーンリーダー対応(plan/screen-reader-support.md): 各列の見出しをh3にする
-    const heading = document.createElement("h3");
-    heading.className = "town-col-title";
-    heading.textContent = "鍛え方";
-    wrapper.appendChild(heading);
-
-    const list = document.createElement("ul");
-    // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
-    // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
-    list.setAttribute("role", "list");
-    TRAINING_FOCI.forEach((focus, index) => {
-      const li = document.createElement("li");
-      li.textContent = TRAINING_FOCUS_LABELS[focus];
-      if (this.column === 3 && index === this.trainingFocusIndex) li.classList.add("selected");
-      list.appendChild(li);
+    return this.renderColumn(3, "鍛え方", (wrapper) => {
+      const list = document.createElement("ul");
+      // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
+      // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
+      list.setAttribute("role", "list");
+      TRAINING_FOCI.forEach((focus, index) => {
+        const li = document.createElement("li");
+        li.textContent = TRAINING_FOCUS_LABELS[focus];
+        if (this.column === 3 && index === this.trainingFocusIndex) li.classList.add("selected");
+        list.appendChild(li);
+      });
+      wrapper.appendChild(list);
     });
-    wrapper.appendChild(list);
-    return wrapper;
   }
 
   /** ねむり小屋(plan/monster-fusion.md、アーカイブ済み)から連れて行く仲間を選ぶ一覧 */
   private renderHut(): HTMLElement {
-    const wrapper = document.createElement("div");
-    wrapper.className = "town-col";
-    if (this.column === 4) wrapper.classList.add("active");
-
-    // スクリーンリーダー対応(plan/screen-reader-support.md): 各列の見出しをh3にする
-    const heading = document.createElement("h3");
-    heading.className = "town-col-title";
-    heading.textContent = `つれていく仲間 (${this.bringUids.length} / ${MAX_ALLIES})`;
-    wrapper.appendChild(heading);
-
-    const hut = this.hut();
-    const list = document.createElement("ul");
-    // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
-    // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
-    list.setAttribute("role", "list");
-    if (hut.length === 0) {
-      const li = document.createElement("li");
-      li.className = "empty";
-      li.textContent = "ねむり小屋はからっぽ";
-      list.appendChild(li);
-    }
-    hut.forEach((m, index) => {
-      const li = document.createElement("li");
-      const name = displayStoredMonsterName(m);
-      const bondLabel = bondStageLabel(bondStage(m.bondSuccessCount));
-      const named = m.favorite ? `★${name}` : name;
-      const base = bondLabel ? `${named} Lv${m.level}・${bondLabel}` : `${named} Lv${m.level}`;
-      li.textContent =
-        m.uid === this.releaseConfirmUid
-          ? `${base}(夢に還す?)`
-          : m.uid === this.fusionAxisUid
-            ? `${base}(夢あわせの軸)`
-            : base;
-      if (this.bringUids.includes(m.uid)) li.classList.add("chosen");
-      if (m.uid === this.fusionAxisUid) li.classList.add("axis");
-      if (this.column === 4 && index === this.hutCursor) li.classList.add("selected");
-      list.appendChild(li);
+    return this.renderColumn(4, `つれていく仲間 (${this.bringUids.length} / ${MAX_ALLIES})`, (wrapper) => {
+      const hut = this.hut();
+      const list = document.createElement("ul");
+      // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
+      // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
+      list.setAttribute("role", "list");
+      if (hut.length === 0) {
+        const li = document.createElement("li");
+        li.className = "empty";
+        li.textContent = "ねむり小屋はからっぽ";
+        list.appendChild(li);
+      }
+      hut.forEach((m, index) => {
+        const li = document.createElement("li");
+        const name = displayStoredMonsterName(m);
+        const bondLabel = bondStageLabel(bondStage(m.bondSuccessCount));
+        const named = m.favorite ? `★${name}` : name;
+        const base = bondLabel ? `${named} Lv${m.level}・${bondLabel}` : `${named} Lv${m.level}`;
+        li.textContent =
+          m.uid === this.releaseConfirmUid
+            ? `${base}(夢に還す?)`
+            : m.uid === this.fusionAxisUid
+              ? `${base}(夢あわせの軸)`
+              : base;
+        if (this.bringUids.includes(m.uid)) li.classList.add("chosen");
+        if (m.uid === this.fusionAxisUid) li.classList.add("axis");
+        if (this.column === 4 && index === this.hutCursor) li.classList.add("selected");
+        list.appendChild(li);
+      });
+      wrapper.appendChild(list);
     });
-    wrapper.appendChild(list);
-    return wrapper;
   }
 
   /** ゲンドの工房(plan/equipment-forging.md): 武器・盾の強化・印刻み */
   private renderWorkshop(): HTMLElement {
-    const wrapper = document.createElement("div");
-    wrapper.className = "town-col";
-    if (this.column === 5) wrapper.classList.add("active");
+    return this.renderColumn(5, "ゲンドの工房", (wrapper) => {
+      const targets = this.workshopTargets();
+      const list = document.createElement("ul");
+      // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
+      // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
+      list.setAttribute("role", "list");
+      if (targets.length === 0) {
+        const li = document.createElement("li");
+        li.className = "empty";
+        li.textContent = "強化できる武器・盾が倉庫に無い";
+        list.appendChild(li);
+      }
+      targets.forEach((item, index) => {
+        const def = itemDef(item.defId);
+        const li = document.createElement("li");
+        let text = `${def.name}+${item.plus ?? 0}`;
+        for (const markId of item.markIds ?? []) text += `【${markDef(markId).name}】`;
+        li.textContent = text;
+        if (this.column === 5 && index === this.workshopCursor) li.classList.add("selected");
+        list.appendChild(li);
+      });
+      wrapper.appendChild(list);
 
-    // スクリーンリーダー対応(plan/screen-reader-support.md): 各列の見出しをh3にする
-    const heading = document.createElement("h3");
-    heading.className = "town-col-title";
-    heading.textContent = "ゲンドの工房";
-    wrapper.appendChild(heading);
+      if (this.workshopMarkChoices) {
+        const sub = document.createElement("ul");
+        sub.setAttribute("role", "list");
+        sub.className = "menu-sub";
+        this.workshopMarkChoices.forEach((markId, index) => {
+          const li = document.createElement("li");
+          li.textContent = markDef(markId).name;
+          if (index === this.workshopMarkCursor) li.classList.add("selected");
+          sub.appendChild(li);
+        });
+        wrapper.appendChild(sub);
+      }
 
-    const targets = this.workshopTargets();
-    const list = document.createElement("ul");
-    // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
-    // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
-    list.setAttribute("role", "list");
-    if (targets.length === 0) {
-      const li = document.createElement("li");
-      li.className = "empty";
-      li.textContent = "強化できる武器・盾が倉庫に無い";
-      list.appendChild(li);
-    }
-    targets.forEach((item, index) => {
-      const def = itemDef(item.defId);
-      const li = document.createElement("li");
-      let text = `${def.name}+${item.plus ?? 0}`;
-      for (const markId of item.markIds ?? []) text += `【${markDef(markId).name}】`;
-      li.textContent = text;
-      if (this.column === 5 && index === this.workshopCursor) li.classList.add("selected");
-      list.appendChild(li);
+      if (this.workshopSynthesisChoices) {
+        const sub = document.createElement("ul");
+        sub.setAttribute("role", "list");
+        sub.className = "menu-sub";
+        this.workshopSynthesisChoices.forEach((markId, index) => {
+          const li = document.createElement("li");
+          li.textContent = `${markDef(markId).name}の刻印石×2 → 重ね刻みの砥石`;
+          if (index === this.workshopSynthesisCursor) li.classList.add("selected");
+          sub.appendChild(li);
+        });
+        wrapper.appendChild(sub);
+      }
     });
-    wrapper.appendChild(list);
-
-    if (this.workshopMarkChoices) {
-      const sub = document.createElement("ul");
-      sub.setAttribute("role", "list");
-      sub.className = "menu-sub";
-      this.workshopMarkChoices.forEach((markId, index) => {
-        const li = document.createElement("li");
-        li.textContent = markDef(markId).name;
-        if (index === this.workshopMarkCursor) li.classList.add("selected");
-        sub.appendChild(li);
-      });
-      wrapper.appendChild(sub);
-    }
-
-    if (this.workshopSynthesisChoices) {
-      const sub = document.createElement("ul");
-      sub.setAttribute("role", "list");
-      sub.className = "menu-sub";
-      this.workshopSynthesisChoices.forEach((markId, index) => {
-        const li = document.createElement("li");
-        li.textContent = `${markDef(markId).name}の刻印石×2 → 重ね刻みの砥石`;
-        if (index === this.workshopSynthesisCursor) li.classList.add("selected");
-        sub.appendChild(li);
-      });
-      wrapper.appendChild(sub);
-    }
-
-    return wrapper;
   }
 
   /**
@@ -1785,47 +1760,38 @@ export class TownScreen {
    * 選択・カーソル移動は無く、見るだけの画面。
    */
   private renderRecords(): HTMLElement {
-    const wrapper = document.createElement("div");
-    wrapper.className = "town-col";
-    if (this.column === 6) wrapper.classList.add("active");
-
-    // スクリーンリーダー対応(plan/screen-reader-support.md): 各列の見出しをh3にする
-    const heading = document.createElement("h3");
-    heading.className = "town-col-title";
-    heading.textContent = "記録の間";
-    wrapper.appendChild(heading);
-
-    const save = this.save;
-    const list = document.createElement("ul");
-    // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
-    // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
-    list.setAttribute("role", "list");
-    const rows: [string, number][] = save
-      ? [
-          ["最深到達(表の寝穴)", save.deepest],
-          ["累計ダイブ回数", save.runs],
-          ["踏破回数", save.clears],
-          ["全滅回数", save.runs - save.clears],
-          ["累計撃破数", save.records.totalDefeats],
-          ["のべ捕獲数", save.records.totalCaptures],
-          ["夜ごとの夢 自己ベスト", save.nightlyDreamBestDepth],
-        ]
-      : [];
-    for (const [label, value] of rows) {
-      const li = document.createElement("li");
-      li.textContent = `${label}: ${value}`;
-      list.appendChild(li);
-    }
-    // なじみ(plan/companion-bond-growth.md): 現在のねむり小屋で最も同伴成功回数が多い個体
-    const mostBonded = [...this.hut()].sort((a, b) => b.bondSuccessCount - a.bondSuccessCount)[0];
-    const bondedLi = document.createElement("li");
-    bondedLi.textContent =
-      mostBonded && mostBonded.bondSuccessCount > 0
-        ? `もっとも連れ添った仲間: ${displayStoredMonsterName(mostBonded)}(${mostBonded.bondSuccessCount}回)`
-        : "もっとも連れ添った仲間: まだいない";
-    list.appendChild(bondedLi);
-    wrapper.appendChild(list);
-    return wrapper;
+    return this.renderColumn(6, "記録の間", (wrapper) => {
+      const save = this.save;
+      const list = document.createElement("ul");
+      // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
+      // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
+      list.setAttribute("role", "list");
+      const rows: [string, number][] = save
+        ? [
+            ["最深到達(表の寝穴)", save.deepest],
+            ["累計ダイブ回数", save.runs],
+            ["踏破回数", save.clears],
+            ["全滅回数", save.runs - save.clears],
+            ["累計撃破数", save.records.totalDefeats],
+            ["のべ捕獲数", save.records.totalCaptures],
+            ["夜ごとの夢 自己ベスト", save.nightlyDreamBestDepth],
+          ]
+        : [];
+      for (const [label, value] of rows) {
+        const li = document.createElement("li");
+        li.textContent = `${label}: ${value}`;
+        list.appendChild(li);
+      }
+      // なじみ(plan/companion-bond-growth.md): 現在のねむり小屋で最も同伴成功回数が多い個体
+      const mostBonded = [...this.hut()].sort((a, b) => b.bondSuccessCount - a.bondSuccessCount)[0];
+      const bondedLi = document.createElement("li");
+      bondedLi.textContent =
+        mostBonded && mostBonded.bondSuccessCount > 0
+          ? `もっとも連れ添った仲間: ${displayStoredMonsterName(mostBonded)}(${mostBonded.bondSuccessCount}回)`
+          : "もっとも連れ添った仲間: まだいない";
+      list.appendChild(bondedLi);
+      wrapper.appendChild(list);
+    });
   }
 
   /**
@@ -1834,36 +1800,27 @@ export class TownScreen {
    * 図鑑ギャラリー(plan/gallery-mode.md)を開き、3Dモデルを眺められる
    */
   private renderCompendium(): HTMLElement {
-    const wrapper = document.createElement("div");
-    wrapper.className = "town-col";
-    if (this.column === 7) wrapper.classList.add("active");
+    return this.renderColumn(7, "モンスター図鑑", (wrapper) => {
+      const compendium = this.save?.compendium ?? {};
+      const captured = SPECIES.filter((s) => compendium[s.id] === "captured").length;
+      const summary = document.createElement("p");
+      summary.textContent = `捕まえた ${captured} / ${SPECIES.length} 種`;
+      wrapper.appendChild(summary);
 
-    // スクリーンリーダー対応(plan/screen-reader-support.md): 各列の見出しをh3にする
-    const heading = document.createElement("h3");
-    heading.className = "town-col-title";
-    heading.textContent = "モンスター図鑑";
-    wrapper.appendChild(heading);
-
-    const compendium = this.save?.compendium ?? {};
-    const captured = SPECIES.filter((s) => compendium[s.id] === "captured").length;
-    const summary = document.createElement("p");
-    summary.textContent = `捕まえた ${captured} / ${SPECIES.length} 種`;
-    wrapper.appendChild(summary);
-
-    const list = document.createElement("ul");
-    // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
-    // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
-    list.setAttribute("role", "list");
-    SPECIES.forEach((species, index) => {
-      const status = compendium[species.id];
-      const label = status === "captured" ? "捕まえた" : status === "seen" ? "見た" : "未確認";
-      const li = document.createElement("li");
-      li.textContent = status ? `${species.name}: ${label}` : `???: ${label}`;
-      if (this.column === 7 && index === this.compendiumCursor) li.classList.add("selected");
-      list.appendChild(li);
+      const list = document.createElement("ul");
+      // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
+      // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
+      list.setAttribute("role", "list");
+      SPECIES.forEach((species, index) => {
+        const status = compendium[species.id];
+        const label = status === "captured" ? "捕まえた" : status === "seen" ? "見た" : "未確認";
+        const li = document.createElement("li");
+        li.textContent = status ? `${species.name}: ${label}` : `???: ${label}`;
+        if (this.column === 7 && index === this.compendiumCursor) li.classList.add("selected");
+        list.appendChild(li);
+      });
+      wrapper.appendChild(list);
     });
-    wrapper.appendChild(list);
-    return wrapper;
   }
 
   /**
@@ -1871,38 +1828,29 @@ export class TownScreen {
    * (隠し実績は作らない方針)。称号を持つ達成済みの実績はEnterで着脱できる
    */
   private renderAchievements(): HTMLElement {
-    const wrapper = document.createElement("div");
-    wrapper.className = "town-col";
-    if (this.column === 8) wrapper.classList.add("active");
+    return this.renderColumn(8, "実績帳", (wrapper) => {
+      const achievements = this.save?.achievements ?? {};
+      const done = ACHIEVEMENTS.filter((a) => achievements[a.id] !== undefined).length;
+      const summary = document.createElement("p");
+      summary.textContent = `達成 ${done} / ${ACHIEVEMENTS.length} 件`;
+      wrapper.appendChild(summary);
 
-    // スクリーンリーダー対応(plan/screen-reader-support.md): 各列の見出しをh3にする
-    const heading = document.createElement("h3");
-    heading.className = "town-col-title";
-    heading.textContent = "実績帳";
-    wrapper.appendChild(heading);
-
-    const achievements = this.save?.achievements ?? {};
-    const done = ACHIEVEMENTS.filter((a) => achievements[a.id] !== undefined).length;
-    const summary = document.createElement("p");
-    summary.textContent = `達成 ${done} / ${ACHIEVEMENTS.length} 件`;
-    wrapper.appendChild(summary);
-
-    const list = document.createElement("ul");
-    // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
-    // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
-    list.setAttribute("role", "list");
-    ACHIEVEMENTS.forEach((def, index) => {
-      const unlockedAt = achievements[def.id];
-      const li = document.createElement("li");
-      const equipped = this.save?.equippedTitle === def.id ? "★" : "";
-      li.textContent = unlockedAt
-        ? `${equipped}${def.name}: ${def.description}(達成)`
-        : `${def.name}: ${def.description}(未達成)`;
-      if (this.column === 8 && index === this.achievementCursor) li.classList.add("selected");
-      list.appendChild(li);
+      const list = document.createElement("ul");
+      // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
+      // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
+      list.setAttribute("role", "list");
+      ACHIEVEMENTS.forEach((def, index) => {
+        const unlockedAt = achievements[def.id];
+        const li = document.createElement("li");
+        const equipped = this.save?.equippedTitle === def.id ? "★" : "";
+        li.textContent = unlockedAt
+          ? `${equipped}${def.name}: ${def.description}(達成)`
+          : `${def.name}: ${def.description}(未達成)`;
+        if (this.column === 8 && index === this.achievementCursor) li.classList.add("selected");
+        list.appendChild(li);
+      });
+      wrapper.appendChild(list);
     });
-    wrapper.appendChild(list);
-    return wrapper;
   }
 
   /**
@@ -1910,77 +1858,59 @@ export class TownScreen {
    * 入手/極めた状態を表示するだけの画面(カーソル移動・選択は無い)。
    */
   private renderEquipmentCompendium(): HTMLElement {
-    const wrapper = document.createElement("div");
-    wrapper.className = "town-col";
-    if (this.column === 9) wrapper.classList.add("active");
+    return this.renderColumn(9, "装備図鑑", (wrapper) => {
+      const equipment = this.save?.equipmentCompendium ?? {};
+      const marks = this.save?.markCompendium ?? {};
+      const materials = this.save?.materialCompendium ?? {};
 
-    // スクリーンリーダー対応(plan/screen-reader-support.md): 各列の見出しをh3にする
-    const heading = document.createElement("h3");
-    heading.className = "town-col-title";
-    heading.textContent = "装備図鑑";
-    wrapper.appendChild(heading);
+      const list = document.createElement("ul");
+      // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
+      // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
+      list.setAttribute("role", "list");
+      const weaponIds = ITEMS.filter((i) => i.category === "weapon").map((i) => i.id);
+      const mastered = weaponIds.filter((id) => equipment[id] === "mastered").length;
+      const summary = document.createElement("li");
+      summary.textContent = `武器: 極めた ${mastered} / ${weaponIds.length} 系統`;
+      list.appendChild(summary);
 
-    const equipment = this.save?.equipmentCompendium ?? {};
-    const marks = this.save?.markCompendium ?? {};
-    const materials = this.save?.materialCompendium ?? {};
-
-    const list = document.createElement("ul");
-    // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
-    // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
-    list.setAttribute("role", "list");
-    const weaponIds = ITEMS.filter((i) => i.category === "weapon").map((i) => i.id);
-    const mastered = weaponIds.filter((id) => equipment[id] === "mastered").length;
-    const summary = document.createElement("li");
-    summary.textContent = `武器: 極めた ${mastered} / ${weaponIds.length} 系統`;
-    list.appendChild(summary);
-
-    for (const def of ITEMS.filter((i) => i.category === "weapon" || i.category === "head" || i.category === "charm")) {
-      const status = equipment[def.id];
-      const label = status === "mastered" ? "極めた" : status === "owned" ? "入手済み" : "未発見";
-      const li = document.createElement("li");
-      li.textContent = status ? `${def.name}: ${label}` : `???: ${label}`;
-      list.appendChild(li);
-    }
-    for (const mark of MARKS) {
-      const label = marks[mark.id] === "owned" ? "入手済み" : "未発見";
-      const li = document.createElement("li");
-      li.textContent = `${markDef(mark.id).name}: ${label}`;
-      list.appendChild(li);
-    }
-    for (const def of ITEMS.filter((i) => i.category === "material")) {
-      const label = materials[def.id] === "owned" ? "入手済み" : "未発見";
-      const li = document.createElement("li");
-      li.textContent = materials[def.id] ? `${def.name}: ${label}` : `???: ${label}`;
-      list.appendChild(li);
-    }
-    wrapper.appendChild(list);
-    return wrapper;
+      for (const def of ITEMS.filter((i) => i.category === "weapon" || i.category === "head" || i.category === "charm")) {
+        const status = equipment[def.id];
+        const label = status === "mastered" ? "極めた" : status === "owned" ? "入手済み" : "未発見";
+        const li = document.createElement("li");
+        li.textContent = status ? `${def.name}: ${label}` : `???: ${label}`;
+        list.appendChild(li);
+      }
+      for (const mark of MARKS) {
+        const label = marks[mark.id] === "owned" ? "入手済み" : "未発見";
+        const li = document.createElement("li");
+        li.textContent = `${markDef(mark.id).name}: ${label}`;
+        list.appendChild(li);
+      }
+      for (const def of ITEMS.filter((i) => i.category === "material")) {
+        const label = materials[def.id] === "owned" ? "入手済み" : "未発見";
+        const li = document.createElement("li");
+        li.textContent = materials[def.id] ? `${def.name}: ${label}` : `???: ${label}`;
+        list.appendChild(li);
+      }
+      wrapper.appendChild(list);
+    });
   }
 
   /** 難易度モード(plan/difficulty-modes.md)。次回のダイブから反映される */
   private renderDifficulty(): HTMLElement {
-    const wrapper = document.createElement("div");
-    wrapper.className = "town-col";
-    if (this.column === 10) wrapper.classList.add("active");
-
-    // スクリーンリーダー対応(plan/screen-reader-support.md): 各列の見出しをh3にする
-    const heading = document.createElement("h3");
-    heading.className = "town-col-title";
-    heading.textContent = "難易度";
-    wrapper.appendChild(heading);
-
-    const list = document.createElement("ul");
-    // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
-    // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
-    list.setAttribute("role", "list");
-    DIFFICULTY_MODES.forEach((mode, index) => {
-      const li = document.createElement("li");
-      li.textContent = DIFFICULTY_NAMES[mode];
-      if (this.column === 10 && index === this.difficultyIndex) li.classList.add("selected");
-      list.appendChild(li);
+    return this.renderColumn(10, "難易度", (wrapper) => {
+      const list = document.createElement("ul");
+      // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
+      // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
+      list.setAttribute("role", "list");
+      DIFFICULTY_MODES.forEach((mode, index) => {
+        const li = document.createElement("li");
+        li.textContent = DIFFICULTY_NAMES[mode];
+        if (this.column === 10 && index === this.difficultyIndex) li.classList.add("selected");
+        list.appendChild(li);
+      });
+      wrapper.appendChild(list);
     });
-    wrapper.appendChild(list);
-    return wrapper;
   }
 
   /**
@@ -1988,82 +1918,73 @@ export class TownScreen {
    * 未解放のものも一覧に表示し、解放条件を添える(選ぶことはできない)。
    */
   private renderDungeons(): HTMLElement {
-    const wrapper = document.createElement("div");
-    wrapper.className = "town-col";
-    if (this.column === 12) wrapper.classList.add("active");
+    return this.renderColumn(12, "潜るダンジョン", (wrapper) => {
+      // ヨリシロの気分(plan/yorishiro-moods.md): 今日の気分を1行添える
+      const todaysMood = moodForDate(todayKey());
+      const moodLine = document.createElement("p");
+      moodLine.className = "town-mood";
+      moodLine.textContent = `今日の気分: ${todaysMood.name} — ${todaysMood.flavorText}`;
+      wrapper.appendChild(moodLine);
 
-    // スクリーンリーダー対応(plan/screen-reader-support.md): 各列の見出しをh3にする
-    const heading = document.createElement("h3");
-    heading.className = "town-col-title";
-    heading.textContent = "潜るダンジョン";
-    wrapper.appendChild(heading);
+      // 宵祭り(plan/yoimatsuri-festival.md): 開催有無をすぐ下に1行添える
+      if (isYoimatsuri(todayKey())) {
+        const festivalLine = document.createElement("p");
+        festivalLine.className = "town-mood";
+        festivalLine.textContent = "今夜は宵祭り。提灯が灯っている。";
+        wrapper.appendChild(festivalLine);
+      }
 
-    // ヨリシロの気分(plan/yorishiro-moods.md): 今日の気分を1行添える
-    const todaysMood = moodForDate(todayKey());
-    const moodLine = document.createElement("p");
-    moodLine.className = "town-mood";
-    moodLine.textContent = `今日の気分: ${todaysMood.name} — ${todaysMood.flavorText}`;
-    wrapper.appendChild(moodLine);
-
-    // 宵祭り(plan/yoimatsuri-festival.md): 開催有無をすぐ下に1行添える
-    if (isYoimatsuri(todayKey())) {
-      const festivalLine = document.createElement("p");
-      festivalLine.className = "town-mood";
-      festivalLine.textContent = "今夜は宵祭り。提灯が灯っている。";
-      wrapper.appendChild(festivalLine);
-    }
-
-    const deepest = this.save?.deepest ?? 0;
-    const villageStage = this.save?.villageStage ?? 1;
-    const foundPassageCount = this.save?.foundVaultPassages.length ?? 0;
-    const defeatedRegionBosses = this.save?.defeatedRegionBosses ?? [];
-    const unlocked = this.unlockedDungeons();
-    const list = document.createElement("ul");
-    // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
-    // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
-    list.setAttribute("role", "list");
-    // 真の目覚め(plan/true-awakening.md)は隠し要素として扱う。3条件が
-    // すべて揃うまでは、未解放のヒント表示すらこの一覧に出さない。
-    // 樽比べ(plan/tarukurabe-minigame.md)も同じく、開催日以外は一覧に出さない
-    // (宵祭りの出店と同じく、開催日以外は存在自体を示さない扱い)
-    DUNGEONS.filter((d) => d.id !== TRUE_AWAKENING_ID && d.id !== TARUKURABE_ID).forEach((dungeon) => {
-      const li = document.createElement("li");
-      if (isDungeonUnlocked(dungeon, deepest, villageStage, foundPassageCount, defeatedRegionBosses)) {
-        li.textContent = dungeon.name;
-        if (this.column === 12 && unlocked[this.dungeonIndex]?.id === dungeon.id) {
+      const deepest = this.save?.deepest ?? 0;
+      const villageStage = this.save?.villageStage ?? 1;
+      const foundPassageCount = this.save?.foundVaultPassages.length ?? 0;
+      const defeatedRegionBosses = this.save?.defeatedRegionBosses ?? [];
+      const unlocked = this.unlockedDungeons();
+      const list = document.createElement("ul");
+      // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
+      // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
+      list.setAttribute("role", "list");
+      // 真の目覚め(plan/true-awakening.md)は隠し要素として扱う。3条件が
+      // すべて揃うまでは、未解放のヒント表示すらこの一覧に出さない。
+      // 樽比べ(plan/tarukurabe-minigame.md)も同じく、開催日以外は一覧に出さない
+      // (宵祭りの出店と同じく、開催日以外は存在自体を示さない扱い)
+      DUNGEONS.filter((d) => d.id !== TRUE_AWAKENING_ID && d.id !== TARUKURABE_ID).forEach((dungeon) => {
+        const li = document.createElement("li");
+        if (isDungeonUnlocked(dungeon, deepest, villageStage, foundPassageCount, defeatedRegionBosses)) {
+          li.textContent = dungeon.name;
+          if (this.column === 12 && unlocked[this.dungeonIndex]?.id === dungeon.id) {
+            li.classList.add("selected");
+          }
+        } else if (dungeon.unlock !== "always" && "minDeepest" in dungeon.unlock) {
+          li.textContent = `${dungeon.name}(未解放: 最深${dungeon.unlock.minDeepest}階到達で解放)`;
+        } else if (dungeon.unlock !== "always" && "minVillageStage" in dungeon.unlock) {
+          li.textContent = `${dungeon.name}(未解放: 村の発展段階${dungeon.unlock.minVillageStage}で解放)`;
+        } else if (dungeon.unlock !== "always" && "afterBossDefeated" in dungeon.unlock) {
+          li.textContent = `${dungeon.name}(未解放: ${speciesById(dungeon.unlock.afterBossDefeated).name}を撃破すると解放)`;
+        } else {
+          li.textContent = `${dungeon.name}(未解放: 忘れ物蔵の隠し通路を全8地方で見つけると解放。現在${foundPassageCount}/8)`;
+        }
+        list.appendChild(li);
+      });
+      if (this.save && isTrueAwakeningUnlocked(this.save)) {
+        const trueAwakening = dungeonById(TRUE_AWAKENING_ID);
+        const li = document.createElement("li");
+        li.textContent = trueAwakening.name;
+        if (this.column === 12 && unlocked[this.dungeonIndex]?.id === trueAwakening.id) {
           li.classList.add("selected");
         }
-      } else if (dungeon.unlock !== "always" && "minDeepest" in dungeon.unlock) {
-        li.textContent = `${dungeon.name}(未解放: 最深${dungeon.unlock.minDeepest}階到達で解放)`;
-      } else if (dungeon.unlock !== "always" && "minVillageStage" in dungeon.unlock) {
-        li.textContent = `${dungeon.name}(未解放: 村の発展段階${dungeon.unlock.minVillageStage}で解放)`;
-      } else if (dungeon.unlock !== "always" && "afterBossDefeated" in dungeon.unlock) {
-        li.textContent = `${dungeon.name}(未解放: ${speciesById(dungeon.unlock.afterBossDefeated).name}を撃破すると解放)`;
-      } else {
-        li.textContent = `${dungeon.name}(未解放: 忘れ物蔵の隠し通路を全8地方で見つけると解放。現在${foundPassageCount}/8)`;
+        list.appendChild(li);
       }
-      list.appendChild(li);
+      if (isTarukurabeDay(todayKey())) {
+        const tarukurabe = dungeonById(TARUKURABE_ID);
+        const li = document.createElement("li");
+        li.textContent = `${tarukurabe.name}(自己ベスト: ${this.save?.tarukurabeBestScore ?? 0}点)`;
+        if (this.column === 12 && unlocked[this.dungeonIndex]?.id === tarukurabe.id) {
+          li.classList.add("selected");
+        }
+        list.appendChild(li);
+      }
+      wrapper.appendChild(list);
     });
-    if (this.save && isTrueAwakeningUnlocked(this.save)) {
-      const trueAwakening = dungeonById(TRUE_AWAKENING_ID);
-      const li = document.createElement("li");
-      li.textContent = trueAwakening.name;
-      if (this.column === 12 && unlocked[this.dungeonIndex]?.id === trueAwakening.id) {
-        li.classList.add("selected");
-      }
-      list.appendChild(li);
-    }
-    if (isTarukurabeDay(todayKey())) {
-      const tarukurabe = dungeonById(TARUKURABE_ID);
-      const li = document.createElement("li");
-      li.textContent = `${tarukurabe.name}(自己ベスト: ${this.save?.tarukurabeBestScore ?? 0}点)`;
-      if (this.column === 12 && unlocked[this.dungeonIndex]?.id === tarukurabe.id) {
-        li.classList.add("selected");
-      }
-      list.appendChild(li);
-    }
-    wrapper.appendChild(list);
-    return wrapper;
   }
 
   /** 依頼板(plan/quest-board.md)の一覧行。貼り出し中(offer)→受注中(active)の順に並ぶ */
@@ -2082,45 +2003,36 @@ export class TownScreen {
    * 無いため未実装(design/plan双方に記載)。
    */
   private renderQuestBoard(): HTMLElement {
-    const wrapper = document.createElement("div");
-    wrapper.className = "town-col";
-    if (this.column === 11) wrapper.classList.add("active");
+    return this.renderColumn(11, "依頼板", (wrapper) => {
+      const rows = this.questBoardRows();
+      const summary = document.createElement("p");
+      summary.textContent = `受注中 ${this.save?.activeQuests.length ?? 0} / ${MAX_ACTIVE_QUESTS} 件`;
+      wrapper.appendChild(summary);
 
-    // スクリーンリーダー対応(plan/screen-reader-support.md): 各列の見出しをh3にする
-    const heading = document.createElement("h3");
-    heading.className = "town-col-title";
-    heading.textContent = "依頼板";
-    wrapper.appendChild(heading);
-
-    const rows = this.questBoardRows();
-    const summary = document.createElement("p");
-    summary.textContent = `受注中 ${this.save?.activeQuests.length ?? 0} / ${MAX_ACTIVE_QUESTS} 件`;
-    wrapper.appendChild(summary);
-
-    const list = document.createElement("ul");
-    // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
-    // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
-    list.setAttribute("role", "list");
-    if (rows.length === 0) {
-      const li = document.createElement("li");
-      li.className = "empty";
-      li.textContent = "貼り出されている依頼が無い";
-      list.appendChild(li);
-    }
-    rows.forEach((row, index) => {
-      const def = questDef(row.defId);
-      if (!def) return;
-      const reward = def.reward.gold ? `報酬${def.reward.gold}G` : "報酬あり";
-      const li = document.createElement("li");
-      li.textContent =
-        row.status === "active"
-          ? `[受注中] ${def.name}(${reward})`
-          : `${def.name}(${reward})`;
-      if (this.column === 11 && index === this.questCursor) li.classList.add("selected");
-      list.appendChild(li);
+      const list = document.createElement("ul");
+      // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
+      // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
+      list.setAttribute("role", "list");
+      if (rows.length === 0) {
+        const li = document.createElement("li");
+        li.className = "empty";
+        li.textContent = "貼り出されている依頼が無い";
+        list.appendChild(li);
+      }
+      rows.forEach((row, index) => {
+        const def = questDef(row.defId);
+        if (!def) return;
+        const reward = def.reward.gold ? `報酬${def.reward.gold}G` : "報酬あり";
+        const li = document.createElement("li");
+        li.textContent =
+          row.status === "active"
+            ? `[受注中] ${def.name}(${reward})`
+            : `${def.name}(${reward})`;
+        if (this.column === 11 && index === this.questCursor) li.classList.add("selected");
+        list.appendChild(li);
+      });
+      wrapper.appendChild(list);
     });
-    wrapper.appendChild(list);
-    return wrapper;
   }
 
   /**
@@ -2128,43 +2040,34 @@ export class TownScreen {
    * (最深到達記録・ゴールド)を表示する。Enterで条件を満たしていれば発展させる
    */
   private renderVillage(): HTMLElement {
-    const wrapper = document.createElement("div");
-    wrapper.className = "town-col";
-    if (this.column === 13) wrapper.classList.add("active");
+    return this.renderColumn(13, "村の発展", (wrapper) => {
+      const save = this.save;
+      const stage = save?.villageStage ?? 1;
+      const summary = document.createElement("p");
+      summary.textContent = `段階 ${stage} / 4 ・ ねむり小屋 最大${hutCapacity(stage)}体`;
+      wrapper.appendChild(summary);
 
-    // スクリーンリーダー対応(plan/screen-reader-support.md): 各列の見出しをh3にする
-    const heading = document.createElement("h3");
-    heading.className = "town-col-title";
-    heading.textContent = "村の発展";
-    wrapper.appendChild(heading);
+      const list = document.createElement("ul");
+      // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
+      // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
+      list.setAttribute("role", "list");
+      VILLAGE_STAGE_REQUIREMENTS.forEach((requirement) => {
+        const li = document.createElement("li");
+        const done = stage >= requirement.stage;
+        li.textContent = done
+          ? `${requirement.label}(達成)`
+          : `${requirement.label}: 最深${requirement.minDeepest}階到達・${requirement.cost}G`;
+        list.appendChild(li);
+      });
+      wrapper.appendChild(list);
 
-    const save = this.save;
-    const stage = save?.villageStage ?? 1;
-    const summary = document.createElement("p");
-    summary.textContent = `段階 ${stage} / 4 ・ ねむり小屋 最大${hutCapacity(stage)}体`;
-    wrapper.appendChild(summary);
-
-    const list = document.createElement("ul");
-    // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
-    // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
-    list.setAttribute("role", "list");
-    VILLAGE_STAGE_REQUIREMENTS.forEach((requirement) => {
-      const li = document.createElement("li");
-      const done = stage >= requirement.stage;
-      li.textContent = done
-        ? `${requirement.label}(達成)`
-        : `${requirement.label}: 最深${requirement.minDeepest}階到達・${requirement.cost}G`;
-      list.appendChild(li);
+      if (save && canDevelopVillage(stage, save.deepest, save.gold)) {
+        const ready = document.createElement("p");
+        ready.className = "selected";
+        ready.textContent = "Enterで発展させられる!";
+        wrapper.appendChild(ready);
+      }
     });
-    wrapper.appendChild(list);
-
-    if (save && canDevelopVillage(stage, save.deepest, save.gold)) {
-      const ready = document.createElement("p");
-      ready.className = "selected";
-      ready.textContent = "Enterで発展させられる!";
-      wrapper.appendChild(ready);
-    }
-    return wrapper;
   }
 
   /**
@@ -2173,39 +2076,30 @@ export class TownScreen {
    * ここに要点を示す
    */
   private renderAccessibility(): HTMLElement {
-    const wrapper = document.createElement("div");
-    wrapper.className = "town-col";
-    if (this.column === 14) wrapper.classList.add("active");
+    return this.renderColumn(14, "アクセシビリティ", (wrapper) => {
+      const fontSize = this.save?.fontSize ?? "normal";
+      const list = document.createElement("ul");
+      // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
+      // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
+      list.setAttribute("role", "list");
+      (["normal", "large"] as const).forEach((size) => {
+        const li = document.createElement("li");
+        li.textContent = size === "normal" ? "文字サイズ: ふつう" : "文字サイズ: 大きめ";
+        if (size === fontSize) li.classList.add("selected");
+        list.appendChild(li);
+      });
+      wrapper.appendChild(list);
 
-    // スクリーンリーダー対応(plan/screen-reader-support.md): 各列の見出しをh3にする
-    const heading = document.createElement("h3");
-    heading.className = "town-col-title";
-    heading.textContent = "アクセシビリティ";
-    wrapper.appendChild(heading);
+      const note = document.createElement("p");
+      note.textContent = "状態異常は色だけでなく記号(◐/✳/◆)でも区別して表示する。";
+      wrapper.appendChild(note);
 
-    const fontSize = this.save?.fontSize ?? "normal";
-    const list = document.createElement("ul");
-    // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
-    // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
-    list.setAttribute("role", "list");
-    (["normal", "large"] as const).forEach((size) => {
-      const li = document.createElement("li");
-      li.textContent = size === "normal" ? "文字サイズ: ふつう" : "文字サイズ: 大きめ";
-      if (size === fontSize) li.classList.add("selected");
-      list.appendChild(li);
+      // バグ報告ボタン(plan/bug-report-button.md)
+      const report = document.createElement("p");
+      report.className = "town-hint";
+      report.textContent = "B キー: 不具合を報告する(GitHubのIssue作成画面が開きます)";
+      wrapper.appendChild(report);
     });
-    wrapper.appendChild(list);
-
-    const note = document.createElement("p");
-    note.textContent = "状態異常は色だけでなく記号(◐/✳/◆)でも区別して表示する。";
-    wrapper.appendChild(note);
-
-    // バグ報告ボタン(plan/bug-report-button.md)
-    const report = document.createElement("p");
-    report.className = "town-hint";
-    report.textContent = "B キー: 不具合を報告する(GitHubのIssue作成画面が開きます)";
-    wrapper.appendChild(report);
-    return wrapper;
   }
 
   /**
@@ -2213,32 +2107,23 @@ export class TownScreen {
    * 未入手のものも一覧に表示し、入手条件を隠さない(実績帳と同じ方針)
    */
   private renderCostumes(): HTMLElement {
-    const wrapper = document.createElement("div");
-    wrapper.className = "town-col";
-    if (this.column === 15) wrapper.classList.add("active");
-
-    // スクリーンリーダー対応(plan/screen-reader-support.md): 各列の見出しをh3にする
-    const heading = document.createElement("h3");
-    heading.className = "town-col-title";
-    heading.textContent = "身支度";
-    wrapper.appendChild(heading);
-
-    const unlockedCostumes = this.save?.unlockedCostumes ?? [];
-    const equipped = this.save?.equippedCostume;
-    const list = document.createElement("ul");
-    // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
-    // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
-    list.setAttribute("role", "list");
-    COSTUMES.forEach((costume: CostumeDef, index) => {
-      const unlocked = unlockedCostumes.includes(costume.id);
-      const li = document.createElement("li");
-      const state = costume.id === equipped ? "(装備中)" : unlocked ? "(入手済み)" : "(未入手)";
-      li.textContent = `${costume.name}${state}`;
-      if (this.column === 15 && index === this.costumeCursor) li.classList.add("selected");
-      list.appendChild(li);
+    return this.renderColumn(15, "身支度", (wrapper) => {
+      const unlockedCostumes = this.save?.unlockedCostumes ?? [];
+      const equipped = this.save?.equippedCostume;
+      const list = document.createElement("ul");
+      // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
+      // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
+      list.setAttribute("role", "list");
+      COSTUMES.forEach((costume: CostumeDef, index) => {
+        const unlocked = unlockedCostumes.includes(costume.id);
+        const li = document.createElement("li");
+        const state = costume.id === equipped ? "(装備中)" : unlocked ? "(入手済み)" : "(未入手)";
+        li.textContent = `${costume.name}${state}`;
+        if (this.column === 15 && index === this.costumeCursor) li.classList.add("selected");
+        list.appendChild(li);
+      });
+      wrapper.appendChild(list);
     });
-    wrapper.appendChild(list);
-    return wrapper;
   }
 
   /**
@@ -2268,31 +2153,22 @@ export class TownScreen {
    * main.ts側が判定する)。Gキーで倉庫の素材(ほこら粉・刻印石)を1個献上できる。
    */
   private renderVillageLife(): HTMLElement {
-    const wrapper = document.createElement("div");
-    wrapper.className = "town-col";
-    if (this.column === 16) wrapper.classList.add("active");
-
-    // スクリーンリーダー対応(plan/screen-reader-support.md): 各列の見出しをh3にする
-    const heading = document.createElement("h3");
-    heading.className = "town-col-title";
-    heading.textContent = "NPCと話す";
-    wrapper.appendChild(heading);
-
-    const npcs = visibleVillageNpcs(this.currentStoryChapter());
-    const list = document.createElement("ul");
-    // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
-    // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
-    list.setAttribute("role", "list");
-    npcs.forEach((npc, index) => {
-      const level = this.save?.bonds[npc.id] ?? 0;
-      const label = bondStageLabel(bondStage(level));
-      const li = document.createElement("li");
-      li.textContent = label ? `${npc.name}(${label})` : npc.name;
-      if (this.column === 16 && index === this.npcIndex) li.classList.add("selected");
-      list.appendChild(li);
+    return this.renderColumn(16, "NPCと話す", (wrapper) => {
+      const npcs = visibleVillageNpcs(this.currentStoryChapter());
+      const list = document.createElement("ul");
+      // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
+      // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
+      list.setAttribute("role", "list");
+      npcs.forEach((npc, index) => {
+        const level = this.save?.bonds[npc.id] ?? 0;
+        const label = bondStageLabel(bondStage(level));
+        const li = document.createElement("li");
+        li.textContent = label ? `${npc.name}(${label})` : npc.name;
+        if (this.column === 16 && index === this.npcIndex) li.classList.add("selected");
+        list.appendChild(li);
+      });
+      wrapper.appendChild(list);
     });
-    wrapper.appendChild(list);
-    return wrapper;
   }
 
   /**
@@ -2300,139 +2176,113 @@ export class TownScreen {
    * 選んで買える。品揃え・価格は固定(補充・売り切れの概念は持たない)
    */
   private renderYoimatsuriShop(): HTMLElement {
-    const wrapper = document.createElement("div");
-    wrapper.className = "town-col";
-    if (this.column === 17) wrapper.classList.add("active");
-
-    // スクリーンリーダー対応(plan/screen-reader-support.md): 各列の見出しをh3にする
-    const heading = document.createElement("h3");
-    heading.className = "town-col-title";
-    heading.textContent = "宵祭りの出店";
-    wrapper.appendChild(heading);
-
-    const list = document.createElement("ul");
-    // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
-    // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
-    list.setAttribute("role", "list");
-    if (isYoimatsuri(todayKey())) {
-      FESTIVAL_SHOP_OFFERS.forEach((offer, index) => {
+    return this.renderColumn(17, "宵祭りの出店", (wrapper) => {
+      const list = document.createElement("ul");
+      // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
+      // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
+      list.setAttribute("role", "list");
+      if (isYoimatsuri(todayKey())) {
+        FESTIVAL_SHOP_OFFERS.forEach((offer, index) => {
+          const li = document.createElement("li");
+          li.textContent = `${itemDef(offer.defId).name} — ${offer.price}G`;
+          if (this.column === 17 && index === this.festivalShopCursor) li.classList.add("selected");
+          list.appendChild(li);
+        });
+      } else {
         const li = document.createElement("li");
-        li.textContent = `${itemDef(offer.defId).name} — ${offer.price}G`;
-        if (this.column === 17 && index === this.festivalShopCursor) li.classList.add("selected");
+        li.textContent = "今日は宵祭りの日ではない。";
         list.appendChild(li);
-      });
-    } else {
-      const li = document.createElement("li");
-      li.textContent = "今日は宵祭りの日ではない。";
-      list.appendChild(li);
-    }
-    wrapper.appendChild(list);
-    return wrapper;
+      }
+      wrapper.appendChild(list);
+    });
   }
 
   /** サウンド再生(plan/audio-playback.md)。ミュート・音量の設定 */
   private renderAudioSettings(): HTMLElement {
-    const wrapper = document.createElement("div");
-    wrapper.className = "town-col";
-    if (this.column === 18) wrapper.classList.add("active");
+    return this.renderColumn(18, "音", (wrapper) => {
+      const muted = this.save?.audioMuted ?? false;
+      const volume = this.save?.audioVolume ?? DEFAULT_AUDIO_VOLUME;
+      const list = document.createElement("ul");
+      // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
+      // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
+      list.setAttribute("role", "list");
 
-    // スクリーンリーダー対応(plan/screen-reader-support.md): 各列の見出しをh3にする
-    const heading = document.createElement("h3");
-    heading.className = "town-col-title";
-    heading.textContent = "音";
-    wrapper.appendChild(heading);
+      const muteLi = document.createElement("li");
+      muteLi.textContent = `ミュート: ${muted ? "オン" : "オフ"}`;
+      if (this.column === 18 && this.audioSettingsCursor === 0) muteLi.classList.add("selected");
+      list.appendChild(muteLi);
 
-    const muted = this.save?.audioMuted ?? false;
-    const volume = this.save?.audioVolume ?? DEFAULT_AUDIO_VOLUME;
-    const list = document.createElement("ul");
-    // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
-    // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
-    list.setAttribute("role", "list");
+      const volumeLi = document.createElement("li");
+      volumeLi.textContent = `音量: ${Math.round(volume * 100)}%`;
+      if (this.column === 18 && this.audioSettingsCursor === 1) volumeLi.classList.add("selected");
+      list.appendChild(volumeLi);
 
-    const muteLi = document.createElement("li");
-    muteLi.textContent = `ミュート: ${muted ? "オン" : "オフ"}`;
-    if (this.column === 18 && this.audioSettingsCursor === 0) muteLi.classList.add("selected");
-    list.appendChild(muteLi);
-
-    const volumeLi = document.createElement("li");
-    volumeLi.textContent = `音量: ${Math.round(volume * 100)}%`;
-    if (this.column === 18 && this.audioSettingsCursor === 1) volumeLi.classList.add("selected");
-    list.appendChild(volumeLi);
-
-    wrapper.appendChild(list);
-    return wrapper;
+      wrapper.appendChild(list);
+    });
   }
 
   /** 設定画面(plan/settings-screen.md)。メッセージ速度・操作説明の再表示・キー配置の確認 */
   private renderSettings(): HTMLElement {
-    const wrapper = document.createElement("div");
-    wrapper.className = "town-col";
-    if (this.column === 19) wrapper.classList.add("active");
+    return this.renderColumn(19, t("ui.settings.title"), (wrapper) => {
+      if (this.settingsSubView === "tutorialTips") {
+        const list = document.createElement("ul");
+        list.setAttribute("role", "list");
+        for (const id of TUTORIAL_TIP_IDS) {
+          const li = document.createElement("li");
+          li.textContent = TUTORIAL_TIPS[id];
+          list.appendChild(li);
+        }
+        wrapper.appendChild(list);
+        return;
+      }
 
-    const heading = document.createElement("h3");
-    heading.className = "town-col-title";
-    heading.textContent = t("ui.settings.title");
-    wrapper.appendChild(heading);
+      if (this.settingsSubView === "keyReference") {
+        const list = document.createElement("ul");
+        list.setAttribute("role", "list");
+        for (const line of KEY_REFERENCE) {
+          const li = document.createElement("li");
+          li.textContent = line;
+          list.appendChild(li);
+        }
+        wrapper.appendChild(list);
+        return;
+      }
 
-    if (this.settingsSubView === "tutorialTips") {
+      const speed = this.save?.messageSpeed ?? "normal";
+      const speedLabel: Record<MessageSpeed, string> = {
+        slow: t("ui.settings.speedSlow"),
+        normal: t("ui.settings.speedNormal"),
+        fast: t("ui.settings.speedFast"),
+      };
+      // 多言語対応の土台(plan/i18n-foundation.md): 第1段階時点はLOCALESが"ja"のみのため
+      // ラベルもjaの1件だけ持つ。"en"の翻訳テーブルが揃い次第ここに追加する
+      const localeLabel: Partial<Record<LocaleId, string>> = { ja: t("ui.settings.localeJa") };
       const list = document.createElement("ul");
       list.setAttribute("role", "list");
-      for (const id of TUTORIAL_TIP_IDS) {
-        const li = document.createElement("li");
-        li.textContent = TUTORIAL_TIPS[id];
-        list.appendChild(li);
-      }
+
+      const speedLi = document.createElement("li");
+      speedLi.textContent = t("ui.settings.messageSpeedLabel", { value: speedLabel[speed] });
+      if (this.column === 19 && this.settingsCursor === 0) speedLi.classList.add("selected");
+      list.appendChild(speedLi);
+
+      const tipsLi = document.createElement("li");
+      tipsLi.textContent = t("ui.settings.tutorialTips");
+      if (this.column === 19 && this.settingsCursor === 1) tipsLi.classList.add("selected");
+      list.appendChild(tipsLi);
+
+      const keysLi = document.createElement("li");
+      keysLi.textContent = t("ui.settings.keyReference");
+      if (this.column === 19 && this.settingsCursor === 2) keysLi.classList.add("selected");
+      list.appendChild(keysLi);
+
+      const localeLi = document.createElement("li");
+      const currentLocale = this.save?.locale ?? "ja";
+      localeLi.textContent = t("ui.settings.localeLabel", { value: localeLabel[currentLocale] ?? currentLocale });
+      if (this.column === 19 && this.settingsCursor === 3) localeLi.classList.add("selected");
+      list.appendChild(localeLi);
+
       wrapper.appendChild(list);
-      return wrapper;
-    }
-
-    if (this.settingsSubView === "keyReference") {
-      const list = document.createElement("ul");
-      list.setAttribute("role", "list");
-      for (const line of KEY_REFERENCE) {
-        const li = document.createElement("li");
-        li.textContent = line;
-        list.appendChild(li);
-      }
-      wrapper.appendChild(list);
-      return wrapper;
-    }
-
-    const speed = this.save?.messageSpeed ?? "normal";
-    const speedLabel: Record<MessageSpeed, string> = {
-      slow: t("ui.settings.speedSlow"),
-      normal: t("ui.settings.speedNormal"),
-      fast: t("ui.settings.speedFast"),
-    };
-    // 多言語対応の土台(plan/i18n-foundation.md): 第1段階時点はLOCALESが"ja"のみのため
-    // ラベルもjaの1件だけ持つ。"en"の翻訳テーブルが揃い次第ここに追加する
-    const localeLabel: Partial<Record<LocaleId, string>> = { ja: t("ui.settings.localeJa") };
-    const list = document.createElement("ul");
-    list.setAttribute("role", "list");
-
-    const speedLi = document.createElement("li");
-    speedLi.textContent = t("ui.settings.messageSpeedLabel", { value: speedLabel[speed] });
-    if (this.column === 19 && this.settingsCursor === 0) speedLi.classList.add("selected");
-    list.appendChild(speedLi);
-
-    const tipsLi = document.createElement("li");
-    tipsLi.textContent = t("ui.settings.tutorialTips");
-    if (this.column === 19 && this.settingsCursor === 1) tipsLi.classList.add("selected");
-    list.appendChild(tipsLi);
-
-    const keysLi = document.createElement("li");
-    keysLi.textContent = t("ui.settings.keyReference");
-    if (this.column === 19 && this.settingsCursor === 2) keysLi.classList.add("selected");
-    list.appendChild(keysLi);
-
-    const localeLi = document.createElement("li");
-    const currentLocale = this.save?.locale ?? "ja";
-    localeLi.textContent = t("ui.settings.localeLabel", { value: localeLabel[currentLocale] ?? currentLocale });
-    if (this.column === 19 && this.settingsCursor === 3) localeLi.classList.add("selected");
-    list.appendChild(localeLi);
-
-    wrapper.appendChild(list);
-    return wrapper;
+    });
   }
 }
 
