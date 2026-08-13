@@ -765,10 +765,10 @@ export const SPECIES: readonly Species[] = [
     inflicts: { kind: "sleep", chance: 0.15, turns: 3 },
   },
   {
-    // まどろみの隙間に糸を張る蜘蛛。ambush主力のtsubuteモデルを流用する
+    // まどろみの隙間に糸を張る蜘蛛。専用モデル(tools/models/monsters.py)
     id: "madoromigumo",
     name: "まどろみぐも",
-    model: "tsubute",
+    model: "madoromigumo",
     maxHp: 26,
     atk: 17,
     def: 7,
