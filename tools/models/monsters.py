@@ -4704,6 +4704,104 @@ def shioresakura_animations():
     ]
 
 
+# ======================================================================= みずかがみ
+
+MIZUKAGAMI_JOINTS = {
+    "root": (0.0, 0.0, 0.04),
+    "stem": (0.0, 0.0, 0.12),
+    "capbase": (0.0, 0.0, 0.22),
+    "captop": (0.0, 0.0, 0.30),
+}
+MIZUKAGAMI_RADII = {"root": 0.13, "stem": 0.19, "capbase": 0.20, "captop": 0.16}
+MIZUKAGAMI_BONES = [("root", "stem"), ("stem", "capbase"), ("capbase", "captop")]
+
+
+def mizukagami_mirror_z(dist: float) -> float:
+    """
+    鏡面(captop上に載る円盤)の表面高さ。captop(半径0.16)の直上に、
+    サブディビジョンで丸まるぶんを見積もって少し高めに置く。
+    """
+    return MIZUKAGAMI_JOINTS["captop"][2] + 0.012
+
+
+def build_mizukagami():
+    """
+    滝つぼの水面に映る古い姿。madoromiと同じ関節構成をベースに、傘を
+    大きく広げる代わりに寸胴な壺のような輪郭にし、頂上に鏡のような
+    水面を張らせる(mimic AIらしく道具に紛れ込む、目立たない形)。
+    水面には同心円の波紋を色の濃淡で描き、姿を映す鏡であることを示す。
+    """
+    body = C.build_skinned("mizukagami", MIZUKAGAMI_JOINTS, MIZUKAGAMI_BONES,
+                           MIZUKAGAMI_RADII, root="root", subsurf=3)
+    jar_mat = C.make_material("mizukagami_jar", (0.20, 0.24, 0.36), roughness=0.7)
+    C.assign_material(body, jar_mat)
+
+    # 頂上に張った水面。中心からの距離に応じて濃淡を塗り分け、波紋にする
+    mirror = C.uv_sphere("mizukagami_mirror", (0.0, 0.0, mizukagami_mirror_z(0.0)), 0.155,
+                         segments=40, rings=20, scale=(1.0, 1.0, 0.12))
+    ripple_light = C.make_material("mizukagami_ripple_light", (0.64, 0.74, 0.84), roughness=0.15)
+    ripple_dark = C.make_material("mizukagami_ripple_dark", (0.30, 0.40, 0.54), roughness=0.15)
+
+    def classify_ripple(c):
+        dist = math.sqrt(c.x * c.x + c.y * c.y)
+        band = int(dist / 0.030) % 2
+        return band
+
+    C.assign_materials_by_region(mirror, [ripple_light, ripple_dark], classify_ripple)
+
+    extras = [mirror]
+    for side in (-1.0, 1.0):
+        # 息をひそめて縁からのぞく、目立たない目
+        eye = C.uv_sphere(f"mizukagami_eye{side}", (0.062 * side, -0.150, 0.175), 0.026,
+                          segments=14, rings=10, scale=(1.0, 0.6, 0.55))
+        C.assign_material(eye, C.make_material(f"mizukagami_eye{side}_m", EYE_DARK, roughness=0.3))
+        extras.append(eye)
+    mouth = C.uv_sphere("mizukagami_mouth", (0.0, -0.155, 0.130), 0.022,
+                        segments=12, rings=8, scale=(0.9, 0.5, 0.6))
+    C.assign_material(mouth, C.make_material("mizukagami_mouth_m", (0.14, 0.16, 0.24), roughness=0.4))
+    extras.append(mouth)
+
+    mesh = C.join([body] + extras, "mizukagami")
+    armature = C.build_armature("mizukagami", MIZUKAGAMI_JOINTS, MIZUKAGAMI_BONES, mesh, root="root")
+    return [mesh, armature], armature
+
+
+def mizukagami_animations():
+    stem, cap, mirror = "root-stem", "stem-capbase", "capbase-captop"
+    return [
+        # 道具のふりをして、ほとんど動かずじっと潜む
+        ("idle", [
+            (1, {mirror: (0, 0, 0)}),
+            (48, {mirror: (1.2, 0, 1)}),
+            (96, {mirror: (0, 0, 0)}),
+        ]),
+        # 道具らしからぬ、正体を現したときのぎこちない足取り
+        ("walk", [
+            (1, {stem: (0, 0, 0), cap: (0, 0, 0)}),
+            (7, {stem: (8, 0, 5), cap: (-6, 0, -3)}),
+            (14, {stem: (-8, 0, -5), cap: (6, 0, 3)}),
+            (21, {stem: (0, 0, 0), cap: (0, 0, 0)}),
+        ]),
+        ("attack", [
+            (1, {cap: (0, 0, 0), mirror: (0, 0, 0)}),
+            (5, {cap: (-18, 0, 0), mirror: (-14, 0, 0)}),
+            (10, {cap: (22, 0, 0), mirror: (20, 0, 0)}),
+            (20, {cap: (0, 0, 0), mirror: (0, 0, 0)}),
+        ]),
+        ("hit", [
+            (1, {stem: (0, 0, 0), cap: (0, 0, 0)}),
+            (4, {stem: (-16, 0, 0), cap: (-14, 0, 0)}),
+            (14, {stem: (0, 0, 0), cap: (0, 0, 0)}),
+        ]),
+        # 水面が波紋となって崩れ、映していた姿が消える
+        ("die", [
+            (1, {stem: (0, 0, 0), cap: (0, 0, 0)}),
+            (10, {stem: (-24, 0, 8), cap: (-28, 0, 0), mirror: (-20, 0, 0)}),
+            (24, {stem: (-70, 0, 20), cap: (-52, 0, 0), mirror: (-38, 0, 0)}),
+        ]),
+    ]
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -4744,6 +4842,7 @@ MONSTERS = {
     "urumiguma": (build_urumiguma, urumiguma_animations),
     "nadakaze": (build_nadakaze, nadakaze_animations),
     "shioresakura": (build_shioresakura, shioresakura_animations),
+    "mizukagami": (build_mizukagami, mizukagami_animations),
 }
 
 
