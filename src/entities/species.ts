@@ -341,7 +341,7 @@ export const SPECIES: readonly Species[] = [
     // 自分のいる部屋の外周へ一時的に奔流を呼び込む(plan/region-boss-fuchinonushi.md)
     id: "fuchiNoNushi",
     name: "淵の主",
-    model: "honegarami",
+    model: "fuchiNoNushi",
     maxHp: 114,
     atk: 29,
     def: 23,
