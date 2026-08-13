@@ -522,9 +522,10 @@ export const SPECIES: readonly Species[] = [
 
   // 第五地方: なみだの滝つぼ(25〜30階)
   {
+    // こぼれ落ちる涙のしずくそのもの。専用モデル(plan/models/archive/model-shizukuuo.md)
     id: "shizukuuo",
     name: "しずくうお",
-    model: "tsubute",
+    model: "shizukuuo",
     maxHp: 20,
     atk: 16,
     def: 6,

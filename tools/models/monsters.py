@@ -4303,6 +4303,102 @@ def fuchiNoNushi_animations():
     ]
 
 
+# =================================================================== しずくうお
+
+# tsubuteと同じ関節構成(hip/chest/head/armF/handF/kneeB/ankleB/footB)を
+# ベースにするが、四足の蛙ではなく「こぼれ落ちる涙のしずくそのもの」を
+# 表す魚にする。armF/handFを小さな胸びれ、kneeB/ankleB/footBを後方へ
+# 伸ばして尾びれにし、headを先細りの水滴の先端にする。
+SHIZUKUUO_HALF = {
+    "hip": (0.0, 0.130, 0.118),
+    "chest": (0.0, -0.028, 0.132),
+    "head": (0.0, -0.205, 0.112),
+    "armF.L": (0.086, -0.092, 0.078),
+    "handF.L": (0.128, -0.110, 0.050),
+    "kneeB.L": (0.070, 0.160, 0.108),
+    "ankleB.L": (0.092, 0.215, 0.078),
+    "footB.L": (0.098, 0.260, 0.048),
+}
+SHIZUKUUO_RADII_HALF = {
+    "hip": 0.118, "chest": 0.128, "head": 0.068,
+    "armF.L": 0.020, "handF.L": 0.024,
+    "kneeB.L": 0.026, "ankleB.L": 0.019, "footB.L": 0.022,
+}
+SHIZUKUUO_BONES_HALF = [
+    ("chest", "hip"), ("chest", "head"),
+    ("chest", "armF.L"), ("armF.L", "handF.L"),
+    ("hip", "kneeB.L"), ("kneeB.L", "ankleB.L"), ("ankleB.L", "footB.L"),
+]
+
+
+def build_shizukuuo():
+    """
+    こぼれ落ちる涙のしずくそのもの。tsubuteと同じ関節構成をベースに、
+    四足の蛙ではなく水滴形の魚に作り替える。頭を先細りの水滴の先端に、
+    腕を小さな胸びれ、後ろ足を尾びれにする。群れ配置(swarm AI)に
+    合わせ、単体は簡略化した小さなシルエットにとどめる。配色は
+    第五地方(なみだの滝つぼ)の、涙と滝つぼを思わせる沈んだ青・藍色系。
+    """
+    joints = C.mirrored(SHIZUKUUO_HALF)
+    radii = C.mirrored_radii(SHIZUKUUO_RADII_HALF)
+    bones = C.mirrored_bones(SHIZUKUUO_BONES_HALF)
+
+    body = C.build_skinned("shizukuuo", joints, bones, radii, root="chest", subsurf=2)
+    deep = C.make_material("shizuku_deep", (0.20, 0.30, 0.52), roughness=0.25)
+    C.assign_material(body, deep)
+
+    extras = []
+    for side in (-1.0, 1.0):
+        extras += eyeball(f"shizuku_eye{side}", (0.052 * side, -0.222, 0.128), 0.028,
+                          look=(0.25 * side, -1.0, 0.05),
+                          white=(0.80, 0.86, 0.94), dark=(0.10, 0.12, 0.20))
+
+    mesh = C.join([body] + extras, "shizukuuo")
+    armature = C.build_armature("shizukuuo", joints, bones, mesh, root="chest")
+    return [mesh, armature], armature
+
+
+def shizukuuo_animations():
+    head = "chest-head"
+    finL, finR = "chest-armF.L", "chest-armF.R"
+    tailL, tailR = "hip-kneeB.L", "hip-kneeB.R"
+    shinL, shinR = "kneeB.L-ankleB.L", "kneeB.R-ankleB.R"
+    return [
+        # 水中を漂うように、ゆっくり揺れる
+        ("idle", [
+            (1, {head: (0, 0, 0), tailL: (0, 0, 6), tailR: (0, 0, -6)}),
+            (24, {head: (3, 0, 0), tailL: (0, 0, -6), tailR: (0, 0, 6)}),
+            (48, {head: (0, 0, 0), tailL: (0, 0, 6), tailR: (0, 0, -6)}),
+        ]),
+        # 尾びれを大きくくねらせて泳ぐ
+        ("walk", [
+            (1, {tailL: (0, 0, 20), tailR: (0, 0, -20), shinL: (0, 0, 14), shinR: (0, 0, -14),
+                 finL: (0, 0, 10), finR: (0, 0, -10), head: (0, 0, 6)}),
+            (6, {tailL: (0, 0, -20), tailR: (0, 0, 20), shinL: (0, 0, -14), shinR: (0, 0, 14),
+                 finL: (0, 0, -10), finR: (0, 0, 10), head: (0, 0, -6)}),
+            (12, {tailL: (0, 0, 20), tailR: (0, 0, -20), shinL: (0, 0, 14), shinR: (0, 0, -14),
+                  finL: (0, 0, 10), finR: (0, 0, -10), head: (0, 0, 6)}),
+        ]),
+        ("attack", [
+            (1, {head: (0, 0, 0)}),
+            (4, {head: (-20, 0, 0), tailL: (0, 0, 24), tailR: (0, 0, -24)}),
+            (9, {head: (14, 0, 0), tailL: (0, 0, -18), tailR: (0, 0, 18)}),
+            (16, {head: (0, 0, 0), tailL: (0, 0, 6), tailR: (0, 0, -6)}),
+        ]),
+        ("hit", [
+            (1, {head: (0, 0, 0)}),
+            (4, {head: (16, 0, 0), finL: (-14, 0, 10), finR: (-14, 0, -10)}),
+            (12, {head: (0, 0, 0)}),
+        ]),
+        # しずくが弾けるように、輪郭を丸く潰しながら消える
+        ("die", [
+            (1, {head: (0, 0, 0)}),
+            (8, {head: (0, 0, 0), tailL: (0, 0, -30), tailR: (0, 0, 30)}),
+            (18, {head: (0, 0, 0), tailL: (0, 0, -60), tailR: (0, 0, 60)}),
+        ]),
+    ]
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -4339,6 +4435,7 @@ MONSTERS = {
     "yumemayoinokage": (build_yumemayoinokage, yumemayoinokage_animations),
     "yorishironozankyo": (build_yorishironozankyo, yorishironozankyo_animations),
     "fuchiNoNushi": (build_fuchiNoNushi, fuchiNoNushi_animations),
+    "shizukuuo": (build_shizukuuo, shizukuuo_animations),
 }
 
 
