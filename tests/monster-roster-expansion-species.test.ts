@@ -42,14 +42,15 @@ const NEW_SPECIES_IDS = [
 ];
 
 // akubitokage・mabutamushi・kirimizuchi・nukarumigani・ashiatodori・
-// wasuremizuchi・kinokootoko・houshitobi・kodamagumo は
+// wasuremizuchi・kinokootoko・houshitobi・kodamagumo・nebosukegaeru は
 // plan/archive/model-akubitokage.md・plan/archive/model-mabutamushi.md・
 // plan/archive/model-kirimizuchi.md・plan/archive/model-nukarumigani.md・
 // plan/archive/model-ashiatodori.md・plan/archive/model-wasuremizuchi.md・
 // plan/archive/model-kinokootoko.md・plan/archive/model-houshitobi.md・
-// plan/archive/model-kodamagumo.md でそれぞれ専用モデルを新規に作った
-// (このロースター拡張が前提としていた「新規3Dモデルは作らず既存5種を流用する」
-// の例外)。それ以外は今なお既存5種の流用のまま。
+// plan/archive/model-kodamagumo.md・plan/archive/model-nebosukegaeru.md
+// でそれぞれ専用モデルを新規に作った(このロースター拡張が前提としていた
+// 「新規3Dモデルは作らず既存5種を流用する」の例外)。それ以外は今なお
+// 既存5種の流用のまま。
 const KNOWN_MODEL_IDS = new Set([
   "purun",
   "gajiri",
@@ -65,6 +66,7 @@ const KNOWN_MODEL_IDS = new Set([
   "kinokootoko",
   "houshitobi",
   "kodamagumo",
+  "nebosukegaeru",
 ]);
 
 function makeOpenFloor(): FloorState {

@@ -780,10 +780,10 @@ export const SPECIES: readonly Species[] = [
     weight: 4,
   },
   {
-    // ツブテガエルの遠い親戚。同じtsubuteモデルを流用する
+    // ツブテガエルの遠い親戚。専用モデル(plan/archive/model-nebosukegaeru.md)
     id: "nebosukegaeru",
     name: "ねぼすけがえる",
-    model: "tsubute",
+    model: "nebosukegaeru",
     maxHp: 22,
     atk: 13,
     def: 6,
