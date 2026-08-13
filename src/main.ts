@@ -84,6 +84,8 @@ import { STORY_CHAPTER_MESSAGES, storyChapter, storyChapterEventId } from "./ent
 import { REGION_BOSS_FLOORS, speciesById } from "./entities/species";
 import { KEY_REFERENCE, messageSpeedScale } from "./entities/settings";
 import { buildBugReportUrl } from "./entities/bugReport";
+import { isDebugEnabled } from "./entities/debugPanel";
+import { DebugPanel } from "./ui/debug-panel";
 import { speciesLore } from "./entities/speciesLore";
 import { TUTORIAL_TIPS, type TutorialTipId } from "./core/tutorial";
 import type { Item } from "./core/types";
@@ -181,6 +183,13 @@ class App {
     this.town = new TownScreen(document.querySelector<HTMLElement>("#town")!);
     this.namingDialog = new NamingDialog(document.querySelector<HTMLElement>("#naming")!);
     this.slotSelect = new SlotSelectScreen(document.querySelector<HTMLElement>("#slotSelect")!);
+    // 出先デバッグパネル(plan/mobile-debug-panel.md): ?debug=1が無ければ
+    // newすらしない(このURLSearchParamsチェック自体はほぼ無コスト)。DebugPanel
+    // 自体はconsoleフック・Issue作成URL組み立て等をコンストラクタ内で完結させ、
+    // 以後Appから参照する必要が無いためフィールドには保持しない
+    if (isDebugEnabled(location.search)) {
+      new DebugPanel(document.querySelector<HTMLElement>("#debugPanel")!, () => this.debugStats());
+    }
     this.gallery = new GalleryView(this.assets);
     this.galleryInfoEl = document.querySelector<HTMLElement>("#gallery-info")!;
     this.villageHintEl = document.querySelector<HTMLElement>("#village-hint")!;
