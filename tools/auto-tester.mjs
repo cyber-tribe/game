@@ -21,6 +21,7 @@
 import { createRequire } from "node:module";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { fingerprint, normalizeMessage, topStackFrame } from "./fingerprint.mjs";
+import { SOFTLOCK_TURNS, SoftlockDetector } from "./softlock-detector.mjs";
 
 async function loadPlaywright() {
   try {
@@ -39,10 +40,6 @@ const OUT = process.env.OUT ?? "auto-tester-shots";
 const SESSIONS = Number(process.env.SESSIONS ?? 8);
 const MAX_TURNS = Number(process.env.MAX_TURNS ?? 200);
 const MAX_SESSION_MS = Number(process.env.MAX_SESSION_MS ?? 3 * 60_000);
-/** 進行不能(ソフトロック)の疑い検知: この連続ターン数、HUD状態が変化しなければ記録する */
-const SOFTLOCK_TURNS = 20;
-/** そのうち、実際に試みた方向がこの数以上でなければ「壁際で待機中」として誤検知しない */
-const SOFTLOCK_MIN_DIRECTIONS = 3;
 /** HUD読み取りがこの時間応答しなければ「応答なし」とみなす */
 const HANG_TIMEOUT_MS = 10_000;
 
@@ -100,6 +97,55 @@ const readHud = (page) =>
     };
   });
 
+/**
+ * 進行不能を疑ったその瞬間の状態を撮る。「本当に動けなかったのか、
+ * それとも単にランダムな入力が壁ばかり選んだのか」を後から見分けられるよう、
+ * 周囲8マスの通行可否と、入力を横取りしうるもの(モーダル・再生ロック等)を
+ * まとめて残す
+ */
+const captureDetectionState = (page, hud) =>
+  page
+    .evaluate(() => {
+      const app = globalThis.__app;
+      const game = app?.game;
+      if (!game) return null;
+      const player = game.player;
+      const neighbors = [];
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          if (dx === 0 && dy === 0) continue;
+          const x = player.pos.x + dx;
+          const y = player.pos.y + dy;
+          const inside = x >= 0 && y >= 0 && x < game.floor.width && y < game.floor.height;
+          const tile = inside ? game.floor.tiles[y * game.floor.width + x] : null;
+          const occupant = game.floor.actors.find((a) => a.alive && a.pos.x === x && a.pos.y === y);
+          neighbors.push({
+            delta: `${dx},${dy}`,
+            tile: tile ? tile.kind : "outOfBounds",
+            occupant: occupant ? occupant.kind : null,
+          });
+        }
+      }
+      return {
+        turn: game.turnCount,
+        pos: { ...player.pos },
+        // 入力が盤面まで届かない状態になっていないか(届いていないなら
+        // 「動けない」ではなく「操作を受け付けていない」側の不具合)
+        blockedBy: {
+          lock: app.lock,
+          anyModalOpen: app.anyModalOpen?.() ?? null,
+          photoMode: app.photoMode ?? null,
+          helpVisible: app.helpVisible ?? null,
+          villageActive: app.villageActive ?? null,
+          ended: app.ended ?? null,
+        },
+        neighbors,
+        log: [...document.querySelectorAll("#log div")].map((d) => d.textContent).slice(-6),
+      };
+    })
+    .catch(() => null)
+    .then((state) => (state ? { ...state, hud } : null));
+
 async function runSession(browser, index) {
   const inputSeed = ((Date.now() ^ (index * 0x9e3779b9)) >>> 0) || 1;
   const rng = mulberry32(inputSeed);
@@ -140,9 +186,7 @@ async function runSession(browser, index) {
 
     rngState = await page.evaluate(() => globalThis.__app?.game?.rng?.getState() ?? null);
 
-    let lastHudJson = null;
-    let unchangedTurns = 0;
-    const triedDirections = new Set();
+    const softlock = new SoftlockDetector();
     const sessionStart = Date.now();
     const descendAtTurn = Math.floor(MAX_TURNS * 0.7);
 
@@ -162,19 +206,21 @@ async function runSession(browser, index) {
       if (!hud) break;
       finalHud = hud;
 
-      const hudJson = JSON.stringify(hud);
-      if (hudJson === lastHudJson) {
-        unchangedTurns++;
-      } else {
-        unchangedTurns = 0;
-        triedDirections.clear();
-      }
-      lastHudJson = hudJson;
+      softlock.observe(JSON.stringify(hud));
 
-      if (unchangedTurns >= SOFTLOCK_TURNS && triedDirections.size >= SOFTLOCK_MIN_DIRECTIONS) {
-        record("softlock-suspected", `連続${SOFTLOCK_TURNS}ターンHUD状態が変化しない`, { lowConfidence: true });
-        unchangedTurns = 0;
-        triedDirections.clear();
+      if (softlock.takeReport()) {
+        // 検知した「その瞬間」の状態を撮っておく。セッション末尾でまとめて
+        // 撮る snapshot / recentLog は、報告時点から何十ターンも先の
+        // 別の場面になっていることがあり、それを頼りに調べると
+        // まったく無関係な状況を追いかけることになる(#396)
+        const atDetection = await captureDetectionState(page, hud);
+        record("softlock-suspected", `連続${SOFTLOCK_TURNS}ターンHUD状態が変化しない`, {
+          lowConfidence: true,
+          atDetection,
+        });
+        await page
+          .screenshot({ path: `${OUT}/session-${index}-softlock-turn${turn}.png` })
+          .catch(() => {});
       }
 
       // ダイブが終わっている(全滅・踏破など)か、拠点(村なか・TownScreen)で
@@ -187,7 +233,7 @@ async function runSession(browser, index) {
         if (hud.screen === "village") {
           // 拠点の3D化(plan/town-3d-exploration.md): どの建物に近いかは
           // 分からないので、軽く動いてから確定を試す程度に留める。
-          // 外れてもunchangedTurnsは毎回0に戻すので、誤検知にはならない
+          // 外れても停滞の計測は毎回やり直すので、誤検知にはならない
           const dir = DIRECTIONS[Math.floor(rng() * DIRECTIONS.length)];
           await page.keyboard.down(dir).catch(() => {});
           await page.waitForTimeout(400);
@@ -200,8 +246,7 @@ async function runSession(browser, index) {
           await page.keyboard.press("Space").catch(() => {});
           await page.waitForTimeout(700);
         }
-        unchangedTurns = 0;
-        triedDirections.clear();
+        softlock.reset();
         continue;
       }
 
@@ -215,7 +260,7 @@ async function runSession(browser, index) {
 
       if (action === "move") {
         const dir = DIRECTIONS[Math.floor(rng() * DIRECTIONS.length)];
-        triedDirections.add(dir);
+        softlock.noteDirection(dir);
         const ms = 150 + Math.floor(rng() * 300);
         await page.keyboard.down(dir);
         await page.waitForTimeout(ms);

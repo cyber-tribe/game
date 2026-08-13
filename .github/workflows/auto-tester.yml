@@ -171,7 +171,19 @@ jobs:
               const labels = ["auto-report", "needs-triage", `screen:${group.screen}`];
               if (group.lowConfidence) labels.push("low-confidence");
 
-              const { session } = group.sample;
+              const { session, anomaly } = group.sample;
+              // 検知した「その瞬間」の状態(あれば)。下の「ダイブの状態」は
+              // セッション末尾の状態で、報告時点とは何十ターンも離れた別の場面に
+              // なっていることがあるため、まずこちらを見る(#396)
+              const atDetection = anomaly?.atDetection
+                ? [
+                    "### 検知した時点の状態(この異常が起きたその瞬間)",
+                    "```json",
+                    JSON.stringify(anomaly.atDetection, null, 2).slice(0, 3000),
+                    "```",
+                    "",
+                  ]
+                : [];
               const body = [
                 `**種別**: ${group.kind}`,
                 `**内容**: ${group.detail}`,
@@ -181,12 +193,13 @@ jobs:
                 `- ダンジョンrngState: ${session.rngState}`,
                 `- 入力選択rngState(inputSeed): ${session.inputSeed}`,
                 "",
-                "### 直前のログ",
+                ...atDetection,
+                "### 直前のログ(セッション末尾時点)",
                 "```",
                 ...(session.recentLog ?? []).slice(-15),
                 "```",
                 "",
-                "### ダイブの状態(floor.tilesを除くトリミング版)",
+                "### ダイブの状態(セッション末尾時点・floor.tilesを除くトリミング版)",
                 "```json",
                 JSON.stringify(session.snapshot, null, 2).slice(0, 4000),
                 "```",
