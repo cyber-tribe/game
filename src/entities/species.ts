@@ -690,10 +690,10 @@ export const SPECIES: readonly Species[] = [
     rangeBonusOnQuagmire: 2,
   },
   {
-    // 足を取られた思い出。honegarami(甲殻・防御寄り)モデルを流用する
+    // 足を取られた思い出。専用モデル(plan/archive/model-nukarumigani.md)
     id: "nukarumigani",
     name: "ぬかるみがに",
-    model: "honegarami",
+    model: "nukarumigani",
     // 「深みタイル上では動きが遅くなる代わりに攻撃力が上がる」は地形連動の
     // 移動速度変化まで実装せず、常時やや高めのatkに寄せる簡略化とした(アーカイブ注記参照)
     maxHp: 30,
