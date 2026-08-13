@@ -85,7 +85,7 @@ describe("entities/ai.ts: オオマドロミの大技(decideMonsterAction)", () 
     expect(boss.telegraphCharge).toBe(true);
   });
 
-  it("予兆済みの次の隣接した手は、隣接攻撃ではなくboomAoeSleepになる", () => {
+  it("予兆済みの次の隣接した手は、隣接攻撃ではなくaoeSleepになる", () => {
     const rng = new Rng(1);
     const floor = emptyFloor();
     const boss = bossActor({ telegraphCharge: true, telegraphCooldown: 4 });
@@ -94,7 +94,7 @@ describe("entities/ai.ts: オオマドロミの大技(decideMonsterAction)", () 
     const field = new Int32Array(floor.width * floor.height).fill(0);
 
     const action = decideMonsterAction(rng, floor, boss, target, field);
-    expect(action).toEqual({ type: "boomAoeSleep" });
+    expect(action).toEqual({ type: "bossMove", moveId: "aoeSleep" });
     expect(boss.telegraphCharge).toBe(false);
   });
 });
@@ -126,7 +126,7 @@ describe("game.ts: 地方ボスの階(depth 18、表の寝穴)", () => {
   });
 });
 
-describe("game.ts: 大技(boomAoeSleep)が部屋全体を眠らせることがある", () => {
+describe("game.ts: 大技(aoeSleep)が部屋全体を眠らせることがある", () => {
   it("予兆済みのボスに隣接した状態で行動させると、プレイヤーが眠らされることがある", () => {
     let slept = false;
     for (let seed = 1; seed <= 30 && !slept; seed++) {

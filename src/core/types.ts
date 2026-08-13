@@ -125,6 +125,35 @@ export type AiKind =
   /** 平常時は設置物(タル)として偽装している(plan/monster-compendium.md) */
   | "mimic";
 
+/**
+ * 地方ボスの大技の種別(plan/region-bosses.md)。省略時は "targetedStrike"
+ * (既存の隣接攻撃強化、oonebosuke/nushigaeruと完全互換)。
+ * "aoeSleep"/"aoeSeal"は隣接攻撃を伴わず、自分のいる部屋の全アクター
+ * (敵味方問わず)に睡眠/封じを付与する発動に変わる(plan/region-boss-honezuka.md)。
+ * "summonTorrent"は状態異常ではなく、自分のいる部屋の外周タイルへ一時的に
+ * 奔流(plan/waterfall-torrent.md)を呼び込む(plan/region-boss-fuchinonushi.md)。
+ * "summonEcho"は状態異常でも地形でもなく、HPを共有する分身を2体まで
+ * 召喚する(plan/region-boss-kodamanonushi.md、Actor.sharesHpWith参照)。
+ * "summonMirror"は本体そっくりの幻影を3体召喚する。当てると即消える
+ * 幻影で、本体を選び当てる駆け引きになる(plan/region-boss-
+ * misemonononushi.md、Actor.mirrorOf参照)。
+ * "groundSpikes"は唯一、予兆ターンの時点で床にTile.crackWarningを
+ * 立てて危険地帯を可視化する(他の効果はメッセージだけで危険を伝える)。
+ * 発動ターンでcrackWarningの立つマスにいる全アクターへダメージを
+ * 適用し、その後crackWarningを解除する(plan/region-boss-horikuinonushi.md)。
+ *
+ * "targetedStrike"以外の実装は systems/bossMoves.ts の BOSS_MOVES レジストリに
+ * 集約している(1種類=1エントリ。ボス追加時にここへ足すだけでよい)
+ */
+export type BossMoveId =
+  | "targetedStrike"
+  | "aoeSleep"
+  | "aoeSeal"
+  | "summonTorrent"
+  | "summonEcho"
+  | "summonMirror"
+  | "groundSpikes";
+
 export interface Species {
   id: string;
   name: string;
@@ -207,32 +236,8 @@ export interface Species {
      * oonebosukeのような単一フェーズのボスと完全互換)
      */
     activateBelowHpRatio?: number;
-    /**
-     * 地方ボス(plan/region-boss-oomadoromi.md)。大技の効果種別。省略時は
-     * "targetedStrike"(既存の隣接攻撃強化、oonebosuke/nushigaeruと完全互換)。
-     * "aoeSleep"/"aoeSeal"は隣接攻撃を伴わず、自分のいる部屋の全アクター
-     * (敵味方問わず)に睡眠/封じを付与する発動に変わる(plan/region-boss-honezuka.md)。
-     * "summonTorrent"は状態異常ではなく、自分のいる部屋の外周タイルへ一時的に
-     * 奔流(plan/waterfall-torrent.md)を呼び込む(plan/region-boss-fuchinonushi.md)。
-     * "summonEcho"は状態異常でも地形でもなく、HPを共有する分身を2体まで
-     * 召喚する(plan/region-boss-kodamanonushi.md、Actor.sharesHpWith参照)。
-     * "summonMirror"は本体そっくりの幻影を3体召喚する。当てると即消える
-     * 幻影で、本体を選び当てる駆け引きになる(plan/region-boss-
-     * misemonononushi.md、Actor.mirrorOf参照)。
-     * "groundSpikes"は唯一、予兆ターンの時点で床にTile.crackWarningを
-     * 立てて危険地帯を可視化する(他の効果はメッセージだけで危険を伝える)。
-     * 発動ターンでcrackWarningの立つマスにいる全アクターへダメージを
-     * 適用し、その後crackWarningを解除する(plan/region-boss-
-     * horikuinonushi.md)
-     */
-    effect?:
-      | "targetedStrike"
-      | "aoeSleep"
-      | "aoeSeal"
-      | "summonTorrent"
-      | "summonEcho"
-      | "summonMirror"
-      | "groundSpikes";
+    /** 大技の効果種別(plan/region-boss-oomadoromi.md)。詳細は BossMoveId 参照 */
+    effect?: BossMoveId;
   };
   /** 地方ボスを撃破すると確定ドロップする、その地方限定の素材のdefId */
   bossGuaranteedDrop?: string;

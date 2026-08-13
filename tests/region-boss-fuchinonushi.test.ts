@@ -94,7 +94,7 @@ describe("entities/ai.ts: 淵の主の大技(decideMonsterAction)", () => {
     const field = new Int32Array(floor.width * floor.height).fill(0);
 
     const action = decideMonsterAction(rng, floor, boss, target, field);
-    expect(action).toEqual({ type: "summonTorrent" });
+    expect(action).toEqual({ type: "bossMove", moveId: "summonTorrent" });
     expect(boss.telegraphCharge).toBe(false);
   });
 });

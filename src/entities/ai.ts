@@ -6,6 +6,7 @@ import {
   STATUS_SEAL,
   type Actor,
   type AllyStance,
+  type BossMoveId,
   type FloorState,
   actorAt,
   barrelAt,
@@ -36,20 +37,14 @@ export type MonsterAction =
   | { type: "ranged"; targetId: number }
   /** 地方ボス(plan/region-bosses.md)の予兆。この手は攻撃せず、次の隣接攻撃が大技になる */
   | { type: "telegraph"; targetId: number }
-  /** 地方ボス(plan/region-boss-oomadoromi.md)。予兆を消費し、隣接を問わず自分の部屋全体に睡眠を放つ */
-  | { type: "boomAoeSleep" }
-  /** 地方ボス(plan/region-boss-honezuka.md)。予兆を消費し、隣接を問わず自分の部屋全体に封じを放つ */
-  | { type: "boomAoeSeal" }
-  /** 地方ボス(plan/region-boss-fuchinonushi.md)。予兆を消費し、自分の部屋の外周へ一時的に奔流を呼び込む */
-  | { type: "summonTorrent" }
-  /** 地方ボス(plan/region-boss-kodamanonushi.md)。予兆を消費し、HPを共有する分身を2体まで呼び出す */
-  | { type: "summonEcho" }
-  /** 地方ボス(plan/region-boss-misemonononushi.md)。予兆を消費し、本体そっくりの幻影を3体呼び出す */
-  | { type: "summonMirror" }
+  /**
+   * 地方ボス(plan/region-bosses.md)の大技本体。予兆を消費した1手。
+   * 種類ごとの実装は systems/bossMoves.ts の BOSS_MOVES レジストリにある
+   * (moveId→実装の対応はそこに集約し、ここでは種類を区別しない)
+   */
+  | { type: "bossMove"; moveId: Exclude<BossMoveId, "targetedStrike"> }
   /** burrow(plan/monster-compendium.md)。潜伏から地上へ現れる。呼び出し側で位置を動かし、teleportイベントを出す */
-  | { type: "burrowSurface"; to: Vec2 }
-  /** 地方ボス(plan/region-boss-horikuinonushi.md)。予兆を消費し、crackWarningの立つマスにいる全員へ地面から杭を突き上げる */
-  | { type: "groundSpikes" };
+  | { type: "burrowSurface"; to: Vec2 };
 
 /**
  * 指定した地点からの歩数を全マスぶん求めた距離場(いわゆるダイクストラマップ)。
@@ -321,12 +316,9 @@ export function decideMonsterAction(
       if (monster.telegraphCooldown && monster.telegraphCooldown > 0) monster.telegraphCooldown--;
       if (monster.telegraphCharge) {
         monster.telegraphCharge = false;
-        if (telegraph.effect === "aoeSleep") return { type: "boomAoeSleep" };
-        if (telegraph.effect === "aoeSeal") return { type: "boomAoeSeal" };
-        if (telegraph.effect === "summonTorrent") return { type: "summonTorrent" };
-        if (telegraph.effect === "summonEcho") return { type: "summonEcho" };
-        if (telegraph.effect === "summonMirror") return { type: "summonMirror" };
-        if (telegraph.effect === "groundSpikes") return { type: "groundSpikes" };
+        if (telegraph.effect && telegraph.effect !== "targetedStrike") {
+          return { type: "bossMove", moveId: telegraph.effect };
+        }
         return { type: "attack", targetId: adjacent.id, empowered: true };
       }
       if (!monster.telegraphCooldown) {

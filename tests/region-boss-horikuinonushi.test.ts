@@ -104,7 +104,7 @@ describe("entities/ai.ts: 掘り杭の主の大技(decideMonsterAction)", () => 
     const field = new Int32Array(floor.width * floor.height).fill(0);
 
     const action = decideMonsterAction(rng, floor, boss, target, field);
-    expect(action).toEqual({ type: "groundSpikes" });
+    expect(action).toEqual({ type: "bossMove", moveId: "groundSpikes" });
     expect(boss.telegraphCharge).toBe(false);
   });
 });
