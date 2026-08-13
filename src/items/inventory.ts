@@ -1,4 +1,4 @@
-import type { Item, MarkId } from "../core/types";
+import type { EquipEffectId, Item, MarkId } from "../core/types";
 import { SHIELD_PLUS_BONUS, WEAPON_PLUS_BONUS, markDef } from "../entities/forging";
 import { itemDef } from "./catalog";
 
@@ -115,6 +115,23 @@ export function headDefId(inv: Inventory): string | null {
 export function charmDefId(inv: Inventory): string | null {
   if (inv.charmUid === null) return null;
   return findItem(inv, inv.charmUid)?.defId ?? null;
+}
+
+/**
+ * 頭防具・装身具・武器/盾の印のいずれかが、指定した受動効果(EquipEffectId、
+ * core/types.ts参照)を付与していればtrue。装備を追加してもここは変更不要で、
+ * 効果の付与先はcatalog.ts(ItemDef.grants)・forging.ts(MarkDef.grants)側の
+ * カタログ1箇所に閉じる
+ */
+export function hasEquipEffect(inv: Inventory, id: EquipEffectId): boolean {
+  const head = headDefId(inv);
+  if (head && (itemDef(head).grants ?? []).includes(id)) return true;
+  const charm = charmDefId(inv);
+  if (charm && (itemDef(charm).grants ?? []).includes(id)) return true;
+  for (const markId of [...weaponMarkIds(inv), ...shieldMarkIds(inv)]) {
+    if (markDef(markId).grants?.includes(id)) return true;
+  }
+  return false;
 }
 
 /** 表示用の名前。杖は残り回数、武器・盾は強化値と印、装備品は装備中である旨を添える */

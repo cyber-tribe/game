@@ -20,7 +20,7 @@ import {
 import { buildDistanceField } from "../entities/ai";
 import { MAX_SATIETY, type PlayerState } from "../entities/player";
 import { speciesById } from "../entities/species";
-import { headDefId } from "./inventory";
+import { hasEquipEffect } from "./inventory";
 
 /** 樽守りの笠(plan/protagonist-equipment.md)の眠り耐性 */
 const SLEEP_RESIST_CHANCE = 0.2;
@@ -261,7 +261,7 @@ export function addStatus(
   if (
     kind === STATUS_SLEEP &&
     target.id === ctx.player.id &&
-    headDefId(ctx.player.inventory) === "barrelGuardHat" &&
+    hasEquipEffect(ctx.player.inventory, "sleepResist") &&
     ctx.rng.chance(SLEEP_RESIST_CHANCE)
   ) {
     ctx.events.push({ type: "message", text: `${target.name}は笠のおかげで眠気をこらえた!` });

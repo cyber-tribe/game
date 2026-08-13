@@ -557,6 +557,7 @@ export const ITEMS: readonly ItemDef[] = [
     minFloor: 1,
     weight: 3,
     description: "状態異常(眠り)にかかりにくくなる。",
+    grants: ["sleepResist"],
   },
   {
     id: "lookoutHeadband",
@@ -566,6 +567,7 @@ export const ITEMS: readonly ItemDef[] = [
     minFloor: 3,
     weight: 3,
     description: "視界がわずかに広がる。",
+    grants: ["lookout"],
   },
   {
     id: "ironHelm",
@@ -585,6 +587,7 @@ export const ITEMS: readonly ItemDef[] = [
     minFloor: 10,
     weight: 2,
     description: "モンスターハウスの気配を、より手前で察知できる。",
+    grants: ["farsight"],
   },
 
   // ---- 装身具(plan/protagonist-equipment.md) ----
@@ -596,6 +599,7 @@ export const ITEMS: readonly ItemDef[] = [
     minFloor: 1,
     weight: 3,
     description: "満腹度の減りがゆるやかになる。",
+    grants: ["satietyEase"],
   },
   {
     id: "barrelKinshipBracelet",
@@ -605,6 +609,7 @@ export const ITEMS: readonly ItemDef[] = [
     minFloor: 2,
     weight: 3,
     description: "からのタルでモンスターを吸い込める確率が上がる。",
+    grants: ["barrelKinship"],
   },
   {
     id: "guardianBell",
@@ -614,6 +619,7 @@ export const ITEMS: readonly ItemDef[] = [
     minFloor: 4,
     weight: 2,
     description: "HPが1残っていれば、致死ダメージを1回だけ耐える(1ダイブ1回)。",
+    grants: ["revivalWard"],
   },
   {
     id: "dustLureSachet",
@@ -623,6 +629,7 @@ export const ITEMS: readonly ItemDef[] = [
     minFloor: 3,
     weight: 2,
     description: "ほこら粉が見つかりやすくなる。",
+    grants: ["dustLureBoost"],
   },
 
   // ---- 道具(plan/protagonist-equipment.md) ----

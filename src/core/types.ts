@@ -455,6 +455,38 @@ export type ItemEffectId =
   | "pull"
   | "sealTarget";
 
+/**
+ * 装備しているだけで常時有効になる受動効果のid(plan/protagonist-equipment.md等)。
+ * 使用/投擲時にだけ発動するItemEffectIdとは別物。頭防具・装身具は
+ * ItemDef.grants、武器・盾の印はMarkDef.grants(entities/forging.ts)で
+ * 付与を宣言し、items/inventory.tsのhasEquipEffectがどちらも横断して判定する
+ * (同じ効果を複数の装備が付与してもよい。例: revivalWardはホネガラミの印と
+ * 身がわりの鈴の両方が付与する)
+ */
+export type EquipEffectId =
+  /** ほこら粉寄せの匂い袋: 掘り出す素材をほこら粉に寄せる */
+  | "dustLureBoost"
+  /** 樽なじみの腕輪: からのタルでの捕獲確率+10% */
+  | "barrelKinship"
+  /** 千里眼の輪: モンスターハウスの気配をより手前で察知できる */
+  | "farsight"
+  /** 見晴らしのはちまき: 視界+1 */
+  | "lookout"
+  /** ガジリねずみの印: そのランの最初の1手を必ず会心にする */
+  | "quickStrike"
+  /** マドロミダケの印: 攻撃時、眠り付与の確率+10% */
+  | "drowsyBonus"
+  /** ぷるんの印: 被弾ダメージを確率5割で1割軽減する */
+  | "damageReduction"
+  /** ツブテガエルの印: タルを投げたときのダメージ+2 */
+  | "barrelDamageBonus"
+  /** ホネガラミの印・身がわりの鈴: HPが1残っていれば致死ダメージを1回だけ耐える */
+  | "revivalWard"
+  /** 満たされ石: 満腹度の減りが2割ゆるやかになる */
+  | "satietyEase"
+  /** 樽守りの笠: 眠りにかかりにくくなる */
+  | "sleepResist";
+
 export interface ItemDef {
   id: string;
   name: string;
@@ -470,6 +502,8 @@ export interface ItemDef {
   attackPattern?: WeaponPattern;
   /** 杖の初期使用回数 */
   charges?: number;
+  /** 装備している間、常時付与される受動効果(頭防具・装身具のみ) */
+  grants?: EquipEffectId[];
   /** 出現しはじめる階層 */
   minFloor: number;
   /** 抽選の重み */
