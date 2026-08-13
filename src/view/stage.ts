@@ -32,6 +32,17 @@ export interface DamageFx {
   heal: boolean;
 }
 
+/**
+ * applyEventsがGameEventの種別ごとに見た目・サウンドを反映するための表。
+ * 戻り値は、そのイベントぶん入力を止めておく秒数(ロック時間)。
+ * events.tsに新しい種別を追加すると、ここに対応するキーが無い限り
+ * typecheckが検出する。見た目・サウンドに影響しない種別は、
+ * no-opとして明示する(以前はswitchのdefault:breakで暗黙に無視していた)
+ */
+type StageEventHandlers = {
+  [K in GameEvent["type"]]: (event: Extract<GameEvent, { type: K }>) => number;
+};
+
 /** 投げたタルや爆発など、その場かぎりの見せ物 */
 interface Effect {
   object: THREE.Object3D;
@@ -150,146 +161,159 @@ export class Stage {
     messageSpeedScale = 1,
   ): number {
     const scale = (hurry ? HURRY : 1) * messageSpeedScale;
+    const handlers = this.buildEventHandlers(floor, scale);
     let lock = 0;
-
     for (const event of events) {
-      switch (event.type) {
-        case "move": {
-          const view = this.views.get(event.actorId);
-          if (!view) break;
-          view.moveTo(event.from, event.to, MOVE_TIME * scale);
-          lock = Math.max(lock, MOVE_TIME * scale);
-          break;
-        }
-        case "bump": {
-          const view = this.views.get(event.actorId);
-          view?.faceTowards(event.dir.x, event.dir.y);
-          break;
-        }
-        case "face": {
-          const view = this.views.get(event.actorId);
-          view?.face(event.dir);
-          break;
-        }
-        case "attack": {
-          const attacker = this.views.get(event.attackerId);
-          const target = floor.actors.find((a) => a.id === event.targetId);
-          if (attacker && target) {
-            const source = floor.actors.find((a) => a.id === event.attackerId);
-            if (source) {
-              attacker.faceTowards(target.pos.x - source.pos.x, target.pos.y - source.pos.y);
-              attacker.lunge(target.pos.x - source.pos.x, target.pos.y - source.pos.y);
-            }
-            attacker.play("attack", ATTACK_TIME * scale);
-          }
-          lock = Math.max(lock, ATTACK_TIME * scale);
-          break;
-        }
-        case "damage": {
-          const view = this.views.get(event.actorId);
-          if (view) {
-            view.play("hit", 0.3 * scale);
-            view.flash(this.scene);
-            this.damageQueue.push({
-              world: view.root.position.clone().setY(1.05),
-              amount: event.amount,
-              critical: event.critical,
-              heal: false,
-            });
-          }
-          lock = Math.max(lock, ATTACK_TIME * scale);
-          break;
-        }
-        case "heal": {
-          const view = this.views.get(event.actorId);
-          if (view && event.amount > 0) {
-            this.damageQueue.push({
-              world: view.root.position.clone().setY(1.05),
-              amount: event.amount,
-              critical: false,
-              heal: true,
-            });
-          }
-          break;
-        }
-        case "die": {
-          const view = this.views.get(event.actorId);
-          if (view) {
-            view.play("die", DIE_TIME);
-            this.dying.set(event.actorId, DIE_TIME);
-          }
-          break;
-        }
-        case "swap": {
-          const a = floor.actors.find((x) => x.id === event.aId);
-          const b = floor.actors.find((x) => x.id === event.bId);
-          if (a) this.views.get(event.aId)?.setPosition(a.pos);
-          if (b) this.views.get(event.bId)?.setPosition(b.pos);
-          lock = Math.max(lock, 0.2);
-          break;
-        }
-        case "teleport": {
-          const view = this.views.get(event.actorId);
-          view?.setPosition(event.to);
-          lock = Math.max(lock, 0.2);
-          break;
-        }
-        case "throwItem":
-          lock = Math.max(lock, 0.24 * scale);
-          break;
-
-        // ---- タル ----
-        case "liftBarrel": {
-          const view = this.views.get(event.actorId);
-          if (!view) break;
-          // 床に出ていたタルがあればそれを引き取り、無ければ作って頭上に載せる
-          const existing = this.dungeon.detachBarrel(event.barrelId);
-          view.setCarried(existing ?? this.assets.instantiate(BARREL_MODELS[event.kind]).root);
-          lock = Math.max(lock, 0.22 * scale);
-          break;
-        }
-        case "putBarrel": {
-          const view = this.views.get(event.actorId);
-          const removed = view?.setCarried(null);
-          removed?.removeFromParent();
-          lock = Math.max(lock, 0.22 * scale);
-          break;
-        }
-        case "throwBarrel": {
-          const view = this.views.get(event.actorId);
-          const flying = view?.setCarried(null);
-          if (flying) this.launchBarrel(flying, event.from, event.to, 0.30 * scale);
-          lock = Math.max(lock, 0.34 * scale);
-          break;
-        }
-        case "explosion":
-          this.spawnExplosion(event.pos, event.radius);
-          this.audio.playSfx("explosion");
-          lock = Math.max(lock, 0.42 * scale);
-          break;
-
-        // ---- サウンド再生(plan/audio-playback.md)。見た目には影響しないSFXだけの分岐 ----
-        case "capture":
-          this.audio.playSfx("capture");
-          break;
-        case "levelUp":
-          this.audio.playSfx("levelUp");
-          break;
-        case "checkpoint":
-          this.audio.playSfx("checkpoint");
-          break;
-        case "hungerWarning":
-          if (event.level === "empty") this.audio.playSfx("hungerWarning");
-          break;
-        case "message":
-          if (event.text.endsWith(BOSS_TELEGRAPH_MESSAGE_SUFFIX)) this.audio.playSfx("bossTelegraph");
-          break;
-
-        default:
-          break;
-      }
+      const handler = handlers[event.type] as (event: GameEvent) => number;
+      lock = Math.max(lock, handler(event));
     }
     return lock;
+  }
+
+  private buildEventHandlers(floor: FloorState, scale: number): StageEventHandlers {
+    const noop = (): number => 0;
+    return {
+      move: (event) => {
+        const view = this.views.get(event.actorId);
+        if (!view) return 0;
+        view.moveTo(event.from, event.to, MOVE_TIME * scale);
+        return MOVE_TIME * scale;
+      },
+      bump: (event) => {
+        this.views.get(event.actorId)?.faceTowards(event.dir.x, event.dir.y);
+        return 0;
+      },
+      face: (event) => {
+        this.views.get(event.actorId)?.face(event.dir);
+        return 0;
+      },
+      attack: (event) => {
+        const attacker = this.views.get(event.attackerId);
+        const target = floor.actors.find((a) => a.id === event.targetId);
+        if (attacker && target) {
+          const source = floor.actors.find((a) => a.id === event.attackerId);
+          if (source) {
+            attacker.faceTowards(target.pos.x - source.pos.x, target.pos.y - source.pos.y);
+            attacker.lunge(target.pos.x - source.pos.x, target.pos.y - source.pos.y);
+          }
+          attacker.play("attack", ATTACK_TIME * scale);
+        }
+        return ATTACK_TIME * scale;
+      },
+      damage: (event) => {
+        const view = this.views.get(event.actorId);
+        if (view) {
+          view.play("hit", 0.3 * scale);
+          view.flash(this.scene);
+          this.damageQueue.push({
+            world: view.root.position.clone().setY(1.05),
+            amount: event.amount,
+            critical: event.critical,
+            heal: false,
+          });
+        }
+        return ATTACK_TIME * scale;
+      },
+      heal: (event) => {
+        const view = this.views.get(event.actorId);
+        if (view && event.amount > 0) {
+          this.damageQueue.push({
+            world: view.root.position.clone().setY(1.05),
+            amount: event.amount,
+            critical: false,
+            heal: true,
+          });
+        }
+        return 0;
+      },
+      miss: noop,
+      die: (event) => {
+        const view = this.views.get(event.actorId);
+        if (view) {
+          view.play("die", DIE_TIME);
+          this.dying.set(event.actorId, DIE_TIME);
+        }
+        return 0;
+      },
+      spawn: noop,
+      status: noop,
+      statusEnd: noop,
+      // ---- サウンド再生(plan/audio-playback.md)。見た目には影響しないSFXだけの分岐 ----
+      levelUp: () => {
+        this.audio.playSfx("levelUp");
+        return 0;
+      },
+      pickup: noop,
+      drop: noop,
+      useItem: noop,
+      throwItem: () => 0.24 * scale,
+      equip: noop,
+      trap: noop,
+      teleport: (event) => {
+        this.views.get(event.actorId)?.setPosition(event.to);
+        return 0.2;
+      },
+      swap: (event) => {
+        const a = floor.actors.find((x) => x.id === event.aId);
+        const b = floor.actors.find((x) => x.id === event.bId);
+        if (a) this.views.get(event.aId)?.setPosition(a.pos);
+        if (b) this.views.get(event.bId)?.setPosition(b.pos);
+        return 0.2;
+      },
+      // ---- タル ----
+      liftBarrel: (event) => {
+        const view = this.views.get(event.actorId);
+        if (!view) return 0;
+        // 床に出ていたタルがあればそれを引き取り、無ければ作って頭上に載せる
+        const existing = this.dungeon.detachBarrel(event.barrelId);
+        view.setCarried(existing ?? this.assets.instantiate(BARREL_MODELS[event.kind]).root);
+        return 0.22 * scale;
+      },
+      putBarrel: (event) => {
+        const view = this.views.get(event.actorId);
+        const removed = view?.setCarried(null);
+        removed?.removeFromParent();
+        return 0.22 * scale;
+      },
+      throwBarrel: (event) => {
+        const view = this.views.get(event.actorId);
+        const flying = view?.setCarried(null);
+        if (flying) this.launchBarrel(flying, event.from, event.to, 0.30 * scale);
+        return 0.34 * scale;
+      },
+      barrelBreak: noop,
+      explosion: (event) => {
+        this.spawnExplosion(event.pos, event.radius);
+        this.audio.playSfx("explosion");
+        return 0.42 * scale;
+      },
+      capture: () => {
+        this.audio.playSfx("capture");
+        return 0;
+      },
+      captureFailed: noop,
+      recruit: noop,
+      descend: noop,
+      checkpoint: () => {
+        this.audio.playSfx("checkpoint");
+        return 0;
+      },
+      hungerWarning: (event) => {
+        if (event.level === "empty") this.audio.playSfx("hungerWarning");
+        return 0;
+      },
+      gameOver: noop,
+      message: (event) => {
+        if (event.text.endsWith(BOSS_TELEGRAPH_MESSAGE_SUFFIX)) this.audio.playSfx("bossTelegraph");
+        return 0;
+      },
+      tutorialTip: noop,
+      monsterSighted: noop,
+      secretPassageFound: noop,
+      crackWarning: noop,
+      mountainCoreCleared: noop,
+      trueAwakeningCleared: noop,
+    };
   }
 
   /** 投げたタルを放物線で飛ばす。着地したら消え、盤面側のタルに引き継がれる */
