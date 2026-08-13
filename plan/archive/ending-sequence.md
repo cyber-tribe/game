@@ -1,3 +1,52 @@
+> **実装済み。** `src/entities/credits.ts`(新規)に`CREDIT_REGIONS`
+> (design/regions.mdの8地方名、既存の生データが無いためここに直書き)・
+> `creditVillagerNames()`・`creditMonsterNames()`を実装。計画書の
+> サンプルコードは`CREDIT_VILLAGERS`を静的配列として例示していたが、
+> 実装時点で既に`src/entities/village.ts`の`VILLAGE_NPCS`に同じ内容の
+> 実データが存在していたため、`creditMonsterNames()`が`SPECIES`から
+> 生成するのと同じ理由(追加のたびの手作業更新を避ける)で、
+> `VILLAGE_NPCS`から動的に生成する形に変えた(二重管理を避けるための
+> 意図的な逸脱)。
+>
+> `src/ui/ending.ts`(新規)に`EndingScreen`を実装。既存の`StanceMenu`
+> 等と同じ「open/hide/isOpen/handleKey/render」の形に揃え、新しい
+> 入力・コンポーネントの型は増やさず、決定キー(Enter/Space)で
+> ページ送りする4ページ構成(地方→夢のかけら→村の人々→締めの一言)。
+> 自動スクロールは計画書どおり採用していない。
+>
+> **表示タイミング**は`src/main.ts`の`finish()`で、`recordRun`が
+> `save.storyCleared`を上書きする直前に
+> `this.mountainCoreClearedThisRun && !this.save.storyCleared`を判定し、
+> `pendingEndingSequence`フィールドへ保持する形にした(「初めてstoryCleared
+> が立つ回だけ」を、既存の踏破終了フローの中で素朴に判定できた)。
+> 「R キーで拠点にもどる」操作(`case "restart"`)で、このフラグが
+> 立っていればエンドロールを挟んでから`showTown()`を呼び、それ以外は
+> 従来どおり直接`showTown()`を呼ぶ。2回目以降の山の芯踏破では
+> `storyCleared`が既にtrueのためエンドロールは流れない(ブラウザで
+> 確認済み)。
+>
+> **真の目覚めの締めくくり**は、計画書どおりエンドロールをまるごと
+> 再度流さず、`finish()`の結果オーバーレイの文言に短い一言
+> (「はじめの夢は、もう独りではないと知った。」design/postgame.mdの
+> 「もう独りではないと伝わる決着」を踏まえて執筆)を追加するだけに
+> した。「一枚絵」は、この実装環境にイラスト制作の手段(README記載の
+> 自作方針に沿う描画パイプライン)が無いため見送った(計画書の未決事項
+> 「発注/制作方法は別途」を踏襲する形での意図的な未実装)。
+>
+> 締めの一言(4ページ目)はdesign/story.mdの終章「山のいびき」の
+> トーン(決着後、山は普通の寝息に戻り、村の日常が続いていく)に沿って
+> 自分で執筆した。
+>
+> テストは`tests/ending-sequence.test.ts`(`CREDIT_REGIONS`の内容・
+> `creditVillagerNames`/`creditMonsterNames`が既存データと一致すること)
+> で検証。UI層(`src/ui/*.ts`)は既存の`StanceMenu`等と同様vitestの
+> 対象外のため専用のunitテストは追加せず、ブラウザでのスモークテストで
+> 検証した: 山の芯を初めて踏破するとエンドロールが4ページとも正しい
+> 内容で表示されること、最終ページの確定で拠点に戻り`storyCleared`が
+> trueになること、2回目の踏破ではエンドロールをスキップして直接拠点に
+> 戻ること、真の目覚めの締めくくりで一言が追加されること、いずれも
+> コンソールエラー無しで確認済み。
+
 # エンドロール
 
 `design/ui-flow.md` が未決事項として残していた「エンドロールの具体的な

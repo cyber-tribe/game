@@ -172,7 +172,8 @@
       body[data-font-size="large"] #stairsConfirm,
       body[data-font-size="large"] #town,
       body[data-font-size="large"] #naming,
-      body[data-font-size="large"] .overlay-box {
+      body[data-font-size="large"] .overlay-box,
+      body[data-font-size="large"] .ending-box {
         zoom: 1.25;
       }
 
@@ -490,6 +491,29 @@
       .overlay-box p { margin: 6px 0; font-size: 15px; }
       .overlay-box .hint { margin-top: 20px; font-size: 12px; color: var(--dim); }
 
+      /* ------------------------------------------------ エンドロール(plan/ending-sequence.md) */
+      #ending {
+        position: absolute; inset: 0;
+        display: none;
+        align-items: center; justify-content: center;
+        background: rgba(3, 4, 10, 0.92);
+        pointer-events: auto;
+      }
+      .ending-box {
+        text-align: center;
+        padding: 30px 44px;
+        max-width: 520px;
+        max-height: 78vh;
+        overflow-y: auto;
+      }
+      .ending-box h2 {
+        margin: 0 0 16px; font-size: 22px; letter-spacing: 0.14em; color: #7fd6ff;
+      }
+      .ending-box ul { list-style: none; margin: 0; padding: 0; }
+      .ending-box li { margin: 6px 0; font-size: 14px; color: var(--ink); }
+      .ending-box p { margin: 8px 0; font-size: 15px; line-height: 1.7; }
+      .ending-hint { margin-top: 22px; font-size: 12px; color: var(--dim); }
+
       #loading {
         position: absolute; inset: 0;
         display: flex; align-items: center; justify-content: center;
@@ -551,6 +575,7 @@
         <div id="naming"></div>
         <div id="slotSelect"></div>
         <div id="overlay"></div>
+        <div id="ending"></div>
       </div>
 
       <div id="gallery-info" class="panel"></div>
