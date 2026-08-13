@@ -1,3 +1,9 @@
+> **実装済み(コード変更なし)。** `src/entities/species.ts`の`id:
+> "urumiguma"`エントリを確認し、本文書のデータ表(AI/maxHp/atk/def/exp/
+> weight/出現階/`regenIfUnhit`)がすべて一致することを確認した。本文書
+> 自体は追加のコード変更を要求していないため、記録としてそのまま
+> アーカイブする。
+
 # うるみぐま(urumiguma)のモンスター実装
 
 `src/entities/species.ts`にすでに実装済みの内容を、正式なplanとして
