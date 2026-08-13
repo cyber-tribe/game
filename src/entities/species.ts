@@ -645,10 +645,10 @@ export const SPECIES: readonly Species[] = [
   // 第一地方: うたたねの参道(design/regions.md 1〜6階)。控えめに+2。
   // plan/archive/tutorial-floor-easing.mdの方針どおり、1階目には出さずminFloor2から
   {
-    // あくびの合間に紛れ込んだ影。新規モデル未制作のため、purunモデルを流用する
+    // あくびの合間に紛れ込んだ影。専用モデル(plan/archive/model-akubitokage.md)
     id: "akubitokage",
     name: "あくびとかげ",
-    model: "purun",
+    model: "akubitokage",
     maxHp: 6,
     atk: 3,
     def: 0,

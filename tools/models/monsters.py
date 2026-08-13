@@ -111,6 +111,93 @@ def purun_animations():
     ]
 
 
+# ======================================================================= あくびとかげ
+
+AKUBI_JOINTS = {
+    "base": (0.0, 0.0, 0.050),
+    "mid": (0.0, -0.010, 0.170),
+    "top": (0.0, -0.045, 0.290),
+}
+AKUBI_RADII = {"base": 0.125, "mid": 0.078, "top": 0.026}
+AKUBI_BONES = [("base", "mid"), ("mid", "top")]
+
+
+def build_akubitokage():
+    """
+    ヨリシロのあくびの合間に紛れ込んだ影。ぷるんと同じ縦2本の骨組みを
+    そのまま流用するが、ひとまわり小さく華奢にし、上へ行くほど後ろへ
+    反らせることで、ぷるんの垂直な雫形とは違う、いまにも飛び退きそうな
+    軽いシルエットにする。
+    """
+    body = C.build_skinned("akubitokage", AKUBI_JOINTS, AKUBI_BONES, AKUBI_RADII,
+                           root="base", subsurf=2)
+    # 底を平らに均して、床に乗っている感じを出す(ぷるんと同じ処理)
+    for vert in body.data.vertices:
+        if vert.co.z < 0.012:
+            vert.co.z = 0.012 - (0.012 - vert.co.z) * 0.25
+
+    shadow = C.make_material("akubi_shadow", (0.34, 0.28, 0.21), roughness=0.5)
+    dust = C.make_material("akubi_dust", (0.74, 0.66, 0.52), roughness=0.45)
+    # 根元は影らしく暗く、上へ行くほど参道の土埃に紛れる淡い色へ抜けさせる
+    C.assign_materials_by_region(body, [shadow, dust], lambda c: 1 if c.z > 0.15 else 0)
+
+    extras = []
+    for side in (-1.0, 1.0):
+        extras += eyeball(f"akubi_eye{side}", (0.026 * side, -0.062, 0.238), 0.018,
+                          look=(0.2 * side, -1.0, 0.05))
+    # あくびの名残で、閉じきらず開いたままの口
+    mouth = C.uv_sphere("akubi_mouth", (0.0, -0.075, 0.198), 0.024,
+                        segments=14, rings=10, scale=(0.85, 0.55, 1.25))
+    C.assign_material(mouth, C.make_material("akubi_mouth_m", (0.20, 0.15, 0.13), roughness=0.35))
+    extras.append(mouth)
+
+    mesh = C.join([body] + extras, "akubitokage")
+    armature = C.build_armature("akubitokage", C.mirrored(AKUBI_JOINTS), AKUBI_BONES, mesh, root="base")
+    return [mesh, armature], armature
+
+
+def akubitokage_animations():
+    lower, upper = "base-mid", "mid-top"
+    squash = {"scale": (1.28, 0.62, 1.28)}
+    stretch = {"scale": (0.78, 1.36, 0.78)}
+    neutral = {"scale": (1.0, 1.0, 1.0)}
+    return [
+        # 影らしく、常にそわそわと落ち着かない
+        ("idle", [
+            (1, {lower: neutral, upper: (0, 0, 0)}),
+            (10, {lower: {"scale": (1.08, 0.90, 1.08)}, upper: (6, 0, 0)}),
+            (20, {lower: neutral, upper: (-4, 0, 0)}),
+            (28, {lower: neutral, upper: (0, 0, 0)}),
+        ]),
+        # ぷるんより素早く、跳ねるように逃げ足を刻む
+        ("walk", [
+            (1, {lower: neutral, upper: (0, 0, 0)}),
+            (3, {lower: squash, upper: (10, 0, 0)}),
+            (7, {lower: {**stretch, "loc": (0, 0.09, 0)}, upper: (-14, 0, 0)}),
+            (11, {lower: {"scale": (1.12, 0.82, 1.12)}, upper: (4, 0, 0)}),
+            (15, {lower: neutral, upper: (0, 0, 0)}),
+        ]),
+        ("attack", [
+            (1, {lower: neutral, upper: (0, 0, 0)}),
+            (3, {lower: squash, upper: (12, 0, 0)}),
+            (7, {lower: {"scale": (0.76, 1.4, 0.76)}, upper: (-22, 0, 0)}),
+            (14, {lower: neutral, upper: (0, 0, 0)}),
+        ]),
+        # 触れられるとすぐ後ろへ跳び退く
+        ("hit", [
+            (1, {lower: neutral, upper: (0, 0, 0)}),
+            (3, {lower: {"scale": (1.3, 0.6, 1.3), "loc": (0, 0.08, 0)}, upper: (24, 0, 0)}),
+            (11, {lower: neutral, upper: (0, 0, 0)}),
+        ]),
+        # 影が薄れて土埃に紛れて消える
+        ("die", [
+            (1, {lower: neutral, upper: (0, 0, 0)}),
+            (9, {lower: {"scale": (1.3, 0.42, 1.3)}, upper: (10, 0, 0)}),
+            (22, {lower: {"scale": (1.4, 0.04, 1.4)}, upper: (0, 0, 0)}),
+        ]),
+    ]
+
+
 # =================================================================== ガジリねずみ
 
 GAJIRI_HALF = {
@@ -578,6 +665,7 @@ def honegarami_animations():
 
 MONSTERS = {
     "purun": (build_purun, purun_animations),
+    "akubitokage": (build_akubitokage, akubitokage_animations),
     "gajiri": (build_gajiri, gajiri_animations),
     "tsubute": (build_tsubute, tsubute_animations),
     "madoromi": (build_madoromi, madoromi_animations),
