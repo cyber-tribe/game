@@ -3814,6 +3814,137 @@ def yaguramori_animations():
     ]
 
 
+# ================================================================= 見世物のぬし
+
+# 第七地方(わすれられた祭りの跡)のボス。「かつての祭りでもっとも人目を
+# 引いた出し物の記憶が、朽ちてなお色濃く残った姿」という由来から、
+# honegarami・yamabikooniと同じ人型骨組みをボスサイズまで拡大しつつ、
+# 地方の他の種族(menkaburikozoの祭り面、kazaridarumaの縁起物の帯、
+# honedatamiの重ねた板)の意匠を1体に集約する。「見世物のぬしの小型版」
+# であるkazaridarumaより、はるかに大きく力強い、正面から迫るシルエット。
+MISEMONONONUSHI_HALF = {
+    "hip": (0.0, 0.0, 0.375),
+    "chest": (0.0, 0.0, 0.630),
+    "neck": (0.0, 0.0, 0.765),
+    "head": (0.0, -0.015, 0.900),
+    "crown": (0.0, 0.0, 1.005),
+    "shoulder.L": (0.198, 0.0, 0.675),
+    "elbow.L": (0.282, 0.018, 0.495),
+    "hand.L": (0.292, -0.034, 0.330),
+    "thigh.L": (0.113, 0.0, 0.360),
+    "knee.L": (0.120, 0.0, 0.182),
+    "foot.L": (0.126, -0.040, 0.025),
+}
+MISEMONONONUSHI_RADII_HALF = {
+    "hip": 0.148, "chest": 0.162, "neck": 0.066, "head": 0.172, "crown": 0.044,
+    "shoulder.L": 0.078, "elbow.L": 0.061, "hand.L": 0.070,
+    "thigh.L": 0.086, "knee.L": 0.068, "foot.L": 0.073,
+}
+MISEMONONONUSHI_BONES_HALF = [
+    ("hip", "chest"), ("chest", "neck"), ("neck", "head"), ("head", "crown"),
+    ("chest", "shoulder.L"), ("shoulder.L", "elbow.L"), ("elbow.L", "hand.L"),
+    ("hip", "thigh.L"), ("thigh.L", "knee.L"), ("knee.L", "foot.L"),
+]
+
+
+def build_misemonoNoNushi():
+    """
+    かつての祭りでもっとも人目を引いた出し物の記憶が、朽ちてなお色濃く
+    残った姿。honegarami・yamabikooniと同じ人型骨組みをボスサイズまで
+    拡大し、menkaburikozo譲りの祭り面、honedatami譲りの重ねた板、
+    kazaridaruma譲りの金色の帯を組み合わせて、地方の主らしい存在感を
+    まとわせる。配色は第七地方(わすれられた祭りの跡)の、くすんだ紅色と
+    金色の名残。
+    """
+    joints = C.mirrored(MISEMONONONUSHI_HALF)
+    radii = C.mirrored_radii(MISEMONONONUSHI_RADII_HALF)
+    bones = C.mirrored_bones(MISEMONONONUSHI_BONES_HALF)
+
+    body = C.build_skinned("misemonoNoNushi", joints, bones, radii, root="hip", subsurf=2)
+    red = C.make_material("misemono_red", (0.52, 0.18, 0.17), roughness=0.6)
+    gold = C.make_material("misemono_gold", (0.66, 0.54, 0.27), roughness=0.35, metallic=0.3)
+    C.assign_materials_by_region(body, [red, gold], lambda c: 1 if (0.560 < c.z < 0.610) else 0)
+
+    extras = []
+    # menkaburikozo譲りの祭り面。ボスにふさわしく、より大きく厚みを持たせる
+    mask = C.uv_sphere("misemono_mask", (0.0, -0.170, 0.905), 0.165,
+                       segments=22, rings=15, scale=(1.0, 0.32, 0.94))
+    C.assign_material(mask, red)
+    extras.append(mask)
+    rim = C.uv_sphere("misemono_rim", (0.0, -0.155, 0.905), 0.182,
+                      segments=22, rings=15, scale=(1.0, 0.24, 1.0))
+    C.assign_material(rim, gold)
+    extras.append(rim)
+    dark = C.make_material("misemono_hole", (0.04, 0.04, 0.05), roughness=0.9)
+    for side in (-1.0, 1.0):
+        hole = C.uv_sphere(f"misemono_hole{side}", (0.075 * side, -0.238, 0.925), 0.036,
+                           segments=14, rings=10, scale=(1.0, 0.4, 0.75))
+        C.assign_material(hole, dark)
+        extras.append(hole)
+
+    # honedatami譲りの重ねた板を、朽ちた衣装の名残として肩と胸に飾る
+    plate = C.make_material("misemono_plate", (0.62, 0.50, 0.30), roughness=0.75)
+    for side in (-1.0, 1.0):
+        cape = C.box(f"misemono_cape{side}", (0.195 * side, 0.035, 0.590),
+                     (0.058, 0.075, 0.145), bevel=0.010)
+        C.assign_material(cape, plate)
+        extras.append(cape)
+    chestplate = C.box("misemono_chestplate", (0.0, -0.150, 0.640), (0.145, 0.028, 0.110), bevel=0.012)
+    C.assign_material(chestplate, plate)
+    extras.append(chestplate)
+
+    mesh = C.join([body] + extras, "misemonoNoNushi")
+    armature = C.build_armature("misemonoNoNushi", joints, bones, mesh, root="hip")
+    return [mesh, armature], armature
+
+
+def misemonoNoNushi_animations():
+    hipc, neck = "hip-chest", "neck-head"
+    armL, armR = "chest-shoulder.L", "chest-shoulder.R"
+    foreL, foreR = "shoulder.L-elbow.L", "shoulder.R-elbow.R"
+    legL, legR = "hip-thigh.L", "hip-thigh.R"
+    shinL, shinR = "thigh.L-knee.L", "thigh.R-knee.R"
+    return [
+        # 誰もいない会場の中央に居座り続ける、堂々とした待機
+        ("idle", [
+            (1, {hipc: (0, 0, 0), armL: (0, 0, 10), armR: (0, 0, -10)}),
+            (28, {hipc: (3, 0, 2), neck: (-4, 0, 0), armL: (-6, 0, 14), armR: (-6, 0, -14)}),
+            (56, {hipc: (0, 0, 0), armL: (0, 0, 10), armR: (0, 0, -10)}),
+        ]),
+        ("walk", [
+            (1, {legL: (18, 0, 0), legR: (-18, 0, 0), shinL: (-8, 0, 0), shinR: (6, 0, 0),
+                 armL: (-14, 0, 8), armR: (14, 0, -8)}),
+            (10, {legL: (0, 0, 0), legR: (0, 0, 0), armL: (0, 0, 8), armR: (0, 0, -8)}),
+            (19, {legL: (-18, 0, 0), legR: (18, 0, 0), shinL: (6, 0, 0), shinR: (-8, 0, 0),
+                  armL: (14, 0, 8), armR: (-14, 0, -8)}),
+            (28, {legL: (0, 0, 0), legR: (0, 0, 0), armL: (0, 0, 8), armR: (0, 0, -8)}),
+        ]),
+        # かつて客を呼び込んだ両腕を大きく広げてから、力強く叩きつける
+        ("attack", [
+            (1, {armR: (0, 0, -10), foreR: (0, 0, 0), armL: (0, 0, 10), foreL: (0, 0, 0),
+                 hipc: (0, 0, 0)}),
+            (8, {armR: (-140, 0, -26), foreR: (-36, 0, 0), armL: (-44, 0, 34), foreL: (-12, 0, 0),
+                 hipc: (-12, 0, -16), neck: (-6, 0, 0)}),
+            (14, {armR: (76, 0, 18), foreR: (12, 0, 0), armL: (32, 0, -6), foreL: (0, 0, 0),
+                  hipc: (20, 0, 18), neck: (-10, 0, 0)}),
+            (26, {armR: (0, 0, -10), foreR: (0, 0, 0), armL: (0, 0, 10), foreL: (0, 0, 0),
+                  hipc: (0, 0, 0)}),
+        ]),
+        ("hit", [
+            (1, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+            (5, {hipc: (-12, 0, 0), neck: (-12, 0, 0), armL: (-16, 0, 18), armR: (-16, 0, -18)}),
+            (18, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+        ]),
+        # かつての存在感ごと崩れ落ちるように、大きく傾いて倒れる
+        ("die", [
+            (1, {hipc: (0, 0, 0)}),
+            (12, {hipc: (-14, 0, 6), neck: (-20, 0, 0), armL: (-34, 0, 34), armR: (-34, 0, -34)}),
+            (30, {hipc: (-86, 0, 18), neck: (-38, 0, 0), legL: (52, 0, 0), legR: (46, 0, 0),
+                  armL: (-76, 0, 52), armR: (-76, 0, -52)}),
+        ]),
+    ]
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -3846,6 +3977,7 @@ MONSTERS = {
     "chouchinokuri": (build_chouchinokuri, chouchinokuri_animations),
     "wataamenoobake": (build_wataamenoobake, wataamenoobake_animations),
     "yaguramori": (build_yaguramori, yaguramori_animations),
+    "misemonoNoNushi": (build_misemonoNoNushi, misemonoNoNushi_animations),
 }
 
 
