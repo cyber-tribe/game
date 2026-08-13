@@ -50,6 +50,7 @@ import {
   type VillageNpcId,
 } from "../entities/village";
 import { wrap } from "./util";
+import { nextTownColumn, type TownColumn } from "./townCursor";
 
 /** ダンジョンに持ち込める数。全部持って行けたら倉庫に預ける意味がない */
 export const CARRY_LIMIT = 8;
@@ -75,8 +76,8 @@ const TRAINING_FOCUS_DESCRIPTIONS: Record<TrainingFocus, string> = {
  */
 export class TownScreen {
   private open = false;
-  /** 0=倉庫 1=持ち込み 2=出発地点 3=鍛え方 4=つれていく仲間 5=ゲンドの工房 6=記録の間 7=モンスター図鑑 8=実績帳 9=装備図鑑 10=難易度 11=依頼板 12=潜るダンジョン 13=村の発展 14=アクセシビリティ 15=身支度 16=NPCと話す(plan/village-life.md) 17=宵祭りの出店(plan/yoimatsuri-festival.md) */
-  private column: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 = 0;
+  /** 0=倉庫 1=持ち込み 2=出発地点 3=鍛え方 4=つれていく仲間 5=ゲンドの工房 6=記録の間 7=モンスター図鑑 8=実績帳 9=装備図鑑 10=難易度 11=依頼板 12=潜るダンジョン 13=村の発展 14=アクセシビリティ 15=身支度 16=NPCと話す(plan/village-life.md) 17=宵祭りの出店(plan/yoimatsuri-festival.md) 18=音(plan/audio-playback.md) 19=設定(plan/settings-screen.md) */
+  private column: TownColumn = 0;
   private cursor: [number, number] = [0, 0];
   private storage: StoredItem[] = [];
   private carry: StoredItem[] = [];
@@ -414,11 +415,11 @@ export class TownScreen {
           break;
         case "ArrowLeft":
         case "KeyA":
-          this.column = 1;
+          this.column = nextTownColumn(this.column, -1);
           break;
         case "ArrowRight":
         case "KeyD":
-          this.column = 3;
+          this.column = nextTownColumn(this.column, 1);
           break;
         case "Space":
           this.departNow();
@@ -442,11 +443,11 @@ export class TownScreen {
           break;
         case "ArrowLeft":
         case "KeyA":
-          this.column = 2;
+          this.column = nextTownColumn(this.column, -1);
           break;
         case "ArrowRight":
         case "KeyD":
-          this.column = 4;
+          this.column = nextTownColumn(this.column, 1);
           break;
         case "Space":
           this.departNow();
@@ -498,12 +499,12 @@ export class TownScreen {
         case "KeyA":
           this.fusionAxisUid = null;
           this.favoriteNotice = null;
-          this.column = 3;
+          this.column = nextTownColumn(this.column, -1);
           break;
         case "ArrowRight":
         case "KeyD":
           this.favoriteNotice = null;
-          this.column = 5;
+          this.column = nextTownColumn(this.column, 1);
           break;
         case "Enter":
         case "NumpadEnter":
@@ -555,11 +556,11 @@ export class TownScreen {
       switch (code) {
         case "ArrowLeft":
         case "KeyA":
-          this.column = 5;
+          this.column = nextTownColumn(this.column, -1);
           break;
         case "ArrowRight":
         case "KeyD":
-          this.column = 7;
+          this.column = nextTownColumn(this.column, 1);
           break;
         case "Space":
           this.departNow();
@@ -583,11 +584,11 @@ export class TownScreen {
           break;
         case "ArrowLeft":
         case "KeyA":
-          this.column = 6;
+          this.column = nextTownColumn(this.column, -1);
           break;
         case "ArrowRight":
         case "KeyD":
-          this.column = 8;
+          this.column = nextTownColumn(this.column, 1);
           break;
         case "Enter":
         case "NumpadEnter": {
@@ -618,11 +619,11 @@ export class TownScreen {
           break;
         case "ArrowLeft":
         case "KeyA":
-          this.column = 7;
+          this.column = nextTownColumn(this.column, -1);
           break;
         case "ArrowRight":
         case "KeyD":
-          this.column = 9;
+          this.column = nextTownColumn(this.column, 1);
           break;
         case "Enter":
         case "NumpadEnter":
@@ -642,11 +643,11 @@ export class TownScreen {
       switch (code) {
         case "ArrowLeft":
         case "KeyA":
-          this.column = 8;
+          this.column = nextTownColumn(this.column, -1);
           break;
         case "ArrowRight":
         case "KeyD":
-          this.column = 10;
+          this.column = nextTownColumn(this.column, 1);
           break;
         case "Space":
           this.departNow();
@@ -670,11 +671,11 @@ export class TownScreen {
           break;
         case "ArrowLeft":
         case "KeyA":
-          this.column = 9;
+          this.column = nextTownColumn(this.column, -1);
           break;
         case "ArrowRight":
         case "KeyD":
-          this.column = 11;
+          this.column = nextTownColumn(this.column, 1);
           break;
         case "Space":
           this.departNow();
@@ -699,11 +700,11 @@ export class TownScreen {
           break;
         case "ArrowLeft":
         case "KeyA":
-          this.column = 10;
+          this.column = nextTownColumn(this.column, -1);
           break;
         case "ArrowRight":
         case "KeyD":
-          this.column = 12;
+          this.column = nextTownColumn(this.column, 1);
           break;
         case "Enter":
         case "NumpadEnter": {
@@ -735,11 +736,11 @@ export class TownScreen {
           break;
         case "ArrowLeft":
         case "KeyA":
-          this.column = 11;
+          this.column = nextTownColumn(this.column, -1);
           break;
         case "ArrowRight":
         case "KeyD":
-          this.column = 13;
+          this.column = nextTownColumn(this.column, 1);
           break;
         case "Space":
           this.departNow();
@@ -755,11 +756,11 @@ export class TownScreen {
       switch (code) {
         case "ArrowLeft":
         case "KeyA":
-          this.column = 12;
+          this.column = nextTownColumn(this.column, -1);
           break;
         case "ArrowRight":
         case "KeyD":
-          this.column = 14;
+          this.column = nextTownColumn(this.column, 1);
           break;
         case "Enter":
         case "NumpadEnter":
@@ -779,11 +780,11 @@ export class TownScreen {
       switch (code) {
         case "ArrowLeft":
         case "KeyA":
-          this.column = 13;
+          this.column = nextTownColumn(this.column, -1);
           break;
         case "ArrowRight":
         case "KeyD":
-          this.column = 15;
+          this.column = nextTownColumn(this.column, 1);
           break;
         case "Enter":
         case "NumpadEnter": {
@@ -816,11 +817,11 @@ export class TownScreen {
           break;
         case "ArrowLeft":
         case "KeyA":
-          this.column = 14;
+          this.column = nextTownColumn(this.column, -1);
           break;
         case "ArrowRight":
         case "KeyD":
-          this.column = 16;
+          this.column = nextTownColumn(this.column, 1);
           break;
         case "Enter":
         case "NumpadEnter": {
@@ -855,12 +856,12 @@ export class TownScreen {
           break;
         case "ArrowLeft":
         case "KeyA":
-          this.column = 15;
+          this.column = nextTownColumn(this.column, -1);
           this.npcTalkMessage = null;
           break;
         case "ArrowRight":
         case "KeyD":
-          this.column = 17;
+          this.column = nextTownColumn(this.column, 1);
           this.npcTalkMessage = null;
           break;
         case "Enter":
@@ -903,11 +904,11 @@ export class TownScreen {
           break;
         case "ArrowLeft":
         case "KeyA":
-          this.column = 16;
+          this.column = nextTownColumn(this.column, -1);
           break;
         case "ArrowRight":
         case "KeyD":
-          this.column = 18;
+          this.column = nextTownColumn(this.column, 1);
           break;
         case "Enter":
         case "NumpadEnter": {
@@ -935,11 +936,11 @@ export class TownScreen {
           break;
         case "ArrowLeft":
         case "KeyA":
-          this.column = 17;
+          this.column = nextTownColumn(this.column, -1);
           break;
         case "ArrowRight":
         case "KeyD":
-          this.column = 19;
+          this.column = nextTownColumn(this.column, 1);
           break;
         case "Enter":
         case "NumpadEnter": {
@@ -974,7 +975,7 @@ export class TownScreen {
           break;
         case "ArrowLeft":
         case "KeyA":
-          this.column = 18;
+          this.column = nextTownColumn(this.column, -1);
           break;
         case "Enter":
         case "NumpadEnter": {
@@ -1019,11 +1020,11 @@ export class TownScreen {
         break;
       case "ArrowLeft":
       case "KeyA":
-        this.column = 0;
+        this.column = nextTownColumn(this.column, -1);
         break;
       case "ArrowRight":
       case "KeyD":
-        this.column = column === 0 ? 1 : 2;
+        this.column = nextTownColumn(column, 1);
         break;
       case "Enter":
       case "NumpadEnter":
@@ -1173,12 +1174,12 @@ export class TownScreen {
         break;
       case "ArrowLeft":
       case "KeyA":
-        this.column = 4;
+        this.column = nextTownColumn(this.column, -1);
         this.workshopMaxPlusNotice = null;
         break;
       case "ArrowRight":
       case "KeyD":
-        this.column = 6;
+        this.column = nextTownColumn(this.column, 1);
         this.workshopMaxPlusNotice = null;
         break;
       case "Enter":
