@@ -3331,6 +3331,128 @@ def honedatami_animations():
     ]
 
 
+# ===================================================================== かざりだるま
+
+# honegaramiと同じ人型骨組み(hip/chest/neck/head/crown、shoulder/elbow/
+# hand、thigh/knee/foot)をベースにするが、「飾られたまま忘れられた
+# 縁起物」という由来から、腕・脚をごく短く詰めて胴体の丸みに埋もれさせ、
+# 縦に大きく膨らんだ胴と丸い頭だけの、だるまらしい丸っこいシルエットに
+# する。guard AI(その場を動かない・高い防御力)にも合う低い重心。
+KAZARIDARUMA_HALF = {
+    "hip": (0.0, 0.0, 0.150),
+    "chest": (0.0, 0.0, 0.335),
+    "neck": (0.0, 0.0, 0.435),
+    "head": (0.0, -0.010, 0.485),
+    "crown": (0.0, 0.0, 0.540),
+    "shoulder.L": (0.190, 0.0, 0.335),
+    "elbow.L": (0.212, 0.012, 0.235),
+    "hand.L": (0.196, -0.010, 0.150),
+    "thigh.L": (0.112, 0.0, 0.112),
+    "knee.L": (0.116, 0.0, 0.052),
+    "foot.L": (0.106, -0.030, 0.012),
+}
+KAZARIDARUMA_RADII_HALF = {
+    "hip": 0.198, "chest": 0.235, "neck": 0.076, "head": 0.178, "crown": 0.040,
+    "shoulder.L": 0.056, "elbow.L": 0.042, "hand.L": 0.046,
+    "thigh.L": 0.060, "knee.L": 0.048, "foot.L": 0.050,
+}
+KAZARIDARUMA_BONES_HALF = [
+    ("hip", "chest"), ("chest", "neck"), ("neck", "head"), ("head", "crown"),
+    ("chest", "shoulder.L"), ("shoulder.L", "elbow.L"), ("elbow.L", "hand.L"),
+    ("hip", "thigh.L"), ("thigh.L", "knee.L"), ("knee.L", "foot.L"),
+]
+
+
+def build_kazaridaruma():
+    """
+    飾られたまま忘れられた縁起物。見世物のぬしの小型版のような姿。
+    honegaramiと同じ人型骨組みをベースに、腕・脚を短く詰めて胴に埋もれ
+    させ、縦に大きく膨らんだ胴と丸い頭だけのだるまらしいシルエットに
+    する。配色は第七地方(わすれられた祭りの跡)の、くすんだ紅色に金色の
+    帯、白く塗り残された顔の一角。
+    """
+    joints = C.mirrored(KAZARIDARUMA_HALF)
+    radii = C.mirrored_radii(KAZARIDARUMA_RADII_HALF)
+    bones = C.mirrored_bones(KAZARIDARUMA_BONES_HALF)
+
+    body = C.build_skinned("kazaridaruma", joints, bones, radii, root="hip", subsurf=2)
+    red = C.make_material("kazaridaruma_red", (0.58, 0.20, 0.18), roughness=0.6)
+    gold = C.make_material("kazaridaruma_gold", (0.66, 0.54, 0.26), roughness=0.35, metallic=0.25)
+    # 腰まわりの帯だけ金色にする
+    C.assign_materials_by_region(
+        body, [red, gold],
+        lambda c: 1 if (0.235 < c.z < 0.285) else 0,
+    )
+
+    extras = []
+    face = C.make_material("kazaridaruma_face", (0.90, 0.86, 0.76), roughness=0.55)
+    ink = C.make_material("kazaridaruma_ink", (0.10, 0.09, 0.10), roughness=0.5)
+    # 白く塗り残された顔の一角(扁平な楕円)
+    plate = C.uv_sphere("kazaridaruma_plate", (0.0, -0.152, 0.472), 0.148,
+                        segments=20, rings=14, scale=(1.0, 0.28, 0.86))
+    C.assign_material(plate, face)
+    extras.append(plate)
+    # 太い眉と髭を、細長く潰したuv_sphereで描く
+    brow = C.uv_sphere("kazaridaruma_brow", (0.0, -0.205, 0.545), 0.020,
+                       segments=14, rings=8, scale=(3.6, 0.6, 1.0))
+    C.assign_material(brow, ink)
+    extras.append(brow)
+    mustache = C.uv_sphere("kazaridaruma_mustache", (0.0, -0.205, 0.418), 0.018,
+                           segments=14, rings=8, scale=(3.2, 0.6, 1.0))
+    C.assign_material(mustache, ink)
+    extras.append(mustache)
+    for side in (-1.0, 1.0):
+        eye = C.uv_sphere(f"kazaridaruma_eye{side}", (0.062 * side, -0.208, 0.492), 0.030,
+                          segments=14, rings=10, scale=(1.0, 0.55, 1.0))
+        C.assign_material(eye, ink)
+        extras.append(eye)
+
+    mesh = C.join([body] + extras, "kazaridaruma")
+    armature = C.build_armature("kazaridaruma", joints, bones, mesh, root="hip")
+    return [mesh, armature], armature
+
+
+def kazaridaruma_animations():
+    hipc, neck = "hip-chest", "neck-head"
+    armL, armR = "chest-shoulder.L", "chest-shoulder.R"
+    legL, legR = "hip-thigh.L", "hip-thigh.R"
+    return [
+        # 縁起物らしく、その場でわずかに揺れるだけのほとんど静止した待機
+        ("idle", [
+            (1, {hipc: (0, 0, 0)}),
+            (36, {hipc: (2, 0, 1)}),
+            (72, {hipc: (0, 0, 0)}),
+        ]),
+        # 短い手足で、ころころと弾むように短く進む
+        ("walk", [
+            (1, {legL: (18, 0, 0), legR: (-18, 0, 0), hipc: (0, 0, 2)}),
+            (10, {legL: (0, 0, 0), legR: (0, 0, 0), hipc: (0, 0, 0)}),
+            (19, {legL: (-18, 0, 0), legR: (18, 0, 0), hipc: (0, 0, -2)}),
+            (28, {legL: (0, 0, 0), legR: (0, 0, 0), hipc: (0, 0, 0)}),
+        ]),
+        # 高い防御力どおり、短い腕をまとめて押し出すだけの鈍い一撃
+        ("attack", [
+            (1, {armL: (0, 0, 6), armR: (0, 0, -6), hipc: (0, 0, 0)}),
+            (8, {armL: (-40, 0, 22), armR: (-40, 0, -22), hipc: (-8, 0, 0)}),
+            (14, {armL: (34, 0, 4), armR: (34, 0, -4), hipc: (10, 0, 0), neck: (-4, 0, 0)}),
+            (24, {armL: (0, 0, 6), armR: (0, 0, -6), hipc: (0, 0, 0)}),
+        ]),
+        # 起き上がりこぼしのように、当たっても大きくは揺るがない
+        ("hit", [
+            (1, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+            (4, {hipc: (-10, 0, 0), neck: (-6, 0, 0)}),
+            (16, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+        ]),
+        # 起き上がれずに、そのまま横へ転がり倒れる
+        ("die", [
+            (1, {hipc: (0, 0, 0)}),
+            (10, {hipc: (-24, 0, 30), neck: (-10, 0, 0)}),
+            (26, {hipc: (-30, 0, 92), neck: (-18, 0, 0),
+                  armL: (-20, 0, 40), armR: (-20, 0, -40)}),
+        ]),
+    ]
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -3358,6 +3480,7 @@ MONSTERS = {
     "kodamaNoNushi": (build_kodamaNoNushi, kodamaNoNushi_animations),
     "menkaburikozo": (build_menkaburikozo, menkaburikozo_animations),
     "honedatami": (build_honedatami, honedatami_animations),
+    "kazaridaruma": (build_kazaridaruma, kazaridaruma_animations),
 }
 
 
