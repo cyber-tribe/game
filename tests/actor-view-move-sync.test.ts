@@ -52,3 +52,77 @@ describe("view/actorView.ts: moveTo の連続呼び出し(#372)", () => {
     expect(view.root.position.z).toBeCloseTo(0);
   });
 });
+
+/**
+ * #372再発報告: 敵と接触したとき・敵が攻撃する時・主人公が攻撃する時に、
+ * モデルの表示位置が狂う。
+ *
+ * 攻撃の踏み込み(lunge)がroot.positionへ毎フレーム「加算」するだけで、
+ * 前フレームぶんのオフセットを戻していなかったため、sinの山なりが
+ * 「行って戻る」にならず、攻撃1回ごとに攻撃方向へ2〜3マスぶん(60fps時)
+ * 表示位置が恒久的にずれていた。攻撃者側で必ず起きるため、プレイヤーの
+ * 攻撃でも、モンスターの攻撃・反撃でも発生していた。
+ */
+describe("view/actorView.ts: lunge の表示位置(#372再発)", () => {
+  /** 60fps相当の刻みで、指定秒数ぶんupdateを回す */
+  function runFrames(view: ActorView, seconds: number, fps = 60): void {
+    const dt = 1 / fps;
+    for (let t = 0; t < seconds; t += dt) view.update(dt);
+  }
+
+  it("踏み込みが終わったら、表示位置は元のマスへ戻る(ずれが残らない)", () => {
+    const view = new ActorView({ root: new THREE.Group(), mixer: null, actions: new Map() }, { x: 5, y: 4 });
+
+    view.lunge(1, 0); // 東の敵へ踏み込む
+    runFrames(view, 0.5); // lungeの持続(0.26s)より十分長く回す
+
+    // 旧実装ではここで x≈7.7(2.7マス漂流)になっていた
+    expect(view.root.position.x).toBeCloseTo(5, 5);
+    expect(view.root.position.z).toBeCloseTo(4, 5);
+  });
+
+  it("踏み込みの途中では実際に前へ出ている(演出そのものは失われない)", () => {
+    const view = new ActorView({ root: new THREE.Group(), mixer: null, actions: new Map() }, { x: 0, y: 0 });
+
+    view.lunge(1, 0);
+    runFrames(view, 0.13); // 持続0.26sのちょうど山の頂上あたり
+    expect(view.root.position.x).toBeGreaterThan(0.1); // 前に出ている
+    expect(view.root.position.x).toBeLessThan(0.4); // 最大踏み込み量(0.28)を大きくは超えない
+  });
+
+  it("何度攻撃を繰り返しても、表示位置がずれ続けない", () => {
+    const view = new ActorView({ root: new THREE.Group(), mixer: null, actions: new Map() }, { x: 5, y: 4 });
+
+    for (let i = 0; i < 10; i++) {
+      view.lunge(1, 0);
+      runFrames(view, 0.5);
+    }
+
+    expect(view.root.position.x).toBeCloseTo(5, 5);
+    expect(view.root.position.z).toBeCloseTo(4, 5);
+  });
+
+  it("踏み込み中に移動が始まっても、移動の行き先へ正しく着地する", () => {
+    const view = new ActorView({ root: new THREE.Group(), mixer: null, actions: new Map() }, { x: 0, y: 0 });
+
+    view.lunge(1, 0);
+    runFrames(view, 0.1); // 踏み込みの途中
+    view.moveTo({ x: 0, y: 0 }, { x: 0, y: 1 }, 0.15);
+    runFrames(view, 1); // 移動もlungeも完全に終わるまで回す
+
+    expect(view.root.position.x).toBeCloseTo(0, 5);
+    expect(view.root.position.z).toBeCloseTo(1, 5);
+  });
+
+  it("踏み込み中にsetPositionで置き直されても、古いオフセットを引きずらない", () => {
+    const view = new ActorView({ root: new THREE.Group(), mixer: null, actions: new Map() }, { x: 0, y: 0 });
+
+    view.lunge(1, 0);
+    runFrames(view, 0.1); // オフセットが乗っている状態
+    view.setPosition({ x: 8, y: 8 }); // ワープ(teleportイベント相当)
+    runFrames(view, 1);
+
+    expect(view.root.position.x).toBeCloseTo(8, 5);
+    expect(view.root.position.z).toBeCloseTo(8, 5);
+  });
+});

@@ -40,6 +40,14 @@ export class ActorView {
   private lungeLeft = 0;
   private lungeTotal = 0;
   private readonly lungeDir = new THREE.Vector3();
+  /**
+   * 今フレームの表示位置に足している踏み込みオフセット。毎フレーム
+   * いったん取り除いてから掛け直す。以前はroot.positionへ毎フレーム
+   * 加算するだけで前フレームぶんを戻していなかったため、攻撃のたびに
+   * 攻撃方向へ2〜3マスぶん表示位置が恒久的にずれていた(#372の再発報告の
+   * 根本原因。プレイヤー・モンスターどちらの攻撃でも起きる)
+   */
+  private readonly lungeApplied = new THREE.Vector3();
 
   /** 頭上に抱えているもの。タルを持ち上げているあいだ付いてまわる */
   private carried: THREE.Object3D | null = null;
@@ -77,6 +85,9 @@ export class ActorView {
     this.from.copy(this.root.position);
     this.to.copy(this.root.position);
     this.moveElapsed = this.moveDuration = 0;
+    // 位置を絶対値で置き直したので、適用済みの踏み込みオフセットの控えも捨てる
+    // (残したままだと、次のupdate()が古いオフセットを引いて逆方向へずれる)
+    this.lungeApplied.set(0, 0, 0);
   }
 
   /**
@@ -92,7 +103,10 @@ export class ActorView {
    * 常に「今表示されている場所」から滑らかにつながる
    */
   moveTo(from: Vec2, to: Vec2, duration: number): void {
-    this.from.copy(this.root.position);
+    // 踏み込み中に移動が始まる場合、root.positionには踏み込みオフセットが
+    // 乗っている。オフセットはupdate()が毎フレーム引き直して掛け直すため、
+    // 開始点には乗せる前の素の位置を控える(乗せたままだと二重掛けになる)
+    this.from.copy(this.root.position).sub(this.lungeApplied);
     this.to.set(to.x * TILE, 0, to.y * TILE);
     this.moveElapsed = 0;
     this.moveDuration = Math.max(0.001, duration);
@@ -244,6 +258,13 @@ export class ActorView {
   update(dt: number): void {
     this.mixer?.update(dt);
 
+    // 前フレームで足した踏み込みオフセットをまず取り除き、素の位置に戻す
+    // (移動中はlerpが位置を丸ごと上書きするので、この減算は無害)。
+    // 取り除かずに毎フレーム加算すると、踏み込みが「行って戻る」にならず
+    // 攻撃のたびに表示位置が恒久的にずれていく
+    this.root.position.sub(this.lungeApplied);
+    this.lungeApplied.set(0, 0, 0);
+
     if (this.moveDuration > 0) {
       this.moveElapsed += dt;
       const t = Math.min(1, this.moveElapsed / this.moveDuration);
@@ -261,7 +282,8 @@ export class ActorView {
       // 行って戻る山なりの動き
       const phase = 1 - this.lungeLeft / this.lungeTotal;
       const amount = Math.sin(phase * Math.PI);
-      this.root.position.addScaledVector(this.lungeDir, amount);
+      this.lungeApplied.copy(this.lungeDir).multiplyScalar(amount);
+      this.root.position.add(this.lungeApplied);
     }
 
     this.yaw += (this.targetYaw - this.yaw) * (1 - Math.exp(-dt * 16));
