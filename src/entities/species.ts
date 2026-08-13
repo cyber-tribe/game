@@ -552,9 +552,10 @@ export const SPECIES: readonly Species[] = [
 
   // 第六地方: こだまの尾根(31〜36階)
   {
+    // 響いて返ってくる声そのもの。専用モデル(plan/models/archive/model-yamabikogitsune.md)
     id: "yamabikogitsune",
     name: "やまびこぎつね",
-    model: "gajiri",
+    model: "yamabikogitsune",
     maxHp: 40,
     atk: 24,
     def: 10,

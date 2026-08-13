@@ -2645,6 +2645,129 @@ def nedayamabiko_animations():
     ]
 
 
+# =================================================================== やまびこぎつね
+
+# gajiriと同じ四つ足の関節構成(chest/hip/neck/snout、tail1-3、耳、
+# 前後の脚)をベースにするが、ねずみのgajiriより全体を細くしなやかに
+# 作り、鼻先と耳をより尖らせ、尾を長く大きく張り出させてきつねらしい
+# シルエットにする。「何かを放つための器官」として、遠吠えのように
+# 開いた口と、発光する喉を強調する(響いて返ってくる声そのものという由来)。
+YAMABIKOGITSUNE_HALF = {
+    "hip": (0.0, 0.165, 0.205),
+    "chest": (0.0, -0.025, 0.215),
+    "neck": (0.0, -0.175, 0.195),
+    "snout": (0.0, -0.385, 0.135),
+    "tail1": (0.0, 0.315, 0.200),
+    "tail2": (0.0, 0.480, 0.260),
+    "tail3": (0.0, 0.605, 0.350),
+    "ear.L": (0.092, -0.165, 0.372),
+    "hipF.L": (0.092, -0.065, 0.148),
+    "footF.L": (0.100, -0.105, 0.026),
+    "hipB.L": (0.112, 0.138, 0.155),
+    "footB.L": (0.120, 0.168, 0.026),
+}
+YAMABIKOGITSUNE_RADII_HALF = {
+    "hip": 0.115, "chest": 0.125, "neck": 0.082, "snout": 0.032,
+    "tail1": 0.040, "tail2": 0.034, "tail3": 0.020,
+    "ear.L": 0.050,
+    "hipF.L": 0.034, "footF.L": 0.028,
+    "hipB.L": 0.046, "footB.L": 0.030,
+}
+YAMABIKOGITSUNE_BONES_HALF = [
+    ("chest", "hip"), ("chest", "neck"), ("neck", "snout"),
+    ("hip", "tail1"), ("tail1", "tail2"), ("tail2", "tail3"),
+    ("neck", "ear.L"),
+    ("chest", "hipF.L"), ("hipF.L", "footF.L"),
+    ("hip", "hipB.L"), ("hipB.L", "footB.L"),
+]
+
+
+def build_yamabikogitsune():
+    """
+    響いて返ってくる声そのもの。gajiriと同じ関節構成をベースに、
+    全体を細くしなやかにし、鼻先と耳をより尖らせ、尾を長く大きく
+    張り出させてきつねらしいシルエットにする。配色は第六地方
+    (こだまの尾根)の岩肌の灰色と乾いた土色。遠吠えのように開いた口と
+    発光する喉で「声を放つ器官」を強調する。
+    """
+    joints = C.mirrored(YAMABIKOGITSUNE_HALF)
+    radii = C.mirrored_radii(YAMABIKOGITSUNE_RADII_HALF)
+    bones = C.mirrored_bones(YAMABIKOGITSUNE_BONES_HALF)
+
+    body = C.build_skinned("yamabikogitsune", joints, bones, radii, root="chest", subsurf=2)
+    rock = C.make_material("yamabikogitsune_rock", (0.54, 0.53, 0.51), roughness=0.75)
+    earth = C.make_material("yamabikogitsune_earth", (0.60, 0.48, 0.34), roughness=0.65)
+    # 耳の内側と尾の先だけ乾いた土色にする(関節からの距離で判定。
+    # gajiriのear_inと同じ考え方)
+    accents = [Vector(joints["ear.L"]), Vector(joints["ear.R"]), Vector(joints["tail3"])]
+    C.assign_materials_by_region(
+        body, [rock, earth],
+        lambda c: 1 if min((c - a).length for a in accents) < 0.085 else 0,
+    )
+
+    extras = []
+    for side in (-1.0, 1.0):
+        extras += eyeball(f"yamabikogitsune_eye{side}", (0.058 * side, -0.235, 0.235), 0.036,
+                          look=(0.25 * side, -1.0, 0.1))
+    # 遠吠えのように開いた口。上下2枚で開口部を作る
+    jaw_upper = C.box("yamabikogitsune_jaw_up", (0.0, -0.400, 0.150), (0.052, 0.075, 0.014), bevel=0.006)
+    C.assign_material(jaw_upper, rock)
+    extras.append(jaw_upper)
+    jaw_lower = C.box("yamabikogitsune_jaw_lo", (0.0, -0.375, 0.108), (0.046, 0.068, 0.012), bevel=0.006)
+    C.assign_material(jaw_lower, rock)
+    extras.append(jaw_lower)
+    throat = C.uv_sphere("yamabikogitsune_throat", (0.0, -0.360, 0.128), 0.030,
+                         segments=12, rings=9, scale=(0.85, 1.0, 0.75))
+    C.assign_material(throat, C.make_material("yamabikogitsune_throat_m", (0.95, 0.75, 0.35),
+                                              roughness=0.3, emission=2.0))
+    extras.append(throat)
+
+    mesh = C.join([body] + extras, "yamabikogitsune")
+    armature = C.build_armature("yamabikogitsune", joints, bones, mesh, root="chest")
+    return [mesh, armature], armature
+
+
+def yamabikogitsune_animations():
+    neck, snout = "chest-neck", "neck-snout"
+    t1, t2 = "hip-tail1", "tail1-tail2"
+    fL, fR = "chest-hipF.L", "chest-hipF.R"
+    bL, bR = "hip-hipB.L", "hip-hipB.R"
+    return [
+        # 尾根に耳を澄ませるように、首を小さく巡らせる
+        ("idle", [
+            (1, {neck: (0, 0, 0), t1: (0, 6, 0)}),
+            (22, {neck: (-4, 10, 0), t1: (0, -6, 0), t2: (0, 8, 0)}),
+            (44, {neck: (3, -8, 0), t1: (0, 6, 0), t2: (0, -8, 0)}),
+            (60, {neck: (0, 0, 0), t1: (0, 6, 0)}),
+        ]),
+        # gajiriより長い脚をしなやかに使う、軽やかな駆け足
+        ("walk", [
+            (1, {fL: (26, 0, 0), fR: (-26, 0, 0), bL: (-22, 0, 0), bR: (22, 0, 0), t1: (0, 10, 0)}),
+            (7, {fL: (0, 0, 0), fR: (0, 0, 0), bL: (0, 0, 0), bR: (0, 0, 0), t1: (0, -10, 0)}),
+            (13, {fL: (-26, 0, 0), fR: (26, 0, 0), bL: (22, 0, 0), bR: (-22, 0, 0), t1: (0, 10, 0)}),
+            (19, {fL: (0, 0, 0), fR: (0, 0, 0), bL: (0, 0, 0), bR: (0, 0, 0), t1: (0, -10, 0)}),
+        ]),
+        # 大きく口を開け、頭を反らして声を放つ
+        ("attack", [
+            (1, {snout: (0, 0, 0), neck: (0, 0, 0)}),
+            (6, {snout: (-30, 0, 0), neck: (-22, 0, 0)}),
+            (12, {snout: (18, 0, 0), neck: (10, 0, 0)}),
+            (22, {snout: (0, 0, 0), neck: (0, 0, 0)}),
+        ]),
+        ("hit", [
+            (1, {neck: (0, 0, 0)}),
+            (4, {neck: (18, 0, 0), t1: (0, -18, 0)}),
+            (14, {neck: (0, 0, 0), t1: (0, 6, 0)}),
+        ]),
+        ("die", [
+            (1, {neck: (0, 0, 0), t1: (0, 6, 0)}),
+            (10, {neck: (26, 0, 0), t1: (0, -30, 0), fL: (-30, 0, 0), fR: (-30, 0, 0)}),
+            (24, {neck: (40, 0, 0), t1: (0, -50, 0), fL: (-56, 0, 0), fR: (-56, 0, 0),
+                  bL: (30, 0, 0), bR: (30, 0, 0)}),
+        ]),
+    ]
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -2667,6 +2790,7 @@ MONSTERS = {
     "kaerukodama": (build_kaerukodama, kaerukodama_animations),
     "yamabikooni": (build_yamabikooni, yamabikooni_animations),
     "nedayamabiko": (build_nedayamabiko, nedayamabiko_animations),
+    "yamabikogitsune": (build_yamabikogitsune, yamabikogitsune_animations),
 }
 
 
