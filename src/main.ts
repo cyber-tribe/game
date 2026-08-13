@@ -86,6 +86,15 @@ import type { TrainingFocus } from "./entities/player";
 /** 拠点に覆われているあいだ、洞窟を描き直す間隔(秒)。うっすら動いて見えれば足りる */
 const COVERED_RENDER_INTERVAL = 0.2;
 
+/**
+ * submit()が1ターンぶんのGameEventを記録・進行管理に反映するための表。
+ * events.tsに新しい種別を追加すると、ここに対応するキーが無い限り
+ * typecheckが検出する。見た目やアニメーションはStage側(view/stage.ts)の
+ * 表が別に持っており、ここは記録・図鑑・進行フラグだけを扱う
+ */
+type SubmitEventHandlers = {
+  [K in GameEvent["type"]]: (event: Extract<GameEvent, { type: K }>) => void;
+};
 
 class App {
   private readonly renderer: Renderer;
@@ -819,6 +828,96 @@ class App {
 
   // ------------------------------------------------------------ コマンド実行
 
+  /**
+   * submit()の記録・進行管理。以前は同じevent.typeへの分岐が複数箇所に
+   * 分かれて並んでいた(die・checkpoint・recruitがそれぞれ2箇所)ため、
+   * 1種別=1エントリに統合した。1つのエントリの中の実行順は、統合前の
+   * ソース上の並び順(上から下)をそのまま保っている
+   */
+  private buildSubmitEventHandlers(): SubmitEventHandlers {
+    const noop = (): void => {};
+    return {
+      move: noop,
+      bump: noop,
+      face: noop,
+      attack: noop,
+      damage: noop,
+      heal: noop,
+      miss: noop,
+      // 記録の間(plan/records-hall.md): 倒した数。依頼板: 討伐依頼の判定材料も集計する
+      die: (event) => {
+        if (event.kind !== "monster") return;
+        this.diveDefeats++;
+        if (event.speciesId) {
+          this.diveHuntKills[event.speciesId] = (this.diveHuntKills[event.speciesId] ?? 0) + 1;
+        }
+      },
+      spawn: noop,
+      status: noop,
+      statusEnd: noop,
+      levelUp: noop,
+      pickup: noop,
+      drop: noop,
+      useItem: noop,
+      throwItem: noop,
+      equip: noop,
+      trap: noop,
+      teleport: noop,
+      swap: noop,
+      liftBarrel: noop,
+      putBarrel: noop,
+      throwBarrel: noop,
+      barrelBreak: noop,
+      explosion: noop,
+      // 記録の間(plan/records-hall.md): 捕まえた数
+      capture: () => {
+        this.diveCaptures++;
+      },
+      captureFailed: noop,
+      recruit: (event) => {
+        this.promptNaming(event.actorId, event.name);
+        const ally = this.game.allyList.find((a) => a.id === event.actorId);
+        if (ally?.speciesId) this.save = markSpeciesCaptured(this.save, ally.speciesId);
+      },
+      descend: noop,
+      // めざめの階段は、ダイブの結果によらず足を踏み入れた瞬間に記録する
+      checkpoint: (event) => {
+        this.save = addKnownCheckpoint(this.save, event.depth);
+        this.diveReachedDepths.push(event.depth);
+      },
+      hungerWarning: noop,
+      gameOver: noop,
+      message: (event) => {
+        this.hud.log(event.text);
+      },
+      tutorialTip: (event) => {
+        this.showTutorialTip(event.id);
+      },
+      // モンスター図鑑(plan/monster-compendium.md): 見た・捕まえたを記録する。
+      // 「知識は失われない」原則により、全滅した場合でも取り消さない
+      monsterSighted: (event) => {
+        // 依頼板(plan/quest-board.md): 図鑑依頼は「セーブ上まだ未確認だった」種族だけを数える
+        // (このダイブで初めて見た、ではなく、これまでの記録として初めて見た、という判定)
+        if (this.save.compendium[event.speciesId] === undefined) this.diveNewlySeenCount++;
+        this.save = markSpeciesSeen(this.save, event.speciesId);
+      },
+      // 忘れ物蔵(plan/lost-and-found-vault.md): 隠し通路を見つけた瞬間に記録する。
+      // ダイブの結果によらず記録されるべき事実なので、checkpointと同じ扱いにする
+      secretPassageFound: (event) => {
+        this.save = addFoundVaultPassage(this.save, event.regionId);
+      },
+      crackWarning: noop,
+      // 山の芯(plan/mountain-core.md): 最終フロアの会話イベントを経験した記録
+      mountainCoreCleared: () => {
+        this.mountainCoreClearedThisRun = true;
+      },
+      // 真の目覚め(plan/true-awakening.md): 「はじめの夢」との決着イベントを経験した記録
+      trueAwakeningCleared: () => {
+        this.trueAwakeningClearedThisRun = true;
+      },
+    };
+  }
+
   private submit(cmd: Command): void {
     const beforeDepth = this.game.depth;
     const events = this.game.command(cmd);
@@ -828,39 +927,9 @@ class App {
     // セーブ全体を書き出す作りになっている。1ターンで何度も同期書き込みが走ると
     // その場で操作が引っかかるので、書き込みは最後の1回にまとめる
     batchSaves(() => {
+      const handlers = this.buildSubmitEventHandlers();
       for (const event of events) {
-        if (event.type === "message") this.hud.log(event.text);
-        // めざめの階段は、ダイブの結果によらず足を踏み入れた瞬間に記録する
-        if (event.type === "checkpoint") this.save = addKnownCheckpoint(this.save, event.depth);
-        if (event.type === "tutorialTip") this.showTutorialTip(event.id);
-        if (event.type === "recruit") this.promptNaming(event.actorId, event.name);
-        // 記録の間(plan/records-hall.md): 倒した・捕まえた数を積み上げる
-        if (event.type === "die" && event.kind === "monster") this.diveDefeats++;
-        if (event.type === "capture") this.diveCaptures++;
-        // モンスター図鑑(plan/monster-compendium.md): 見た・捕まえたを記録する。
-        // 「知識は失われない」原則により、全滅した場合でも取り消さない
-        if (event.type === "monsterSighted") {
-          // 依頼板(plan/quest-board.md): 図鑑依頼は「セーブ上まだ未確認だった」種族だけを数える
-          // (このダイブで初めて見た、ではなく、これまでの記録として初めて見た、という判定)
-          if (this.save.compendium[event.speciesId] === undefined) this.diveNewlySeenCount++;
-          this.save = markSpeciesSeen(this.save, event.speciesId);
-        }
-        if (event.type === "recruit") {
-          const ally = this.game.allyList.find((a) => a.id === event.actorId);
-          if (ally?.speciesId) this.save = markSpeciesCaptured(this.save, ally.speciesId);
-        }
-        // 依頼板: 討伐・探索依頼の判定材料をこのダイブぶん集計する
-        if (event.type === "die" && event.kind === "monster" && event.speciesId) {
-          this.diveHuntKills[event.speciesId] = (this.diveHuntKills[event.speciesId] ?? 0) + 1;
-        }
-        if (event.type === "checkpoint") this.diveReachedDepths.push(event.depth);
-        // 忘れ物蔵(plan/lost-and-found-vault.md): 隠し通路を見つけた瞬間に記録する。
-        // ダイブの結果によらず記録されるべき事実なので、checkpointと同じ扱いにする
-        if (event.type === "secretPassageFound") this.save = addFoundVaultPassage(this.save, event.regionId);
-        // 山の芯(plan/mountain-core.md): 最終フロアの会話イベントを経験した記録
-        if (event.type === "mountainCoreCleared") this.mountainCoreClearedThisRun = true;
-        // 真の目覚め(plan/true-awakening.md): 「はじめの夢」との決着イベントを経験した記録
-        if (event.type === "trueAwakeningCleared") this.trueAwakeningClearedThisRun = true;
+        (handlers[event.type] as (event: GameEvent) => void)(event);
       }
     });
 
