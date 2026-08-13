@@ -47,6 +47,7 @@ import {
   markTutorialTipSeen,
   markVillageEventSeen,
   migrateLegacySaveIfNeeded,
+  recordDeepest,
   recordRun,
   recordTarukurabeResult,
   refreshBoard,
@@ -951,7 +952,7 @@ class App {
       this.applyCarriedBarrelVisual();
       this.renderer.setFocus(this.game.player.pos, true);
       this.lock = 0.25;
-      this.save.deepest = Math.max(this.save.deepest, this.game.depth);
+      this.save = recordDeepest(this.save, this.game.depth);
       this.updateDiveBgm();
     } else {
       this.stage.syncActors(this.game.floor);
