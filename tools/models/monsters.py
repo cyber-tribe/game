@@ -3022,6 +3022,207 @@ def kodamaNoNushi_animations():
     ]
 
 
+# =================================================================== ホネダタミ
+
+# 現在は honegarami モデルを流用中(plan/model-honedatami.md)。
+# 計画書の指示どおり honegarami と同じ関節の"種類"
+# (hip/chest/neck/head/crown, shoulder-elbow-hand, thigh-knee-foot)を
+# 踏襲しつつ、guard AI(通路の真ん中に居座ってどかない)に合わせて
+# 座標をゼロから設計し直す。honegaramiは「細い手足+浮いた肋骨」で
+# 剣士らしい軽さを出していたが、ホネダタミは正反対に、背を低く
+# 幅を大きく取り、四肢を太く短く詰めて、通路そのものを塞ぐ
+# どっしりした山にする。剣は持たせず、両腕は素手のまま。
+# 背には積年の記憶が積もったように骨板を何枚も無造作に重ね、
+# 名前どおり「骨のタタミ(積み重ね)」を背負わせる。
+HONEDATAMI_HALF = {
+    "hip": (0.0, 0.010, 0.145),
+    "chest": (0.0, 0.0, 0.275),
+    "neck": (0.0, 0.0, 0.360),
+    "head": (0.0, -0.020, 0.430),
+    "crown": (0.0, 0.0, 0.495),
+    "shoulder.L": (0.205, 0.0, 0.300),
+    "elbow.L": (0.245, 0.030, 0.205),
+    "hand.L": (0.215, -0.010, 0.125),
+    "thigh.L": (0.170, 0.0, 0.125),
+    "knee.L": (0.200, -0.005, 0.045),
+    "foot.L": (0.175, -0.065, 0.010),
+}
+# 半径は honegarami よりずっと太い。とくに hip/chest は、隣接する
+# shoulder/thigh の関節がはっきりその外へ突き出す太さに収まるよう、
+# 距離 > 半径差を個別に検算して決めた(細身の四肢では埋もれやすいため)
+HONEDATAMI_RADII_HALF = {
+    "hip": 0.130, "chest": 0.148, "neck": 0.058, "head": 0.115, "crown": 0.062,
+    "shoulder.L": 0.075, "elbow.L": 0.060, "hand.L": 0.068,
+    "thigh.L": 0.078, "knee.L": 0.058, "foot.L": 0.066,
+}
+HONEDATAMI_BONES_HALF = [
+    ("hip", "chest"), ("chest", "neck"), ("neck", "head"), ("head", "crown"),
+    ("chest", "shoulder.L"), ("shoulder.L", "elbow.L"), ("elbow.L", "hand.L"),
+    ("hip", "thigh.L"), ("thigh.L", "knee.L"), ("knee.L", "foot.L"),
+]
+
+
+def _rotate_z_around(obj, degrees: float, pivot) -> None:
+    """
+    メッシュの頂点を pivot を中心に Z 軸まわりで回す。obj.rotation_euler は
+    オブジェクト原点(ワールド原点)を中心に回してしまい、box()/cone() で
+    作った部品はワールド座標へ直接頂点を置いているためオブジェクト原点が
+    ワールド原点と一致せず、位置が大きくずれる。頂点そのものを部品自身の
+    中心まわりで回すことでこれを避ける。
+    """
+    ang = math.radians(degrees)
+    cos_a, sin_a = math.cos(ang), math.sin(ang)
+    px, py = pivot[0], pivot[1]
+    for v in obj.data.vertices:
+        x, y = v.co.x - px, v.co.y - py
+        v.co.x = px + x * cos_a - y * sin_a
+        v.co.y = py + x * sin_a + y * cos_a
+
+
+def build_honedatami():
+    """
+    通路の真ん中に居座って動かない、骨積みの回廊のguard。honegaramiと同じ
+    関節の種類を踏襲しつつ、背を低く幅広くして四肢を太く短く詰め、
+    「積み重なった記憶の重みそのもの」という設定どおり、剣士ではなく
+    無造作に積まれた骨の山として造形する。
+    """
+    joints = C.mirrored(HONEDATAMI_HALF)
+    radii = C.mirrored_radii(HONEDATAMI_RADII_HALF)
+    bones = C.mirrored_bones(HONEDATAMI_BONES_HALF)
+
+    body = C.build_skinned("honedatami", joints, bones, radii, root="hip", subsurf=2)
+    bone_mat = C.make_material("honeda_bone", (0.86, 0.83, 0.72), roughness=0.75)
+    dust_mat = C.make_material("honeda_dust", (0.50, 0.48, 0.44), roughness=0.92)
+    # 通路の床に長く居座って積もった土埃を、脚まわりの低い位置だけ
+    # くすんだ色にすることで表現する(距離ではなく高さで判定)
+    C.assign_materials_by_region(body, [bone_mat, dust_mat], lambda c: 1 if c.z < 0.085 else 0)
+    counts = [0, 0]
+    for poly in body.data.polygons:
+        counts[poly.material_index] += 1
+    total = sum(counts)
+    print(f"honedatami: 骨色{counts[0]} 土埃色{counts[1]} / 計{total} "
+          f"({[f'{c / total:.1%}' for c in counts]})")
+
+    extras = []
+    plate_mat = C.make_material("honeda_plate", (0.60, 0.58, 0.53), roughness=0.85)
+    plate_mat2 = C.make_material("honeda_plate2", (0.71, 0.68, 0.59), roughness=0.8)
+    socket_mat = C.make_material("honeda_socket", (0.05, 0.05, 0.07), roughness=0.9)
+    glow_mat = C.make_material("honeda_glow", (0.68, 0.58, 0.32), roughness=0.35, emission=1.3)
+
+    # 頭。honegaramiと違い剣士の頬骨や歯は作らず、丸みを抑えた
+    # 兜のような頭蓋にして、道を塞ぐ物質的な"壁"らしさを強める
+    skull = C.uv_sphere("honeda_skull", (0.0, -0.02, 0.415), 0.118,
+                        segments=18, rings=12, scale=(1.0, 0.92, 0.72))
+    C.assign_material(skull, bone_mat)
+    extras.append(skull)
+    for side in (-1.0, 1.0):
+        socket = C.uv_sphere(f"honeda_socket{side}", (0.052 * side, -0.098, 0.435), 0.032,
+                             segments=14, rings=10, scale=(1.0, 0.85, 1.1))
+        C.assign_material(socket, socket_mat)
+        extras.append(socket)
+        # 記憶の重みを鈍く灯すだけの、honegaramiより暗い燠火のような目
+        glow = C.uv_sphere(f"honeda_glow{side}", (0.052 * side, -0.106, 0.435), 0.014,
+                           segments=10, rings=8)
+        C.assign_material(glow, glow_mat)
+        extras.append(glow)
+
+    # 積まれた骨板。胴の表面にぴったり寄り添わせて重ね、鎧の鱗板の
+    # ように貼り付いて見せる(浮かせると別パーツに見えてしまう)。
+    # 左右にわずかにはみ出させて、道いっぱいに居座る幅の広さを伝える。
+    # 1枚ごとに位置・向き・厚みを少しずつ振り、精密に整列させない
+    side_plate_specs = [
+        # (中心x,y,z / サイズxyz / 面取り / 回転deg)
+        ((0.150, 0.020, 0.140), (0.032, 0.100, 0.088), 0.004, -5.0),
+        ((0.185, 0.010, 0.230), (0.030, 0.108, 0.096), 0.004, 6.0),
+        ((0.175, 0.030, 0.320), (0.026, 0.098, 0.088), 0.004, -7.0),
+        ((0.140, 0.010, 0.395), (0.022, 0.078, 0.066), 0.004, 5.0),
+    ]
+    for side in (-1.0, 1.0):
+        mats = (plate_mat, plate_mat2) if side < 0 else (plate_mat2, plate_mat)
+        for i, (center, size, bevel, rot) in enumerate(side_plate_specs):
+            c = (center[0] * side, center[1], center[2])
+            plate = C.box(f"honeda_splate{side}_{i}", c, size, bevel=bevel)
+            _rotate_z_around(plate, rot * side, c)
+            C.assign_material(plate, mats[i % 2])
+            extras.append(plate)
+    # 正面(-Y側、通常のカメラが向く側)にも胸当てのように骨板を
+    # 重ねる。側面の板は死角に隠れがちなので、真正面から見ても
+    # 「板が積み重なっている」と分かるよう主張を置く
+    front_specs = [
+        ((0.0, -0.128, 0.170), (0.145, 0.024, 0.070), 0.005, -3.0, plate_mat2),
+        ((0.010, -0.135, 0.245), (0.160, 0.022, 0.066), 0.005, 4.0, plate_mat),
+        ((-0.006, -0.126, 0.315), (0.130, 0.020, 0.058), 0.004, -5.0, plate_mat2),
+    ]
+    for i, (center, size, bevel, rot, mat) in enumerate(front_specs):
+        plate = C.box(f"honeda_fplate{i}", center, size, bevel=bevel)
+        _rotate_z_around(plate, rot, center)
+        C.assign_material(plate, mat)
+        extras.append(plate)
+    # 頭の上にも直接重ね、頂に小さな石積みが乗っているように見せる
+    top_specs = [
+        ((0.0, 0.0, 0.505), (0.130, 0.088, 0.026), 0.005, 4.0, plate_mat),
+        ((0.010, -0.008, 0.535), (0.092, 0.064, 0.022), 0.004, -6.0, plate_mat2),
+    ]
+    for i, (center, size, bevel, rot, mat) in enumerate(top_specs):
+        plate = C.box(f"honeda_toplate{i}", center, size, bevel=bevel)
+        _rotate_z_around(plate, rot, center)
+        C.assign_material(plate, mat)
+        extras.append(plate)
+
+    mesh = C.join([body] + extras, "honedatami")
+    armature = C.build_armature("honedatami", joints, bones, mesh, root="hip")
+    return [mesh, armature], armature
+
+
+def honedatami_animations():
+    hipc, neck = "hip-chest", "neck-head"
+    armL, armR = "chest-shoulder.L", "chest-shoulder.R"
+    foreL, foreR = "shoulder.L-elbow.L", "shoulder.R-elbow.R"
+    legL, legR = "hip-thigh.L", "hip-thigh.R"
+    shinL, shinR = "thigh.L-knee.L", "thigh.R-knee.R"
+    return [
+        # どっしり構えたまま、ごく僅かに軋むだけのほとんど静止した待機
+        ("idle", [
+            (1, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+            (30, {hipc: (1, 0, 0), neck: (2, 0, 0)}),
+            (60, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+        ]),
+        # 重い塊がのろのろ引きずられるような、地を這う歩み
+        ("walk", [
+            (1, {legL: (10, 0, 0), legR: (-10, 0, 0), shinL: (-6, 0, 0), shinR: (5, 0, 0),
+                 hipc: (0, 0, 1)}),
+            (12, {legL: (0, 0, 0), legR: (0, 0, 0), hipc: (0, 0, 0)}),
+            (23, {legL: (-10, 0, 0), legR: (10, 0, 0), shinL: (5, 0, 0), shinR: (-6, 0, 0),
+                  hipc: (0, 0, -1)}),
+            (34, {legL: (0, 0, 0), legR: (0, 0, 0), hipc: (0, 0, 0)}),
+            (45, {legL: (10, 0, 0), legR: (-10, 0, 0), shinL: (-6, 0, 0), shinR: (5, 0, 0),
+                  hipc: (0, 0, 1)}),
+        ]),
+        # 剣を持たない代わりに、両腕をまとめて叩きつける正面への体当たり
+        ("attack", [
+            (1, {armL: (0, 0, 8), armR: (0, 0, -8), foreL: (0, 0, 0), foreR: (0, 0, 0),
+                 hipc: (0, 0, 0)}),
+            (7, {armL: (-30, 0, 20), armR: (-30, 0, -20), foreL: (-20, 0, 0), foreR: (-20, 0, 0),
+                 hipc: (-10, 0, 0), neck: (-6, 0, 0)}),
+            (13, {armL: (48, 0, 4), armR: (48, 0, -4), foreL: (14, 0, 0), foreR: (14, 0, 0),
+                  hipc: (12, 0, 0), neck: (4, 0, 0)}),
+            (24, {armL: (0, 0, 8), armR: (0, 0, -8), foreL: (0, 0, 0), foreR: (0, 0, 0),
+                  hipc: (0, 0, 0)}),
+        ]),
+        # 高い防御力どおり、当たってもほとんど揺るがない
+        ("hit", [
+            (1, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+            (4, {hipc: (-6, 0, 0), neck: (-8, 0, 0)}),
+            (15, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+        ]),
+        # 積まれていた骨の山がそのまま崩れ落ちる
+        ("die", [
+            (1, {hipc: (0, 0, 0)}),
+            (9, {hipc: (-10, 0, 8), neck: (-20, 0, 0), armL: (-30, 0, 30), armR: (-30, 0, -30)}),
+            (26, {hipc: (-70, 0, 22), neck: (-46, 0, 0), legL: (34, 0, 0), legR: (30, 0, 0),
+                  armL: (-70, 0, 60), armR: (-70, 0, -60)}),
+        ]),
+    ]
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -3047,6 +3248,7 @@ MONSTERS = {
     "yamabikogitsune": (build_yamabikogitsune, yamabikogitsune_animations),
     "kodamagitsune": (build_kodamagitsune, kodamagitsune_animations),
     "kodamaNoNushi": (build_kodamaNoNushi, kodamaNoNushi_animations),
+    "honedatami": (build_honedatami, honedatami_animations),
 }
 
 
