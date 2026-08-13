@@ -1426,6 +1426,213 @@ def wasuremizuchi_animations():
     ]
 
 
+
+
+# =================================================================== きのこおとこ
+
+# plan/archive/model-kinokootoko.md: 現在流用しているmadoromiの関節構成
+# (root-stem-capbase-captop の縦一本、傘は太い→細いの円錐)をベースにしつつ、
+# 「眠気を吸い込んで育った茸そのものが人の形に育ったもの」という設定に
+# 合わせ、humanoidとして腕・脚を新たに生やす(mabutamushi/nukarumigani/
+# ashiatodoriと同じ、「関節の種類は踏襲するが座標構成はゼロから」の方針)。
+# 胴の芯はhonegaramiと同じ「hip-chest」の2関節に分け、それぞれに左右対称の
+# 脚(thigh)・腕(shoulder)をぶら下げる構成にする。nukarumiganiが検証した
+# 「隣接する2つの分岐点がどちらも1親+左右対称2子を持つとSkinが面を
+# 解決できず破れる」問題は、honegaramiと同様に分岐する子(thigh.L/R,
+# shoulder.L/R)のYを親(hip, chest)とそろえる(前後にずらさない)ことで
+# 避けている。
+# 首から上は neck -> head(顔) -> capbase(傘の付け根、太い) -> captop(傘の先、
+# 細い) の4関節。顔の上に傘がフードのようにかぶさるシルエットにする。
+KINOKOOTOKO_HALF = {
+    "hip": (0.0, 0.0, 0.32),
+    "chest": (0.0, 0.0, 0.50),
+    "neck": (0.0, 0.0, 0.60),
+    "head": (0.0, -0.01, 0.68),
+    "capbase": (0.0, 0.0, 0.80),
+    "captop": (0.0, 0.0, 0.95),
+    # 腕は肩からはっきり外へ張り出させたうえで下ろす。最初の試作では
+    # shoulder/thighのX(横位置)が近く、腕もほぼ真下に垂らしていたため、
+    # 静止姿勢(全回転0)で腕と脚が見分けづらく「4本脚の椅子」のような
+    # シルエットになってしまった(プレビューで発覚)。honegaramiが
+    # 「肩を腰よりずっと外に置き、腕を細くする」ことで腕と脚を
+    # はっきり分けているのを踏まえ、肩をさらに外へ、肘・手も横方向へ
+    # 張り出させて、脚は逆に胴へ寄せて再設計した。
+    "shoulder.L": (0.24, 0.0, 0.52),
+    "elbow.L": (0.36, -0.02, 0.46),
+    "hand.L": (0.44, -0.05, 0.38),
+    "thigh.L": (0.14, 0.0, 0.30),
+    "knee.L": (0.145, 0.0, 0.15),
+    "foot.L": (0.145, -0.05, 0.02),
+}
+KINOKOOTOKO_RADII_HALF = {
+    # hip/chestはがっしり太く、shoulder/thighは胴の半径をはっきり超える
+    # 距離(いずれも胴半径の約1.2〜1.8倍)に置いて呑み込まれないようにする
+    # (mabutamushi/ashiatodoriの反省を踏まえ、比率をnukarumigani・
+    # honegaramiと同水準以上に確保して検証済み)。腕は脚よりわずかに
+    # 細くして、脚(常に真下)と腕(外へ張り出す)をシルエットでも
+    # 見分けやすくする。
+    "hip": 0.115, "chest": 0.135, "neck": 0.075, "head": 0.105,
+    "capbase": 0.300, "captop": 0.050,
+    "shoulder.L": 0.075, "elbow.L": 0.052, "hand.L": 0.060,
+    "thigh.L": 0.078, "knee.L": 0.058, "foot.L": 0.050,
+}
+KINOKOOTOKO_BONES_HALF = [
+    ("hip", "chest"), ("chest", "neck"), ("neck", "head"),
+    ("head", "capbase"), ("capbase", "captop"),
+    ("chest", "shoulder.L"), ("shoulder.L", "elbow.L"), ("elbow.L", "hand.L"),
+    ("hip", "thigh.L"), ("thigh.L", "knee.L"), ("knee.L", "foot.L"),
+]
+
+
+def kinoko_cap_surface_z(dist: float) -> float:
+    """
+    傘(head-capbase-captop)の表面の高さ。madoromiのcap_surface_z()と同じ
+    考え方で、capbase(半径0.300)からcaptop(半径0.050)へ向かう円錐を
+    サブディビジョンで丸まるぶん少し内側に見積もって近似する。
+    """
+    base_z = KINOKOOTOKO_HALF["capbase"][2]
+    top_z = KINOKOOTOKO_HALF["captop"][2]
+    base_r = KINOKOOTOKO_RADII_HALF["capbase"] * 0.86
+    top_r = KINOKOOTOKO_RADII_HALF["captop"]
+    t = min(1.0, max(0.0, (base_r - dist) / (base_r - top_r)))
+    return base_z + t * (top_z - base_z) - 0.014
+
+
+def build_kinokootoko():
+    """
+    眠気を吸い込んで育った茸そのものが人の形に育ったもの。melee AIの主力に
+    ふさわしく、がっしりした体格で正面から迫る力強いシルエットにする。
+    配色は第3地方(まどろみの茸林)のテーマどおり、湿った土色の体に
+    胞子の淡い黄土色の傘をかぶった二色構成にする。
+    """
+    joints = C.mirrored(KINOKOOTOKO_HALF)
+    radii = C.mirrored_radii(KINOKOOTOKO_RADII_HALF)
+    bones = C.mirrored_bones(KINOKOOTOKO_BONES_HALF)
+
+    body = C.build_skinned("kinokootoko", joints, bones, radii, root="hip", subsurf=2)
+
+    body_mat = C.make_material("kinoko_body", (0.40, 0.29, 0.19), roughness=0.78)
+    cap_mat = C.make_material("kinoko_cap", (0.80, 0.70, 0.44), roughness=0.5)
+
+    # 傘(head から上)だけ淡い黄土色にする。腕・脚は傘の高さまで届かないので
+    # 高さだけで塗り分けられる(ashiatodoriの背/腹/脚と同じ手法)。
+    # しきい値はheadとcapbaseのちょうど中間(0.74)に置き、実際の面数を
+    # 数えて偏りがないか検証する。
+    CAP_Z = 0.74
+
+    def classify(c):
+        return 1 if c.z > CAP_Z else 0
+
+    C.assign_materials_by_region(body, [body_mat, cap_mat], classify)
+    cap_faces = sum(1 for p in body.data.polygons if p.material_index == 1)
+    total_faces = len(body.data.polygons)
+    print(f"kinokootoko: 傘の面 {cap_faces}/{total_faces} ({cap_faces / total_faces:.1%})")
+
+    extras = []
+
+    # 顔。半開きのmadoromiとは違い、正面から迫る力強さを出すため、
+    # しっかり見開いた目と、への字に結んだ口にする
+    for side in (-1.0, 1.0):
+        extras += eyeball(f"kinoko_eye{side}", (0.048 * side, -0.093, 0.688), 0.024,
+                          look=(0.2 * side, -1.0, 0.0),
+                          white=(0.92, 0.88, 0.72), dark=(0.14, 0.08, 0.05))
+    mouth = C.box("kinoko_mouth", (0.0, -0.100, 0.648), (0.034, 0.012, 0.010), bevel=0.003)
+    C.assign_material(mouth, C.make_material("kinoko_mouth_m", (0.20, 0.11, 0.08), roughness=0.5))
+    extras.append(mouth)
+
+    # 傘の斑点。madoromiと同じく、傘の断面に沿った高さに置かないと
+    # 浮いたり埋まったりする(kinoko_cap_surface_zで補正)
+    spot_mat = C.make_material("kinoko_spot", (0.94, 0.90, 0.76), roughness=0.6)
+    for i, (angle_deg, dist, r) in enumerate([
+        (210.0, 0.070, 0.044), (320.0, 0.130, 0.038), (70.0, 0.110, 0.040),
+        (150.0, 0.165, 0.032), (20.0, 0.190, 0.026),
+    ]):
+        angle = math.radians(angle_deg)
+        spot = C.uv_sphere(
+            f"kinoko_spot{i}",
+            (math.cos(angle) * dist, math.sin(angle) * dist, kinoko_cap_surface_z(dist)),
+            r, segments=12, rings=8, scale=(1.0, 1.0, 0.40),
+        )
+        C.assign_material(spot, spot_mat)
+        extras.append(spot)
+
+    # 傘の縁から舞い散る胞子。atkMulInSporedRoomのフレーバーに合わせ、
+    # 表面からわずかに浮かせた小さな発光球を3つ添える
+    # (primitiveを貼るだけの安全な手法。kirimizuchi/nukarumiganiの棘・
+    # 瘤と同じ)
+    spore_mat = C.make_material("kinoko_spore", (0.86, 0.78, 0.40), roughness=0.4, emission=0.5)
+    for i, (angle_deg, dist) in enumerate([(80.0, 0.24), (200.0, 0.27), (320.0, 0.22)]):
+        angle = math.radians(angle_deg)
+        cx, cy = math.cos(angle) * dist, math.sin(angle) * dist
+        spore = C.uv_sphere(f"kinoko_spore{i}", (cx, cy, kinoko_cap_surface_z(dist) + 0.030),
+                            0.014, segments=10, rings=8)
+        C.assign_material(spore, spore_mat)
+        extras.append(spore)
+
+    mesh = C.join([body] + extras, "kinokootoko")
+    armature = C.build_armature("kinokootoko", joints, bones, mesh, root="hip")
+    return [mesh, armature], armature
+
+
+def kinokootoko_animations():
+    hipc = "hip-chest"
+    neck = "chest-neck"
+    headb = "neck-head"
+    capb = "head-capbase"
+    captip = "capbase-captop"
+    armL, armR = "chest-shoulder.L", "chest-shoulder.R"
+    legL, legR = "hip-thigh.L", "hip-thigh.R"
+    shinL, shinR = "thigh.L-knee.L", "thigh.R-knee.R"
+    return [
+        # がっしりした体格らしく、大きくは動かず傘だけがゆったり揺れる
+        ("idle", [
+            (1, {hipc: (0, 0, 0), capb: (0, 0, 0), armL: (0, 0, 6), armR: (0, 0, -6)}),
+            (24, {hipc: (2, 0, 1), capb: (-4, 0, 2), captip: (3, 0, -2),
+                  armL: (-3, 0, 10), armR: (-3, 0, -10)}),
+            (48, {hipc: (0, 0, 0), capb: (0, 0, 0), armL: (0, 0, 6), armR: (0, 0, -6)}),
+        ]),
+        # 力強く踏みしめて歩く。傘は歩調と逆位相で揺れて重みを出す
+        ("walk", [
+            (1, {legL: (26, 0, 0), legR: (-26, 0, 0), shinL: (-12, 0, 0), shinR: (10, 0, 0),
+                 armL: (-18, 0, 6), armR: (18, 0, -6), capb: (4, 0, 0)}),
+            (9, {legL: (0, 0, 0), legR: (0, 0, 0), shinL: (0, 0, 0), shinR: (0, 0, 0),
+                 armL: (0, 0, 6), armR: (0, 0, -6), capb: (0, 0, 0)}),
+            (17, {legL: (-26, 0, 0), legR: (26, 0, 0), shinL: (10, 0, 0), shinR: (-12, 0, 0),
+                  armL: (18, 0, 6), armR: (-18, 0, -6), capb: (-4, 0, 0)}),
+            (25, {legL: (0, 0, 0), legR: (0, 0, 0), shinL: (0, 0, 0), shinR: (0, 0, 0),
+                  armL: (0, 0, 6), armR: (0, 0, -6), capb: (0, 0, 0)}),
+            (33, {legL: (26, 0, 0), legR: (-26, 0, 0), shinL: (-12, 0, 0), shinR: (10, 0, 0),
+                  armL: (-18, 0, 6), armR: (18, 0, -6), capb: (4, 0, 0)}),
+        ]),
+        # 両腕を振りかぶり、正面へまとめて叩きつける
+        ("attack", [
+            (1, {armL: (0, 0, 6), armR: (0, 0, -6), hipc: (0, 0, 0), capb: (0, 0, 0)}),
+            (5, {armL: (-70, 0, 20), armR: (-70, 0, -20), hipc: (-10, 0, 0), capb: (6, 0, 0)}),
+            (10, {armL: (60, 0, -10), armR: (60, 0, 10), hipc: (16, 0, 0),
+                  capb: (-10, 0, 0), captip: (-6, 0, 0)}),
+            (20, {armL: (0, 0, 6), armR: (0, 0, -6), hipc: (0, 0, 0), capb: (0, 0, 0)}),
+        ]),
+        ("hit", [
+            (1, {hipc: (0, 0, 0), headb: (0, 0, 0)}),
+            (4, {hipc: (-16, 0, 0), headb: (-14, 0, 0), capb: (-10, 0, 0),
+                 armL: (-18, 0, 20), armR: (-18, 0, -20)}),
+            (14, {hipc: (0, 0, 0), headb: (0, 0, 0), capb: (0, 0, 0)}),
+        ]),
+        # がっしりした図体が根元から崩れ落ちるように倒れる
+        ("die", [
+            (1, {hipc: (0, 0, 0)}),
+            (10, {hipc: (-30, 0, 8), headb: (-20, 0, 0), capb: (-24, 0, 0),
+                  legL: (-24, 0, 0), legR: (-24, 0, 0),
+                  armL: (-50, 0, 40), armR: (-50, 0, -40)}),
+            (24, {hipc: (-80, 0, 20), headb: (-34, 0, 0), capb: (-40, 0, 0),
+                  legL: (-50, 0, 0), legR: (-50, 0, 0),
+                  armL: (-85, 0, 60), armR: (-85, 0, -60)}),
+        ]),
+    ]
+
+
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -1439,6 +1646,7 @@ MONSTERS = {
     "nukarumigani": (build_nukarumigani, nukarumigani_animations),
     "ashiatodori": (build_ashiatodori, ashiatodori_animations),
     "wasuremizuchi": (build_wasuremizuchi, wasuremizuchi_animations),
+    "kinokootoko": (build_kinokootoko, kinokootoko_animations),
 }
 
 
