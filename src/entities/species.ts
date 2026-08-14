@@ -846,7 +846,8 @@ export const SPECIES: readonly Species[] = [
     // 意固地になった古い意地。スリガラスの上位種なので同じgajiriモデルを流用する
     id: "katakunagani",
     name: "かたくなガニ",
-    model: "gajiri",
+    // 専用モデル(plan/models/archive/model-katakunagani.md)
+    model: "katakunagani",
     maxHp: 20,
     atk: 15,
     def: 8,

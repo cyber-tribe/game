@@ -6612,6 +6612,121 @@ def kasumiutsubo_animations():
     ]
 
 
+# ========================================================================= かたくなガニ
+
+KATAKUNAGANI_HALF = {
+    "hip": (0.0, 0.13, 0.135),
+    "chest": (0.0, -0.03, 0.145),
+    "neck": (0.0, -0.14, 0.135),
+    "snout": (0.0, -0.26, 0.10),
+    "tail1": (0.0, 0.20, 0.125),
+    "tail2": (0.0, 0.24, 0.12),
+    "tail3": (0.0, 0.27, 0.115),
+    "ear.L": (0.06, -0.14, 0.19),
+    "hipF.L": (0.13, -0.05, 0.115),
+    "footF.L": (0.19, -0.06, 0.03),
+    "hipB.L": (0.12, 0.11, 0.115),
+    "footB.L": (0.13, 0.14, 0.03),
+}
+KATAKUNAGANI_RADII_HALF = {
+    "hip": 0.155, "chest": 0.165, "neck": 0.090, "snout": 0.045,
+    "tail1": 0.028, "tail2": 0.020, "tail3": 0.012,
+    "ear.L": 0.022,
+    "hipF.L": 0.055, "footF.L": 0.072,
+    "hipB.L": 0.045, "footB.L": 0.032,
+}
+KATAKUNAGANI_BONES_HALF = [
+    ("chest", "hip"), ("chest", "neck"), ("neck", "snout"),
+    ("hip", "tail1"), ("tail1", "tail2"), ("tail2", "tail3"),
+    ("neck", "ear.L"),
+    ("chest", "hipF.L"), ("hipF.L", "footF.L"),
+    ("hip", "hipB.L"), ("hipB.L", "footB.L"),
+]
+
+
+def build_katakunagani():
+    """
+    意固地になった古い意地。gajiriと同じ関節構成をベースに、体を平たく
+    幅広くしてカニらしい甲羅の輪郭にし、前脚を太く大きくして何かを
+    掴んで抱え込むための鋏に作り替える。耳と尻尾はカニらしからぬため
+    小さく切り詰め、代わりに頭から突き出た目柄を足す。配色は
+    第四地方(骨積みの回廊)の、白骨色・くすんだ灰色。
+    """
+    joints = C.mirrored(KATAKUNAGANI_HALF)
+    radii = C.mirrored_radii(KATAKUNAGANI_RADII_HALF)
+    bones = C.mirrored_bones(KATAKUNAGANI_BONES_HALF)
+
+    body = C.build_skinned("katakunagani", joints, bones, radii, root="chest", subsurf=2)
+    shell = C.make_material("katakuna_shell", (0.68, 0.65, 0.58), roughness=0.6)
+    ash = C.make_material("katakuna_ash", (0.42, 0.42, 0.44), roughness=0.75)
+    C.assign_materials_by_region(body, [shell, ash], lambda c: 1 if c.z < 0.075 else 0)
+
+    extras = []
+    # 何かを掴んで抱え込むための、太く大きな鋏
+    claw_mat = C.make_material("katakuna_claw", (0.76, 0.72, 0.62), roughness=0.55)
+    for side in (-1.0, 1.0):
+        px, py, pz = 0.20 * side, -0.06, 0.035
+        pincer = C.uv_sphere(f"katakuna_pincer{side}", (px, py, pz), 0.042,
+                             segments=14, rings=10, scale=(1.0, 1.3, 0.65))
+        C.assign_material(pincer, claw_mat)
+        extras.append(pincer)
+        claw_l = C.cone(f"katakuna_clawL{side}", (px + 0.045 * side, py - 0.075, pz + 0.005),
+                        0.020, 0.006, 0.075)
+        C.assign_material(claw_l, claw_mat)
+        extras.append(claw_l)
+        claw_r = C.cone(f"katakuna_clawR{side}", (px - 0.035 * side, py - 0.075, pz - 0.010),
+                        0.017, 0.005, 0.065)
+        C.assign_material(claw_r, claw_mat)
+        extras.append(claw_r)
+        # 頭から突き出た目柄
+        stalk = C.cylinder(f"katakuna_stalk{side}", (0.032 * side, -0.19, 0.175), 0.010, 0.055, segments=8)
+        C.assign_material(stalk, ash)
+        extras.append(stalk)
+        extras += eyeball(f"katakuna_eye{side}", (0.032 * side, -0.19, 0.205), 0.020,
+                          look=(0.3 * side, -1.0, 0.1))
+
+    mesh = C.join([body] + extras, "katakunagani")
+    armature = C.build_armature("katakunagani", joints, bones, mesh, root="chest")
+    return [mesh, armature], armature
+
+
+def katakunagani_animations():
+    neck, snout = "chest-neck", "neck-snout"
+    hipF_L, hipF_R = "chest-hipF.L", "chest-hipF.R"
+    hipB_L, hipB_R = "hip-hipB.L", "hip-hipB.R"
+    return [
+        # 意地を張ったまま、じっと身構える
+        ("idle", [
+            (1, {neck: (0, 0, 0)}),
+            (30, {neck: (2, 0, 1), hipF_L: (0, 0, 3), hipF_R: (0, 0, -3)}),
+            (60, {neck: (0, 0, 0), hipF_L: (0, 0, 0), hipF_R: (0, 0, 0)}),
+        ]),
+        # すばやく横滑りするように進む
+        ("walk", [
+            (1, {hipF_L: (14, 0, 0), hipF_R: (-14, 0, 0), hipB_L: (-12, 0, 0), hipB_R: (12, 0, 0)}),
+            (7, {hipF_L: (-14, 0, 0), hipF_R: (14, 0, 0), hipB_L: (12, 0, 0), hipB_R: (-12, 0, 0)}),
+            (14, {hipF_L: (14, 0, 0), hipF_R: (-14, 0, 0), hipB_L: (-12, 0, 0), hipB_R: (12, 0, 0)}),
+        ]),
+        # 素早く近づいて鋏でかすめ取り、意地を張ったまま身を引く
+        ("attack", [
+            (1, {neck: (0, 0, 0), hipF_L: (0, 0, 0), hipF_R: (0, 0, 0)}),
+            (4, {neck: (-12, 0, 0), hipF_L: (-22, 0, 12), hipF_R: (-22, 0, -12)}),
+            (8, {neck: (16, 0, 0), hipF_L: (24, 0, -8), hipF_R: (24, 0, 8)}),
+            (16, {neck: (0, 0, 0), hipF_L: (0, 0, 0), hipF_R: (0, 0, 0)}),
+        ]),
+        ("hit", [
+            (1, {neck: (0, 0, 0)}),
+            (4, {neck: (14, 0, 0), hipF_L: (-10, 0, 8), hipF_R: (-10, 0, -8)}),
+            (12, {neck: (0, 0, 0), hipF_L: (0, 0, 0), hipF_R: (0, 0, 0)}),
+        ]),
+        ("die", [
+            (1, {neck: (0, 0, 0)}),
+            (8, {neck: (10, 0, 0), hipF_L: (16, 0, 0), hipF_R: (16, 0, 0)}),
+            (18, {neck: (22, 0, 0), hipF_L: (36, 0, 0), hipF_R: (36, 0, 0)}),
+        ]),
+    ]
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -6668,6 +6783,7 @@ MONSTERS = {
     "horoholocho": (build_horoholocho, horoholocho_animations),
     "ishizuenezumi": (build_ishizuenezumi, ishizuenezumi_animations),
     "kasumiutsubo": (build_kasumiutsubo, kasumiutsubo_animations),
+    "katakunagani": (build_katakunagani, katakunagani_animations),
 }
 
 
