@@ -39,3 +39,19 @@ export function showBanner(history: readonly string[]): BannerState {
 export function fadeBanner(state: BannerState): BannerState {
   return state.faded ? state : { ...state, faded: true };
 }
+
+/**
+ * 帯を今見せてよいか。
+ *
+ * 帯は画面下部中央に固定で出るが、もちもの等のモーダルは画面中央から
+ * 下部まで伸びるためゾーンが衝突し、モーダルの効果説明・操作ヒントが
+ * 帯に隠れて読めなくなっていた(issue #461)。z-indexでモーダルを手前に
+ * 出すだけだと、帯はモーダルの裏で動き続けたうえ直下に見切れて残るので、
+ * モーダルが開いているあいだは表示条件そのものを落とす。
+ *
+ * 隠しているあいだのメッセージが失われるわけではない。行は`lines`に
+ * 残るので、モーダルを閉じればそのまま帯に出る(全文は「≡」→ログ)。
+ */
+export function bannerVisible(state: BannerState, modalOpen: boolean): boolean {
+  return !modalOpen && !state.faded && state.lines.length > 0;
+}
