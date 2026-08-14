@@ -6358,6 +6358,158 @@ def build_horoholocho():
 def horoholocho_animations():
     """骨の名前がpurunと同じ(base-mid, mid-top)ため、既存5クリップをそのまま流用する。"""
     return purun_animations()
+# =================================================================== いしずえねずみ
+
+# 第一地方(うたたねの参道)、配合限定の成熟種。ガジリねずみ(小さな不安)に
+# ホネガラミ(古い記憶)を繰り返し夢あわせすると育つ姿で、AI が coward から
+# guard へ変わる――すぐ逃げていた性格が、その場を固める性格へ変わる。
+# gajiri と同じ関節構成(四つ足のねずみ)を土台にしつつ、体高を落として
+# 重心を低く、胴・脚を太くしてどっしり見せ、背に厚い甲羅状のプレートを
+# 重ねて装甲質の表皮を表現する。尻尾も gajiri の長く跳ねる形から、短く
+# 太いどっしりした形に変える(逃げるための尻尾ではなく、踏ん張るための
+# 尻尾)。配色は第一地方の参道の土色に馴染む、素朴で淡いトーンにする。
+ISHIZUENEZUMI_HALF = {
+    "hip": (0.0, 0.20, 0.175),
+    "chest": (0.0, -0.02, 0.195),
+    "neck": (0.0, -0.19, 0.185),
+    "snout": (0.0, -0.375, 0.135),
+    "tail1": (0.0, 0.33, 0.150),
+    "tail2": (0.0, 0.43, 0.155),
+    "tail3": (0.0, 0.505, 0.170),
+    "ear.L": (0.100, -0.190, 0.310),
+    "hipF.L": (0.125, -0.065, 0.115),
+    "footF.L": (0.140, -0.105, 0.022),
+    "hipB.L": (0.150, 0.170, 0.125),
+    "footB.L": (0.165, 0.200, 0.022),
+}
+# gajiri より一回り太い。特に胴・脚を厚くして低い重心のどっしりした
+# シルエットを作り、耳は逃げ足の速さを示す大きさが要らなくなった分だけ
+# 小さく控えめにする
+ISHIZUENEZUMI_RADII_HALF = {
+    "hip": 0.155, "chest": 0.175, "neck": 0.115, "snout": 0.048,
+    "tail1": 0.046, "tail2": 0.036, "tail3": 0.024,
+    "ear.L": 0.048,
+    "hipF.L": 0.062, "footF.L": 0.052,
+    "hipB.L": 0.078, "footB.L": 0.058,
+}
+ISHIZUENEZUMI_BONES_HALF = [
+    ("chest", "hip"), ("chest", "neck"), ("neck", "snout"),
+    ("hip", "tail1"), ("tail1", "tail2"), ("tail2", "tail3"),
+    ("neck", "ear.L"),
+    ("chest", "hipF.L"), ("hipF.L", "footF.L"),
+    ("hip", "hipB.L"), ("hipB.L", "footB.L"),
+]
+
+
+def build_ishizuenezumi():
+    """
+    gajiri と同じ関節構成の四つ足のねずみだが、低い重心・厚い胴・太い脚で
+    どっしりした体格にし、背に甲羅状のプレートを重ねて装甲質の表皮にする。
+    配色は参道の土色に馴染む、素朴で淡いトーン。
+    """
+    joints = C.mirrored(ISHIZUENEZUMI_HALF)
+    radii = C.mirrored_radii(ISHIZUENEZUMI_RADII_HALF)
+    bones = C.mirrored_bones(ISHIZUENEZUMI_BONES_HALF)
+
+    body = C.build_skinned("ishizuenezumi", joints, bones, radii, root="chest", subsurf=2)
+    fur = C.make_material("ishizue_fur", (0.70, 0.60, 0.48), roughness=0.85)
+    ear_in = C.make_material("ishizue_ear", (0.76, 0.56, 0.50), roughness=0.8)
+
+    # 耳だけを内側の色にする(gajiri踏襲、耳の関節からの距離で判定)
+    ears = [Vector(joints["ear.L"]), Vector(joints["ear.R"])]
+    C.assign_materials_by_region(
+        body, [fur, ear_in],
+        lambda c: 1 if min((c - e).length for e in ears) < 0.058 else 0,
+    )
+
+    extras = []
+    for side in (-1.0, 1.0):
+        extras += eyeball(f"ishizue_eye{side}", (0.076 * side, -0.255, 0.210), 0.044,
+                          look=(0.2 * side, -1.0, 0.05))
+    nose = C.uv_sphere("ishizue_nose", (0.0, -0.408, 0.128), 0.030, segments=12, rings=8)
+    C.assign_material(nose, C.make_material("ishizue_nose_m", (0.72, 0.42, 0.44), roughness=0.4))
+    extras.append(nose)
+    # 前歯
+    teeth = C.box("ishizue_teeth", (0.0, -0.388, 0.086), (0.052, 0.026, 0.048), bevel=0.007)
+    C.assign_material(teeth, C.make_material("ishizue_teeth_m", (0.93, 0.91, 0.83), roughness=0.35))
+    extras.append(teeth)
+
+    # 背の甲羅。石畳のようにプレートを重ねて、装甲質の厚い表皮にする。
+    # 尾寄りから胸寄りまでを覆い、首から先(頭・耳)はあえて覆わず
+    # 露出させる(甲羅と首の柔らかさの対比、耳のシルエットとの衝突も避ける)
+    shell_mat = C.make_material("ishizue_shell", (0.52, 0.49, 0.42), roughness=0.55)
+    shell_specs = [
+        (0.19, 0.335, 0.098, (1.05, 0.85, 0.55)),
+        (0.06, 0.380, 0.115, (1.12, 0.85, 0.55)),
+        (0.02, 0.400, 0.118, (1.18, 0.78, 0.55)),
+    ]
+    for i, (sy, sz, radius, scale) in enumerate(shell_specs):
+        plate = C.uv_sphere(f"ishizue_shell{i}", (0.0, sy, sz), radius,
+                            segments=14, rings=8, scale=scale)
+        C.assign_material(plate, shell_mat)
+        extras.append(plate)
+
+    # 肩の小さな装甲(前脚の付け根を守る)
+    for side in (-1.0, 1.0):
+        pauldron = C.uv_sphere(f"ishizue_pauldron{side}", (0.145 * side, -0.06, 0.205), 0.058,
+                               segments=12, rings=8, scale=(1.0, 0.95, 0.65))
+        C.assign_material(pauldron, shell_mat)
+        extras.append(pauldron)
+
+    # 尾の先も小さな石畳で覆い、踏ん張りに使う尾らしい重みを見せる
+    tail_cap = C.uv_sphere("ishizue_tailcap", (0.0, 0.505, 0.185), 0.030,
+                           segments=10, rings=8, scale=(0.9, 1.1, 0.75))
+    C.assign_material(tail_cap, shell_mat)
+    extras.append(tail_cap)
+
+    mesh = C.join([body] + extras, "ishizuenezumi")
+    armature = C.build_armature("ishizuenezumi", joints, bones, mesh, root="chest")
+    return [mesh, armature], armature
+
+
+def ishizuenezumi_animations():
+    neck, snout = "chest-neck", "neck-snout"
+    t1, t2 = "hip-tail1", "tail1-tail2"
+    fL, fR = "chest-hipF.L", "chest-hipF.R"
+    bL, bR = "hip-hipB.L", "hip-hipB.R"
+    return [
+        # 動じない性格どおり、ほとんど揺らがずゆったり呼吸するだけ
+        ("idle", [
+            (1, {t1: (0, 0, 0), neck: (0, 0, 0)}),
+            (24, {t1: (0, 0, 4), neck: (-2, 0, 0), snout: (2, 0, 0)}),
+            (48, {t1: (0, 0, 0), neck: (0, 0, 0)}),
+        ]),
+        # 低い重心のまま、どっしりと地を踏みしめる歩み
+        ("walk", [
+            (1, {fL: (20, 0, 0), fR: (-20, 0, 0), bL: (-18, 0, 0), bR: (18, 0, 0), t1: (0, 0, 8)}),
+            (8, {fL: (0, 0, 0), fR: (0, 0, 0), bL: (0, 0, 0), bR: (0, 0, 0), t1: (0, 0, 0)}),
+            (15, {fL: (-20, 0, 0), fR: (20, 0, 0), bL: (18, 0, 0), bR: (-18, 0, 0), t1: (0, 0, -8)}),
+            (22, {fL: (0, 0, 0), fR: (0, 0, 0), bL: (0, 0, 0), bR: (0, 0, 0), t1: (0, 0, 0)}),
+            (29, {fL: (20, 0, 0), fR: (-20, 0, 0), bL: (-18, 0, 0), bR: (18, 0, 0), t1: (0, 0, 8)}),
+        ]),
+        # 噛みつきではなく、前脚を踏ん張って頭から体当たりする
+        ("attack", [
+            (1, {neck: (0, 0, 0), snout: (0, 0, 0), fL: (0, 0, 0), fR: (0, 0, 0)}),
+            (5, {neck: (18, 0, 0), snout: (10, 0, 0), fL: (-10, 0, 0), fR: (-10, 0, 0), t2: (0, 0, 16)}),
+            (10, {neck: (-28, 0, 0), snout: (-16, 0, 0), fL: (14, 0, 0), fR: (14, 0, 0), t2: (0, 0, -12)}),
+            (20, {neck: (0, 0, 0), snout: (0, 0, 0), fL: (0, 0, 0), fR: (0, 0, 0), t2: (0, 0, 0)}),
+        ]),
+        # 高い防御どおり、当たってもほとんど動じない
+        ("hit", [
+            (1, {neck: (0, 0, 0)}),
+            (4, {neck: (10, 0, 0), t1: (0, 0, 8)}),
+            (14, {neck: (0, 0, 0), t1: (0, 0, 0)}),
+        ]),
+        # 逃げ足だった頃とは違い、最後まで踏みとどまってから力尽きる
+        ("die", [
+            (1, {neck: (0, 0, 0)}),
+            (10, {neck: (20, 0, 0), fL: (-30, 0, 0), fR: (-30, 0, 0)}),
+            (28, {neck: (6, 0, 0), fL: (-60, 0, 0), fR: (-60, 0, 0),
+                  bL: (-45, 0, 0), bR: (-45, 0, 0), t1: (0, 0, 25)}),
+        ]),
+    ]
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -6412,6 +6564,7 @@ MONSTERS = {
     "honezukaNoNushi": (build_honezukaNoNushi, honezukaNoNushi_animations),
     "horikuiNoNushi": (build_horikuiNoNushi, horikuiNoNushi_animations),
     "horoholocho": (build_horoholocho, horoholocho_animations),
+    "ishizuenezumi": (build_ishizuenezumi, ishizuenezumi_animations),
 }
 
 
