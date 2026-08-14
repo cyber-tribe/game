@@ -5448,6 +5448,105 @@ def oomadoromi_animations():
     ]
 
 
+# ======================================================================= おおねぼすけ
+
+OONEBOSUKE_JOINTS = {
+    "base": (0.0, 0.0, 0.12),
+    "mid": (0.0, 0.0, 0.30),
+    "top": (0.0, 0.0, 0.495),
+}
+OONEBOSUKE_RADII = {"base": 0.435, "mid": 0.375, "top": 0.135}
+OONEBOSUKE_BONES = [("base", "mid"), ("mid", "top")]
+
+
+def build_oonebosuke():
+    """
+    眠りこけて起き上がれなくなった、途方もない眠気そのものが人の形を
+    借りた姿。purunと同じ縦2本の骨組みをそのまま流用し、全体を
+    およそ1.5倍に拡大して、がっしりした力強いシルエットにする。
+    まぶたが重く垂れた目(nebosukegaeruと同じ手法)とよだれで、
+    決して覚めない眠気を強調する。配色は第一地方(うたたねの参道)の、
+    参道の土色に馴染む素朴な淡い色合い。
+    """
+    body = C.build_skinned("oonebosuke", OONEBOSUKE_JOINTS, OONEBOSUKE_BONES,
+                           OONEBOSUKE_RADII, root="base", subsurf=2)
+    for vert in body.data.vertices:
+        if vert.co.z < 0.03:
+            vert.co.z = 0.03 - (0.03 - vert.co.z) * 0.25
+    skin = C.make_material("oonebosuke_skin", (0.74, 0.64, 0.50), roughness=0.7)
+    C.assign_material(body, skin)
+
+    extras = []
+    for side in (-1.0, 1.0):
+        extras += eyeball(f"oonebosuke_eye{side}", (0.128 * side, -0.294, 0.387), 0.077,
+                          look=(0.2 * side, -0.85, -0.1), squash=0.42,
+                          white=(0.90, 0.86, 0.78), dark=(0.14, 0.10, 0.08))
+        # 重く垂れたまぶた
+        lid = C.uv_sphere(f"oonebosuke_lid{side}", (0.128 * side, -0.285, 0.408), 0.078,
+                          segments=14, rings=10, scale=(1.0, 0.85, 0.55))
+        C.assign_material(lid, skin)
+        extras.append(lid)
+        # 腹の前で組んだような、丸めた腕
+        arm = C.uv_sphere(f"oonebosuke_arm{side}", (0.30 * side, -0.16, 0.20), 0.115,
+                          segments=16, rings=12, scale=(1.0, 0.85, 0.75))
+        C.assign_material(arm, skin)
+        extras.append(arm)
+    mouth = C.uv_sphere("oonebosuke_mouth", (0.0, -0.342, 0.238), 0.062,
+                        segments=14, rings=10, scale=(1.35, 0.5, 0.55))
+    C.assign_material(mouth, C.make_material("oonebosuke_mouth_m", (0.14, 0.10, 0.12), roughness=0.3))
+    extras.append(mouth)
+    # 止まらないよだれ
+    drool = C.uv_sphere("oonebosuke_drool", (-0.052, -0.320, 0.140), 0.026,
+                        segments=10, rings=8, scale=(0.7, 0.7, 1.8))
+    C.assign_material(drool, C.make_material("oonebosuke_drool_m", (0.80, 0.86, 0.82),
+                                             roughness=0.2, emission=0.1))
+    extras.append(drool)
+    # 頭頂の、寝ぼけ眼が見上げるような小さな尖り
+    cap = C.cone("oonebosuke_cap", (0.0, 0.0, 0.545), 0.05, 0.006, 0.09)
+    C.assign_material(cap, skin)
+    extras.append(cap)
+
+    mesh = C.join([body] + extras, "oonebosuke")
+    armature = C.build_armature("oonebosuke", C.mirrored(OONEBOSUKE_JOINTS), OONEBOSUKE_BONES,
+                                mesh, root="base")
+    return [mesh, armature], armature
+
+
+def oonebosuke_animations():
+    lower, upper = "base-mid", "mid-top"
+    return [
+        # ほとんど動かず、寝息だけのわずかな上下
+        ("idle", [
+            (1, {lower: {"scale": (1.0, 1.0, 1.0)}, upper: {"scale": (1.0, 1.0, 1.0)}}),
+            (36, {lower: {"scale": (1.03, 0.97, 1.03)}, upper: {"scale": (0.98, 1.03, 0.98)}}),
+            (72, {lower: {"scale": (1.0, 1.0, 1.0)}, upper: {"scale": (1.0, 1.0, 1.0)}}),
+        ]),
+        # 重い図体を引きずるように、のっそりと進む
+        ("walk", [
+            (1, {lower: {"scale": (1.0, 1.0, 1.0)}, upper: {"scale": (1.0, 1.0, 1.0)}}),
+            (10, {lower: {"scale": (1.16, 0.82, 1.16)}, upper: {"scale": (0.90, 1.14, 0.90)}}),
+            (20, {lower: {"scale": (1.0, 1.0, 1.0)}, upper: {"scale": (1.0, 1.0, 1.0)}}),
+        ]),
+        # 眠気を振り払うように、がっしりした体格から正面へ叩きつける
+        ("attack", [
+            (1, {lower: {"scale": (1.0, 1.0, 1.0)}, upper: {"scale": (1.0, 1.0, 1.0)}}),
+            (7, {lower: {"scale": (1.22, 0.72, 1.22)}, upper: {"scale": (0.82, 1.24, 0.82), "loc": (0, -0.05, 0)}}),
+            (14, {lower: {"scale": (0.85, 1.28, 0.85)}, upper: {"scale": (1.24, 0.78, 1.24), "loc": (0, 0.12, 0)}}),
+            (24, {lower: {"scale": (1.0, 1.0, 1.0)}, upper: {"scale": (1.0, 1.0, 1.0)}}),
+        ]),
+        ("hit", [
+            (1, {lower: {"scale": (1.0, 1.0, 1.0)}, upper: {"scale": (1.0, 1.0, 1.0)}}),
+            (4, {lower: {"scale": (1.28, 0.68, 1.28)}, upper: {"scale": (0.84, 1.20, 0.84)}}),
+            (14, {lower: {"scale": (1.0, 1.0, 1.0)}, upper: {"scale": (1.0, 1.0, 1.0)}}),
+        ]),
+        ("die", [
+            (1, {lower: {"scale": (1.0, 1.0, 1.0)}, upper: {"scale": (1.0, 1.0, 1.0)}}),
+            (10, {lower: {"scale": (1.4, 0.45, 1.4)}, upper: {"scale": (1.3, 0.5, 1.3)}}),
+            (24, {lower: {"scale": (1.55, 0.05, 1.55)}, upper: {"scale": (1.45, 0.07, 1.45)}}),
+        ]),
+    ]
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -5495,6 +5594,7 @@ MONSTERS = {
     "nushigaeru": (build_nushigaeru, nushigaeru_animations),
     "oitekeboshi": (build_oitekeboshi, oitekeboshi_animations),
     "oomadoromi": (build_oomadoromi, oomadoromi_animations),
+    "oonebosuke": (build_oonebosuke, oonebosuke_animations),
 }
 
 
