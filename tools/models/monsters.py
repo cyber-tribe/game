@@ -8020,6 +8020,127 @@ def yumemirupurun_animations():
     ]
 
 
+# ======================================================================= よせあつめ
+
+YOSEATSUME_HALF = {
+    "hip": (0.0, 0.093, 0.124),
+    "chest": (0.0, -0.0124, 0.130),
+    "neck": (0.0, -0.093, 0.118),
+    "snout": (0.0, -0.1984, 0.0806),
+    "tail1": (0.0, 0.1736, 0.1178),
+    "tail2": (0.0, 0.2604, 0.1488),
+    "tail3": (0.0, 0.3224, 0.1984),
+    "ear.L": (0.062, -0.093, 0.2108),
+    "hipF.L": (0.0558, -0.0372, 0.0868),
+    "footF.L": (0.062, -0.062, 0.0155),
+    "hipB.L": (0.0682, 0.0806, 0.093),
+    "footB.L": (0.0744, 0.0992, 0.0155),
+}
+YOSEATSUME_RADII_HALF = {
+    "hip": 0.0837, "chest": 0.0899, "neck": 0.0651, "snout": 0.0248,
+    "tail1": 0.0198, "tail2": 0.0149, "tail3": 0.0087,
+    "ear.L": 0.036,
+    "hipF.L": 0.0248, "footF.L": 0.0211,
+    "hipB.L": 0.0322, "footB.L": 0.0223,
+}
+YOSEATSUME_BONES_HALF = [
+    ("chest", "hip"), ("chest", "neck"), ("neck", "snout"),
+    ("hip", "tail1"), ("tail1", "tail2"), ("tail2", "tail3"),
+    ("neck", "ear.L"),
+    ("chest", "hipF.L"), ("hipF.L", "footF.L"),
+    ("hip", "hipB.L"), ("hipB.L", "footB.L"),
+]
+
+
+def build_yoseatsume():
+    """
+    様々な地方の残響が寄り集まった群れ。gajiriと同じ関節構成をベースに、
+    全体をおよそ0.62倍に縮めて、複数体まとめて配置される前提の
+    簡略化した小さなシルエットにする。mazarinezumiのような特定2種の
+    融合ではなく、由来がバラバラなまま集まっただけの群れなので、
+    甲羅などの追加パーツは持たせず、第一〜第七地方それぞれの色を
+    角度で不揃いに区切った継ぎ接ぎ模様として体にまとわせるだけに留める。
+    """
+    joints = C.mirrored(YOSEATSUME_HALF)
+    radii = C.mirrored_radii(YOSEATSUME_RADII_HALF)
+    bones = C.mirrored_bones(YOSEATSUME_BONES_HALF)
+
+    body = C.build_skinned("yoseatsume", joints, bones, radii, root="chest", subsurf=2)
+
+    # 第一〜第七地方それぞれの配色を継ぎ接ぎにする
+    region_mats = [
+        C.make_material("yose_r1", (0.72, 0.62, 0.48), roughness=0.7),   # 第1: うたたねの参道
+        C.make_material("yose_r2", (0.40, 0.52, 0.54), roughness=0.6),   # 第2: 忘れ潮の湿地
+        C.make_material("yose_r3", (0.46, 0.30, 0.24), roughness=0.6),   # 第3: まどろみの茸林
+        C.make_material("yose_r4", (0.74, 0.70, 0.62), roughness=0.65),  # 第4: 骨積みの回廊
+        C.make_material("yose_r5", (0.22, 0.26, 0.42), roughness=0.55),  # 第5: なみだの滝つぼ
+        C.make_material("yose_r6", (0.58, 0.48, 0.34), roughness=0.7),   # 第6: こだまの尾根
+        C.make_material("yose_r7", (0.54, 0.20, 0.18), roughness=0.55),  # 第7: 忘れられた祭りの跡
+    ]
+    bounds = [0.0, 40.0, 90.0, 135.0, 185.0, 235.0, 300.0, 360.0]
+
+    def classify(c):
+        deg = math.degrees(math.atan2(c.y, c.x)) % 360.0
+        for i in range(7):
+            if bounds[i] <= deg < bounds[i + 1]:
+                return i
+        return 6
+
+    C.assign_materials_by_region(body, region_mats, classify)
+
+    extras = []
+    for side in (-1.0, 1.0):
+        extras += eyeball(f"yose_eye{side}", (0.038 * side, -0.133, 0.133), 0.025,
+                          look=(0.3 * side, -1.0, 0.1))
+    nose = C.uv_sphere("yose_nose", (0.0, -0.218, 0.0775), 0.016, segments=12, rings=8)
+    C.assign_material(nose, C.make_material("yose_nose_m", (0.85, 0.45, 0.48), roughness=0.4))
+    extras.append(nose)
+    teeth = C.box("yose_teeth", (0.0, -0.205, 0.051), (0.028, 0.015, 0.027), bevel=0.004)
+    C.assign_material(teeth, C.make_material("yose_teeth_m", (0.95, 0.93, 0.84), roughness=0.35))
+    extras.append(teeth)
+
+    mesh = C.join([body] + extras, "yoseatsume")
+    armature = C.build_armature("yoseatsume", joints, bones, mesh, root="chest")
+    return [mesh, armature], armature
+
+
+def yoseatsume_animations():
+    neck, snout = "chest-neck", "neck-snout"
+    t1, t2 = "hip-tail1", "tail1-tail2"
+    fL, fR = "chest-hipF.L", "chest-hipF.R"
+    bL, bR = "hip-hipB.L", "hip-hipB.R"
+    return [
+        ("idle", [
+            (1, {t1: (0, 0, 0), neck: (0, 0, 0)}),
+            (14, {t1: (0, 0, 16), neck: (-4, 0, 0), snout: (5, 0, 0)}),
+            (28, {t1: (0, 0, -16), neck: (0, 0, 0)}),
+            (42, {t1: (0, 0, 0), neck: (0, 0, 0)}),
+        ]),
+        ("walk", [
+            (1, {fL: (30, 0, 0), fR: (-30, 0, 0), bL: (-28, 0, 0), bR: (28, 0, 0), t1: (0, 0, 12)}),
+            (6, {fL: (0, 0, 0), fR: (0, 0, 0), bL: (0, 0, 0), bR: (0, 0, 0), t1: (0, 0, 0)}),
+            (11, {fL: (-30, 0, 0), fR: (30, 0, 0), bL: (28, 0, 0), bR: (-28, 0, 0), t1: (0, 0, -12)}),
+            (16, {fL: (0, 0, 0), fR: (0, 0, 0), bL: (0, 0, 0), bR: (0, 0, 0), t1: (0, 0, 0)}),
+            (21, {fL: (30, 0, 0), fR: (-30, 0, 0), bL: (-28, 0, 0), bR: (28, 0, 0), t1: (0, 0, 12)}),
+        ]),
+        ("attack", [
+            (1, {neck: (0, 0, 0), snout: (0, 0, 0)}),
+            (4, {neck: (22, 0, 0), snout: (14, 0, 0), t2: (0, 0, 20)}),
+            (9, {neck: (-34, 0, 0), snout: (-20, 0, 0), t2: (0, 0, -14)}),
+            (18, {neck: (0, 0, 0), snout: (0, 0, 0), t2: (0, 0, 0)}),
+        ]),
+        ("hit", [
+            (1, {neck: (0, 0, 0)}),
+            (4, {neck: (26, 0, 0), t1: (0, 0, 24), snout: (12, 0, 0)}),
+            (14, {neck: (0, 0, 0), t1: (0, 0, 0)}),
+        ]),
+        ("die", [
+            (1, {neck: (0, 0, 0)}),
+            (9, {neck: (30, 0, 0), fL: (-50, 0, 0), fR: (-50, 0, 0)}),
+            (24, {neck: (10, 0, 0), fL: (-90, 0, 0), fR: (-90, 0, 0),
+                  bL: (-70, 0, 0), bR: (-70, 0, 0), t1: (0, 0, 40)}),
+        ]),
+    ]
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -8088,9 +8209,8 @@ MONSTERS = {
     "yoroimukade": (build_yoroimukade, yoroimukade_animations),
     "yoroioiteke": (build_yoroioiteke, yoroioiteke_animations),
     "yumemirupurun": (build_yumemirupurun, yumemirupurun_animations),
+    "yoseatsume": (build_yoseatsume, yoseatsume_animations),
 }
-
-
 
 
 def make(name: str):

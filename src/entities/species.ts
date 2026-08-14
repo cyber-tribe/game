@@ -1101,10 +1101,11 @@ export const SPECIES: readonly Species[] = [
     weight: 3,
   },
   {
-    // 様々な地方の残響が寄り集まった群れ。この作品唯一のエリートswarm。gajiriモデルを流用する
+    // 様々な地方の残響が寄り集まった群れ。この作品唯一のエリートswarm
+    // 専用モデル(plan/models/archive/model-yoseatsume.md)
     id: "yoseatsume",
     name: "よせあつめ",
-    model: "gajiri",
+    model: "yoseatsume",
     // 「群れの中に複数種族の性質が混在する」は群れが単一speciesという
     // populate.tsの前提を超えるため実装せず、通常のswarmとした(アーカイブ注記参照)
     maxHp: 24,
