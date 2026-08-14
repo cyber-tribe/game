@@ -6293,6 +6293,71 @@ def horikuiNoNushi_animations():
     ]
 
 
+# =================================================================== ホロホロチョウ
+
+# 計画書どおり、現在流用しているpurunの関節構成(縦2本、base-mid-top)を
+# そのまま踏襲する。akubitokage・kodamausagiと同じ「purun骨格の再利用」の
+# 3例目で、脚を生やさず底面を床で潰す処理も含めて完全に流用できるため、
+# アニメーションもpurun_animationsをそのまま呼べる(ボーン名が同一)。
+# swarmで3〜4体まとめて配置される前提のため、翼と目以外の装飾は足さず、
+# ashiatodori/mabutamushiよりさらに簡略なシルエットにとどめる。
+HOROHOLOCHO_JOINTS = {
+    "base": (0.0, 0.010, 0.048),
+    "mid": (0.0, -0.006, 0.128),
+    "top": (0.0, -0.026, 0.196),
+}
+HOROHOLOCHO_RADII = {"base": 0.128, "mid": 0.104, "top": 0.040}
+HOROHOLOCHO_BONES = [("base", "mid"), ("mid", "top")]
+
+
+def build_horoholocho():
+    """
+    ちぎれた微睡みの欠片。1羽ずつは非力だが、群れで現れるswarm。
+    purunと同じ縦2本の骨組みを流用し、底を床で潰した丸い雫形にするが、
+    上へ行くほど後ろへ反らせて、まどろみながら漂う軽い塊に見せる
+    (akubitokageと同じ「反らせ方」の応用だが、あちらより起伏を穏やかにし、
+    ふっくらした羽毛の房らしい丸みを残す)。
+    """
+    body = C.build_skinned("horoholocho", HOROHOLOCHO_JOINTS, HOROHOLOCHO_BONES,
+                           HOROHOLOCHO_RADII, root="base", subsurf=2)
+    # 底を平らに均して、床に乗っている感じを出す(purun/kodamausagiと同じ処理)
+    for vert in body.data.vertices:
+        if vert.co.z < 0.018:
+            vert.co.z = 0.018 - (0.018 - vert.co.z) * 0.25
+
+    # 配色は第3地方(まどろみの茸林)のテーマどおり、湿った土色を基調に、
+    # 頭頂だけ胞子の淡い黄土色をかぶったように塗り分ける(kinokootokoの
+    # 傘・houshitobiの胞子色と同じ淡い黄土色を、こちらでは頭の粉ふきに使う)
+    earth = C.make_material("horoholocho_earth", (0.30, 0.21, 0.14), roughness=0.78)
+    spore = C.make_material("horoholocho_spore", (0.84, 0.75, 0.48), roughness=0.5)
+    C.assign_materials_by_region(body, [earth, spore], lambda c: 1 if c.z > 0.165 else 0)
+
+    extras = []
+    # 眠たげな半目。squashで縦につぶし、まぶたが落ちかけた表情にする
+    for side in (-1.0, 1.0):
+        extras += eyeball(f"horoholocho_eye{side}", (0.040 * side, -0.088, 0.155), 0.020,
+                          look=(0.2 * side, -1.0, -0.1),
+                          white=(0.92, 0.88, 0.76), dark=(0.30, 0.20, 0.12), squash=0.45)
+
+    # 畳んで垂らした翼。胴の両脇に低く貼りつく羽毛の房を1つずつ乗せるだけ
+    # (ashiatodoriの翼と同じprimitive貼り付けだが、上に立てず横に寝かせて
+    # 眠たげに垂れ下がった羽に見せる)
+    wing_mat = C.make_material("horoholocho_wing", (0.42, 0.32, 0.22), roughness=0.6)
+    for side in (-1.0, 1.0):
+        wing = C.uv_sphere(f"horoholocho_wing{side}", (0.128 * side, 0.026, 0.088), 0.060,
+                           segments=14, rings=10, scale=(0.30, 1.25, 0.55))
+        C.assign_material(wing, wing_mat)
+        extras.append(wing)
+
+    mesh = C.join([body] + extras, "horoholocho")
+    armature = C.build_armature("horoholocho", C.mirrored(HOROHOLOCHO_JOINTS),
+                                HOROHOLOCHO_BONES, mesh, root="base")
+    return [mesh, armature], armature
+
+
+def horoholocho_animations():
+    """骨の名前がpurunと同じ(base-mid, mid-top)ため、既存5クリップをそのまま流用する。"""
+    return purun_animations()
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -6346,6 +6411,7 @@ MONSTERS = {
     "hajimeNoYume": (build_hajimeNoYume, hajimeNoYume_animations),
     "honezukaNoNushi": (build_honezukaNoNushi, honezukaNoNushi_animations),
     "horikuiNoNushi": (build_horikuiNoNushi, horikuiNoNushi_animations),
+    "horoholocho": (build_horoholocho, horoholocho_animations),
 }
 
 
