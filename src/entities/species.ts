@@ -298,7 +298,8 @@ export const SPECIES: readonly Species[] = [
     // 大技は隣接攻撃ではなく、自分のいる部屋全体への睡眠放出(plan/region-boss-oomadoromi.md)
     id: "oomadoromi",
     name: "オオマドロミ",
-    model: "madoromi",
+    // 専用モデル(plan/models/archive/model-oomadoromi.md)
+    model: "oomadoromi",
     maxHp: 82,
     atk: 22,
     def: 12,

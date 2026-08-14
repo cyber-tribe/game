@@ -5343,6 +5343,111 @@ def oitekeboshi_animations():
     ]
 
 
+# ======================================================================= オオマドロミ
+
+OOMADOROMI_JOINTS = {
+    "root": (0.0, 0.0, 0.075),
+    "stem": (0.0, 0.0, 0.335),
+    "capbase": (0.0, 0.0, 0.50),
+    "captop": (0.0, 0.0, 0.68),
+}
+OOMADOROMI_RADII = {"root": 0.165, "stem": 0.15, "capbase": 0.375, "captop": 0.08}
+OOMADOROMI_BONES = [("root", "stem"), ("stem", "capbase"), ("capbase", "captop")]
+
+
+def oomadoromi_cap_surface_z(dist: float) -> float:
+    """madoromiのcap_surface_zと同じ考え方を、oomadoromiの寸法に合わせて計算する。"""
+    base_z, top_z = OOMADOROMI_JOINTS["capbase"][2], OOMADOROMI_JOINTS["captop"][2]
+    base_r, top_r = OOMADOROMI_RADII["capbase"] * 0.86, OOMADOROMI_RADII["captop"]
+    t = min(1.0, max(0.0, (base_r - dist) / (base_r - top_r)))
+    return base_z + t * (top_z - base_z) - 0.016
+
+
+def build_oomadoromi():
+    """
+    マドロミダケが煮詰まりにまで煮詰まった、眠気そのものの化身。
+    madoromiと同じ関節構成をベースに、全体をおよそ1.4倍に拡大し、
+    がっしりした太い軸と大きく張り出した傘で、正面から迫る力強い
+    シルエットにする。ヨリシロの核に近い夢である証として、目を
+    淡く発光させる。配色は第三地方(まどろみの茸林)の、湿った土色と
+    胞子の淡い黄土色。
+    """
+    body = C.build_skinned("oomadoromi", OOMADOROMI_JOINTS, OOMADOROMI_BONES,
+                           OOMADOROMI_RADII, root="root", subsurf=2)
+    stem_mat = C.make_material("oomadoromi_stem", (0.78, 0.72, 0.58), roughness=0.75)
+    cap_mat = C.make_material("oomadoromi_cap", (0.46, 0.30, 0.24), roughness=0.6)
+    C.assign_materials_by_region(body, [stem_mat, cap_mat], lambda c: 1 if c.z > 0.44 else 0)
+
+    extras = []
+    glow = C.make_material("oomadoromi_eye", (0.86, 0.70, 0.40), roughness=0.25, emission=1.6)
+    for side in (-1.0, 1.0):
+        eye = C.uv_sphere(f"oomadoromi_eye{side}", (0.088 * side, -0.135, 0.285), 0.044,
+                          segments=16, rings=12, scale=(1.0, 0.55, 0.4))
+        C.assign_material(eye, glow)
+        extras.append(eye)
+    mouth = C.uv_sphere("oomadoromi_mouth", (0.0, -0.135, 0.205), 0.042,
+                        segments=14, rings=10, scale=(0.85, 0.5, 1.0))
+    C.assign_material(mouth, C.make_material("oomadoromi_mouth_m", (0.30, 0.16, 0.16), roughness=0.4))
+    extras.append(mouth)
+
+    # 傘の斑点。既存モデルより一回り大きく、数も多くする
+    spot_mat = C.make_material("oomadoromi_spot", (0.92, 0.86, 0.66), roughness=0.6)
+    for i, (angle_deg, dist, r) in enumerate([
+        (200.0, 0.075, 0.058), (300.0, 0.145, 0.050), (60.0, 0.125, 0.052),
+        (130.0, 0.180, 0.042), (10.0, 0.200, 0.036), (250.0, 0.225, 0.032),
+        (340.0, 0.100, 0.044),
+    ]):
+        angle = math.radians(angle_deg)
+        spot = C.uv_sphere(
+            f"oomadoromi_spot{i}",
+            (math.cos(angle) * dist, math.sin(angle) * dist, oomadoromi_cap_surface_z(dist)),
+            r, segments=12, rings=8, scale=(1.0, 1.0, 0.40),
+        )
+        C.assign_material(spot, spot_mat)
+        extras.append(spot)
+
+    mesh = C.join([body] + extras, "oomadoromi")
+    armature = C.build_armature("oomadoromi", OOMADOROMI_JOINTS, OOMADOROMI_BONES, mesh, root="root")
+    return [mesh, armature], armature
+
+
+def oomadoromi_animations():
+    stem, cap = "root-stem", "stem-capbase"
+    top = "capbase-captop"
+    return [
+        ("idle", [
+            (1, {stem: (0, 0, 0)}),
+            (36, {stem: (2, 0, 1), cap: (-2, 0, 0)}),
+            (72, {stem: (0, 0, 0)}),
+        ]),
+        # 太い軸を踏みしめ、傘を左右に大きく揺らして歩く
+        ("walk", [
+            (1, {stem: (0, 0, -7), cap: (0, 0, 5)}),
+            (10, {stem: (5, 0, 0), cap: (-4, 0, 0)}),
+            (20, {stem: (0, 0, 7), cap: (0, 0, -5)}),
+            (30, {stem: (5, 0, 0), cap: (-4, 0, 0)}),
+            (40, {stem: (0, 0, -7), cap: (0, 0, 5)}),
+        ]),
+        # がっしりした体格から、正面へ全身で叩きつける
+        ("attack", [
+            (1, {stem: (0, 0, 0), cap: (0, 0, 0), top: (0, 0, 0)}),
+            (6, {stem: (-12, 0, 0), cap: (-16, 0, 0), top: (-12, 0, 0)}),
+            (12, {stem: (20, 0, 0), cap: (28, 0, 0), top: (22, 0, 0)}),
+            (24, {stem: (0, 0, 0), cap: (0, 0, 0), top: (0, 0, 0)}),
+        ]),
+        ("hit", [
+            (1, {stem: (0, 0, 0)}),
+            (4, {stem: (-16, 0, 0), cap: (-14, 0, 0)}),
+            (14, {stem: (0, 0, 0), cap: (0, 0, 0)}),
+        ]),
+        ("die", [
+            (1, {stem: (0, 0, 0)}),
+            (10, {stem: (-28, 0, 8), cap: (-18, 0, 0)}),
+            (24, {stem: (-72, 0, 18), cap: (-30, 0, 0)}),
+        ]),
+    ]
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -5389,6 +5494,7 @@ MONSTERS = {
     "nemurimogura": (build_nemurimogura, nemurimogura_animations),
     "nushigaeru": (build_nushigaeru, nushigaeru_animations),
     "oitekeboshi": (build_oitekeboshi, oitekeboshi_animations),
+    "oomadoromi": (build_oomadoromi, oomadoromi_animations),
 }
 
 
