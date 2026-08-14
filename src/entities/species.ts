@@ -256,7 +256,8 @@ export const SPECIES: readonly Species[] = [
     // ぷるんが大きくなりすぎた姿。単純な単一フェーズの、チュートリアル的な最初のボス
     id: "oonebosuke",
     name: "おおねぼすけ",
-    model: "purun",
+    // 専用モデル(plan/models/archive/model-oonebosuke.md)
+    model: "oonebosuke",
     maxHp: 30,
     atk: 11,
     def: 4,
