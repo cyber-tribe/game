@@ -156,7 +156,8 @@ export const SPECIES: readonly Species[] = [
     // 育った姿。姿がかすみ、相手の攻撃を避けやすくなる
     id: "kasumiutsubo",
     name: "かすみウツボ",
-    model: "tsubute",
+    // 専用モデル(plan/models/archive/model-kasumiutsubo.md)
+    model: "kasumiutsubo",
     maxHp: 42,
     atk: 19,
     def: 9,
