@@ -52,6 +52,37 @@ function tap(input: Input, code: string): void {
   input.release(code);
 }
 
+/**
+ * 仮想パッドの方向入力を、前回の方向コード`prev`から`next`へ移す。
+ *
+ * 増えたぶんのコードは、アクションボタンのタップ(`tap`)と同じくまず
+ * `Input.onKey`へ渡す。メニューが開いていればそちらがカーソル移動として
+ * 消費するので、盤面用の`held`(押しっぱなし)には入れない。メニューが
+ * 無ければ`onKey`はfalseを返すので、従来どおり`press`に落ちる。これで
+ * 同じパッドが「メニュー中はカーソル、ダイブ中は移動」を兼ねる。
+ *
+ * 差分の基準に使うのは(実際にpressできたぶんではなく)要求された方向
+ * `next`そのもの。倒しっぱなしのあいだ`pointermove`は何度も飛んでくるが、
+ * 方向が変わらない限り「増えたぶん」は無くなるので、カーソルは倒すたびに
+ * 1つだけ動く。押していないコードへの`release`は`held`から消すだけの
+ * 空振りなので、メニューに吸われたコードを別途覚えておく必要はない。
+ */
+export function applyPadDirCodes(
+  input: Input,
+  prev: readonly string[],
+  next: readonly string[],
+): readonly string[] {
+  for (const code of prev) {
+    if (!next.includes(code)) input.release(code);
+  }
+  for (const code of next) {
+    if (prev.includes(code)) continue;
+    if (input.onKey?.(code, false)) continue;
+    input.press(code);
+  }
+  return next;
+}
+
 /** クリック/タップの両方で一度きりの操作を割り当てる。要素自体もタップ判定を邪魔しないようにする */
 function bindTap(el: HTMLElement, code: string, input: Input, onAfter?: () => void): void {
   el.style.touchAction = "none";
@@ -166,13 +197,7 @@ export class TouchControls {
   }
 
   private setDirCodes(next: readonly string[]): void {
-    for (const code of this.padDragCodes) {
-      if (!next.includes(code)) this.input.release(code);
-    }
-    for (const code of next) {
-      if (!this.padDragCodes.includes(code)) this.input.press(code);
-    }
-    this.padDragCodes = next;
+    this.padDragCodes = applyPadDirCodes(this.input, this.padDragCodes, next);
   }
 
   private wireActionButtons(): void {
