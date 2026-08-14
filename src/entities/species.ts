@@ -853,10 +853,10 @@ export const SPECIES: readonly Species[] = [
     weight: 3,
   },
   {
-    // ホネヅカのぬしに仕える小さな使い。オイテケボシと同じmadoromiモデルを流用する
+    // ホネヅカのぬしに仕える小さな使い。専用モデル(plan/models/archive/model-honezukanotsukai.md)
     id: "honezukanotsukai",
     name: "ホネヅカのつかい",
-    model: "madoromi",
+    model: "honezukanotsukai",
     maxHp: 28,
     atk: 18,
     def: 8,

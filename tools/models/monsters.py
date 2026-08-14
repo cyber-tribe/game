@@ -5647,6 +5647,128 @@ def subetenopurun_animations():
     ]
 
 
+# ================================================================= ホネヅカのつかい
+
+TSUKAI_JOINTS = {
+    "root": (0.0, 0.0, 0.025),
+    "stem": (0.0, 0.0, 0.105),
+    "capbase": (0.0, 0.0, 0.195),
+    "captop": (0.0, 0.0, 0.275),
+}
+TSUKAI_RADII = {"root": 0.052, "stem": 0.040, "capbase": 0.118, "captop": 0.028}
+TSUKAI_BONES = [("root", "stem"), ("stem", "capbase"), ("capbase", "captop")]
+
+
+def build_honezukanotsukai():
+    """
+    ホネヅカのぬしに仕える小さな使い。madoromiと同じ関節構成(root-stem-
+    capbase-captop)をベースに、傘ではなく積み重なった椎骨と頭骨を持つ姿にする。
+    オイテケボシと同じく満腹度を削るが、忠実な分だけ間合いが近い(range 2)ため、
+    口先から突き出た管状の器官を強調し、獲物のすぐそばまで寄って吐きかける
+    「発射器官」であることを見た目で示す。配色は第四地方(骨積みの回廊)の
+    白骨色・くすんだ灰色。目はぬしに仕える者らしく、感情のない冷たい薄青の光。
+    """
+    body = C.build_skinned("honezukanotsukai", TSUKAI_JOINTS, TSUKAI_BONES,
+                           TSUKAI_RADII, root="root", subsurf=2)
+    bone = C.make_material("tsukai_bone", (0.87, 0.85, 0.76), roughness=0.68)
+    ash = C.make_material("tsukai_ash", (0.44, 0.44, 0.46), roughness=0.72)
+    C.assign_materials_by_region(body, [bone, ash], lambda c: 1 if c.z > 0.235 else 0)
+
+    extras = []
+    # 積み重なった椎骨を思わせる、幹に食い込んだ骨の輪
+    ring_mat = C.make_material("tsukai_ring", (0.80, 0.77, 0.68), roughness=0.72)
+    for i, (z, r) in enumerate([(0.045, 0.050), (0.078, 0.044)]):
+        ring = C.cylinder(f"tsukai_ring{i}", (0.0, 0.0, z), r, 0.013, segments=16)
+        C.assign_material(ring, ring_mat)
+        extras.append(ring)
+
+    # 頭骨の両脇に突き出た、積みきれずにはみ出した肋骨の欠片
+    for side in (-1.0, 1.0):
+        rib = C.cone(f"tsukai_rib{side}", (0.095 * side, 0.0, 0.155), 0.020, 0.004, 0.075)
+        C.assign_material(rib, ash)
+        extras.append(rib)
+
+    # 眼窩と、ぬしに仕える者らしい冷たい薄青の光
+    socket_mat = C.make_material("tsukai_socket", (0.05, 0.05, 0.07), roughness=0.9)
+    glow_mat = C.make_material("tsukai_glow", (0.55, 0.72, 0.85), roughness=0.25, emission=2.2)
+    for side in (-1.0, 1.0):
+        socket = C.uv_sphere(f"tsukai_socket{side}", (0.048 * side, -0.088, 0.225), 0.030,
+                             segments=14, rings=10, scale=(1.0, 0.85, 1.1))
+        C.assign_material(socket, socket_mat)
+        extras.append(socket)
+        glow = C.uv_sphere(f"tsukai_glow{side}", (0.048 * side, -0.096, 0.225), 0.013,
+                           segments=10, rings=8)
+        C.assign_material(glow, glow_mat)
+        extras.append(glow)
+
+    # 顎と、満腹度を吸い出して吐きかけるための管状の発射口
+    mouth_mat = C.make_material("tsukai_mouth", (0.10, 0.09, 0.11), roughness=0.4)
+    jaw = C.uv_sphere("tsukai_jaw", (0.0, -0.108, 0.175), 0.034,
+                      segments=14, rings=10, scale=(1.0, 0.55, 0.6))
+    C.assign_material(jaw, mouth_mat)
+    extras.append(jaw)
+    snout = C.cylinder("tsukai_snout", (0.0, -0.155, 0.175), 0.022, 0.09,
+                       segments=14, axis="Y")
+    C.assign_material(snout, ash)
+    extras.append(snout)
+    nozzle = C.uv_sphere("tsukai_nozzle", (0.0, -0.196, 0.175), 0.020,
+                         segments=12, rings=8, scale=(0.8, 0.6, 0.8))
+    C.assign_material(nozzle, mouth_mat)
+    extras.append(nozzle)
+
+    # 頭骨の天辺に刺さった、割れた骨片の冠
+    shard_mat = C.make_material("tsukai_shard", (0.78, 0.75, 0.66), roughness=0.7)
+    for i, angle_deg in enumerate([0.0, 120.0, 240.0]):
+        angle = math.radians(angle_deg)
+        px, py = math.cos(angle) * 0.035, math.sin(angle) * 0.035
+        shard = C.cone(f"tsukai_shard{i}", (px, py, 0.290), 0.014, 0.002, 0.05)
+        C.assign_material(shard, shard_mat)
+        extras.append(shard)
+
+    mesh = C.join([body] + extras, "honezukanotsukai")
+    armature = C.build_armature("honezukanotsukai", TSUKAI_JOINTS, TSUKAI_BONES,
+                                mesh, root="root")
+    return [mesh, armature], armature
+
+
+def honezukanotsukai_animations():
+    lower, upper = "root-stem", "stem-capbase"
+    top = "capbase-captop"
+    return [
+        # ぬしの言いつけを待つように、わずかに揺れながら浮く
+        ("idle", [
+            (1, {lower: (0, 0, 0), upper: (0, 0, 0)}),
+            (24, {lower: (2, 0, 1.5), upper: (-2, 0, 0), top: (1.5, 0, 0)}),
+            (48, {lower: (0, 0, 0), upper: (0, 0, 0), top: (0, 0, 0)}),
+        ]),
+        ("walk", [
+            (1, {lower: (0, 0, -7), upper: (0, 0, 5)}),
+            (9, {lower: (4, 0, 0), upper: (-3, 0, 0)}),
+            (18, {lower: (0, 0, 7), upper: (0, 0, -5)}),
+            (27, {lower: (4, 0, 0), upper: (-3, 0, 0)}),
+            (36, {lower: (0, 0, -7), upper: (0, 0, 5)}),
+        ]),
+        # 間合いが近い分、素早く身を乗り出して発射口を突きつける
+        ("attack", [
+            (1, {upper: (0, 0, 0), top: (0, 0, 0)}),
+            (4, {upper: (-10, 0, 0), top: (-8, 0, 0)}),
+            (8, {upper: (26, 0, 0), top: (22, 0, 0)}),
+            (16, {upper: (0, 0, 0), top: (0, 0, 0)}),
+        ]),
+        ("hit", [
+            (1, {lower: (0, 0, 0)}),
+            (4, {lower: (-14, 0, 0), upper: (-12, 0, 0)}),
+            (14, {lower: (0, 0, 0), upper: (0, 0, 0)}),
+        ]),
+        # 積まれていた骨がほどけるように、崩れ落ちて元の骨積みに還る
+        ("die", [
+            (1, {lower: (0, 0, 0)}),
+            (10, {lower: (-26, 0, 8), upper: (-30, 0, 0)}),
+            (24, {lower: (-70, 0, 18), upper: (-58, 0, 0), top: (-20, 0, 0)}),
+        ]),
+    ]
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -5696,6 +5818,7 @@ MONSTERS = {
     "oomadoromi": (build_oomadoromi, oomadoromi_animations),
     "oonebosuke": (build_oonebosuke, oonebosuke_animations),
     "subetenopurun": (build_subetenopurun, subetenopurun_animations),
+    "honezukanotsukai": (build_honezukanotsukai, honezukanotsukai_animations),
 }
 
 
