@@ -140,6 +140,18 @@ export class Renderer {
     this.targetYaw += (Math.PI / 2) * steps;
   }
 
+  /**
+   * カメラの向きを90度単位で表した値(0〜3、反時計回りに増える)。
+   * 画面基準の入力をワールドの方角へ直すのに使う(issue #463)。
+   *
+   * 補間中の`yaw`ではなく確定値の`targetYaw`から出すので、回転アニメーションの
+   * 途中でパッドを倒しても向き先が揺れない
+   */
+  get cameraQuadrant(): number {
+    const steps = Math.round(this.targetYaw / (Math.PI / 2));
+    return ((steps % 4) + 4) % 4;
+  }
+
   /** 寄り引き */
   zoom(delta: number): void {
     this.distance = THREE.MathUtils.clamp(this.distance + delta, 6.5, 18);

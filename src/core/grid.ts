@@ -39,6 +39,16 @@ export function isDiagonal(dir: Dir): boolean {
   return dir % 2 === 1;
 }
 
+/**
+ * 方向を時計回りに`eighths`(8分の1回転=45度)ぶん回す。負の値は反時計回り。
+ *
+ * 画面基準で入れた方向をワールドの方角へ直すのに使う(issue #463)。
+ * カメラは90度単位で回るので、実際に渡ってくるのは2の倍数になる。
+ */
+export function rotateDir(dir: Dir, eighths: number): Dir {
+  return (((dir + eighths) % 8) + 8) % 8 as Dir;
+}
+
 export function dirDelta(dir: Dir): Vec2 {
   return DIRS[dir];
 }
