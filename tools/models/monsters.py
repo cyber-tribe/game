@@ -7906,6 +7906,120 @@ def yoroioiteke_animations():
     ]
 
 
+# ===================================================================== ゆめみるぷるん
+
+YUMEMIRUPURUN_JOINTS = {
+    "base": (0.0, 0.0, 0.0896),
+    "mid": (0.0, 0.0, 0.224),
+    "top": (0.0, 0.0, 0.3696),
+}
+YUMEMIRUPURUN_RADII = {"base": 0.3248, "mid": 0.28, "top": 0.1008}
+YUMEMIRUPURUN_BONES = [("base", "mid"), ("mid", "top")]
+
+
+def build_yumemirupurun():
+    """
+    ぷるん(まどろみの余韻)とマドロミダケ(眠気そのもの)の夢あわせで
+    育った姿。骨組みはpurunと同じ縦2本をそのまま流用し、全体をおよそ
+    1.12倍にしてAI(melee)にふさわしい、がっしりした正面向きの
+    シルエットにする。眠りを攻撃に乗せる性質を、白目を細めるだけでなく
+    白目の上から覆いかぶさる専用の「まぶた」ジオメトリを別途重ねることで
+    表現し(tokoshiepurun/subetenopurunのsquashだけの目とは異なる手法)、
+    頭上にはほのかに発光する「夢の粒」を3つ浮かべて、見るだけで
+    眠気を誘うような気配を添える。配色は第一地方(うたたねの参道)の
+    土色に、マドロミダケ由来の紫みをわずかに混ぜた、素朴で眠たげな
+    色合いにする。
+    """
+    body = C.build_skinned("yumemirupurun", YUMEMIRUPURUN_JOINTS, YUMEMIRUPURUN_BONES,
+                           YUMEMIRUPURUN_RADII, root="base", subsurf=2)
+    for vert in body.data.vertices:
+        if vert.co.z < 0.0225:
+            vert.co.z = 0.0225 - (0.0225 - vert.co.z) * 0.25
+    C.assign_material(body, C.make_material("yumemiru_body", (0.58, 0.50, 0.56),
+                                            roughness=0.4, metallic=0.0))
+
+    extras = []
+    lid_mat = C.make_material("yumemiru_lid", (0.50, 0.42, 0.48), roughness=0.45)
+    for side in (-1.0, 1.0):
+        eye_c = (0.0952 * side, -0.2195, 0.2890)
+        extras += eyeball(f"yumemiru_eye{side}", eye_c, 0.0605,
+                          look=(0.15 * side, -1.0, 0.0), squash=0.62)
+        # 白目の上から覆いかぶさる、重たいまぶた本体。squashで目を潰すだけ
+        # でなく別ジオメトリを足すことで、まどろみの重みをはっきり見せる
+        lid = C.uv_sphere(f"yumemiru_lid{side}",
+                          (eye_c[0], eye_c[1] + 0.014, eye_c[2] + 0.020), 0.066,
+                          segments=14, rings=10, scale=(1.05, 0.85, 0.40))
+        C.assign_material(lid, lid_mat)
+        extras.append(lid)
+
+    mouth = C.uv_sphere("yumemiru_mouth", (0.0, -0.2554, 0.1770), 0.0538,
+                        segments=14, rings=10, scale=(0.85, 0.55, 1.05))
+    C.assign_material(mouth, C.make_material("yumemiru_mouth_m", (0.20, 0.12, 0.18), roughness=0.3))
+    extras.append(mouth)
+
+    # 頭上に漂う、ほのかに発光する夢の粒。マドロミダケの胞子とは違い、
+    # 体表からは離れた高さにふわりと浮かせて「眠気そのもの」を示す
+    mote_mat = C.make_material("yumemiru_mote", (0.86, 0.80, 0.94), roughness=0.5, emission=1.3)
+    for i, (mx, my, mz, mr) in enumerate([
+        (0.095, -0.055, 0.415, 0.026),
+        (-0.075, 0.050, 0.452, 0.020),
+        (0.018, 0.100, 0.486, 0.016),
+    ]):
+        mote = C.uv_sphere(f"yumemiru_mote{i}", (mx, my, mz), mr, segments=10, rings=8)
+        C.assign_material(mote, mote_mat)
+        extras.append(mote)
+
+    mesh = C.join([body] + extras, "yumemirupurun")
+    armature = C.build_armature("yumemirupurun", C.mirrored(YUMEMIRUPURUN_JOINTS),
+                                YUMEMIRUPURUN_BONES, mesh, root="base")
+    return [mesh, armature], armature
+
+
+def yumemirupurun_animations():
+    lower, upper = "base-mid", "mid-top"
+    squash = {"scale": (1.22, 0.72, 1.22)}
+    stretch = {"scale": (0.86, 1.28, 0.86)}
+    neutral = {"scale": (1.0, 1.0, 1.0)}
+    return [
+        # 立ったまま船を漕ぐように舟をこぐ。深く傾いてまどろんでは、
+        # はっと我に返って起き直る、を繰り返す
+        ("idle", [
+            (1, {lower: neutral, upper: neutral}),
+            (18, {lower: {"scale": (1.02, 0.98, 1.02)}, upper: {"rot": (13, 0, 0), "scale": (0.96, 1.05, 0.96)}}),
+            (30, {lower: {"scale": (1.04, 0.96, 1.04)}, upper: {"rot": (22, 0, 0), "scale": (0.91, 1.10, 0.91)}}),
+            (34, {lower: neutral, upper: {"rot": (-9, 0, 0), "scale": (1.05, 0.93, 1.05)}}),
+            (44, {lower: neutral, upper: neutral}),
+            (70, {lower: neutral, upper: neutral}),
+        ]),
+        ("walk", [
+            (1, {lower: neutral, upper: neutral}),
+            (4, {lower: squash, upper: stretch}),
+            (9, {lower: {**stretch, "loc": (0, 0.10, 0)}, upper: squash}),
+            (14, {lower: {"scale": (1.1, 0.85, 1.1)}, upper: neutral}),
+            (20, {lower: neutral, upper: neutral}),
+        ]),
+        # 眠りを乗せる一撃。がっしりした体格を活かし、大きく沈んでから
+        # 正面に体当たりするように叩きつける
+        ("attack", [
+            (1, {lower: neutral, upper: neutral}),
+            (6, {lower: squash, upper: stretch}),
+            (11, {lower: {"scale": (0.80, 1.34, 0.80), "loc": (0, 0.09, 0)}, upper: {"scale": (1.22, 0.78, 1.22)}}),
+            (21, {lower: neutral, upper: neutral}),
+        ]),
+        ("hit", [
+            (1, {lower: neutral, upper: neutral}),
+            (4, {lower: {"scale": (1.28, 0.68, 1.28)}, upper: {"scale": (0.90, 1.14, 0.90)}}),
+            (14, {lower: neutral, upper: neutral}),
+        ]),
+        # そのまま深いまどろみに沈み込むように、ゆっくりと崩れて潰れる
+        ("die", [
+            (1, {lower: neutral, upper: neutral}),
+            (12, {lower: {"scale": (1.36, 0.48, 1.36)}, upper: {"scale": (1.26, 0.55, 1.26)}}),
+            (28, {lower: {"scale": (1.5, 0.06, 1.5)}, upper: {"scale": (1.4, 0.08, 1.4)}}),
+        ]),
+    ]
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -7973,7 +8087,10 @@ MONSTERS = {
     "wasuregani": (build_wasuregani, wasuregani_animations),
     "yoroimukade": (build_yoroimukade, yoroimukade_animations),
     "yoroioiteke": (build_yoroioiteke, yoroioiteke_animations),
+    "yumemirupurun": (build_yumemirupurun, yumemirupurun_animations),
 }
+
+
 
 
 def make(name: str):

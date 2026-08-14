@@ -136,7 +136,8 @@ export const SPECIES: readonly Species[] = [
     // 重ねて育った姿。攻撃に眠り付与が乗るようになる
     id: "yumemirupurun",
     name: "ゆめみるぷるん",
-    model: "purun",
+    // 専用モデル(plan/models/archive/model-yumemirupurun.md)
+    model: "yumemirupurun",
     maxHp: 20,
     atk: 9,
     def: 4,
