@@ -12,7 +12,7 @@ import { Minimap } from "./view/minimap";
 import { Renderer } from "./view/renderer";
 import { GalleryView } from "./view/gallery";
 import { Stage } from "./view/stage";
-import { VillageView } from "./view/village";
+import { VILLAGE_BUILDINGS, VillageView } from "./view/village";
 import { AudioPlayer } from "./audio/player";
 import { ja as jaDict } from "./i18n/ja";
 import { setLocale as applyLocaleDict, t } from "./i18n";
@@ -24,7 +24,7 @@ import { OrientationGuard } from "./ui/orientation-guard";
 import { StairsConfirmModal } from "./ui/stairs-confirm";
 import { StanceMenu } from "./ui/stance";
 import { TouchControls } from "./ui/touch-controls";
-import { TownScreen } from "./ui/town";
+import { SYSTEM_TOWN_COLUMNS, TownScreen } from "./ui/town";
 import { SlotSelectScreen } from "./ui/slot-select";
 import {
   abandonQuest,
@@ -80,6 +80,7 @@ import {
 import type { DifficultyMode } from "./entities/difficulty";
 import { costumeById } from "./entities/costumes";
 import { MAIN_CAVE_ID, REGION_SIZE, TARUKURABE_ID, TRUE_AWAKENING_ID } from "./entities/dungeons";
+import { isYoimatsuri } from "./entities/festivals";
 import { DEFAULT_MOOD_ID, MOOD_VISUALS, moodForDate } from "./entities/moods";
 import { todayKey } from "./entities/quests";
 import { STORY_CHAPTER_MESSAGES, storyChapter, storyChapterEventId } from "./entities/story";
@@ -368,11 +369,18 @@ class App {
   }
 
   /**
-   * 拠点の3D化(plan/town-3d-exploration.md)。村なかで近づいた建物に対応する
-   * 列を指定して、既存のTownScreenをそのまま開く。TownScreen自身の中身
+   * 建物・村人ごとの役割メニュー(plan/game/archive/village-scoped-menus.md)。
+   * 村なかで近づいた建物に対応する「開ける列の集合」と見出し(建物名)を
+   * 指定して、既存のTownScreenをそのまま開く。TownScreen自身の中身
    * (各列の一覧・操作)は一切変えていない
    */
-  private openTownScreen(initialColumn: number): void {
+  private openTownScreen(
+    openColumns: readonly number[],
+    heading: string,
+    initialColumn: number = openColumns[0] ?? 0,
+    systemMenuMode = false,
+    onClose?: () => void,
+  ): void {
     this.setVillageActive(false);
     this.town.show(
       this.save,
@@ -487,14 +495,45 @@ class App {
         this.town.refreshSave(this.save);
       },
       initialColumn,
+      openColumns,
+      heading,
+      systemMenuMode,
+      onClose,
     );
   }
 
-  /** 村なかで近づいた建物へ、確定キーで入る */
+  /**
+   * 村なかで近づいた建物へ、確定キーで入る
+   * (plan/game/archive/village-scoped-menus.md)。建物ごとの`columns`
+   * (開ける列の集合)をそのまま渡す。宵祭りの出店(村の広場の17列目)だけは
+   * 開催日でなければ最初から候補から外す(列自体は既存どおり非開催時の
+   * 案内を出すが、建物への滞在中に左右キーで無駄に立ち寄らせないため)
+   */
   private tryEnterVillageBuilding(): void {
     const building = this.village.nearBuilding();
     if (!building) return;
-    this.openTownScreen(building.column);
+    const columns =
+      building.id === "npcSquare" && !isYoimatsuri(todayKey())
+        ? building.columns.filter((c) => c !== 17)
+        : building.columns;
+    this.openTownScreen(columns, building.label, columns[0] ?? 0, columns.length === 0, () =>
+      this.setVillageActive(true),
+    );
+  }
+
+  /**
+   * システム系の「≡」メニュー(plan/game/archive/village-scoped-menus.md)。
+   * アクセシビリティ・音・設定は、世界の中の場所(建物)ではなくゲームの外の
+   * 設定なので、どの建物からも切り離し、村でもダイブ中でも共通のこの入口
+   * から開く。ダイブ中に開いても、Spaceキーでの即時出発は起きない
+   * (TownScreen側のsystemMenuMode)。閉じたら、村を歩いていたなら村へ、
+   * ダイブ中だったならそのままダイブへ戻る
+   */
+  private openSystemMenu(): void {
+    const wasVillageActive = this.villageActive;
+    this.openTownScreen(SYSTEM_TOWN_COLUMNS, "設定", SYSTEM_TOWN_COLUMNS[0], true, () => {
+      if (wasVillageActive) this.setVillageActive(true);
+    });
   }
 
   /**
@@ -785,10 +824,13 @@ class App {
     this.renderer.renderer.render(this.village.scene, this.village.camera);
 
     const building = this.village.nearBuilding();
+    // 建物・村人ごとの役割メニュー(plan/game/archive/village-scoped-menus.md):
+    // ヒントに役割の一言を添える(例:「ゲンドの工房(強化・合成)」)
+    const buildingLabel = building ? `${building.label}(${building.role})` : "";
     // 文言のタッチ対応(plan/game/mobile-layout-redesign.md): 「Space」はキーボード前提の表記
     this.villageHintEl.textContent = building
       ? resolveText(
-          { keyboard: `Space: ${building.label}へ`, touch: `決定ボタン: ${building.label}へ` },
+          { keyboard: `Space: ${buildingLabel}へ`, touch: `決定ボタン: ${buildingLabel}へ` },
           currentInputMode(),
         )
       : "";
@@ -962,6 +1004,14 @@ class App {
         return true;
       case "help":
         this.toggleHelp();
+        return true;
+      case "systemMenu":
+        // システム系の「≡」メニュー(plan/game/archive/village-scoped-menus.md):
+        // 他のモーダル・図鑑ギャラリー・写真モード・操作説明表示中、終了後は
+        // 二重に開かない
+        if (!this.anyModalOpen() && !this.ended && !this.photoMode && !this.helpVisible) {
+          this.openSystemMenu();
+        }
         return true;
       case "confirm":
         if (this.photoMode) {
@@ -1505,6 +1555,24 @@ class App {
   /** 村なかで確定キーを押したときに入れる建物があれば、そのidを返す */
   debugVillageNearBuildingId(): string | null {
     return this.village.nearBuilding()?.id ?? null;
+  }
+
+  /**
+   * 建物・村人ごとの役割メニュー(plan/game/archive/village-scoped-menus.md)。
+   * 通しプレイ(tools/playtest.mjs)が特定の建物まで自律的に歩かせるための、
+   * 村なかの現在位置
+   */
+  debugVillagePos(): { x: number; z: number } | null {
+    return this.villageActive ? this.village.playerPos : null;
+  }
+
+  /**
+   * 建物・村人ごとの役割メニュー(plan/game/archive/village-scoped-menus.md)。
+   * 通しプレイ(tools/playtest.mjs)が、村マップの座標を見ながら狙った建物まで
+   * 歩かせるための道しるべ(id・座標だけの一覧)
+   */
+  debugVillageBuildings(): { id: string; x: number; z: number }[] {
+    return VILLAGE_BUILDINGS.map((b) => ({ id: b.id, x: b.x, z: b.z }));
   }
 
   /** 倒れたときの流れを確かめるために、わざと力尽きさせる */

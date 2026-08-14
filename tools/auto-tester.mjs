@@ -174,13 +174,32 @@ async function runSession(browser, index) {
     });
     await page.waitForTimeout(800);
 
-    // 拠点の3D化(plan/town-3d-exploration.md): 起動直後は村なかの3D空間から
-    // 始まる。北へ少し歩けば「旅の看板」に着くので、近づいて確定してから、
-    // 既定の持ち込みのまま即座に潜る
-    await page.keyboard.down("ArrowUp");
-    await page.waitForTimeout(1200);
-    await page.keyboard.up("ArrowUp");
-    await page.waitForTimeout(300);
+    // 建物・村人ごとの役割メニュー(plan/game/archive/village-scoped-menus.md):
+    // 起動直後は村なかの3D空間から始まる。「旅の看板」は列(0〜19)を持たない
+    // 掲示専用の場所に変わったため、出発の支度一式を開ける「洞窟の入口」まで
+    // debugVillagePos/debugVillageBuildings(いずれもデバッグ用の入口)を
+    // 見ながら歩き、近づいて確定してから、既定の持ち込みのまま即座に潜る
+    const cave = await page.evaluate(
+      () => globalThis.__app?.debugVillageBuildings?.()?.find((b) => b.id === "cave") ?? null,
+    );
+    if (cave) {
+      const deadline = Date.now() + 8_000;
+      while (Date.now() < deadline) {
+        const near = await page.evaluate(() => globalThis.__app?.debugVillageNearBuildingId?.() ?? null);
+        if (near === "cave") break;
+        const pos = await page.evaluate(() => globalThis.__app?.debugVillagePos?.() ?? null);
+        if (!pos) break;
+        const dx = cave.x - pos.x;
+        const dz = cave.z - pos.z;
+        const keys = [];
+        if (Math.abs(dx) > 0.25) keys.push(dx > 0 ? "ArrowRight" : "ArrowLeft");
+        if (Math.abs(dz) > 0.25) keys.push(dz > 0 ? "ArrowDown" : "ArrowUp");
+        if (keys.length === 0) break;
+        for (const k of keys) await page.keyboard.down(k);
+        await page.waitForTimeout(120);
+        for (const k of keys) await page.keyboard.up(k);
+      }
+    }
     await page.keyboard.press("Space");
     await page.waitForTimeout(700);
 
@@ -241,6 +260,11 @@ async function runSession(browser, index) {
           await page.keyboard.press("Space").catch(() => {});
           await page.waitForTimeout(400);
         } else {
+          // 建物・村人ごとの役割メニュー(plan/game/archive/village-scoped-menus.md):
+          // 「旅の看板」やシステム系の「≡」メニューはSpaceでは閉じない
+          // (出発の暴発防止)。Escapeを先に試してから、従来どおりR・Spaceも試す
+          await page.keyboard.press("Escape").catch(() => {});
+          await page.waitForTimeout(200);
           await page.keyboard.press("KeyR").catch(() => {});
           await page.waitForTimeout(400);
           await page.keyboard.press("Space").catch(() => {});

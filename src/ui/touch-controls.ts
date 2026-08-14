@@ -148,6 +148,7 @@ export class TouchControls {
         <button type="button" data-code="KeyP">フォトモード</button>
         <button type="button" data-code="KeyH">操作説明</button>
         <button type="button" data-action="log">ログ</button>
+        <button type="button" data-code="KeyM">設定</button>
       </div>
     `;
 

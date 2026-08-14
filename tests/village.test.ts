@@ -30,8 +30,18 @@ describe("view/village.ts: 村マップの配置", () => {
 
   it("拠点画面(TownScreen)の列番号(0〜19)の範囲に収まっている", () => {
     for (const b of VILLAGE_BUILDINGS) {
-      expect(b.column).toBeGreaterThanOrEqual(0);
-      expect(b.column).toBeLessThanOrEqual(19);
+      for (const column of b.columns) {
+        expect(column).toBeGreaterThanOrEqual(0);
+        expect(column).toBeLessThanOrEqual(19);
+      }
+    }
+  });
+
+  it("システム系の列(14=アクセシビリティ・18=音・19=設定)はどの建物からも開けない(「≡」メニュー専用)", () => {
+    for (const b of VILLAGE_BUILDINGS) {
+      expect(b.columns).not.toContain(14);
+      expect(b.columns).not.toContain(18);
+      expect(b.columns).not.toContain(19);
     }
   });
 
@@ -48,6 +58,80 @@ describe("view/village.ts: 村マップの配置", () => {
 
   it("出発地点(VILLAGE_PLAYER_START)はどの建物とも重ならない", () => {
     expect(nearestVillageBuildingCollision(VILLAGE_PLAYER_START)).toBe(false);
+  });
+});
+
+/**
+ * 村のメニューを建物・村人ごとの役割に分ける
+ * (plan/game/archive/village-scoped-menus.mdの対応表)。
+ * 建物ごとに開ける列の集合が、計画書の対応表どおりであることを確かめる。
+ */
+describe("view/village.ts: 建物・村人ごとの役割メニュー(village-scoped-menus)", () => {
+  function columnsOf(id: string): readonly number[] {
+    return VILLAGE_BUILDINGS.find((b) => b.id === id)?.columns ?? [];
+  }
+
+  it("洞窟の入口: 出発の支度一式(倉庫・持ち込み・出発地点・鍛え方・つれていく仲間・難易度・潜るダンジョン)", () => {
+    expect(columnsOf("cave")).toEqual([0, 1, 2, 3, 4, 10, 12]);
+  });
+
+  it("モグラ婆の倉庫: 倉庫・持ち込む", () => {
+    expect(columnsOf("storage")).toEqual([0, 1]);
+  });
+
+  it("ねむり小屋(新設): つれていく仲間(仲間の世話)", () => {
+    expect(columnsOf("sleepHut")).toEqual([4]);
+  });
+
+  it("ゲンドの工房: 工房", () => {
+    expect(columnsOf("workshop")).toEqual([5]);
+  });
+
+  it("おキヨの図鑑小屋: モンスター図鑑・装備図鑑", () => {
+    expect(columnsOf("gallery")).toEqual([7, 9]);
+  });
+
+  it("記録の間(新設): 記録の間・実績帳", () => {
+    expect(columnsOf("recordsHall")).toEqual([6, 8]);
+  });
+
+  it("オトネの依頼板: 依頼板", () => {
+    expect(columnsOf("questBoard")).toEqual([11]);
+  });
+
+  it("村の発展の受付: 村の発展", () => {
+    expect(columnsOf("development")).toEqual([13]);
+  });
+
+  it("村の広場: NPCと話す・宵祭りの出店", () => {
+    expect(columnsOf("npcSquare")).toEqual([16, 17]);
+  });
+
+  it("ガルドの家(新設): 身支度", () => {
+    expect(columnsOf("garudoHouse")).toEqual([15]);
+  });
+
+  it("旅の看板: 列を持たない(従来の「既定の入口(全列)」の役割は廃止)", () => {
+    expect(columnsOf("board")).toEqual([]);
+  });
+
+  it("新設3件(ねむり小屋・記録の間・ガルドの家)が村マップに実在する", () => {
+    const ids = VILLAGE_BUILDINGS.map((b) => b.id);
+    expect(ids).toContain("sleepHut");
+    expect(ids).toContain("recordsHall");
+    expect(ids).toContain("garudoHouse");
+  });
+
+  it("システム系の列(14・18・19)はどの建物のcolumnsにも現れない(「≡」メニュー専用)", () => {
+    const allOpenedColumns = new Set(VILLAGE_BUILDINGS.flatMap((b) => b.columns));
+    expect(allOpenedColumns.has(14)).toBe(false);
+    expect(allOpenedColumns.has(18)).toBe(false);
+    expect(allOpenedColumns.has(19)).toBe(false);
+  });
+
+  it("同じ列を複数の建物から開いてよい(倉庫は入口でもモグラ婆でも開ける)", () => {
+    expect(columnsOf("cave")).toEqual(expect.arrayContaining([0, 1]));
+    expect(columnsOf("storage")).toEqual(expect.arrayContaining([0, 1]));
   });
 });
 
@@ -98,7 +182,7 @@ describe("view/village.ts: moveVillagePlayer", () => {
     const building: VillageBuilding = {
       id: "test",
       label: "テスト",
-      column: 0,
+      columns: [0], role: "テスト",
       x: 3,
       z: 0,
       radius: 1,
@@ -119,7 +203,7 @@ describe("view/village.ts: nearestVillageBuilding", () => {
   const near: VillageBuilding = {
     id: "near",
     label: "近い建物",
-    column: 1,
+    columns: [1], role: "近い建物のテスト",
     x: 0,
     z: 0,
     radius: 1,
@@ -129,7 +213,7 @@ describe("view/village.ts: nearestVillageBuilding", () => {
   const far: VillageBuilding = {
     id: "far",
     label: "遠い建物",
-    column: 2,
+    columns: [2], role: "遠い建物のテスト",
     x: 10,
     z: 10,
     radius: 1,

@@ -56,6 +56,24 @@ import { nextTownColumn, type TownColumn } from "./townCursor";
 /** ダンジョンに持ち込める数。全部持って行けたら倉庫に預ける意味がない */
 export const CARRY_LIMIT = 8;
 
+/**
+ * 村のメニューを建物・村人ごとの役割に分ける
+ * (plan/game/archive/village-scoped-menus.md)。
+ *
+ * 従来どおり全20列を一直線に並べる既定値。`show()`にopenColumnsを渡さない
+ * 呼び出し(テスト等)はこれで動く
+ */
+export const ALL_TOWN_COLUMNS: readonly TownColumn[] = [
+  0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+];
+
+/**
+ * システム系の列(世界の中の場所ではなく、ゲームの外の設定)。どの建物からも
+ * 開けず、村でもダイブ中でも開ける「≡」メニュー経由(`main.ts`の
+ * `openSystemMenu`)でだけ開く
+ */
+export const SYSTEM_TOWN_COLUMNS: readonly TownColumn[] = [14, 18, 19];
+
 /** 鍛え方(plan/protagonist-training.md、アーカイブ済み)の選択肢と表示名 */
 const TRAINING_FOCI: readonly TrainingFocus[] = ["offense", "defense", "balance"];
 const TRAINING_FOCUS_LABELS: Record<TrainingFocus, string> = {
@@ -79,6 +97,25 @@ export class TownScreen {
   private open = false;
   /** 0=倉庫 1=持ち込み 2=出発地点 3=鍛え方 4=つれていく仲間 5=ゲンドの工房 6=記録の間 7=モンスター図鑑 8=実績帳 9=装備図鑑 10=難易度 11=依頼板 12=潜るダンジョン 13=村の発展 14=アクセシビリティ 15=身支度 16=NPCと話す(plan/village-life.md) 17=宵祭りの出店(plan/yoimatsuri-festival.md) 18=音(plan/audio-playback.md) 19=設定(plan/settings-screen.md) */
   private column: TownColumn = 0;
+  /**
+   * 村のメニューを建物・村人ごとの役割に分ける
+   * (plan/game/archive/village-scoped-menus.md)。左右キーの移動先を
+   * この集合の中だけに限る(`townCursor.ts`のnextTownColumnへ渡す)。
+   * `renderColumn(N, ...)`自体は変えず、どの列が実際にDOMへ現れるか
+   * (render()内)と、移動できる範囲だけをこれで絞る
+   */
+  private openColumns: readonly TownColumn[] = ALL_TOWN_COLUMNS;
+  /** 開いている建物・場所の見出し(建物名)。省略時(全列を開く従来呼び出し)はnull */
+  private heading: string | null = null;
+  /**
+   * システム系の列(アクセシビリティ・音・設定)専用の「≡」メニューとして
+   * 開いているか。trueのあいだはSpaceキー・「もぐる」ボタンでの即時出発を
+   * 止める(ダイブ中に「≡」から設定を開いただけで、現在の潜行を打ち切って
+   * 新しいダイブを始めてしまう事故を防ぐ)。Escapeで呼び出し元へ戻る
+   */
+  private systemMenuMode = false;
+  /** systemMenuMode(またはあとで追加する他の非出発モード)を閉じたときに呼ぶ */
+  private onCloseWithoutDeparting: (() => void) | null = null;
   private cursor: [number, number] = [0, 0];
   private storage: StoredItem[] = [];
   private carry: StoredItem[] = [];
@@ -235,11 +272,38 @@ export class TownScreen {
      * 従来どおりの挙動
      */
     initialColumn = 0,
+    /**
+     * 建物・村人ごとの役割メニュー(plan/game/archive/village-scoped-menus.md)。
+     * 左右キーで移動できる列をこの集合の中だけに限る。省略時(またはisOpen)は
+     * 従来どおり全20列を一直線に横断できる。空配列は「列を持たない特別な
+     * 場所」(旅の看板)を表し、代わりに`render()`が専用の掲示内容を出す
+     */
+    openColumns: readonly number[] = ALL_TOWN_COLUMNS,
+    /** 開いている建物・場所の見出し(建物名)。省略時は見出し無し(従来どおり) */
+    heading: string | null = null,
+    /**
+     * システム系の「≡」メニュー(アクセシビリティ・音・設定)として開いて
+     * いるか。trueならSpaceキー・「もぐる」ボタンでの即時出発を止め、
+     * Escapeで`onClose`を呼んで閉じる(ダイブ中に開いても現在の潜行を
+     * 打ち切らない)
+     */
+    systemMenuMode = false,
+    /** systemMenuMode(または列を持たない旅の看板)をEscapeで閉じたときに呼ぶ */
+    onClose?: () => void,
   ): void {
     this.save = save;
     this.storage = save.storage.map((s) => ({ ...s }));
     this.carry = [];
-    this.column = Math.min(19, Math.max(0, Math.trunc(initialColumn))) as typeof this.column;
+    // 呼び出し元(main.ts)は素のnumberでbuilding.columns/SYSTEM_TOWN_COLUMNSを
+    // 渡してくるため、ここで0〜19に丸めてTownColumnへ正規化する(重複も除く)
+    this.openColumns = [
+      ...new Set(openColumns.map((n) => Math.min(19, Math.max(0, Math.trunc(n))) as TownColumn)),
+    ].sort((a, b) => a - b);
+    this.heading = heading;
+    this.systemMenuMode = systemMenuMode || this.openColumns.length === 0;
+    this.onCloseWithoutDeparting = onClose ?? null;
+    const clampedInitial = Math.min(19, Math.max(0, Math.trunc(initialColumn))) as TownColumn;
+    this.column = (this.openColumns.includes(clampedInitial) ? clampedInitial : this.openColumns[0] ?? 0) as typeof this.column;
     this.cursor = [0, 0];
     // 既知のめざめの階段のうち、最も深いところから出発する状態で開く
     this.startDepthIndex = Math.max(0, this.checkpoints().length - 1);
@@ -405,6 +469,29 @@ export class TownScreen {
       return true;
     }
 
+    // 旅の看板(plan/game/archive/village-scoped-menus.md): 列(0〜19)を
+    // 1つも持たない特別な場所。掲示を読むだけで、列移動・出発は行わない
+    if (this.openColumns.length === 0) {
+      if (code === "Escape" || code === "Enter" || code === "NumpadEnter") {
+        this.hide();
+        this.onCloseWithoutDeparting?.();
+      }
+      return true;
+    }
+
+    // システム系の「≡」メニュー(アクセシビリティ・音・設定)として開いている
+    // あいだは、Spaceキーでの即時出発を止める(ダイブ中に「≡」から設定を
+    // 開いただけで、現在の潜行を打ち切って新しいダイブを始めてしまう事故を
+    // 防ぐ)。Escapeで呼び出し元(村なか歩き、またはダイブの続き)へ戻る
+    if (this.systemMenuMode) {
+      if (code === "Escape") {
+        this.hide();
+        this.onCloseWithoutDeparting?.();
+        return true;
+      }
+      if (code === "Space") return true;
+    }
+
     if (this.column === 2) {
       const checkpoints = this.checkpoints();
       switch (code) {
@@ -418,11 +505,11 @@ export class TownScreen {
           break;
         case "ArrowLeft":
         case "KeyA":
-          this.column = nextTownColumn(this.column, -1);
+          this.column = nextTownColumn(this.column, -1, this.openColumns);
           break;
         case "ArrowRight":
         case "KeyD":
-          this.column = nextTownColumn(this.column, 1);
+          this.column = nextTownColumn(this.column, 1, this.openColumns);
           break;
         case "Space":
           this.departNow();
@@ -446,11 +533,11 @@ export class TownScreen {
           break;
         case "ArrowLeft":
         case "KeyA":
-          this.column = nextTownColumn(this.column, -1);
+          this.column = nextTownColumn(this.column, -1, this.openColumns);
           break;
         case "ArrowRight":
         case "KeyD":
-          this.column = nextTownColumn(this.column, 1);
+          this.column = nextTownColumn(this.column, 1, this.openColumns);
           break;
         case "Space":
           this.departNow();
@@ -502,12 +589,12 @@ export class TownScreen {
         case "KeyA":
           this.fusionAxisUid = null;
           this.favoriteNotice = null;
-          this.column = nextTownColumn(this.column, -1);
+          this.column = nextTownColumn(this.column, -1, this.openColumns);
           break;
         case "ArrowRight":
         case "KeyD":
           this.favoriteNotice = null;
-          this.column = nextTownColumn(this.column, 1);
+          this.column = nextTownColumn(this.column, 1, this.openColumns);
           break;
         case "Enter":
         case "NumpadEnter":
@@ -559,11 +646,11 @@ export class TownScreen {
       switch (code) {
         case "ArrowLeft":
         case "KeyA":
-          this.column = nextTownColumn(this.column, -1);
+          this.column = nextTownColumn(this.column, -1, this.openColumns);
           break;
         case "ArrowRight":
         case "KeyD":
-          this.column = nextTownColumn(this.column, 1);
+          this.column = nextTownColumn(this.column, 1, this.openColumns);
           break;
         case "Space":
           this.departNow();
@@ -587,11 +674,11 @@ export class TownScreen {
           break;
         case "ArrowLeft":
         case "KeyA":
-          this.column = nextTownColumn(this.column, -1);
+          this.column = nextTownColumn(this.column, -1, this.openColumns);
           break;
         case "ArrowRight":
         case "KeyD":
-          this.column = nextTownColumn(this.column, 1);
+          this.column = nextTownColumn(this.column, 1, this.openColumns);
           break;
         case "Enter":
         case "NumpadEnter": {
@@ -622,11 +709,11 @@ export class TownScreen {
           break;
         case "ArrowLeft":
         case "KeyA":
-          this.column = nextTownColumn(this.column, -1);
+          this.column = nextTownColumn(this.column, -1, this.openColumns);
           break;
         case "ArrowRight":
         case "KeyD":
-          this.column = nextTownColumn(this.column, 1);
+          this.column = nextTownColumn(this.column, 1, this.openColumns);
           break;
         case "Enter":
         case "NumpadEnter":
@@ -646,11 +733,11 @@ export class TownScreen {
       switch (code) {
         case "ArrowLeft":
         case "KeyA":
-          this.column = nextTownColumn(this.column, -1);
+          this.column = nextTownColumn(this.column, -1, this.openColumns);
           break;
         case "ArrowRight":
         case "KeyD":
-          this.column = nextTownColumn(this.column, 1);
+          this.column = nextTownColumn(this.column, 1, this.openColumns);
           break;
         case "Space":
           this.departNow();
@@ -674,11 +761,11 @@ export class TownScreen {
           break;
         case "ArrowLeft":
         case "KeyA":
-          this.column = nextTownColumn(this.column, -1);
+          this.column = nextTownColumn(this.column, -1, this.openColumns);
           break;
         case "ArrowRight":
         case "KeyD":
-          this.column = nextTownColumn(this.column, 1);
+          this.column = nextTownColumn(this.column, 1, this.openColumns);
           break;
         case "Space":
           this.departNow();
@@ -703,11 +790,11 @@ export class TownScreen {
           break;
         case "ArrowLeft":
         case "KeyA":
-          this.column = nextTownColumn(this.column, -1);
+          this.column = nextTownColumn(this.column, -1, this.openColumns);
           break;
         case "ArrowRight":
         case "KeyD":
-          this.column = nextTownColumn(this.column, 1);
+          this.column = nextTownColumn(this.column, 1, this.openColumns);
           break;
         case "Enter":
         case "NumpadEnter": {
@@ -739,11 +826,11 @@ export class TownScreen {
           break;
         case "ArrowLeft":
         case "KeyA":
-          this.column = nextTownColumn(this.column, -1);
+          this.column = nextTownColumn(this.column, -1, this.openColumns);
           break;
         case "ArrowRight":
         case "KeyD":
-          this.column = nextTownColumn(this.column, 1);
+          this.column = nextTownColumn(this.column, 1, this.openColumns);
           break;
         case "Space":
           this.departNow();
@@ -759,11 +846,11 @@ export class TownScreen {
       switch (code) {
         case "ArrowLeft":
         case "KeyA":
-          this.column = nextTownColumn(this.column, -1);
+          this.column = nextTownColumn(this.column, -1, this.openColumns);
           break;
         case "ArrowRight":
         case "KeyD":
-          this.column = nextTownColumn(this.column, 1);
+          this.column = nextTownColumn(this.column, 1, this.openColumns);
           break;
         case "Enter":
         case "NumpadEnter":
@@ -783,11 +870,11 @@ export class TownScreen {
       switch (code) {
         case "ArrowLeft":
         case "KeyA":
-          this.column = nextTownColumn(this.column, -1);
+          this.column = nextTownColumn(this.column, -1, this.openColumns);
           break;
         case "ArrowRight":
         case "KeyD":
-          this.column = nextTownColumn(this.column, 1);
+          this.column = nextTownColumn(this.column, 1, this.openColumns);
           break;
         case "Enter":
         case "NumpadEnter": {
@@ -820,11 +907,11 @@ export class TownScreen {
           break;
         case "ArrowLeft":
         case "KeyA":
-          this.column = nextTownColumn(this.column, -1);
+          this.column = nextTownColumn(this.column, -1, this.openColumns);
           break;
         case "ArrowRight":
         case "KeyD":
-          this.column = nextTownColumn(this.column, 1);
+          this.column = nextTownColumn(this.column, 1, this.openColumns);
           break;
         case "Enter":
         case "NumpadEnter": {
@@ -859,12 +946,12 @@ export class TownScreen {
           break;
         case "ArrowLeft":
         case "KeyA":
-          this.column = nextTownColumn(this.column, -1);
+          this.column = nextTownColumn(this.column, -1, this.openColumns);
           this.npcTalkMessage = null;
           break;
         case "ArrowRight":
         case "KeyD":
-          this.column = nextTownColumn(this.column, 1);
+          this.column = nextTownColumn(this.column, 1, this.openColumns);
           this.npcTalkMessage = null;
           break;
         case "Enter":
@@ -907,11 +994,11 @@ export class TownScreen {
           break;
         case "ArrowLeft":
         case "KeyA":
-          this.column = nextTownColumn(this.column, -1);
+          this.column = nextTownColumn(this.column, -1, this.openColumns);
           break;
         case "ArrowRight":
         case "KeyD":
-          this.column = nextTownColumn(this.column, 1);
+          this.column = nextTownColumn(this.column, 1, this.openColumns);
           break;
         case "Enter":
         case "NumpadEnter": {
@@ -939,11 +1026,11 @@ export class TownScreen {
           break;
         case "ArrowLeft":
         case "KeyA":
-          this.column = nextTownColumn(this.column, -1);
+          this.column = nextTownColumn(this.column, -1, this.openColumns);
           break;
         case "ArrowRight":
         case "KeyD":
-          this.column = nextTownColumn(this.column, 1);
+          this.column = nextTownColumn(this.column, 1, this.openColumns);
           break;
         case "Enter":
         case "NumpadEnter": {
@@ -978,7 +1065,7 @@ export class TownScreen {
           break;
         case "ArrowLeft":
         case "KeyA":
-          this.column = nextTownColumn(this.column, -1);
+          this.column = nextTownColumn(this.column, -1, this.openColumns);
           break;
         case "Enter":
         case "NumpadEnter": {
@@ -1023,11 +1110,11 @@ export class TownScreen {
         break;
       case "ArrowLeft":
       case "KeyA":
-        this.column = nextTownColumn(this.column, -1);
+        this.column = nextTownColumn(this.column, -1, this.openColumns);
         break;
       case "ArrowRight":
       case "KeyD":
-        this.column = nextTownColumn(column, 1);
+        this.column = nextTownColumn(column, 1, this.openColumns);
         break;
       case "Enter":
       case "NumpadEnter":
@@ -1177,12 +1264,12 @@ export class TownScreen {
         break;
       case "ArrowLeft":
       case "KeyA":
-        this.column = nextTownColumn(this.column, -1);
+        this.column = nextTownColumn(this.column, -1, this.openColumns);
         this.workshopMaxPlusNotice = null;
         break;
       case "ArrowRight":
       case "KeyD":
-        this.column = nextTownColumn(this.column, 1);
+        this.column = nextTownColumn(this.column, 1, this.openColumns);
         this.workshopMaxPlusNotice = null;
         break;
       case "Enter":
@@ -1361,12 +1448,27 @@ export class TownScreen {
 
     this.root.replaceChildren();
 
+    // 旅の看板(plan/game/archive/village-scoped-menus.md): 列(0〜19)を
+    // 1つも持たない特別な場所。0〜19の各列(renderColumn経由)は一切
+    // 使わず、専用の掲示内容だけを出す
+    if (this.openColumns.length === 0) {
+      this.root.appendChild(this.renderSignpost());
+      return;
+    }
+
     const box = document.createElement("div");
     box.className = "town-box";
 
     const title = document.createElement("h2");
     title.textContent = "洞窟のふもと";
     box.appendChild(title);
+
+    if (this.heading) {
+      const buildingLine = document.createElement("p");
+      buildingLine.className = "town-building";
+      buildingLine.textContent = this.heading;
+      box.appendChild(buildingLine);
+    }
 
     if (save.equippedTitle) {
       const titleDef = achievementDef(save.equippedTitle);
@@ -1391,30 +1493,12 @@ export class TownScreen {
       "めざめの階段で区切って戻れば、持ち帰ったものが倉庫に入る。";
     box.appendChild(lead);
 
+    // 建物・村人ごとの役割メニュー(plan/game/archive/village-scoped-menus.md):
+    // this.openColumnsに含まれる列だけを並べる(renderColumn自体の中身は
+    // 変えず、DOMへ現れる列を絞るだけ)
     const columns = document.createElement("div");
     columns.className = "town-columns";
-    columns.append(
-      this.renderList("倉庫", this.storage, 0),
-      this.renderList(`持ち込む (${this.carry.length} / ${CARRY_LIMIT})`, this.carry, 1),
-      this.renderCheckpoints(),
-      this.renderTrainingFocus(),
-      this.renderHut(),
-      this.renderWorkshop(),
-      this.renderRecords(),
-      this.renderCompendium(),
-      this.renderAchievements(),
-      this.renderEquipmentCompendium(),
-      this.renderDifficulty(),
-      this.renderQuestBoard(),
-      this.renderDungeons(),
-      this.renderVillage(),
-      this.renderAccessibility(),
-      this.renderCostumes(),
-      this.renderVillageLife(),
-      this.renderYoimatsuriShop(),
-      this.renderAudioSettings(),
-      this.renderSettings(),
-    );
+    columns.append(...this.openColumns.map((n) => this.renderColumnByNumber(n)));
     box.appendChild(columns);
 
     const desc = document.createElement("p");
@@ -1582,22 +1666,125 @@ export class TownScreen {
     } else {
       hint.textContent = "←→ 列を移る / ↑↓ 選ぶ / Enter 移す / Space もぐる";
     }
+    // システム系の「≡」メニュー(plan/game/archive/village-scoped-menus.md)では、
+    // ダイブ中の潜行を打ち切ってしまわないようSpaceでの即時出発を止めている
+    // (handleKey参照)。列ごとの説明文はそのまま活かしつつ、実際の閉じ方を補足する
+    if (this.systemMenuMode) {
+      hint.textContent = `${hint.textContent}(この画面ではSpaceは出発しない。Escapeで閉じる)`;
+    }
     box.appendChild(hint);
 
     // タッチ操作向け(#308): 「Space もぐる」はどの列にいても効く共通操作だが、
     // キーボードが無いと押しようが無い。常時表示のボタンとして1つ置いておく
     // (ダンジョン内の「決定」ボタンは#townの不透明な背景の下に隠れて押せないため、
-    // このTownScreen自身のDOM内に別途用意する)
+    // このTownScreen自身のDOM内に別途用意する)。ただしシステム系の「≡」メニュー
+    // では出発そのものが意味を持たないため、代わりに閉じるボタンにする
     const departButton = document.createElement("button");
     departButton.type = "button";
-    departButton.className = "town-depart-button";
-    departButton.textContent = "もぐる";
-    departButton.addEventListener("click", () => this.departNow());
+    if (this.systemMenuMode) {
+      departButton.className = "town-depart-button town-close-button";
+      departButton.textContent = "とじる";
+      departButton.addEventListener("click", () => {
+        this.hide();
+        this.onCloseWithoutDeparting?.();
+      });
+    } else {
+      departButton.className = "town-depart-button";
+      departButton.textContent = "もぐる";
+      departButton.addEventListener("click", () => this.departNow());
+    }
     box.appendChild(departButton);
 
     this.root.appendChild(box);
     // 列が増えて横スクロールが要るようになったため、選んでいる列を必ず見える位置に運ぶ
     columns.querySelector(".town-col.active")?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
+
+  /**
+   * 建物・村人ごとの役割メニュー(plan/game/archive/village-scoped-menus.md)。
+   * 列番号から、対応するrenderXxx()呼び出しへ振り分ける。各renderXxx()の
+   * 中身(renderColumn呼び出し込み)自体は一切変えていない。render()側は
+   * this.openColumnsに含まれる列番号だけをこれ経由で並べる
+   */
+  private renderColumnByNumber(n: TownColumn): HTMLElement {
+    switch (n) {
+      case 0:
+        return this.renderList("倉庫", this.storage, 0);
+      case 1:
+        return this.renderList(`持ち込む (${this.carry.length} / ${CARRY_LIMIT})`, this.carry, 1);
+      case 2:
+        return this.renderCheckpoints();
+      case 3:
+        return this.renderTrainingFocus();
+      case 4:
+        return this.renderHut();
+      case 5:
+        return this.renderWorkshop();
+      case 6:
+        return this.renderRecords();
+      case 7:
+        return this.renderCompendium();
+      case 8:
+        return this.renderAchievements();
+      case 9:
+        return this.renderEquipmentCompendium();
+      case 10:
+        return this.renderDifficulty();
+      case 11:
+        return this.renderQuestBoard();
+      case 12:
+        return this.renderDungeons();
+      case 13:
+        return this.renderVillage();
+      case 14:
+        return this.renderAccessibility();
+      case 15:
+        return this.renderCostumes();
+      case 16:
+        return this.renderVillageLife();
+      case 17:
+        return this.renderYoimatsuriShop();
+      case 18:
+        return this.renderAudioSettings();
+      case 19:
+        return this.renderSettings();
+    }
+  }
+
+  /**
+   * 旅の看板(plan/game/archive/village-scoped-menus.md)。0〜19の列は
+   * 一切使わず、チュートリアルの読み返しへの案内と、みんなの記録
+   * (plan/community-leaderboard.md、未実装)の掲示予定地であることだけを示す。
+   * 従来の「既定の入口(全列)」の役割はここでは持たない
+   */
+  private renderSignpost(): HTMLElement {
+    const box = document.createElement("div");
+    box.className = "town-box";
+
+    const title = document.createElement("h2");
+    title.textContent = "旅の看板";
+    box.appendChild(title);
+
+    const lead = document.createElement("p");
+    lead.className = "town-lead";
+    lead.textContent = "村の出入り口に立つ、古い立て札。旅人たちの記録が貼り出される予定地になっている。";
+    box.appendChild(lead);
+
+    const tips = document.createElement("p");
+    tips.textContent =
+      "操作説明・チュートリアルの読み返しは、村なかでもダイブ中でも「≡」メニューの『設定』からいつでも確認できる。";
+    box.appendChild(tips);
+
+    const leaderboard = document.createElement("p");
+    leaderboard.textContent = "村のみんなの記録は、まだこの立て札には並んでいない(準備中)。";
+    box.appendChild(leaderboard);
+
+    const hint = document.createElement("p");
+    hint.className = "town-hint";
+    hint.textContent = "Enter / Escape で村に戻る";
+    box.appendChild(hint);
+
+    return box;
   }
 
   /**

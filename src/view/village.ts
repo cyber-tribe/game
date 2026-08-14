@@ -30,8 +30,15 @@ export type VillageBuildingShape = "hut" | "post" | "cave" | "camp";
 export interface VillageBuilding {
   id: string;
   label: string;
-  /** 近づいて確定したときに開く拠点画面(`TownScreen`)の列番号 */
-  column: number;
+  /**
+   * 建物・村人ごとの役割メニュー(plan/game/archive/village-scoped-menus.md)。
+   * 近づいて確定したときに開ける拠点画面(`TownScreen`)の列番号の集合。
+   * 左右キーでの列移動はこの集合の中だけに限られる(全20列を横断しない)。
+   * 空配列は「列を持たない特別な場所」(旅の看板)を表す
+   */
+  columns: readonly number[];
+  /** ヒント表示に添える役割の一言(例: 「強化・合成」)。`${label}(${role})`の形で使う */
+  role: string;
   x: number;
   z: number;
   /** 当たり判定・近接判定の半径 */
@@ -60,23 +67,37 @@ export const VILLAGE_BOUNDS: VillageBounds = { minX: -9, maxX: 9, minZ: -9, maxZ
 export const VILLAGE_PLAYER_START: VillagePos = { x: 0, z: 7 };
 
 /**
- * 村マップの配置(plan/town-3d-exploration.mdの対応表)。
+ * 村マップの配置(plan/game/archive/town-3d-exploration.mdの対応表から、
+ * plan/game/archive/village-scoped-menus.mdで建物・村人ごとの役割分けに
+ * 差し替えた)。
  *
- * すべての列(0〜19)に個別の建物を用意すると建物だらけになるため、
- * 対応表に無い列(設定・実績帳・音・衣装・宵祭り等)は「旅の看板」から
- * 既定の列(0)で拠点画面を開き、そこから既存の左右キーで辿り着けるように
- * している(拠点画面自体は今までどおり全20列を横断できるので、
- * どの建物から入っても実質すべての機能へたどり着ける)。
+ * 以前は「どの建物から入っても拠点画面の全20列を横断できる」設計だったが、
+ * 今は建物ごとに`columns`(開ける列の集合)を持ち、左右キーの移動はその
+ * 中だけに限られる。同じ列を複数の建物から開けて構わない(倉庫は入口でも
+ * モグラ婆でも触れる)。アクセシビリティ(14)・音(18)・設定(19)の
+ * システム系の列はどの建物にも属さず、村でもダイブ中でも開ける「≡」
+ * メニュー経由でだけ開く(`main.ts`の`openSystemMenu`)。
+ *
+ * 新設3件(ねむり小屋・記録の間・ガルドの家)は、番人となる村人の造形を
+ * 新たに起こさず、既存の倉庫・工房・図鑑小屋などと同じ「小屋の外観だけの
+ * ホットスポット」として置いた(番人NPCを立てるかは設計側の未決事項として
+ * 別PRに委ねる、というplanの記載どおり)
  */
 export const VILLAGE_BUILDINGS: readonly VillageBuilding[] = [
-  { id: "board", label: "旅の看板", column: 0, x: 0, z: 3, radius: 0.7, shape: "post", color: 0x8a6b4a },
-  { id: "storage", label: "モグラ婆の倉庫", column: 0, x: -5, z: 1, radius: 0.9, shape: "hut", color: 0x6b7a4a },
-  { id: "workshop", label: "ゲンドの工房", column: 5, x: 5, z: 1, radius: 0.9, shape: "hut", color: 0xa0562f },
-  { id: "questBoard", label: "オトネの依頼板", column: 11, x: -5, z: -3, radius: 0.9, shape: "hut", color: 0x4a6a8a },
-  { id: "gallery", label: "おキヨの図鑑小屋", column: 7, x: 5, z: -3, radius: 0.9, shape: "hut", color: 0x7a4a8a },
-  { id: "npcSquare", label: "村の広場", column: 16, x: 0, z: -1, radius: 0.6, shape: "camp", color: 0xd68a3a },
-  { id: "development", label: "村の発展の受付", column: 13, x: -3, z: -6, radius: 0.9, shape: "hut", color: 0x4a8a6a },
-  { id: "cave", label: "洞窟の入口", column: 1, x: 3, z: -6, radius: 1.1, shape: "cave", color: 0x2a2a30 },
+  { id: "board", label: "旅の看板", columns: [], role: "旅の掲示", x: 0, z: 3, radius: 0.7, shape: "post", color: 0x8a6b4a },
+  { id: "storage", label: "モグラ婆の倉庫", columns: [0, 1], role: "倉庫", x: -5, z: 1, radius: 0.9, shape: "hut", color: 0x6b7a4a },
+  { id: "workshop", label: "ゲンドの工房", columns: [5], role: "強化・合成", x: 5, z: 1, radius: 0.9, shape: "hut", color: 0xa0562f },
+  { id: "questBoard", label: "オトネの依頼板", columns: [11], role: "依頼", x: -5, z: -3, radius: 0.9, shape: "hut", color: 0x4a6a8a },
+  { id: "gallery", label: "おキヨの図鑑小屋", columns: [7, 9], role: "図鑑", x: 5, z: -3, radius: 0.9, shape: "hut", color: 0x7a4a8a },
+  { id: "npcSquare", label: "村の広場", columns: [16, 17], role: "交流", x: 0, z: -1, radius: 0.6, shape: "camp", color: 0xd68a3a },
+  { id: "development", label: "村の発展の受付", columns: [13], role: "村の発展", x: -3, z: -6, radius: 0.9, shape: "hut", color: 0x4a8a6a },
+  { id: "cave", label: "洞窟の入口", columns: [0, 1, 2, 3, 4, 10, 12], role: "出発の支度", x: 3, z: -6, radius: 1.1, shape: "cave", color: 0x2a2a30 },
+  // 新設: ねむり小屋(仲間の世話。夢あわせ・改名・逃がすはcolumn4のUIをそのまま共用する)
+  { id: "sleepHut", label: "ねむり小屋", columns: [4], role: "仲間の世話", x: 8, z: 1, radius: 0.9, shape: "hut", color: 0x5a4a7a },
+  // 新設: 記録の間(記録・実績)
+  { id: "recordsHall", label: "記録の間", columns: [6, 8], role: "記録・実績", x: 8, z: -3, radius: 0.9, shape: "hut", color: 0x7a6a3a },
+  // 新設: ガルドの家(衣装の着替え)
+  { id: "garudoHouse", label: "ガルドの家", columns: [15], role: "衣装", x: -8, z: -3, radius: 0.9, shape: "hut", color: 0x3a6a7a },
 ];
 
 function clamp(v: number, min: number, max: number): number {
