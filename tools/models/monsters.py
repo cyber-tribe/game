@@ -5667,6 +5667,173 @@ def honezukanotsukai_animations():
             (24, {lower: (-70, 0, 18), upper: (-58, 0, 0), top: (-20, 0, 0)}),
         ]),
     ]
+
+# =================================================================== はじめの夢
+
+# 第八地方(真の目覚め)・隠し最終局面のボス。ヨリシロがこの世で
+# いちばん最初に見た夢そのものが、ひとり分の姿を取ったもの。計画書の
+# 指示どおりmadoromiと同じ関節構成(root-stem-capbase-captop)をそのまま
+# 流用し、melee AIの主力にふさわしく、がっしりした体格で正面から迫る
+# 力強いシルエットに育てる(幹・傘の半径をmadoromiより太く保ち、先細り
+# を抑える)。「他のすべての夢のかけらは、この最初の夢から枝分かれして
+# 生まれた」という由来を、傘の色を第一〜第七地方の代表色を淡くしたもの
+# で7分割する放射状のパッチワーク(角度で塗り分け。yorishironozankyoの
+# 高さ帯とは違う手法にする)と、傘の各色分割ぶんに1本ずつ生える小さな
+# 芽のような突起(枝分かれの予感)で視覚化する。幹はどの地方の色にも
+# 染まっていない生成り色のまま残し、「まだ何も分かれていない起点」を
+# 表す。
+HAJIME_NO_YUME_JOINTS = {
+    "root": (0.0, 0.0, 0.10),
+    "stem": (0.0, 0.0, 0.42),
+    "capbase": (0.0, 0.0, 0.64),
+    "captop": (0.0, 0.0, 0.88),
+}
+HAJIME_NO_YUME_RADII = {"root": 0.190, "stem": 0.170, "capbase": 0.440, "captop": 0.090}
+HAJIME_NO_YUME_BONES = [("root", "stem"), ("stem", "capbase"), ("capbase", "captop")]
+
+
+def hajimeNoYume_cap_surface_z(dist: float) -> float:
+    """
+    傘(capbase→captop)の表面の高さ。madoromiのcap_surface_z()と同じ考え方で、
+    capbase(半径0.440)からcaptop(半径0.090)へ向かう円錐を、サブディビジョンで
+    丸まるぶん少し内側に見積もって近似する。
+    """
+    base_z = HAJIME_NO_YUME_JOINTS["capbase"][2]
+    top_z = HAJIME_NO_YUME_JOINTS["captop"][2]
+    base_r = HAJIME_NO_YUME_RADII["capbase"] * 0.86
+    top_r = HAJIME_NO_YUME_RADII["captop"]
+    t = min(1.0, max(0.0, (base_r - dist) / (base_r - top_r)))
+    return base_z + t * (top_z - base_z) - 0.014
+
+
+def build_hajimeNoYume():
+    """
+    はじめの夢。madoromiと同じ関節構成(root-stem-capbase-captop)を
+    流用しつつ、melee AIにふさわしいがっしりした体格に育てる(幹の
+    半径を根元に近い太さのまま保ち、先細りを抑えて正面から迫る力強い
+    シルエットにする)。配色は第一〜第七地方の代表色を淡くしたものを
+    傘に放射状のパッチワークとして配置し(角度で塗り分け、
+    「統一感のない配色」を表す)、幹はどの地方色にも染まっていない
+    生成り色のまま残す。傘の色分割ぶんに1本ずつ、枝分かれの予感を示す
+    小さな芽を生やす。
+    """
+    body = C.build_skinned("hajimeNoYume", HAJIME_NO_YUME_JOINTS, HAJIME_NO_YUME_BONES,
+                           HAJIME_NO_YUME_RADII, root="root", subsurf=2)
+
+    origin_mat = C.make_material("hajime_origin", (0.92, 0.90, 0.83), roughness=0.7)
+    region_colors = [
+        (0.66, 0.80, 0.90),  # 第一地方 うたたねの参道(淡い空色)
+        (0.68, 0.78, 0.60),  # 第二地方 忘れ潮の湿地(淡い緑)
+        (0.80, 0.62, 0.70),  # 第三地方 まどろみの茸林(淡い紅紫)
+        (0.78, 0.76, 0.70),  # 第四地方 骨積みの回廊(淡い白骨色)
+        (0.62, 0.66, 0.74),  # 第五地方 なみだの滝つぼ(淡い青灰)
+        (0.74, 0.68, 0.58),  # 第六地方 こだまの尾根(淡い土色)
+        (0.80, 0.60, 0.52),  # 第七地方 わすれられた祭りの跡(淡い紅)
+    ]
+    region_mats = [C.make_material(f"hajime_region{i}", c, roughness=0.6)
+                   for i, c in enumerate(region_colors)]
+
+    STEM_TOP_Z = 0.50
+
+    def classify(c):
+        if c.z < STEM_TOP_Z:
+            return 0
+        ang = (math.atan2(c.y, c.x) + math.pi) % (2 * math.pi)
+        idx = min(6, int(ang / (2 * math.pi) * 7))
+        return 1 + idx
+
+    C.assign_materials_by_region(body, [origin_mat] + region_mats, classify)
+    counts = [0] * 8
+    for poly in body.data.polygons:
+        counts[poly.material_index] += 1
+    total = sum(counts)
+    print(f"hajimeNoYume: 生成り{counts[0]} 地方色{counts[1:]} / 計{total}")
+
+    extras = []
+    # 顔。madoromiの半開きの眠たげな目とは違い、すべての夢の起点となる
+    # 存在として、しっかり見開いた目にする
+    for side in (-1.0, 1.0):
+        extras += eyeball(f"hajime_eye{side}", (0.105 * side, -0.168, 0.320), 0.052,
+                          look=(0.2 * side, -1.0, 0.05))
+    mouth = C.box("hajime_mouth", (0.0, -0.178, 0.250), (0.052, 0.014, 0.014), bevel=0.005)
+    C.assign_material(mouth, C.make_material("hajime_mouth_m", (0.30, 0.22, 0.22), roughness=0.5))
+    extras.append(mouth)
+
+    # 傘の色分割ぶんに1本ずつ生やす、枝分かれの予感を示す小さな芽。
+    # cone()はZ軸沿いにしか作れないため、位置をドームの曲面に沿わせて
+    # 真上に伸ばすだけにする(yamabikooniの角と同じ手法)
+    bud_mat = C.make_material("hajime_bud", (0.88, 0.84, 0.72), roughness=0.55)
+    for i, (angle_deg, dist, length) in enumerate([
+        (206.0, 0.16, 0.075), (257.0, 0.24, 0.060), (309.0, 0.10, 0.085),
+        (0.0, 0.20, 0.065), (51.0, 0.28, 0.055), (103.0, 0.14, 0.080),
+        (154.0, 0.22, 0.070),
+    ]):
+        angle = math.radians(angle_deg)
+        x, y = math.cos(angle) * dist, math.sin(angle) * dist
+        z = hajimeNoYume_cap_surface_z(dist)
+        bud = C.cone(f"hajime_bud{i}", (x, y, z), 0.020, 0.006, length, segments=8)
+        C.assign_material(bud, bud_mat)
+        extras.append(bud)
+
+    # 根元に絡む、がっしりした根の塊。melee AIらしい正面から迫る
+    # どっしりした構えを土台から支える(左右対称にはせず、あえて
+    # 不揃いな間隔で配置して「統一感のない」印象を根元にも残す)
+    root_mat = C.make_material("hajime_root", (0.60, 0.56, 0.46), roughness=0.85)
+    for angle_deg, dist, r in [
+        (20.0, 0.175, 0.075), (95.0, 0.180, 0.068), (160.0, 0.170, 0.072),
+        (215.0, 0.178, 0.066), (290.0, 0.172, 0.070),
+    ]:
+        angle = math.radians(angle_deg)
+        knob = C.uv_sphere(f"hajime_rootknob{int(angle_deg)}",
+                           (math.cos(angle) * dist, math.sin(angle) * dist, 0.035),
+                           r, segments=12, rings=8, scale=(1.0, 1.0, 0.55))
+        C.assign_material(knob, root_mat)
+        extras.append(knob)
+
+    mesh = C.join([body] + extras, "hajimeNoYume")
+    armature = C.build_armature("hajimeNoYume", HAJIME_NO_YUME_JOINTS, HAJIME_NO_YUME_BONES,
+                                mesh, root="root")
+    return [mesh, armature], armature
+
+
+def hajimeNoYume_animations():
+    lower, mid, upper = "root-stem", "stem-capbase", "capbase-captop"
+    return [
+        # あらゆる夢の起点として、静かに、しかし途方もない存在感で佇む
+        ("idle", [
+            (1, {lower: (0, 0, 0), mid: (0, 0, 0)}),
+            (30, {lower: (2, 0, 1), mid: (-3, 0, 1), upper: (2, 0, 0)}),
+            (60, {lower: (0, 0, 0), mid: (0, 0, 0)}),
+        ]),
+        ("walk", [
+            (1, {lower: (0, 0, -10), mid: (0, 0, 8), upper: (0, 0, -4)}),
+            (9, {lower: (7, 0, 0), mid: (-6, 0, 0)}),
+            (18, {lower: (0, 0, 10), mid: (0, 0, -8), upper: (0, 0, 4)}),
+            (27, {lower: (7, 0, 0), mid: (-6, 0, 0)}),
+            (36, {lower: (0, 0, -10), mid: (0, 0, 8), upper: (0, 0, -4)}),
+        ]),
+        # がっしりした幹全体をひねり込み、正面から重くのしかかる一撃
+        ("attack", [
+            (1, {lower: (0, 0, 0), mid: (0, 0, 0), upper: (0, 0, 0)}),
+            (6, {lower: (-18, 0, 0), mid: (-20, 0, 0), upper: (-14, 0, 0)}),
+            (11, {lower: (26, 0, 0), mid: (30, 0, 0), upper: (22, 0, 0)}),
+            (22, {lower: (0, 0, 0), mid: (0, 0, 0), upper: (0, 0, 0)}),
+        ]),
+        ("hit", [
+            (1, {lower: (0, 0, 0)}),
+            (4, {lower: (-22, 0, 0), mid: (-20, 0, 0)}),
+            (16, {lower: (0, 0, 0), mid: (0, 0, 0)}),
+        ]),
+        # 最初の夢が解けるように、巨体がゆっくり大きく崩れ落ちる
+        ("die", [
+            (1, {lower: (0, 0, 0)}),
+            (12, {lower: (-38, 0, 12), mid: (-24, 0, 0), upper: (-16, 0, 0)}),
+            (30, {lower: (-92, 0, 26), mid: (-40, 0, 0), upper: (-28, 0, 0)}),
+        ]),
+    ]
+
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -5716,6 +5883,7 @@ MONSTERS = {
     "oomadoromi": (build_oomadoromi, oomadoromi_animations),
     "oonebosuke": (build_oonebosuke, oonebosuke_animations),
     "honezukanotsukai": (build_honezukanotsukai, honezukanotsukai_animations),
+    "hajimeNoYume": (build_hajimeNoYume, hajimeNoYume_animations),
 }
 
 
