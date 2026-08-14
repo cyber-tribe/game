@@ -84,11 +84,10 @@ export const SPECIES: readonly Species[] = [
   },
   {
     // plan/shops-and-thieves.md: 近道屋の強欲さが夢に映り込んでできた、
-    // 寄生的な夢のかけら。新規モデルは未制作のため、既存のgajiriモデルを
-    // 流用する(毒罠がtrap_damageモデルを流用しているのと同じ考え方)
+    // 寄生的な夢のかけら。専用モデル(plan/models/archive/model-surigarasu.md)
     id: "surigarasu",
     name: "スリガラス",
-    model: "gajiri",
+    model: "surigarasu",
     maxHp: 8,
     atk: 4,
     def: 1,
