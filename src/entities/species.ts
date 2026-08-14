@@ -99,15 +99,16 @@ export const SPECIES: readonly Species[] = [
   },
 
   // ---- plan/companion-evolution.md: 夢あわせで成熟した先の姿 ----
-  // 新規3Dモデルは今回のスコープでは制作せず、進化前と地続きの既存モデルを
-  // 流用する。野生では出現させない(minFloorを到達不能な値にして
-  // speciesForDepthの対象から外す。成熟でしか出会えない姿として扱う)
+  // 野生では出現させない(minFloorを到達不能な値にしてspeciesForDepthの
+  // 対象から外す。成熟でしか出会えない姿として扱う)。ishizuenezumi以外は
+  // 新規3Dモデルを制作せず、進化前と地続きの既存モデルを流用する
   {
     // ガジリねずみ(不安)+ホネガラミ(古い記憶)の夢あわせを重ねて育った姿。
-    // 不安を乗り越え、その場を守れるようになる(coward→guard)
+    // 不安を乗り越え、その場を守れるようになる(coward→guard)。
+    // 専用モデル(低い重心・厚い甲羅、plan/models/archive/model-ishizuenezumi.md)
     id: "ishizuenezumi",
     name: "いしずえねずみ",
-    model: "gajiri",
+    model: "ishizuenezumi",
     maxHp: 24,
     atk: 11,
     def: 9,
