@@ -6358,6 +6358,8 @@ def build_horoholocho():
 def horoholocho_animations():
     """骨の名前がpurunと同じ(base-mid, mid-top)ため、既存5クリップをそのまま流用する。"""
     return purun_animations()
+
+
 # =================================================================== いしずえねずみ
 
 # 第一地方(うたたねの参道)、配合限定の成熟種。ガジリねずみ(小さな不安)に
@@ -6510,6 +6512,106 @@ def ishizuenezumi_animations():
     ]
 
 
+# ========================================================================= かすみウツボ
+
+KASUMIUTSUBO_HALF = {
+    "hip": (0.0, 0.14, 0.075),
+    "chest": (0.0, -0.08, 0.085),
+    "head": (0.0, -0.32, 0.075),
+    "armF.L": (0.10, -0.20, 0.04),
+    "handF.L": (0.12, -0.28, 0.015),
+    "kneeB.L": (0.13, 0.14, 0.085),
+    "ankleB.L": (0.12, -0.02, 0.03),
+    "footB.L": (0.11, -0.12, 0.012),
+}
+KASUMIUTSUBO_RADII_HALF = {
+    "hip": 0.115, "chest": 0.125, "head": 0.095,
+    "armF.L": 0.026, "handF.L": 0.030,
+    "kneeB.L": 0.045, "ankleB.L": 0.028, "footB.L": 0.022,
+}
+KASUMIUTSUBO_BONES_HALF = [
+    ("chest", "hip"), ("chest", "head"),
+    ("chest", "armF.L"), ("armF.L", "handF.L"),
+    ("hip", "kneeB.L"), ("kneeB.L", "ankleB.L"), ("ankleB.L", "footB.L"),
+]
+
+
+def build_kasumiutsubo():
+    """
+    忘れるというテーマをさらに煮詰めた結果、存在感そのものが薄れた姿。
+    tsubuteと同じ関節構成をベースに、頭からしっぽまでを大きく引き伸ばし、
+    高さを大きく削って、周囲に溶け込む平たく低いウツボのシルエットに
+    作り替える。配色はwasuremizuchiよりさらに彩度を落とし、輪郭が
+    かすんで見えるほど淡くする。目立たないよう、目も薄く小さくする。
+    配色は第二地方(忘れ潮の湿地)の、霧と水を思わせる灰みがかった
+    水色・青緑系。
+    """
+    joints = C.mirrored(KASUMIUTSUBO_HALF)
+    radii = C.mirrored_radii(KASUMIUTSUBO_RADII_HALF)
+    bones = C.mirrored_bones(KASUMIUTSUBO_BONES_HALF)
+
+    body = C.build_skinned("kasumiutsubo", joints, bones, radii, root="chest", subsurf=2)
+    dorsal = C.make_material("kasumi_dorsal", (0.56, 0.64, 0.64), roughness=0.5, emission=0.04)
+    ventral = C.make_material("kasumi_ventral", (0.34, 0.42, 0.44), roughness=0.6)
+    C.assign_materials_by_region(body, [dorsal, ventral], lambda c: 1 if c.z < 0.06 else 0)
+
+    extras = []
+    for side in (-1.0, 1.0):
+        # 目立たないよう、薄く小さな目にする
+        extras += eyeball(f"kasumi_eye{side}", (0.048 * side, -0.290, 0.098), 0.018,
+                          look=(0.2 * side, -1.0, 0.05), squash=0.7,
+                          white=(0.72, 0.78, 0.78), dark=(0.20, 0.26, 0.28))
+    mouth = C.uv_sphere("kasumi_mouth", (0.0, -0.335, 0.055), 0.022,
+                        segments=12, rings=8, scale=(1.3, 0.5, 0.4))
+    C.assign_material(mouth, C.make_material("kasumi_mouth_m", (0.16, 0.20, 0.22), roughness=0.4))
+    extras.append(mouth)
+
+    mesh = C.join([body] + extras, "kasumiutsubo")
+    armature = C.build_armature("kasumiutsubo", joints, bones, mesh, root="chest")
+    return [mesh, armature], armature
+
+
+def kasumiutsubo_animations():
+    head = "chest-head"
+    armL, armR = "chest-armF.L", "chest-armF.R"
+    legL, legR = "hip-kneeB.L", "hip-kneeB.R"
+    return [
+        # 気配を消して、ほとんど動かず潜む
+        ("idle", [
+            (1, {head: (0, 0, 0)}),
+            (40, {head: (2, 0, 1)}),
+            (80, {head: (0, 0, 0)}),
+        ]),
+        # 地を這うように、低く滑らかに進む
+        ("walk", [
+            (1, {legL: (0, 0, 10), legR: (0, 0, -10), armL: (0, 0, 7), armR: (0, 0, -7),
+                 head: (0, 4, 0)}),
+            (9, {legL: (0, 0, -10), legR: (0, 0, 10), armL: (0, 0, -7), armR: (0, 0, 7),
+                 head: (0, -4, 0)}),
+            (18, {legL: (0, 0, 10), legR: (0, 0, -10), armL: (0, 0, 7), armR: (0, 0, -7),
+                  head: (0, 4, 0)}),
+        ]),
+        # 気配を消していた分、飛び出す一撃は鋭く速い
+        ("attack", [
+            (1, {head: (0, 0, 0)}),
+            (4, {head: (-16, 0, 0)}),
+            (7, {head: (24, 0, 0)}),
+            (14, {head: (0, 0, 0)}),
+        ]),
+        ("hit", [
+            (1, {head: (0, 0, 0)}),
+            (4, {head: (14, 0, 0), armL: (-10, 0, 8), armR: (-10, 0, -8)}),
+            (12, {head: (0, 0, 0), armL: (0, 0, 0), armR: (0, 0, 0)}),
+        ]),
+        # 薄れていた存在感が、そのまま霧へ紛れて消える
+        ("die", [
+            (1, {head: (0, 0, 0)}),
+            (9, {head: (0, 10, 0), legL: (0, 0, -20), legR: (0, 0, 20)}),
+            (20, {head: (0, 20, 0), legL: (0, 0, -44), legR: (0, 0, 44)}),
+        ]),
+    ]
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -6565,6 +6667,7 @@ MONSTERS = {
     "horikuiNoNushi": (build_horikuiNoNushi, horikuiNoNushi_animations),
     "horoholocho": (build_horoholocho, horoholocho_animations),
     "ishizuenezumi": (build_ishizuenezumi, ishizuenezumi_animations),
+    "kasumiutsubo": (build_kasumiutsubo, kasumiutsubo_animations),
 }
 
 
