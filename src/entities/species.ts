@@ -1129,7 +1129,7 @@ export const SPECIES: readonly Species[] = [
   {
     id: HAJIME_NO_YUME_ID,
     name: "はじめの夢",
-    model: "madoromi",
+    model: "hajimeNoYume",
     maxHp: 260,
     atk: 50,
     def: 38,
