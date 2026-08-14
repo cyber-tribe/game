@@ -8141,6 +8141,151 @@ def yoseatsume_animations():
                   bL: (-70, 0, 0), bR: (-70, 0, 0), t1: (0, 0, 40)}),
         ]),
     ]
+
+
+# ======================================================================= ユメクイモグラ
+
+YUMEKUIMOGURA_HALF = {
+    "hip": (0.0, 0.145, 0.150),
+    "chest": (0.0, -0.015, 0.170),
+    "neck": (0.0, -0.130, 0.155),
+    "snout": (0.0, -0.245, 0.125),
+    "tail1": (0.0, 0.205, 0.115),
+    "tail2": (0.0, 0.250, 0.095),
+    "hipF.L": (0.075, -0.050, 0.095),
+    "footF.L": (0.125, -0.095, 0.025),
+    "hipB.L": (0.075, 0.130, 0.105),
+    "footB.L": (0.075, 0.165, 0.020),
+}
+YUMEKUIMOGURA_RADII_HALF = {
+    "hip": 0.145, "chest": 0.155, "neck": 0.115, "snout": 0.048,
+    "tail1": 0.030, "tail2": 0.020,
+    "hipF.L": 0.062, "footF.L": 0.072,
+    "hipB.L": 0.044, "footB.L": 0.030,
+}
+YUMEKUIMOGURA_BONES_HALF = [
+    ("chest", "hip"), ("chest", "neck"), ("neck", "snout"),
+    ("hip", "tail1"), ("tail1", "tail2"),
+    ("chest", "hipF.L"), ("hipF.L", "footF.L"),
+    ("hip", "hipB.L"), ("hipB.L", "footB.L"),
+]
+
+
+def build_yumekuimogura():
+    """
+    地面に潜って進み、不意にプレイヤーの近くへ顔を出すモグラ。gajiriと
+    同じ関節構成を土台にしつつ、外耳は生やさず(モグラは外耳が退化して
+    いる)、体幹をずんぐりと丸め、前脚だけを大きく張り出させて掘削用の
+    爪を3本ずつ生やす。尻尾は短く埋もれさせ、目はほとんど退化した点の
+    ように小さくする。配色は第三地方(まどろみの茸林)の、宵闇に近い
+    夢色のねずみ毛並みに、掘り進んだ土がついた腹まわりの土色を合わせ、
+    爪だけ胞子のような淡い黄土色を差して掘削担当だと分かるようにする。
+    """
+    joints = C.mirrored(YUMEKUIMOGURA_HALF)
+    radii = C.mirrored_radii(YUMEKUIMOGURA_RADII_HALF)
+    bones = C.mirrored_bones(YUMEKUIMOGURA_BONES_HALF)
+
+    body = C.build_skinned("yumekuimogura", joints, bones, radii, root="chest", subsurf=2)
+    fur = C.make_material("yumekuimogura_fur", (0.30, 0.28, 0.35), roughness=0.85)
+    belly = C.make_material("yumekuimogura_belly", (0.42, 0.36, 0.30), roughness=0.8)
+
+    # 耳の特別扱いが不要な(外耳がない)ぶん、腹だけを高さで単純に切り分ける
+    C.assign_materials_by_region(
+        body, [fur, belly],
+        lambda c: 1 if c.z < 0.11 else 0,
+    )
+
+    extras = []
+    claw_mat = C.make_material("yumekuimogura_claw", (0.74, 0.66, 0.42), roughness=0.55)
+    for side in (-1.0, 1.0):
+        # 前脚に大きな掘削用の爪を3本(ashiatodoriの爪と同じ、回転を
+        # 使わない貼り付け方。根元を足の高さに、先端をその下に置く)
+        fx, fy, fz = YUMEKUIMOGURA_HALF["footF.L"]
+        fx *= side
+        claw_depth = 0.05
+        for dx, dy in ((-0.026, -0.010), (0.0, -0.022), (0.026, -0.010)):
+            claw = C.cone(
+                f"yumekuimogura_clawF{side}_{dx}",
+                (fx + dx * side, fy + dy, fz - claw_depth * 0.5),
+                0.004, 0.020, claw_depth, segments=6,
+            )
+            C.assign_material(claw, claw_mat)
+            extras.append(claw)
+        # 後ろ脚は控えめに2本だけ
+        bx, by, bz = YUMEKUIMOGURA_HALF["footB.L"]
+        bx *= side
+        for dx, dy in ((-0.014, -0.006), (0.014, -0.006)):
+            claw = C.cone(
+                f"yumekuimogura_clawB{side}_{dx}",
+                (bx + dx * side, by + dy, bz - 0.024),
+                0.003, 0.012, 0.03, segments=6,
+            )
+            C.assign_material(claw, claw_mat)
+            extras.append(claw)
+
+    # ほとんど退化した、点のように小さな目
+    for side in (-1.0, 1.0):
+        eye = C.uv_sphere(f"yumekuimogura_eye{side}", (0.055 * side, -0.175, 0.170), 0.014,
+                          segments=10, rings=8)
+        C.assign_material(eye, C.make_material(f"yumekuimogura_eye{side}_m", EYE_DARK, roughness=0.25))
+        extras.append(eye)
+
+    nose = C.uv_sphere("yumekuimogura_nose", (0.0, -0.268, 0.118), 0.020,
+                       segments=12, rings=8, scale=(1.0, 0.8, 0.7))
+    C.assign_material(nose, C.make_material("yumekuimogura_nose_m", (0.70, 0.50, 0.50), roughness=0.4))
+    extras.append(nose)
+
+    mesh = C.join([body] + extras, "yumekuimogura")
+    armature = C.build_armature("yumekuimogura", joints, bones, mesh, root="chest")
+    return [mesh, armature], armature
+
+
+def yumekuimogura_animations():
+    neck, snout = "chest-neck", "neck-snout"
+    tail1 = "hip-tail1"
+    hipF_L, hipF_R = "chest-hipF.L", "chest-hipF.R"
+    footF_L, footF_R = "hipF.L-footF.L", "hipF.R-footF.R"
+    hipB_L, hipB_R = "hip-hipB.L", "hip-hipB.R"
+    return [
+        # 眠りの中、地表の気配をうかがうように鼻先だけをゆっくり動かす
+        ("idle", [
+            (1, {snout: (0, 0, 0), neck: (0, 0, 0)}),
+            (20, {snout: (8, 0, 4), neck: (-3, 0, 0)}),
+            (40, {snout: (0, 0, 0), neck: (0, 0, 0)}),
+        ]),
+        # 前脚で土を掻き分けて進む、掘削そのものの歩き方
+        ("walk", [
+            (1, {hipF_L: (26, 0, 10), hipF_R: (-22, 0, -8), hipB_L: (-16, 0, 0), hipB_R: (14, 0, 0),
+                 footF_L: (14, 0, 0), footF_R: (-10, 0, 0), tail1: (0, 0, 10)}),
+            (7, {hipF_L: (-22, 0, -8), hipF_R: (26, 0, 10), hipB_L: (14, 0, 0), hipB_R: (-16, 0, 0),
+                 footF_L: (-10, 0, 0), footF_R: (14, 0, 0), tail1: (0, 0, -10)}),
+            (14, {hipF_L: (26, 0, 10), hipF_R: (-22, 0, -8), hipB_L: (-16, 0, 0), hipB_R: (14, 0, 0),
+                  footF_L: (14, 0, 0), footF_R: (-10, 0, 0), tail1: (0, 0, 10)}),
+        ]),
+        # 不意に顔を出し、両前脚の爪を振り上げてから叩きつける
+        ("attack", [
+            (1, {neck: (0, 0, 0), hipF_L: (0, 0, 0), hipF_R: (0, 0, 0)}),
+            (5, {neck: (-18, 0, 0), hipF_L: (-30, 0, 18), hipF_R: (-30, 0, -18),
+                 footF_L: (-16, 0, 0), footF_R: (-16, 0, 0)}),
+            (10, {neck: (20, 0, 0), hipF_L: (34, 0, -14), hipF_R: (34, 0, 14),
+                  footF_L: (18, 0, 0), footF_R: (18, 0, 0)}),
+            (18, {neck: (0, 0, 0), hipF_L: (0, 0, 0), hipF_R: (0, 0, 0),
+                  footF_L: (0, 0, 0), footF_R: (0, 0, 0)}),
+        ]),
+        ("hit", [
+            (1, {neck: (0, 0, 0)}),
+            (4, {neck: (16, 0, 0), hipF_L: (-12, 0, 6), hipF_R: (-12, 0, -6)}),
+            (14, {neck: (0, 0, 0), hipF_L: (0, 0, 0), hipF_R: (0, 0, 0)}),
+        ]),
+        # 掘ってきた穴へ逆戻りするように、頭から潜って消える
+        ("die", [
+            (1, {neck: (0, 0, 0), hipF_L: (0, 0, 0), hipF_R: (0, 0, 0)}),
+            (10, {neck: (30, 0, 0), hipF_L: (24, 0, 10), hipF_R: (24, 0, -10),
+                  hipB_L: (-14, 0, 0), hipB_R: (-14, 0, 0)}),
+            (24, {neck: (56, 0, 0), hipF_L: (46, 0, 16), hipF_R: (46, 0, -16),
+                  hipB_L: (-26, 0, 0), hipB_R: (-26, 0, 0), tail1: (0, 0, 0)}),
+        ]),
+    ]
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -8210,6 +8355,7 @@ MONSTERS = {
     "yoroioiteke": (build_yoroioiteke, yoroioiteke_animations),
     "yumemirupurun": (build_yumemirupurun, yumemirupurun_animations),
     "yoseatsume": (build_yoseatsume, yoseatsume_animations),
+    "yumekuimogura": (build_yumekuimogura, yumekuimogura_animations),
 }
 
 
