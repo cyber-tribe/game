@@ -330,8 +330,28 @@ class App {
     // 拠点の3D化(plan/town-3d-exploration.md): 従来はここで即座に拠点画面
     // (TownScreen)を開いていたが、まず村なかの3D空間を表示し、建物に
     // 近づいて確定したときだけ`openTownScreen`経由でTownScreenを開く
-    this.villageActive = true;
+    this.setVillageActive(true);
     this.village.reset();
+  }
+
+  /**
+   * 村なか歩き(plan/game/archive/town-3d-exploration.md)の出入り。
+   * ダイブ用のHUD(階数・HP・なかま・ミニマップ・ログ・メッセージ帯)は
+   * 村では意味を持たず、直前のダイブの内容が残って見えてしまうので隠す。
+   *
+   * `#ui`ごと隠さないのは、仮想パッド・アクションボタン(`#touch`)が
+   * その中にあるため。まとめて隠すとタッチ端末で村を歩けなくなる
+   * (図鑑ギャラリーは移動しないので`#ui`ごと隠して差し支えない)。
+   * 個々の要素のstyle.displayはそれぞれの描画処理が持っているので、
+   * こちらはクラスの付け外しだけにして状態を奪わない
+   */
+  private setVillageActive(active: boolean): void {
+    this.villageActive = active;
+    this.uiRoot.classList.toggle("village-mode", active);
+    // 建物ヒントはrenderVillage()の中でしか更新されない。村を出ると
+    // 呼ばれなくなるため、「近くに建物があった」表示のまま固定されないよう
+    // ここで必ず消す
+    if (!active) this.villageHintEl.style.display = "none";
   }
 
   /**
@@ -340,7 +360,7 @@ class App {
    * (各列の一覧・操作)は一切変えていない
    */
   private openTownScreen(initialColumn: number): void {
-    this.villageActive = false;
+    this.setVillageActive(false);
     this.town.show(
       this.save,
       (carry, storage, startDepth, trainingFocus, bringAllyUids, difficulty, dungeonId) => {

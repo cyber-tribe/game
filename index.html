@@ -82,6 +82,21 @@
       #scene { display: block; width: 100%; height: 100%; }
 
       #ui { position: absolute; inset: 0; pointer-events: none; }
+      /*
+       * 村なか歩き中(plan/game/archive/town-3d-exploration.md)は、ダイブ用の
+       * HUDを隠す。村にいるのに「地下1階」「HP」や直前のダイブのログ・
+       * ミニマップが出たままになるのを防ぐ。
+       *
+       * #ui ごと隠さないのは、仮想パッド・アクションボタン(#touch)が
+       * その中にあり、まとめて隠すとタッチ端末で村を歩けなくなるため。
+       * これらの要素は自前の描画処理が style.display を直接書くので、
+       * インラインスタイルに勝てるよう !important を付ける
+       */
+      #ui.village-mode #status,
+      #ui.village-mode #allies,
+      #ui.village-mode #minimap-wrap,
+      #ui.village-mode #log,
+      #ui.village-mode #logBanner { display: none !important; }
 
       .panel {
         background: var(--panel);
