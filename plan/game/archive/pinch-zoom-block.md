@@ -1,5 +1,33 @@
 # ブラウザのピンチズームを禁止する
 
+> **実装済み。** 方針どおり2段構えで対応した。
+>
+> 1. **iOS Safari**: `src/main.ts` のコンストラクタで `document` に
+>    `gesturestart` / `gesturechange` の `preventDefault()` を登録した
+>    (`keydown`/`pointerdown` によるオーディオ解錠のすぐ下)。
+> 2. **その他ブラウザ**: `index.html` の viewport meta に
+>    `maximum-scale=1, user-scalable=no` を追加した。
+>
+> ゲーム内の二本指カメラズーム(`src/ui/touch-controls.ts` の
+> `pinchPointers`/`currentPinchDistance()`)はcanvas上のPointerEventを
+> 自前で追跡する実装であり、ブラウザ既定のジェスチャーイベントとは
+> 完全に独立しているため、今回の変更の影響を受けないことをコード上で
+> 確認した。
+>
+> **検証**: `npx tsc --noEmit` / `npx vitest run`(1270件)/
+> `npm run build` いずれもgreen。加えてheadless Chromiumで実際に
+> `npm run dev` を起動し、(1) viewport metaに
+> `maximum-scale=1, user-scalable=no` が含まれること、(2)
+> `document` に対して合成した `gesturestart` / `gesturechange` イベントが
+> `preventDefault()` されること、をJSレベルで確認した(コンソール
+> エラーなし)。iOS Safari実機での「仮想パッド+アクションボタン同時
+> 操作でページが拡大されない」という受け入れ基準そのものは、実機を
+> 持たないためコードレビューと上記の合成イベント検証まで
+> (`gesturestart`/`gesturechange`はiOS独自の非標準イベントで、
+> ChromiumベースのheadlessブラウザにはネイティブAPIとして存在しない
+> ため、`document.dispatchEvent(new Event(...))` によるリスナー登録の
+> 動作確認にとどめた)。
+
 ## 経緯
 
 `plan/game/archive/touch-gesture-guard.md` は、ピンチズームを

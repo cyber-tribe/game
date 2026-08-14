@@ -4,8 +4,15 @@
     <meta charset="UTF-8" />
     <!-- viewport-fit=cover(plan/game/mobile-layout-redesign.md セーフエリア対応):
          PWAの全画面表示でiPhoneのノッチ・ホームインジケータ領域までビューポートを
-         広げる。実際の食い込み回避はenv(safe-area-inset-*)を各ゾーンに加算して行う -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+         広げる。実際の食い込み回避はenv(safe-area-inset-*)を各ゾーンに加算して行う。
+         maximum-scale=1, user-scalable=no(plan/game/archive/pinch-zoom-block.md):
+         Android Chrome等ではこれでブラウザのピンチズームが無効になる。iOS Safariは
+         この指定を無視するため、別途 gesturestart/gesturechange の preventDefault
+         (src/main.ts)で対応している -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
     <title>少年ガルドと迷いの洞窟</title>
     <link
       rel="icon"
