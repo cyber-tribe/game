@@ -238,7 +238,7 @@ export const SPECIES: readonly Species[] = [
     // 重ねて育った姿。状態異常を受けなくなる。祭りの高揚が正気を保たせる
     id: "matsurinonushi",
     name: "まつりのぬし",
-    model: "tsubute",
+    model: "matsurinonushi",
     maxHp: 63,
     atk: 31,
     def: 16,
