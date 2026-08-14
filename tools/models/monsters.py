@@ -7616,6 +7616,125 @@ def wasuregani_animations():
     ]
 
 
+# ========================================================================= ヨロイムカデ
+
+YOROIMUKADE_HALF = {
+    "hip": (0.0, 0.02, 0.26),
+    "chest": (0.0, 0.03, 0.42),
+    "neck": (0.0, 0.02, 0.48),
+    "head": (0.0, -0.03, 0.545),
+    "crown": (0.0, 0.01, 0.60),
+    "shoulder.L": (0.10, 0.02, 0.44),
+    "elbow.L": (0.155, 0.02, 0.35),
+    "hand.L": (0.155, -0.02, 0.25),
+    "thigh.L": (0.058, 0.02, 0.235),
+    "knee.L": (0.062, 0.02, 0.125),
+    "foot.L": (0.065, -0.02, 0.02),
+}
+YOROIMUKADE_RADII_HALF = {
+    "hip": 0.072, "chest": 0.078, "neck": 0.036, "head": 0.082, "crown": 0.048,
+    "shoulder.L": 0.038, "elbow.L": 0.028, "hand.L": 0.034,
+    "thigh.L": 0.040, "knee.L": 0.030, "foot.L": 0.038,
+}
+YOROIMUKADE_BONES_HALF = [
+    ("hip", "chest"), ("chest", "neck"), ("neck", "head"), ("head", "crown"),
+    ("chest", "shoulder.L"), ("shoulder.L", "elbow.L"), ("elbow.L", "hand.L"),
+    ("hip", "thigh.L"), ("thigh.L", "knee.L"), ("knee.L", "foot.L"),
+]
+
+
+def build_yoroimukade():
+    """
+    積み重なって固まった記憶。honegaramiと同じ人型骨組みをベースに、
+    低い重心のどっしりした体格に組み替え、胴に節状の装甲を何段も
+    重ねてムカデの体節を思わせる輪郭にする。胴の両脇には、余分な脚を
+    思わせる小さな棘を並べる。顎には噛みついて道具を封じる由来として
+    大きな牙を足す。配色は第四地方(骨積みの回廊)の白骨色・くすんだ灰色。
+    """
+    joints = C.mirrored(YOROIMUKADE_HALF)
+    radii = C.mirrored_radii(YOROIMUKADE_RADII_HALF)
+    bones = C.mirrored_bones(YOROIMUKADE_BONES_HALF)
+
+    body = C.build_skinned("yoroimukade", joints, bones, radii, root="hip", subsurf=2)
+    bone_mat = C.make_material("yoroimukade_bone", (0.82, 0.80, 0.72), roughness=0.72)
+    C.assign_material(body, bone_mat)
+
+    extras = []
+    armor_mat = C.make_material("yoroimukade_armor", (0.48, 0.47, 0.44), roughness=0.6)
+    # 胴に何段も重ねた節状の装甲
+    for i, z in enumerate((0.290, 0.340, 0.390, 0.440)):
+        radius = 0.098 - abs(i - 1.5) * 0.006
+        ring = C.cylinder(f"yoroimukade_ring{i}", (0.0, 0.03, z), radius, 0.022, segments=16)
+        for vert in ring.data.vertices:
+            vert.co.y *= 0.72
+        C.assign_material(ring, armor_mat)
+        extras.append(ring)
+        # 余分な脚を思わせる、体節の両脇の小さな棘
+        for side in (-1.0, 1.0):
+            spike = C.cone(f"yoroimukade_spike{i}_{side}", (0.095 * side, 0.03, z), 0.016, 0.003, 0.05)
+            C.assign_material(spike, armor_mat)
+            extras.append(spike)
+
+    dark = C.make_material("yoroimukade_socket", (0.05, 0.05, 0.07), roughness=0.9)
+    glow_mat = C.make_material("yoroimukade_glow", (0.85, 0.55, 0.20), roughness=0.3, emission=1.8)
+    for side in (-1.0, 1.0):
+        socket = C.uv_sphere(f"yoroimukade_socket{side}", (0.030 * side, -0.052, 0.552), 0.024,
+                             segments=14, rings=10, scale=(1.0, 0.85, 1.1))
+        C.assign_material(socket, dark)
+        extras.append(socket)
+        glow = C.uv_sphere(f"yoroimukade_glow{side}", (0.030 * side, -0.058, 0.552), 0.011,
+                           segments=10, rings=8)
+        C.assign_material(glow, glow_mat)
+        extras.append(glow)
+        # 噛みついて道具を封じる大きな牙
+        fang = C.cone(f"yoroimukade_fang{side}", (0.022 * side, -0.070, 0.500), 0.013, 0.002, 0.045)
+        C.assign_material(fang, bone_mat)
+        extras.append(fang)
+
+    mesh = C.join([body] + extras, "yoroimukade")
+    armature = C.build_armature("yoroimukade", joints, bones, mesh, root="hip")
+    return [mesh, armature], armature
+
+
+def yoroimukade_animations():
+    hipc, neck = "hip-chest", "neck-head"
+    armL, armR = "chest-shoulder.L", "chest-shoulder.R"
+    legL, legR = "hip-thigh.L", "hip-thigh.R"
+    return [
+        # 通路をふさいだまま、身動きが取れず固まっている
+        ("idle", [
+            (1, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+            (36, {hipc: (1, 0, 1), neck: (2, 0, 0)}),
+            (72, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+        ]),
+        ("walk", [
+            (1, {legL: (14, 0, 0), legR: (-14, 0, 0), armL: (-9, 0, 6), armR: (9, 0, -6)}),
+            (11, {legL: (0, 0, 0), legR: (0, 0, 0), armL: (0, 0, 6), armR: (0, 0, -6)}),
+            (21, {legL: (-14, 0, 0), legR: (14, 0, 0), armL: (9, 0, 6), armR: (-9, 0, -6)}),
+            (32, {legL: (0, 0, 0), legR: (0, 0, 0), armL: (0, 0, 6), armR: (0, 0, -6)}),
+        ]),
+        # 思い出に囚われたまま、噛みついて道具を封じる
+        ("attack", [
+            (1, {neck: (0, 0, 0)}),
+            (5, {neck: (-16, 0, 0), hipc: (-6, 0, 0)}),
+            (10, {neck: (22, 0, 0), hipc: (8, 0, 0)}),
+            (20, {neck: (0, 0, 0), hipc: (0, 0, 0)}),
+        ]),
+        # 高い防御力どおり、当たってもほとんど揺るがない
+        ("hit", [
+            (1, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+            (4, {hipc: (-6, 0, 0), neck: (-9, 0, 0)}),
+            (15, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+        ]),
+        ("die", [
+            (1, {hipc: (0, 0, 0)}),
+            (10, {hipc: (-12, 0, 8), neck: (-20, 0, 0), armL: (-22, 0, 22), armR: (-22, 0, -22)}),
+            (26, {hipc: (-58, 0, 20), neck: (-38, 0, 0), legL: (26, 0, 0), legR: (22, 0, 0),
+                  armL: (-52, 0, 44), armR: (-52, 0, -44)}),
+        ]),
+    ]
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -7681,6 +7800,7 @@ MONSTERS = {
     "tokoshiepurun": (build_tokoshiepurun, tokoshiepurun_animations),
     "wasurebone": (build_wasurebone, wasurebone_animations),
     "wasuregani": (build_wasuregani, wasuregani_animations),
+    "yoroimukade": (build_yoroimukade, yoroimukade_animations),
 }
 
 
