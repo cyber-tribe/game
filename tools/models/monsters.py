@@ -7735,6 +7735,177 @@ def yoroimukade_animations():
     ]
 
 
+# ========================================================================= ヨロイオイテケ
+
+YOROIOITEKE_HALF = {
+    "hip": (0.0, 0.0, 0.30),
+    "chest": (0.0, 0.0, 0.50),
+    "neck": (0.0, 0.0, 0.62),
+    "head": (0.0, -0.01, 0.74),
+    "crown": (0.0, 0.0, 0.86),
+    "shoulder.L": (0.145, 0.0, 0.535),
+    "elbow.L": (0.22, 0.01, 0.40),
+    "hand.L": (0.22, -0.03, 0.27),
+    "thigh.L": (0.078, 0.0, 0.27),
+    "knee.L": (0.084, 0.0, 0.14),
+    "foot.L": (0.088, -0.03, 0.02),
+}
+YOROIOITEKE_RADII_HALF = {
+    "hip": 0.090, "chest": 0.095, "neck": 0.050, "head": 0.100, "crown": 0.060,
+    "shoulder.L": 0.055, "elbow.L": 0.040, "hand.L": 0.048,
+    "thigh.L": 0.058, "knee.L": 0.044, "foot.L": 0.050,
+}
+YOROIOITEKE_BONES_HALF = [
+    ("hip", "chest"), ("chest", "neck"), ("neck", "head"), ("head", "crown"),
+    ("chest", "shoulder.L"), ("shoulder.L", "elbow.L"), ("elbow.L", "hand.L"),
+    ("hip", "thigh.L"), ("thigh.L", "knee.L"), ("knee.L", "foot.L"),
+]
+
+
+def build_yoroioiteke():
+    """
+    置いていかれる恐れそのものを鎧に変えた姿。honegaramiと同じ人型骨組みを
+    ベースに、四肢を太くし低い重心のどっしりした体格に組み替える。yoroimukadeの
+    節状装甲(むき出しの牙・眼窩)とは違い、こちらは全身を覆う一枚板の鎧
+    (胸当て・肩当て・小手・すね当て・閉じた兜)で覆い尽くし、素肌をほとんど
+    見せない重装のシルエットにする。被弾のたびに相手の満腹度を削り返す由来
+    として、鎧の各所に赤くにぶく光る棘(見返す刃)を並べる。配色は第四地方
+    (骨積みの回廊)の白骨色・くすんだ灰色。
+    """
+    joints = C.mirrored(YOROIOITEKE_HALF)
+    radii = C.mirrored_radii(YOROIOITEKE_RADII_HALF)
+    bones = C.mirrored_bones(YOROIOITEKE_BONES_HALF)
+
+    body = C.build_skinned("yoroioiteke", joints, bones, radii, root="hip", subsurf=2)
+    skin_mat = C.make_material("yoroioiteke_skin", (0.80, 0.78, 0.70), roughness=0.75)
+    C.assign_material(body, skin_mat)
+
+    extras = []
+    armor_mat = C.make_material("yoroioiteke_armor", (0.56, 0.55, 0.52), roughness=0.55)
+    dark_mat = C.make_material("yoroioiteke_dark", (0.05, 0.05, 0.07), roughness=0.9)
+    thorn_mat = C.make_material("yoroioiteke_thorn", (0.72, 0.22, 0.14), roughness=0.35, emission=1.4)
+
+    # 胸当て・背当て。胴の表面よりはっきり張り出させ、覆っている一枚板に見せる
+    chest_plate = C.box("yoroioiteke_chest", (0.0, -0.085, 0.46), (0.22, 0.075, 0.26), bevel=0.025)
+    C.assign_material(chest_plate, armor_mat)
+    extras.append(chest_plate)
+    back_plate = C.box("yoroioiteke_back", (0.0, 0.075, 0.46), (0.19, 0.055, 0.23), bevel=0.02)
+    C.assign_material(back_plate, armor_mat)
+    extras.append(back_plate)
+    # 腰当て
+    waist = C.cylinder("yoroioiteke_waist", (0.0, 0.0, 0.29), 0.118, 0.09, segments=16)
+    for vert in waist.data.vertices:
+        vert.co.y *= 0.80
+    C.assign_material(waist, armor_mat)
+    extras.append(waist)
+
+    # 兜。頭をすっぽり覆う丸みを帯びた一枚兜
+    helm = C.uv_sphere("yoroioiteke_helm", (0.0, -0.005, 0.775), 0.125,
+                       segments=18, rings=14, scale=(0.98, 1.0, 1.08))
+    C.assign_material(helm, armor_mat)
+    extras.append(helm)
+    # 兜のてっぺんの飾り棘
+    crest = C.cone("yoroioiteke_crest", (0.0, 0.0, 0.865), 0.028, 0.004, 0.10)
+    C.assign_material(crest, thorn_mat)
+    extras.append(crest)
+    # 首元の襟当て
+    gorget = C.cylinder("yoroioiteke_gorget", (0.0, 0.0, 0.635), 0.075, 0.045, segments=14)
+    for vert in gorget.data.vertices:
+        vert.co.y *= 0.80
+    C.assign_material(gorget, armor_mat)
+    extras.append(gorget)
+    # 額の眉庇。兜の表面より張り出させ、輪郭に段差を作る
+    brow = C.box("yoroioiteke_brow", (0.0, -0.135, 0.805), (0.11, 0.03, 0.024), bevel=0.006)
+    C.assign_material(brow, armor_mat)
+    extras.append(brow)
+    # 面頬(バイザー)の細いスリット。兜の表面よりさらに奥まった溝に見せる
+    visor = C.box("yoroioiteke_visor", (0.0, -0.128, 0.775), (0.070, 0.020, 0.014), bevel=0.004)
+    C.assign_material(visor, dark_mat)
+    extras.append(visor)
+    slit_glow = C.box("yoroioiteke_slit", (0.0, -0.140, 0.775), (0.052, 0.006, 0.008))
+    C.assign_material(slit_glow, C.make_material("yoroioiteke_slit_m", (0.85, 0.88, 0.90),
+                                                 roughness=0.3, emission=0.6))
+    extras.append(slit_glow)
+
+    for side in (-1.0, 1.0):
+        # 肩当て。大きく張り出した円盤状
+        pauldron = C.uv_sphere(f"yoroioiteke_pauldron{side}", (0.145 * side, 0.0, 0.545), 0.070,
+                               segments=16, rings=12, scale=(1.0, 0.85, 0.55))
+        C.assign_material(pauldron, armor_mat)
+        extras.append(pauldron)
+        # 肩当ての棘(見返す刃)
+        p_thorn = C.cone(f"yoroioiteke_pthorn{side}", (0.175 * side, 0.0, 0.560), 0.018, 0.003, 0.065)
+        C.assign_material(p_thorn, thorn_mat)
+        extras.append(p_thorn)
+        # 小手。手の表面よりはっきり張り出させる
+        gauntlet = C.box(f"yoroioiteke_gauntlet{side}", (0.22 * side, -0.03, 0.27),
+                         (0.068, 0.070, 0.088), bevel=0.016)
+        C.assign_material(gauntlet, armor_mat)
+        extras.append(gauntlet)
+        g_thorn = C.cone(f"yoroioiteke_gthorn{side}", (0.258 * side, -0.03, 0.27),
+                         0.013, 0.002, 0.038)
+        C.assign_material(g_thorn, thorn_mat)
+        extras.append(g_thorn)
+        # すね当て。脚の表面よりはっきり張り出させる
+        greave = C.cylinder(f"yoroioiteke_greave{side}", (0.084 * side, 0.0, 0.135), 0.066, 0.155,
+                            segments=14)
+        for vert in greave.data.vertices:
+            vert.co.y *= 0.85
+        C.assign_material(greave, armor_mat)
+        extras.append(greave)
+        # 膝当ての棘
+        k_thorn = C.cone(f"yoroioiteke_kthorn{side}", (0.084 * side, -0.045, 0.14),
+                         0.014, 0.002, 0.045)
+        C.assign_material(k_thorn, thorn_mat)
+        extras.append(k_thorn)
+
+    mesh = C.join([body] + extras, "yoroioiteke")
+    armature = C.build_armature("yoroioiteke", joints, bones, mesh, root="hip")
+    return [mesh, armature], armature
+
+
+def yoroioiteke_animations():
+    hipc, neck = "hip-chest", "neck-head"
+    armL, armR = "chest-shoulder.L", "chest-shoulder.R"
+    legL, legR = "hip-thigh.L", "hip-thigh.R"
+    shinL, shinR = "thigh.L-knee.L", "thigh.R-knee.R"
+    return [
+        # 恐れを鎧に変えて居座る。重い鎧のまま、わずかに身構える
+        ("idle", [
+            (1, {hipc: (0, 0, 0), armL: (0, 0, 6), armR: (0, 0, -6)}),
+            (30, {hipc: (2, 0, 0), neck: (-2, 0, 0), armL: (-3, 0, 9), armR: (-3, 0, -9)}),
+            (60, {hipc: (0, 0, 0), armL: (0, 0, 6), armR: (0, 0, -6)}),
+        ]),
+        ("walk", [
+            (1, {legL: (16, 0, 0), legR: (-16, 0, 0), shinL: (-8, 0, 0), shinR: (6, 0, 0),
+                 armL: (-10, 0, 7), armR: (10, 0, -7)}),
+            (10, {legL: (0, 0, 0), legR: (0, 0, 0), armL: (0, 0, 7), armR: (0, 0, -7)}),
+            (19, {legL: (-16, 0, 0), legR: (16, 0, 0), shinL: (6, 0, 0), shinR: (-8, 0, 0),
+                  armL: (10, 0, 7), armR: (-10, 0, -7)}),
+            (28, {legL: (0, 0, 0), legR: (0, 0, 0), armL: (0, 0, 7), armR: (0, 0, -7)}),
+        ]),
+        # 鎧の棘を突き出して押し返すような、重く短い一撃
+        ("attack", [
+            (1, {armR: (0, 0, -6), hipc: (0, 0, 0)}),
+            (5, {armR: (-58, 0, -20), hipc: (-6, 0, -8)}),
+            (10, {armR: (30, 0, 14), hipc: (10, 0, 10), neck: (-6, 0, 0)}),
+            (20, {armR: (0, 0, -6), hipc: (0, 0, 0)}),
+        ]),
+        # 高い防御力どおり、ほとんど揺るがない
+        ("hit", [
+            (1, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+            (4, {hipc: (-7, 0, 0), neck: (-10, 0, 0)}),
+            (15, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+        ]),
+        ("die", [
+            (1, {hipc: (0, 0, 0)}),
+            (10, {hipc: (-14, 0, 8), neck: (-22, 0, 0), armL: (-24, 0, 24), armR: (-24, 0, -24)}),
+            (26, {hipc: (-62, 0, 20), neck: (-40, 0, 0), legL: (28, 0, 0), legR: (24, 0, 0),
+                  armL: (-56, 0, 46), armR: (-56, 0, -46)}),
+        ]),
+    ]
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -7801,6 +7972,7 @@ MONSTERS = {
     "wasurebone": (build_wasurebone, wasurebone_animations),
     "wasuregani": (build_wasuregani, wasuregani_animations),
     "yoroimukade": (build_yoroimukade, yoroimukade_animations),
+    "yoroioiteke": (build_yoroioiteke, yoroioiteke_animations),
 }
 
 
