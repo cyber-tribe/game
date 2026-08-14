@@ -378,9 +378,11 @@ export class TownScreen {
   handleKey(code: string): boolean {
     if (!this.open) return false;
 
-    // 図鑑ギャラリー(plan/gallery-mode.md)表示中は、閉じる操作だけを受け付ける
+    // 図鑑ギャラリー(plan/gallery-mode.md)表示中は、閉じる操作だけを受け付ける。
+    // Spaceも閉じる側に入れてあるのは、タッチUIの「決定」ボタンがSpaceを送るため。
+    // タッチ端末にはEscもEnterも無いので、これが無いと開いたら戻れなくなる
     if (this.galleryOpen) {
-      if (code === "Escape" || code === "Enter" || code === "NumpadEnter") {
+      if (code === "Escape" || code === "Enter" || code === "NumpadEnter" || code === "Space") {
         this.galleryOpen = false;
         this.render();
         return true;
