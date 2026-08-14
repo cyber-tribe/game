@@ -110,6 +110,10 @@ export class TouchControls {
     this.wireActionButtons();
     this.wireMenu();
     this.wireGestures();
+
+    // タッチ操作中の誤発動防止(plan/game/archive/touch-gesture-guard.md):
+    // パッド・ボタンの長押しでiOSの選択/コンテキストメニューが出るのを防ぐ
+    this.root.addEventListener("contextmenu", (e) => e.preventDefault());
   }
 
   private wirePad(): void {

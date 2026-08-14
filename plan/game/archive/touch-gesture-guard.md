@@ -1,3 +1,21 @@
+> **実装済み。** 計画書どおり4点を実装した。`body`へ
+> `user-select: none`・`-webkit-user-select: none`・
+> `-webkit-touch-callout: none`・`touch-action: manipulation`を指定し、
+> `input`/`textarea`(命名ダイアログの`.naming-input`を含む、クラス名
+> ではなく要素セレクタで包括的に指定)で`user-select: text`・
+> `-webkit-touch-callout: default`を再指定した。`#touch`配下の
+> `contextmenu`イベント抑止は`TouchControls`のコンストラクタ末尾
+> (`src/ui/touch-controls.ts`)に追加した。viewport metaへの
+> `user-scalable=no`等は計画書の方針どおり追加していない。
+>
+> ヘッドレスブラウザで`getComputedStyle`を実測し、`body`が
+> `user-select: none` / `touch-action: manipulation`、動的に挿入した
+> `<input>`要素が`user-select: text`になることを確認済み(コンソール
+> エラー0件)。`npx tsc --noEmit` / `npx vitest run`(1203件)/
+> `npm run build`いずれもgreen。長押しメニュー抑止・ダブルタップズーム
+> 抑止・ピンチズームの実機挙動そのものは受け入れ基準どおりスマホ実機が
+> 必要なため未確認。
+
 # タッチ操作中の文字選択・ズーム誤発動を防ぐ
 
 ## 経緯
