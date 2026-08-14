@@ -17,6 +17,11 @@ export const ja: Record<string, string> = {
   "hud.stance": "構え: {name}",
   "hud.keyHelpTitle": "操作説明",
   "hud.keyHelpHint": "Hでとじる",
+  // 文言のタッチ対応(plan/game/mobile-layout-redesign.md): タッチ端末では「≡」から開閉する
+  "hud.keyHelpHintTouch": "「≡」→操作説明でとじる",
+  // メッセージ帯・全文ログモーダル(plan/game/mobile-layout-redesign.md)
+  "ui.hud.logModalTitle": "ログ",
+  "ui.hud.logModalClose": "とじる",
 
   // もちものメニュー(src/ui/menu.ts)
   "ui.menu.inventory": "もちもの  {count} / {max}",

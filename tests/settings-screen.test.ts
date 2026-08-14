@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { KEY_REFERENCE, MESSAGE_DELAY_MS, MESSAGE_SPEEDS, messageSpeedScale } from "../src/entities/settings";
+import {
+  KEY_REFERENCE,
+  KEY_REFERENCE_TOUCH,
+  MESSAGE_DELAY_MS,
+  MESSAGE_SPEEDS,
+  messageSpeedScale,
+} from "../src/entities/settings";
 import { initialSave, setMessageSpeed } from "../src/save";
 
 describe("entities/settings.ts(plan/settings-screen.md)", () => {
@@ -20,6 +26,14 @@ describe("entities/settings.ts(plan/settings-screen.md)", () => {
 
   it("KEY_REFERENCEは空でない", () => {
     expect(KEY_REFERENCE.length).toBeGreaterThan(0);
+  });
+
+  // plan/game/mobile-layout-redesign.md: タッチ端末向けの操作説明一覧
+  it("KEY_REFERENCE_TOUCHは空でなく、キー名(矢印/WASD/Xキー/Space)を含まない", () => {
+    expect(KEY_REFERENCE_TOUCH.length).toBeGreaterThan(0);
+    for (const line of KEY_REFERENCE_TOUCH) {
+      expect(line).not.toMatch(/矢印|WASD|Xキー|\bSpace\b/);
+    }
   });
 });
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Game } from "../src/game";
 import type { GameEvent } from "../src/core/events";
-import { TUTORIAL_TIPS, TUTORIAL_TIP_IDS, type TutorialTipId } from "../src/core/tutorial";
+import { TUTORIAL_TIPS, TUTORIAL_TIP_IDS, tutorialTipText, type TutorialTipId } from "../src/core/tutorial";
 import { type MonsterActor, isFree } from "../src/core/types";
 import { type Dir, dirDelta } from "../src/core/grid";
 import {
@@ -36,10 +36,25 @@ function faceOpenDirection(game: Game): Dir | null {
 }
 
 describe("チュートリアルヒント一覧", () => {
-  it("全IDに空でないメッセージが定義されている", () => {
+  it("全IDに、キーボード・タッチ両方の空でないメッセージが定義されている", () => {
     for (const id of TUTORIAL_TIP_IDS) {
-      expect(TUTORIAL_TIPS[id]).toBeTruthy();
+      expect(TUTORIAL_TIPS[id].keyboard).toBeTruthy();
+      expect(TUTORIAL_TIPS[id].touch).toBeTruthy();
     }
+  });
+
+  // 文言のタッチ対応(plan/game/mobile-layout-redesign.md):
+  // キー名を含むtipはタッチ版で言い換えられ、キー名が残らないことを確認する
+  it("moveAndAttackのタッチ版にキー名(矢印/WASD/Xキー)が残っていない", () => {
+    const touch = tutorialTipText("moveAndAttack", "touch");
+    expect(touch).not.toMatch(/矢印|WASD|Xキー/);
+    expect(tutorialTipText("moveAndAttack", "keyboard")).toBe(TUTORIAL_TIPS.moveAndAttack.keyboard);
+  });
+
+  it("pickup/barrel/allyOrdersのタッチ版にキー名(Space/F/G/Tキー)が残っていない", () => {
+    expect(tutorialTipText("pickup", "touch")).not.toMatch(/Space/);
+    expect(tutorialTipText("barrel", "touch")).not.toMatch(/\bF \b|\bG \b/);
+    expect(tutorialTipText("allyOrders", "touch")).not.toMatch(/T ?キー/);
   });
 });
 

@@ -81,6 +81,12 @@ export class TouchControls {
     private readonly root: HTMLElement,
     private readonly canvas: HTMLElement,
     private readonly input: Input,
+    /**
+     * 「ログ」メニュー項目(plan/game/mobile-layout-redesign.md)専用。既存の
+     * data-code方式(キーコードへ変換してInputへ渡すだけ)には乗らない、
+     * 全文ログモーダルを開くというHUD側の操作なので、コールバックで直接つなぐ
+     */
+    private readonly onOpenLog: () => void,
   ) {
     this.root.innerHTML = `
       <div class="touch-pad" id="touchPad">
@@ -100,6 +106,7 @@ export class TouchControls {
         <button type="button" data-code="KeyR">区切り/再挑戦</button>
         <button type="button" data-code="KeyP">フォトモード</button>
         <button type="button" data-code="KeyH">操作説明</button>
+        <button type="button" data-action="log">ログ</button>
       </div>
     `;
 
@@ -183,11 +190,21 @@ export class TouchControls {
       this.menu.style.display = this.menu.style.display === "none" ? "flex" : "none";
     });
 
-    this.menu.querySelectorAll<HTMLElement>("button").forEach((btn) => {
+    this.menu.querySelectorAll<HTMLElement>("button[data-code]").forEach((btn) => {
       const code = btn.dataset.code!;
       bindTap(btn, code, this.input, () => {
         this.menu.style.display = "none";
       });
+    });
+
+    // 「ログ」(plan/game/mobile-layout-redesign.md): 他の項目と違いキーコードが無いので、
+    // 直接コールバックを呼ぶだけの専用配線にする
+    const logBtn = this.menu.querySelector<HTMLElement>('button[data-action="log"]')!;
+    logBtn.style.touchAction = "none";
+    logBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      this.menu.style.display = "none";
+      this.onOpenLog();
     });
   }
 
