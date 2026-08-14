@@ -746,7 +746,9 @@ class App {
    */
   private renderGallery(dt: number, speciesId: string): void {
     if (!this.galleryWasOpen) {
-      this.uiRoot.style.display = "none";
+      // フォトモード(issue #462)と同じ理由でCSSクラス方式にしてある。
+      // #uiごと隠すと、その中にある#touchまで消えてタッチ端末では戻れなくなる
+      this.uiRoot.classList.add("gallery-mode");
       this.galleryInfoEl.style.display = "block";
     }
     const species = speciesById(speciesId);
@@ -763,7 +765,11 @@ class App {
     p.textContent = lore ?? (status === "captured" ? "生態はまだ記録されていない。" : "実物を見ればもっとわかるかもしれない。");
     const hint = document.createElement("p");
     hint.className = "hint";
-    hint.textContent = "Escで戻る";
+    // 文言のタッチ対応(plan/game/mobile-layout-redesign.md): 「Esc」はキーボード前提の表記
+    hint.textContent = resolveText(
+      { keyboard: "Escで戻る", touch: "決定ボタンで戻る" },
+      currentInputMode(),
+    );
     this.galleryInfoEl.append(h, p, hint);
 
     this.renderer.renderer.render(this.gallery.scene, this.gallery.camera);
@@ -825,7 +831,7 @@ class App {
       this.renderVillage();
     } else {
       if (this.galleryWasOpen) {
-        this.uiRoot.style.display = "";
+        this.uiRoot.classList.remove("gallery-mode");
         this.galleryInfoEl.style.display = "none";
         this.gallery.clear();
       }

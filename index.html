@@ -137,6 +137,25 @@
       #ui.photo-mode .touch-pad,
       #ui.photo-mode .touch-btn:not(.touch-btn-confirm) { display: none !important; }
 
+      /*
+       * 図鑑ギャラリー(plan/game/archive/gallery-mode.md)も同様。こちらは
+       * 拠点画面(#town)の上から開くので、HUDに加えて#town自体も隠す
+       * (#uiごとdisplay:noneにしていた頃はまとめて消えていた)。
+       * ギャラリー中に効くのは「戻る(決定)」と、canvasへの二本指での
+       * 回転・ズームだけなので、パッド・他のボタン・「≡」は出さない
+       */
+      #ui.gallery-mode #status,
+      #ui.gallery-mode #allies,
+      #ui.gallery-mode #minimap-wrap,
+      #ui.gallery-mode #log,
+      #ui.gallery-mode #logBanner,
+      #ui.gallery-mode #town { display: none !important; }
+
+      #ui.gallery-mode .touch-pad,
+      #ui.gallery-mode .touch-menu,
+      #ui.gallery-mode .touch-menu-btn,
+      #ui.gallery-mode .touch-btn:not(.touch-btn-confirm) { display: none !important; }
+
       .panel {
         background: var(--panel);
         border: 1px solid var(--edge);
