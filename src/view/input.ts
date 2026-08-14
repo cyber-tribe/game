@@ -1,4 +1,4 @@
-import type { Dir } from "../core/grid";
+import { rotateDir, type Dir } from "../core/grid";
 
 export type ActionKey =
   | "confirm"
@@ -115,6 +115,20 @@ export class Input {
   /** メニュー操作を横取りするための受け口 */
   onKey: ((code: string, shift: boolean) => boolean) | null = null;
 
+  /**
+   * カメラの向き(90度単位、0〜3)。`direction()`が返す方角をこのぶん回して、
+   * 画面基準で入れた入力をワールドの方角へ直す(issue #463)。
+   *
+   * カメラを回すと「画面の上」と「ワールドの北」がずれる。仮想パッドは
+   * 見た目の方向へ倒す操作なので、補正しないと倒した向きと歩く向きが
+   * 噛み合わなくなる。矢印キー・テンキーも同じ経路なので一緒に補正される
+   * (Q/Eで回したあと「↑=画面奥」になる)。
+   *
+   * 呼び出し側(main.ts)が毎フレーム今の値を入れる。カメラが回らない場面
+   * (村なか歩き)では0のままにしておけばよい
+   */
+  cameraQuadrant = 0;
+
   // ---- 一歩/ダッシュ(plan/step-movement-and-dash.md) ----------------
   /** 現在計測中の方向。direction() が変わる・null になるたびに計測をやり直す */
   private dashDir: Dir | null = null;
@@ -178,8 +192,20 @@ export class Input {
     this.held.delete(code);
   }
 
-  /** 今押されている方向。押されていなければ null */
+  /**
+   * 今押されている方向。押されていなければ null。
+   *
+   * 返すのは画面基準ではなくワールドの方角(`cameraQuadrant`で補正済み)。
+   * 移動・向き変えはどちらもこの`Dir`をそのまま使うので、補正はここ1箇所で
+   * 全体に効く
+   */
   direction(): Dir | null {
+    const screenDir = this.screenDirection();
+    return screenDir === null ? null : rotateDir(screenDir, -2 * this.cameraQuadrant);
+  }
+
+  /** カメラの向きを考えない、押されているキーそのままの方向 */
+  private screenDirection(): Dir | null {
     // ここは毎フレーム呼ばれる。Object.entries や方向表をこの中で作ると
     // 1フレームごとに使い捨ての配列・オブジェクトが積み上がるので、
     // どちらもモジュール定数に出してある

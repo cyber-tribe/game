@@ -870,6 +870,9 @@ class App {
 
   private step(dt: number): void {
     this.lock = Math.max(0, this.lock - dt);
+    // 画面基準の入力をワールドの方角へ直すための補正(issue #463)。
+    // 村なかのカメラは回らない固定視点なので、そちらでは補正しない
+    this.input.cameraQuadrant = this.villageActive ? 0 : this.renderer.cameraQuadrant;
     // 一歩/ダッシュ(plan/step-movement-and-dash.md): ロック中・メニュー
     // 表示中でも押している実時間はそのまま数えたいので、下の早期returnより
     // 前、毎フレーム欠かさず呼ぶ
