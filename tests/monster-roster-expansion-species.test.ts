@@ -90,6 +90,7 @@ const KNOWN_MODEL_IDS = new Set([
   "shioresakura",
   "mizukagami",
   "nakimushi",
+  "honezukanotsukai",
 ]);
 
 function makeOpenFloor(): FloorState {
