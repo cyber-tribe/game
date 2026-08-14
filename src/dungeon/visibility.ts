@@ -5,7 +5,7 @@ import { type FloorState, roomOf, tileAt } from "../core/types";
 const DARKNESS_RADIUS = 2;
 
 /**
- * 不思議のダンジョン系の視界規則。
+ * ターン制ローグライクの定番の視界規則。
  *
  *  - 部屋にいるときは、その部屋全体と部屋を囲む外周1マス(壁と出入口)が見える
  *  - 通路にいるときは、周囲8マスだけが見える
