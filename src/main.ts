@@ -1053,18 +1053,24 @@ class App {
    * フォトモード(plan/gallery-mode.md)の切り替え。HUDを隠し、既存の
    * カメラ操作(回転・ズーム)だけで画角を調整できるようにする。
    * ターン制なので、そもそも入力しない限り時間は進まない。
+   *
+   * 隠し方は村なか歩きと同じCSSクラス方式(`#ui.photo-mode`)。`#ui`ごと
+   * display:noneにすると、その中にある`#touch`(仮想パッド・アクション
+   * ボタン・「≡」)まで消えて、タッチ端末では撮影もフォトモードを抜けることも
+   * できなくなる(issue #462)。撮影した写真はcanvasから起こすので、
+   * タッチUIを残しても写り込まない
    */
   private togglePhotoMode(): void {
     if (this.photoMode) {
       this.photoMode = false;
-      this.uiRoot.style.display = "";
+      this.uiRoot.classList.remove("photo-mode");
       return;
     }
     if (this.anyModalOpen() || this.helpVisible || this.villageActive || this.ended) {
       return;
     }
     this.photoMode = true;
-    this.uiRoot.style.display = "none";
+    this.uiRoot.classList.add("photo-mode");
   }
 
   /** 描画結果をそのまま画像として端末に保存する(セーブデータには含めない) */

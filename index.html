@@ -105,6 +105,27 @@
       #ui.village-mode #log,
       #ui.village-mode #logBanner { display: none !important; }
 
+      /*
+       * フォトモード(plan/game/archive/gallery-mode.md)も同じ考え方で、
+       * HUDパネルだけを選んで隠す。以前は #ui ごと display:none にしていたが、
+       * それだと #touch まで消えてしまい、タッチ端末では撮影も、フォトモードから
+       * 抜けることすらできなくなっていた(issue #462)。
+       */
+      #ui.photo-mode #status,
+      #ui.photo-mode #allies,
+      #ui.photo-mode #minimap-wrap,
+      #ui.photo-mode #log,
+      #ui.photo-mode #logBanner { display: none !important; }
+
+      /*
+       * フォトモード中に効く操作は「撮影(決定)」と「抜ける(≡)」だけ
+       * (移動・攻撃・もちもの等は main.ts の step() が photoMode 中は
+       * handleAction を呼ばないので、押しても何も起きない)。押せるのに
+       * 反応しないボタンを並べておくと迷わせるので、効くものだけ残す
+       */
+      #ui.photo-mode .touch-pad,
+      #ui.photo-mode .touch-btn:not(.touch-btn-confirm) { display: none !important; }
+
       .panel {
         background: var(--panel);
         border: 1px solid var(--edge);
