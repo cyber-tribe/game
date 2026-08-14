@@ -7073,6 +7073,111 @@ def mouhitotsunokage_animations():
     ]
 
 
+# ========================================================================= モヤウツボ
+
+MOYAUTSUBO_HALF = {
+    "hip": (0.0, 0.12, 0.09),
+    "chest": (0.0, -0.06, 0.10),
+    "head": (0.0, -0.26, 0.09),
+    "armF.L": (0.11, -0.16, 0.05),
+    "handF.L": (0.13, -0.22, 0.02),
+    "kneeB.L": (0.15, 0.12, 0.10),
+    "ankleB.L": (0.13, -0.02, 0.035),
+    "footB.L": (0.12, -0.10, 0.015),
+}
+MOYAUTSUBO_RADII_HALF = {
+    "hip": 0.135, "chest": 0.145, "head": 0.110,
+    "armF.L": 0.030, "handF.L": 0.034,
+    "kneeB.L": 0.052, "ankleB.L": 0.032, "footB.L": 0.026,
+}
+MOYAUTSUBO_BONES_HALF = [
+    ("chest", "hip"), ("chest", "head"),
+    ("chest", "armF.L"), ("armF.L", "handF.L"),
+    ("hip", "kneeB.L"), ("kneeB.L", "ankleB.L"), ("ankleB.L", "footB.L"),
+]
+
+
+def build_moyautsubo():
+    """
+    霧に紛れた油断が形になったもの。tsubuteと同じ関節構成をベースに、
+    頭からしっぽへ引き伸ばして高さを削り、周囲に溶け込む平たく低い
+    ウツボのシルエットに作り替える。隣接するまで気配を消す由来として、
+    体にまとわりつく霧の房を淡い色の房として散らす。配色は第二地方
+    (忘れ潮の湿地)の、霧と水を思わせる灰みがかった水色・青緑系。
+    """
+    joints = C.mirrored(MOYAUTSUBO_HALF)
+    radii = C.mirrored_radii(MOYAUTSUBO_RADII_HALF)
+    bones = C.mirrored_bones(MOYAUTSUBO_BONES_HALF)
+
+    body = C.build_skinned("moyautsubo", joints, bones, radii, root="chest", subsurf=2)
+    dorsal = C.make_material("moya_dorsal", (0.46, 0.58, 0.58), roughness=0.5)
+    ventral = C.make_material("moya_ventral", (0.28, 0.38, 0.40), roughness=0.65)
+    C.assign_materials_by_region(body, [dorsal, ventral], lambda c: 1 if c.z < 0.07 else 0)
+
+    extras = []
+    for side in (-1.0, 1.0):
+        extras += eyeball(f"moya_eye{side}", (0.052 * side, -0.235, 0.115), 0.026,
+                          look=(0.2 * side, -1.0, 0.05), squash=0.7)
+    mouth = C.uv_sphere("moya_mouth", (0.0, -0.275, 0.065), 0.026,
+                        segments=12, rings=8, scale=(1.3, 0.5, 0.45))
+    C.assign_material(mouth, C.make_material("moya_mouth_m", (0.16, 0.20, 0.22), roughness=0.4))
+    extras.append(mouth)
+
+    # 隣接するまで気配を消す由来として、体にまとわりつく霧の房
+    mist_mat = C.make_material("moya_mist", (0.82, 0.90, 0.90), roughness=0.3, emission=0.15)
+    for i, (x, y, z, r) in enumerate([
+        (0.10, -0.08, 0.155, 0.048), (-0.09, 0.06, 0.150, 0.042),
+        (0.06, 0.20, 0.140, 0.038), (-0.04, -0.20, 0.135, 0.036),
+    ]):
+        mist = C.uv_sphere(f"moya_mist{i}", (x, y, z), r, segments=12, rings=8,
+                           scale=(1.0, 1.0, 0.5))
+        C.assign_material(mist, mist_mat)
+        extras.append(mist)
+
+    mesh = C.join([body] + extras, "moyautsubo")
+    armature = C.build_armature("moyautsubo", joints, bones, mesh, root="chest")
+    return [mesh, armature], armature
+
+
+def moyautsubo_animations():
+    head = "chest-head"
+    armL, armR = "chest-armF.L", "chest-armF.R"
+    legL, legR = "hip-kneeB.L", "hip-kneeB.R"
+    return [
+        # 気配を消して、ほとんど動かず潜む
+        ("idle", [
+            (1, {head: (0, 0, 0)}),
+            (40, {head: (2, 0, 1)}),
+            (80, {head: (0, 0, 0)}),
+        ]),
+        ("walk", [
+            (1, {legL: (0, 0, 10), legR: (0, 0, -10), armL: (0, 0, 7), armR: (0, 0, -7),
+                 head: (0, 4, 0)}),
+            (9, {legL: (0, 0, -10), legR: (0, 0, 10), armL: (0, 0, -7), armR: (0, 0, 7),
+                 head: (0, -4, 0)}),
+            (18, {legL: (0, 0, 10), legR: (0, 0, -10), armL: (0, 0, 7), armR: (0, 0, -7),
+                  head: (0, 4, 0)}),
+        ]),
+        # 油断したところへ、初撃を強く叩き込む
+        ("attack", [
+            (1, {head: (0, 0, 0)}),
+            (4, {head: (-18, 0, 0)}),
+            (7, {head: (28, 0, 0)}),
+            (16, {head: (0, 0, 0)}),
+        ]),
+        ("hit", [
+            (1, {head: (0, 0, 0)}),
+            (4, {head: (14, 0, 0), armL: (-10, 0, 8), armR: (-10, 0, -8)}),
+            (12, {head: (0, 0, 0), armL: (0, 0, 0), armR: (0, 0, 0)}),
+        ]),
+        ("die", [
+            (1, {head: (0, 0, 0)}),
+            (9, {head: (0, 10, 0), legL: (0, 0, -20), legR: (0, 0, 20)}),
+            (20, {head: (0, 20, 0), legL: (0, 0, -44), legR: (0, 0, 44)}),
+        ]),
+    ]
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -7133,6 +7238,7 @@ MONSTERS = {
     "matsurinonushi": (build_matsurinonushi, matsurinonushi_animations),
     "mazarinezumi": (build_mazarinezumi, mazarinezumi_animations),
     "mouhitotsunokage": (build_mouhitotsunokage, mouhitotsunokage_animations),
+    "moyautsubo": (build_moyautsubo, moyautsubo_animations),
 }
 
 
