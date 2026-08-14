@@ -6974,6 +6974,105 @@ def mazarinezumi_animations():
             (24, {neck: (26, 0, 0), hipF_L: (40, 0, 0), hipF_R: (40, 0, 0)}),
         ]),
     ]
+# ===================================================================== もうひとつのかげ
+
+MOUHITOTSUNOKAGE_JOINTS = {
+    "root": (0.0, 0.0, 0.045),
+    "stem": (0.0, 0.0, 0.12),
+    "capbase": (0.0, 0.0, 0.195),
+    "captop": (0.0, 0.0, 0.245),
+}
+MOUHITOTSUNOKAGE_RADII = {"root": 0.155, "stem": 0.165, "capbase": 0.145, "captop": 0.05}
+MOUHITOTSUNOKAGE_BONES = [("root", "stem"), ("stem", "capbase"), ("capbase", "captop")]
+
+
+def build_mouhitotsunokage():
+    """
+    ゆめまよいの影のもう一つの姿。タルではなく、落ちている道具に擬態する。
+    madoromiと同じ関節構成をベースに、ゆめまよいの影のフード状のドームとは
+    違い、寸胴で角ばった箱・道具箱のような輪郭に作り替える。頂上には
+    留め具のような小さな突起を残す。配色は第八地方(めざめの前庭)の、
+    第一〜第七地方の色が淡く混ざり合った、統一感のない配色にする。
+    """
+    body = C.build_skinned("mouhitotsunokage", MOUHITOTSUNOKAGE_JOINTS, MOUHITOTSUNOKAGE_BONES,
+                           MOUHITOTSUNOKAGE_RADII, root="root", subsurf=2)
+    husk = C.make_material("mou_husk", (0.46, 0.44, 0.42), roughness=0.7)
+    C.assign_material(body, husk)
+
+    extras = []
+    for side in (-1.0, 1.0):
+        # 道具に紛れ込む影らしく、半分沈んだ生気の薄い目
+        eye = C.uv_sphere(f"mou_eye{side}", (0.052 * side, -0.140, 0.150), 0.024,
+                          segments=14, rings=10, scale=(1.0, 0.55, 0.6))
+        C.assign_material(eye, C.make_material(f"mou_eye{side}_m", (0.58, 0.56, 0.62), roughness=0.4))
+        extras.append(eye)
+    mouth = C.uv_sphere("mou_mouth", (0.0, -0.150, 0.105), 0.020,
+                        segments=12, rings=8, scale=(0.85, 0.5, 0.65))
+    C.assign_material(mouth, C.make_material("mou_mouth_m", (0.18, 0.16, 0.18), roughness=0.5))
+    extras.append(mouth)
+
+    # 各地方の記憶の名残として、道具箱の側面に淡い色の欠片を6つ散らす
+    fragments = [
+        (0.62, 0.85, 0.62), (0.42, 0.30, 0.24), (0.55, 0.62, 0.42),
+        (0.68, 0.44, 0.56), (0.32, 0.58, 0.66), (0.60, 0.48, 0.34),
+    ]
+    for i, (angle_deg, z, (fr, fg, fb)) in enumerate(
+        zip([15.0, 75.0, 135.0, 195.0, 255.0, 315.0], [0.08, 0.13, 0.09, 0.14, 0.08, 0.13], fragments)
+    ):
+        angle = math.radians(angle_deg)
+        frag = C.uv_sphere(f"mou_frag{i}", (math.cos(angle) * 0.150, math.sin(angle) * 0.150, z),
+                           0.028, segments=10, rings=8, scale=(1.0, 1.0, 0.4))
+        C.assign_material(frag, C.make_material(f"mou_frag{i}_m", (fr * 0.75, fg * 0.75, fb * 0.75),
+                                                roughness=0.6))
+        extras.append(frag)
+
+    # 頂上に残る、留め具のような小さな突起
+    latch = C.cone("mou_latch", (0.0, 0.0, 0.245), 0.030, 0.014, 0.045, segments=10)
+    C.assign_material(latch, husk)
+    extras.append(latch)
+
+    mesh = C.join([body] + extras, "mouhitotsunokage")
+    armature = C.build_armature("mouhitotsunokage", MOUHITOTSUNOKAGE_JOINTS,
+                                MOUHITOTSUNOKAGE_BONES, mesh, root="root")
+    return [mesh, armature], armature
+
+
+def mouhitotsunokage_animations():
+    lower, mid, upper = "root-stem", "stem-capbase", "capbase-captop"
+    return [
+        # 道具のふりをして、ほとんど動かずじっと潜む
+        ("idle", [
+            (1, {mid: (0, 0, 0)}),
+            (48, {mid: (1.2, 0, 1)}),
+            (96, {mid: (0, 0, 0)}),
+        ]),
+        # 道具らしからぬ、正体を現したときのぎこちない足取り
+        ("walk", [
+            (1, {lower: (0, 0, 0), mid: (0, 0, 0)}),
+            (7, {lower: (9, 0, 5), mid: (-7, 0, -4)}),
+            (14, {lower: (-9, 0, -5), mid: (7, 0, 4)}),
+            (21, {lower: (0, 0, 0), mid: (0, 0, 0)}),
+        ]),
+        ("attack", [
+            (1, {upper: (0, 0, 0), mid: (0, 0, 0)}),
+            (6, {upper: (-22, 0, 0), mid: (-15, 0, 0)}),
+            (11, {upper: (13, 0, 0), mid: (9, 0, 0)}),
+            (20, {upper: (0, 0, 0), mid: (0, 0, 0)}),
+        ]),
+        ("hit", [
+            (1, {mid: (0, 0, 0)}),
+            (4, {mid: (11, 0, 0), upper: (7, 0, 0)}),
+            (14, {mid: (0, 0, 0), upper: (0, 0, 0)}),
+        ]),
+        # 影がほどけるように、輪郭を保てず崩れて消える
+        ("die", [
+            (1, {lower: (0, 0, 0), mid: (0, 0, 0)}),
+            (10, {lower: (15, 0, 9), mid: (11, 0, 7), upper: (9, 0, 5)}),
+            (22, {lower: (36, 0, 20), mid: (26, 0, 15), upper: (20, 0, 12)}),
+        ]),
+    ]
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -7033,6 +7132,7 @@ MONSTERS = {
     "katakunagani": (build_katakunagani, katakunagani_animations),
     "matsurinonushi": (build_matsurinonushi, matsurinonushi_animations),
     "mazarinezumi": (build_mazarinezumi, mazarinezumi_animations),
+    "mouhitotsunokage": (build_mouhitotsunokage, mouhitotsunokage_animations),
 }
 
 
