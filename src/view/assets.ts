@@ -7,6 +7,102 @@ export interface ModelAsset {
   animations: THREE.AnimationClip[];
 }
 
+/**
+ * トゥーンシェーディングの階調マップ(plan/game/archive/toon-shading-pipeline.md)。
+ * 影 / 中間 / ハイライトの3階調。全マテリアル共通で使い回すのでモジュール
+ * スコープで1回だけ作る。
+ *
+ * 最暗部を0にすると陰の面がほぼ黒く潰れてモンスターの配色が読めなくなったため、
+ * 90まで持ち上げてある。NearestFilterは必須(線形補間だと階調が滑らかにボケて
+ * トゥーンにならない)。
+ */
+const TOON_GRADIENT = (() => {
+  const data = new Uint8Array([90, 170, 255]);
+  const texture = new THREE.DataTexture(data, data.length, 1, THREE.RedFormat);
+  texture.minFilter = THREE.NearestFilter;
+  texture.magFilter = THREE.NearestFilter;
+  texture.needsUpdate = true;
+  return texture;
+})();
+
+/**
+ * 輪郭線(Inverted Hull法)の太さ。ローカル単位。既存モデルは概ね高さ
+ * 0.2〜1.0ローカル単位で作られており、0.012はそのスケール帯でヘッドレス
+ * ブラウザのスクリーンショットを見比べて「輪郭が途切れず見えるが、
+ * 顔まわりの造形を潰さない」太さとして選んだ値。
+ */
+const OUTLINE_THICKNESS = 0.012;
+const OUTLINE_COLOR = 0x0a0a0c;
+
+/** MeshStandardMaterial(glTFのPBR素材)をトゥーン向けに置き換える */
+function toToonMaterial(source: THREE.Material): THREE.MeshToonMaterial {
+  const std = source as THREE.MeshStandardMaterial;
+  return new THREE.MeshToonMaterial({
+    color: std.color,
+    map: std.map,
+    emissive: std.emissive,
+    emissiveIntensity: std.emissiveIntensity,
+    emissiveMap: std.emissiveMap,
+    transparent: std.transparent,
+    opacity: std.opacity,
+    gradientMap: TOON_GRADIENT,
+    // metalnessはMeshToonMaterialに存在しないため単純に失われる(想定内。
+    // plan/game/archive/toon-shading-pipeline.md参照)
+  });
+}
+
+/**
+ * 輪郭線用マテリアル。背面だけを描画し、頂点シェーダーで法線方向に
+ * 少し押し出す(Inverted Hull法)。
+ *
+ * #include <skinning_vertex> の"後"に押し出しを注入するのが肝心。
+ * スキニング適用前のローカル法線でオフセットすると、ボーンが回転した
+ * 状態で押し出し方向がずれる。
+ */
+function makeOutlineMaterial(): THREE.MeshBasicMaterial {
+  const material = new THREE.MeshBasicMaterial({
+    color: OUTLINE_COLOR,
+    side: THREE.BackSide,
+  });
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.outlineThickness = { value: OUTLINE_THICKNESS };
+    shader.vertexShader = shader.vertexShader
+      .replace("#include <common>", "#include <common>\nuniform float outlineThickness;")
+      .replace(
+        "#include <skinning_vertex>",
+        "#include <skinning_vertex>\ntransformed += normalize(objectNormal) * outlineThickness;"
+      );
+  };
+  return material;
+}
+
+/**
+ * スキン付きメッシュの兄弟ノードとして輪郭線メッシュを追加する。
+ * ジオメトリは複製せず共有し、同じskeletonインスタンスにbindする。
+ * これにより SkeletonUtils.clone() が instantiate() で複製する際も
+ * 「輪郭線が本体に追従する」関係が壊れない(SkeletonUtils.clone は
+ * 複数のSkinnedMeshが同じスケルトンを共有する構成を正しく扱う)。
+ */
+function addOutlineMesh(mesh: THREE.SkinnedMesh): void {
+  const outline = new THREE.SkinnedMesh(mesh.geometry, makeOutlineMaterial());
+  outline.name = `${mesh.name}__outline`;
+  outline.bind(mesh.skeleton, mesh.bindMatrix);
+  outline.castShadow = false;
+  outline.receiveShadow = false;
+  outline.frustumCulled = mesh.frustumCulled;
+  // 本体メッシュ自身のローカル変換(通常は単位変換だが、念のため揃えておく)
+  outline.position.copy(mesh.position);
+  outline.quaternion.copy(mesh.quaternion);
+  outline.scale.copy(mesh.scale);
+  const parent = mesh.parent;
+  if (parent) {
+    parent.add(outline);
+  } else {
+    // 実際のglTF構造では起こらないはずだが、保険として本体自身に付ける
+    mesh.add(outline);
+  }
+}
+
 export interface Instance {
   root: THREE.Object3D;
   mixer: THREE.AnimationMixer | null;
@@ -58,12 +154,23 @@ export class Assets {
 
     const task = (async () => {
       const gltf = await this.loader.loadAsync(`${baseUrl}/${name}.glb`);
+      // 輪郭線メッシュの追加はtraverse中に子を増やすことになり、走査中の
+      // children配列を書き換えてしまう恐れがあるため、対象のSkinnedMeshだけ
+      // 先に集めておき、traverseを終えてからまとめて追加する
+      const skinnedMeshes: THREE.SkinnedMesh[] = [];
       gltf.scene.traverse((obj) => {
-        if ((obj as THREE.Mesh).isMesh) {
-          obj.castShadow = true;
-          obj.receiveShadow = true;
+        const mesh = obj as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        mesh.material = Array.isArray(mesh.material)
+          ? mesh.material.map((m) => toToonMaterial(m))
+          : toToonMaterial(mesh.material);
+        if ((mesh as THREE.SkinnedMesh).isSkinnedMesh) {
+          skinnedMeshes.push(mesh as THREE.SkinnedMesh);
         }
       });
+      for (const mesh of skinnedMeshes) addOutlineMesh(mesh);
       this.cache.set(name, { scene: gltf.scene, animations: gltf.animations });
     })().finally(() => {
       this.inFlight.delete(name);
