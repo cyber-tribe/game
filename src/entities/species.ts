@@ -323,7 +323,7 @@ export const SPECIES: readonly Species[] = [
     // 部屋全体への封じ(seal)放出(plan/region-boss-honezuka.md)
     id: "honezukaNoNushi",
     name: "ホネヅカのぬし",
-    model: "honegarami",
+    model: "honezukaNoNushi",
     maxHp: 96,
     atk: 24,
     def: 40,
