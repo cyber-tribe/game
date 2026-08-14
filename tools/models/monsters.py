@@ -7178,6 +7178,119 @@ def moyautsubo_animations():
     ]
 
 
+# ========================================================================= スリガラス
+
+SURIGARASU_HALF = {
+    "hip": (0.0, 0.09, 0.13),
+    "chest": (0.0, -0.02, 0.15),
+    "neck": (0.0, -0.13, 0.16),
+    "snout": (0.0, -0.24, 0.155),
+    "tail1": (0.0, 0.18, 0.15),
+    "tail2": (0.0, 0.24, 0.17),
+    "tail3": (0.0, 0.29, 0.20),
+    "ear.L": (0.05, -0.13, 0.20),
+    "hipF.L": (0.09, -0.05, 0.13),
+    "footF.L": (0.20, -0.06, 0.10),
+    "hipB.L": (0.06, 0.08, 0.09),
+    "footB.L": (0.06, 0.10, 0.01),
+}
+SURIGARASU_RADII_HALF = {
+    "hip": 0.085, "chest": 0.095, "neck": 0.060, "snout": 0.028,
+    "tail1": 0.024, "tail2": 0.016, "tail3": 0.010,
+    "ear.L": 0.014,
+    "hipF.L": 0.032, "footF.L": 0.020,
+    "hipB.L": 0.026, "footB.L": 0.016,
+}
+SURIGARASU_BONES_HALF = [
+    ("chest", "hip"), ("chest", "neck"), ("neck", "snout"),
+    ("hip", "tail1"), ("tail1", "tail2"), ("tail2", "tail3"),
+    ("neck", "ear.L"),
+    ("chest", "hipF.L"), ("hipF.L", "footF.L"),
+    ("hip", "hipB.L"), ("hipB.L", "footB.L"),
+]
+
+
+def build_surigarasu():
+    """
+    ヨリシロのふとした衝動が形になった、カラスに似た姿。gajiriと同じ
+    関節構成をベースに、細身ですばやそうな鳥のシルエットに作り替える。
+    何かを掴んで抱え込むための前肢を目立たせ、平たい翼を左右の肩に
+    重ねる。耳は鳥らしからぬため小さく切り詰め、鼻先には尖った嘴を
+    足す。配色は第一地方(うたたねの参道)の、参道の土色に馴染む
+    素朴な淡い色合い。
+    """
+    joints = C.mirrored(SURIGARASU_HALF)
+    radii = C.mirrored_radii(SURIGARASU_RADII_HALF)
+    bones = C.mirrored_bones(SURIGARASU_BONES_HALF)
+
+    body = C.build_skinned("surigarasu", joints, bones, radii, root="chest", subsurf=2)
+    feather = C.make_material("suriga_feather", (0.62, 0.56, 0.46), roughness=0.7)
+    C.assign_material(body, feather)
+
+    extras = []
+    wing_mat = C.make_material("suriga_wing", (0.50, 0.44, 0.36), roughness=0.65)
+    for side in (-1.0, 1.0):
+        wing = C.uv_sphere(f"suriga_wing{side}", (0.155 * side, -0.02, 0.145), 0.075,
+                           segments=14, rings=10, scale=(1.0, 1.3, 0.28))
+        C.assign_material(wing, wing_mat)
+        extras.append(wing)
+        extras += eyeball(f"suriga_eye{side}", (0.038 * side, -0.185, 0.185), 0.020,
+                          look=(0.3 * side, -1.0, 0.1))
+    beak = C.cone("suriga_beak", (0.0, -0.255, 0.148), 0.022, 0.003, 0.055, segments=10)
+    C.assign_material(beak, C.make_material("suriga_beak_m", (0.68, 0.56, 0.32), roughness=0.4))
+    extras.append(beak)
+    # 尻尾の先に扇状の尾羽
+    for i, angle_deg in enumerate([-18.0, 0.0, 18.0]):
+        angle = math.radians(angle_deg)
+        fx = math.sin(angle) * 0.03
+        feather_tail = C.cone(f"suriga_tailfeather{i}", (fx, 0.29, 0.20 - i * 0.006),
+                              0.014, 0.002, 0.06, segments=8)
+        C.assign_material(feather_tail, feather)
+        extras.append(feather_tail)
+
+    mesh = C.join([body] + extras, "surigarasu")
+    armature = C.build_armature("surigarasu", joints, bones, mesh, root="chest")
+    return [mesh, armature], armature
+
+
+def surigarasu_animations():
+    neck, snout = "chest-neck", "neck-snout"
+    hipF_L, hipF_R = "chest-hipF.L", "chest-hipF.R"
+    hipB_L, hipB_R = "hip-hipB.L", "hip-hipB.R"
+    return [
+        # きょろきょろと、光るものを探して落ち着かない
+        ("idle", [
+            (1, {neck: (0, 0, 0)}),
+            (14, {neck: (3, 12, 0)}),
+            (28, {neck: (0, 0, 0)}),
+            (42, {neck: (-3, -12, 0)}),
+        ]),
+        # 飛び去るように、羽ばたきながら跳ねて進む
+        ("walk", [
+            (1, {hipF_L: (0, 0, 16), hipF_R: (0, 0, -16), hipB_L: (14, 0, 0), hipB_R: (-14, 0, 0)}),
+            (7, {hipF_L: (0, 0, -16), hipF_R: (0, 0, 16), hipB_L: (-14, 0, 0), hipB_R: (14, 0, 0)}),
+            (14, {hipF_L: (0, 0, 16), hipF_R: (0, 0, -16), hipB_L: (14, 0, 0), hipB_R: (-14, 0, 0)}),
+        ]),
+        # 素早く近づいて掠め取り、すぐ飛び去る
+        ("attack", [
+            (1, {neck: (0, 0, 0), hipF_L: (0, 0, 0), hipF_R: (0, 0, 0)}),
+            (4, {neck: (-10, 0, 0), hipF_L: (0, 0, 30), hipF_R: (0, 0, -30)}),
+            (8, {neck: (14, 0, 0), hipF_L: (0, 0, -22), hipF_R: (0, 0, 22)}),
+            (16, {neck: (0, 0, 0), hipF_L: (0, 0, 0), hipF_R: (0, 0, 0)}),
+        ]),
+        ("hit", [
+            (1, {neck: (0, 0, 0)}),
+            (4, {neck: (12, 0, 0), hipF_L: (0, 0, -14), hipF_R: (0, 0, 14)}),
+            (12, {neck: (0, 0, 0), hipF_L: (0, 0, 0), hipF_R: (0, 0, 0)}),
+        ]),
+        ("die", [
+            (1, {neck: (0, 0, 0)}),
+            (8, {neck: (10, 0, 0), hipF_L: (0, 0, 20), hipF_R: (0, 0, -20)}),
+            (18, {neck: (24, 0, 0), hipF_L: (0, 0, 44), hipF_R: (0, 0, -44)}),
+        ]),
+    ]
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -7239,6 +7352,7 @@ MONSTERS = {
     "mazarinezumi": (build_mazarinezumi, mazarinezumi_animations),
     "mouhitotsunokage": (build_mouhitotsunokage, mouhitotsunokage_animations),
     "moyautsubo": (build_moyautsubo, moyautsubo_animations),
+    "surigarasu": (build_surigarasu, surigarasu_animations),
 }
 
 
