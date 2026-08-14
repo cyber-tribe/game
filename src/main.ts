@@ -231,8 +231,13 @@ class App {
       this.endingScreen.handleKey(code);
 
     // サウンド再生(plan/audio-playback.md): ブラウザの自動再生制限を避けるため、
-    // AudioContextは最初の入力(キー入力)のタイミングで初めて作る
+    // AudioContextは最初の入力のタイミングで初めて作る。タッチUI
+    // (plan/game/archive/touch-controls.md)はInput.press/releaseを直接
+    // 呼びkeydownを発生させないため、pointerdownも解錠トリガーに加える
+    // (plan/game/archive/touch-audio-unlock.md)。AudioPlayer.resume()は
+    // 複数回呼ばれても安全なので、両方発火しても問題ない
     window.addEventListener("keydown", () => this.audio.resume(), { once: true });
+    window.addEventListener("pointerdown", () => this.audio.resume(), { once: true });
   }
 
   async start(): Promise<void> {

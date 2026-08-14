@@ -1,3 +1,12 @@
+> **実装済み。** `src/main.ts`の解錠トリガーに`pointerdown`を計画書どおり
+> 追加した。`AudioPlayer.resume()`(`src/audio/player.ts`)は`!this.ctx`を
+> 見てから初回のみ`AudioContext`を生成する作りのため、`keydown`と
+> `pointerdown`の両方が発火しても実害が無いことをコードで確認済み。
+> 単体テストは追加していない(このDOMイベント配線自体は`src/main.ts`の
+> 他の同種の配線と同じく既存テスト対象外)。`npx tsc --noEmit` /
+> `npx vitest run`(1203件)/ `npm run build`いずれもgreen。実機での
+> 音声再生確認は受け入れ基準どおりスマホ実機が必要なため未実施。
+
 # タッチ操作でも音楽・効果音が鳴るようにする
 
 ## 経緯
