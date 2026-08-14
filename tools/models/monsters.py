@@ -6853,6 +6853,127 @@ def katakunagani_animations():
     ]
 
 
+# ========================================================================= まざりねずみ
+
+MAZARINEZUMI_HALF = {
+    "hip": (0.0, 0.1875, 0.25),
+    "chest": (0.0, -0.025, 0.2625),
+    "neck": (0.0, -0.1875, 0.2375),
+    "snout": (0.0, -0.40, 0.1625),
+    "tail1": (0.0, 0.35, 0.2375),
+    "tail2": (0.0, 0.525, 0.30),
+    "tail3": (0.0, 0.65, 0.40),
+    "ear.L": (0.125, -0.1875, 0.425),
+    "hipF.L": (0.1125, -0.075, 0.175),
+    "footF.L": (0.125, -0.125, 0.03),
+    "hipB.L": (0.1375, 0.1625, 0.1875),
+    "footB.L": (0.15, 0.20, 0.03),
+}
+MAZARINEZUMI_RADII_HALF = {
+    "hip": 0.155, "chest": 0.165, "neck": 0.120, "snout": 0.048,
+    "tail1": 0.032, "tail2": 0.024, "tail3": 0.016,
+    "ear.L": 0.050,
+    "hipF.L": 0.045, "footF.L": 0.038,
+    "hipB.L": 0.058, "footB.L": 0.040,
+}
+MAZARINEZUMI_BONES_HALF = [
+    ("chest", "hip"), ("chest", "neck"), ("neck", "snout"),
+    ("hip", "tail1"), ("tail1", "tail2"), ("tail2", "tail3"),
+    ("neck", "ear.L"),
+    ("chest", "hipF.L"), ("hipF.L", "footF.L"),
+    ("hip", "hipB.L"), ("hipB.L", "footB.L"),
+]
+
+
+def build_mazarinezumi():
+    """
+    ガジリねずみといしずえねずみが混ざった、不安定な個体。gajiriと同じ
+    関節構成をベースに、体格はどちらの姿にも定まりきらない中間の
+    大きさにする。臆病さと不動の構えが同居する証として、腰から尻尾に
+    かけてだけ小さな甲羅を乗せ、頭から前脚にかけては装甲のない
+    剥き出しのままにする。配色は第八地方(めざめの前庭)の、
+    第一〜第七地方の色が淡く混ざり合った継ぎ接ぎにする。
+    """
+    joints = C.mirrored(MAZARINEZUMI_HALF)
+    radii = C.mirrored_radii(MAZARINEZUMI_RADII_HALF)
+    bones = C.mirrored_bones(MAZARINEZUMI_BONES_HALF)
+
+    body = C.build_skinned("mazarinezumi", joints, bones, radii, root="chest", subsurf=2)
+
+    region_mats = [
+        C.make_material("mazari_r1", (0.70, 0.60, 0.46), roughness=0.75),
+        C.make_material("mazari_r2", (0.42, 0.52, 0.54), roughness=0.65),
+        C.make_material("mazari_r3", (0.46, 0.32, 0.24), roughness=0.7),
+        C.make_material("mazari_r4", (0.68, 0.65, 0.58), roughness=0.7),
+        C.make_material("mazari_r5", (0.26, 0.30, 0.44), roughness=0.6),
+        C.make_material("mazari_r6", (0.56, 0.46, 0.32), roughness=0.75),
+        C.make_material("mazari_r7", (0.50, 0.22, 0.20), roughness=0.6),
+    ]
+    bounds = [0.0, 45.0, 100.0, 140.0, 190.0, 230.0, 290.0, 360.0]
+
+    def classify(c):
+        deg = math.degrees(math.atan2(c.y, c.x)) % 360.0
+        for i in range(7):
+            if bounds[i] <= deg < bounds[i + 1]:
+                return i
+        return 6
+
+    C.assign_materials_by_region(body, region_mats, classify)
+
+    extras = []
+    for side in (-1.0, 1.0):
+        extras += eyeball(f"mazari_eye{side}", (0.086 * side, -0.30, 0.28), 0.038,
+                          look=(0.3 * side, -1.0, 0.05))
+    nose = C.uv_sphere("mazari_nose", (0.0, -0.475, 0.170), 0.026, segments=12, rings=8)
+    C.assign_material(nose, C.make_material("mazari_nose_m", (0.72, 0.44, 0.46), roughness=0.4))
+    extras.append(nose)
+
+    # 腰から尻尾にかけてだけ乗せた、育ちきらない甲羅
+    shell_mat = C.make_material("mazari_shell", (0.48, 0.46, 0.42), roughness=0.55)
+    for i, (sy, sz, r) in enumerate([(0.20, 0.31, 0.075), (0.30, 0.34, 0.062), (0.38, 0.38, 0.048)]):
+        plate = C.uv_sphere(f"mazari_shell{i}", (0.0, sy, sz), r,
+                            segments=14, rings=8, scale=(1.1, 0.9, 0.55))
+        C.assign_material(plate, shell_mat)
+        extras.append(plate)
+
+    mesh = C.join([body] + extras, "mazarinezumi")
+    armature = C.build_armature("mazarinezumi", joints, bones, mesh, root="chest")
+    return [mesh, armature], armature
+
+
+def mazarinezumi_animations():
+    neck, snout = "chest-neck", "neck-snout"
+    hipF_L, hipF_R = "chest-hipF.L", "chest-hipF.R"
+    hipB_L, hipB_R = "hip-hipB.L", "hip-hipB.R"
+    return [
+        # 臆病さと不動の構えが同居し、落ち着かずわずかに揺れる
+        ("idle", [
+            (1, {neck: (0, 0, 0)}),
+            (20, {neck: (3, 0, 2)}),
+            (40, {neck: (0, 0, 0)}),
+        ]),
+        ("walk", [
+            (1, {hipF_L: (16, 0, 0), hipF_R: (-16, 0, 0), hipB_L: (-14, 0, 0), hipB_R: (14, 0, 0)}),
+            (9, {hipF_L: (-16, 0, 0), hipF_R: (16, 0, 0), hipB_L: (14, 0, 0), hipB_R: (-14, 0, 0)}),
+            (18, {hipF_L: (16, 0, 0), hipF_R: (-16, 0, 0), hipB_L: (-14, 0, 0), hipB_R: (14, 0, 0)}),
+        ]),
+        ("attack", [
+            (1, {neck: (0, 0, 0), snout: (0, 0, 0)}),
+            (5, {neck: (-14, 0, 0), snout: (-8, 0, 0)}),
+            (10, {neck: (20, 0, 0), snout: (12, 0, 0)}),
+            (20, {neck: (0, 0, 0), snout: (0, 0, 0)}),
+        ]),
+        ("hit", [
+            (1, {neck: (0, 0, 0)}),
+            (4, {neck: (-14, 0, 0)}),
+            (14, {neck: (0, 0, 0)}),
+        ]),
+        ("die", [
+            (1, {neck: (0, 0, 0)}),
+            (10, {neck: (12, 0, 0), hipF_L: (18, 0, 0), hipF_R: (18, 0, 0)}),
+            (24, {neck: (26, 0, 0), hipF_L: (40, 0, 0), hipF_R: (40, 0, 0)}),
+        ]),
+    ]
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -6911,6 +7032,7 @@ MONSTERS = {
     "kasumiutsubo": (build_kasumiutsubo, kasumiutsubo_animations),
     "katakunagani": (build_katakunagani, katakunagani_animations),
     "matsurinonushi": (build_matsurinonushi, matsurinonushi_animations),
+    "mazarinezumi": (build_mazarinezumi, mazarinezumi_animations),
 }
 
 
