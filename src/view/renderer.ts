@@ -91,12 +91,26 @@ export class Renderer {
 
     this.resize();
     window.addEventListener("resize", () => this.resize());
+    // 画面回転・アドレスバーの伸縮(100dvh)・レイアウト変更を漏れなく拾う。
+    // resizeイベントだけに頼ると、iOS Safariでは回転直後の発火時点で
+    // clientWidth/clientHeightがまだ回転前の値のことがあり、縦長のバッファが
+    // 横長のCSSサイズへ引き伸ばされて「縦に潰れた」表示のまま固定される。
+    // ResizeObserverはcanvasの実際のボックスが変わったときに発火するので、
+    // 値が確定してから追従できる。setSizeはupdateStyle=falseでCSSを変えない
+    // ため、監視対象のサイズが変わらず無限ループにもならない
+    if (typeof ResizeObserver !== "undefined") {
+      new ResizeObserver(() => this.resize()).observe(canvas);
+    }
   }
 
   resize(): void {
     const canvas = this.renderer.domElement;
     const width = canvas.clientWidth || window.innerWidth;
     const height = canvas.clientHeight || window.innerHeight;
+    // レイアウト計算前・非表示中は0が返る。0で割ると投影行列が壊れるので触らない
+    if (width <= 0 || height <= 0) return;
+    // 端末をまたぐ(外部ディスプレイへ移す等)と実効の画素密度も変わりうる
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(width, height, false);
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
