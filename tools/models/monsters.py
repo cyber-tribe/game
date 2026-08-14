@@ -6612,6 +6612,132 @@ def kasumiutsubo_animations():
     ]
 
 
+# ======================================================================= まつりのぬし
+
+# tsubuteと同じ関節構成(hip/chest/head/armF/handF/kneeB/ankleB/footB)を
+# ベースにする、menkaburikozo・kageboushiと同系統の奇襲役(ambush AI)。
+# めんかぶりこぞう(祭りの影絵)+かざりだるま(祭りの高揚)の夢あわせで
+# 生まれた「状態異常を受けつけなくなった姿」という設定のため、造形は
+# この2種の折衷にする。menkaburikozoよりさらに立体感を削って地面
+# すれすれに伏せるシルエットにしつつ、mask由来の紅色は残しながらも
+# 大きく彩度を落とし、周囲に溶け込む「わすれられた祭りの跡」の褪せた
+# 紅色にする。kazaridarumaの金の帯を、腹まわりに残るわずかな金色の
+# 名残として一筋だけ引き継ぎ、胸には正気を守る御守りの結び目を1つ
+# 据える。menkaburikozoの見開いた面の穴・kageboushiの三日月の目とは
+# 逆に、警戒して見開く必要がない(=状態異常を恐れない)ぶん、ただ
+# 静かに閉じただけの目にする。maxHp 63はmenkaburikozo(42)より一回り
+# 大きく、kazaridaruma(80)より小さいため、全体を約1.11倍に拡大する。
+MATSURINONUSHI_HALF = {
+    "hip": (0.0, 0.128, 0.109),
+    "chest": (0.0, -0.061, 0.120),
+    "head": (0.0, -0.239, 0.124),
+    "armF.L": (0.164, -0.164, 0.058),
+    "handF.L": (0.186, -0.228, 0.016),
+    "kneeB.L": (0.222, 0.120, 0.124),
+    "ankleB.L": (0.202, -0.042, 0.038),
+    "footB.L": (0.186, -0.164, 0.014),
+}
+MATSURINONUSHI_RADII_HALF = {
+    "hip": 0.169, "chest": 0.178, "head": 0.109,
+    "armF.L": 0.038, "handF.L": 0.042,
+    "kneeB.L": 0.075, "ankleB.L": 0.049, "footB.L": 0.044,
+}
+MATSURINONUSHI_BONES_HALF = [
+    ("chest", "hip"), ("chest", "head"),
+    ("chest", "armF.L"), ("armF.L", "handF.L"),
+    ("hip", "kneeB.L"), ("kneeB.L", "ankleB.L"), ("ankleB.L", "footB.L"),
+]
+
+
+def build_matsurinonushi():
+    """
+    めんかぶりこぞう+かざりだるまの夢あわせ。祭りの高揚が、正気を失わせる
+    悪戯からも自分を守るようになった姿。tsubute系の関節構成をベースに、
+    menkaburikozoよりさらに立体感を削って地面すれすれに伏せるシルエットに
+    し、周囲に溶け込む褪せた紅色を全身にまとう。腹まわりだけかざりだるま
+    の金の帯の名残を一筋残し、胸には状態異常を退ける御守りの結び目を
+    1つだけ据える。目は警戒に見開く必要がないぶん、ただ静かに閉じる。
+    """
+    joints = C.mirrored(MATSURINONUSHI_HALF)
+    radii = C.mirrored_radii(MATSURINONUSHI_RADII_HALF)
+    bones = C.mirrored_bones(MATSURINONUSHI_BONES_HALF)
+
+    body = C.build_skinned("matsurinonushi", joints, bones, radii, root="chest", subsurf=2)
+    faded = C.make_material("matsurinonushi_faded", (0.32, 0.18, 0.16), roughness=0.75)
+    gold = C.make_material("matsurinonushi_gold", (0.50, 0.41, 0.24), roughness=0.4, metallic=0.2)
+    # 胸〜腰の間だけ、かざりだるまの金の帯の名残を細く一筋残す
+    C.assign_materials_by_region(
+        body, [faded, gold],
+        lambda c: 1 if (-0.020 < c.y < 0.030) else 0,
+    )
+
+    extras = []
+    # 胸に据えた御守りの結び目。状態異常を退ける由来にちなみ、控えめに
+    # 金色へ発光させる(目立たない配色を崩さない程度に留める)
+    charm_mat = C.make_material("matsurinonushi_charm", (0.60, 0.49, 0.26), roughness=0.35, emission=0.5)
+    charm = C.uv_sphere("matsurinonushi_charm", (0.0, -0.095, 0.148), 0.036,
+                        segments=16, rings=12, scale=(1.0, 0.42, 1.15))
+    C.assign_material(charm, charm_mat)
+    extras.append(charm)
+    knot_mat = C.make_material("matsurinonushi_knot", (0.16, 0.10, 0.08), roughness=0.6)
+    knot = C.uv_sphere("matsurinonushi_knot", (0.0, -0.108, 0.148), 0.015,
+                       segments=12, rings=8)
+    C.assign_material(knot, knot_mat)
+    extras.append(knot)
+    # 落ち着いて閉じたまぶた。menkaburikozoの見開いた穴・kageboushiの
+    # 三日月と違い、警戒して見開く必要がないぶん、ただ静かに閉じた細い線
+    lid_mat = C.make_material("matsurinonushi_lid", (0.14, 0.09, 0.08), roughness=0.6)
+    for side in (-1.0, 1.0):
+        lid = C.uv_sphere(f"matsurinonushi_lid{side}", (0.052 * side, -0.258, 0.140), 0.022,
+                          segments=14, rings=8, scale=(1.0, 0.30, 0.22))
+        C.assign_material(lid, lid_mat)
+        extras.append(lid)
+
+    mesh = C.join([body] + extras, "matsurinonushi")
+    armature = C.build_armature("matsurinonushi", joints, bones, mesh, root="chest")
+    return [mesh, armature], armature
+
+
+def matsurinonushi_animations():
+    head = "chest-head"
+    armL, armR = "chest-armF.L", "chest-armF.R"
+    legL, legR = "hip-kneeB.L", "hip-kneeB.R"
+    return [
+        # 悪戯を恐れず、微動だにせず周囲に溶け込んで潜む
+        ("idle", [
+            (1, {head: (0, 0, 0)}),
+            (48, {head: (2, 3, 0)}),
+            (96, {head: (0, 0, 0)}),
+        ]),
+        # 低い姿勢のまま、音も無く這うように距離を詰める
+        ("walk", [
+            (1, {legL: (0, 0, 0), legR: (0, 0, 0), head: (0, 0, 0)}),
+            (5, {legL: (28, 0, 0), legR: (28, 0, 0), head: (5, 0, 0)}),
+            (9, {legL: (-22, 0, 0), legR: (-22, 0, 0), head: (-5, 0, 0)}),
+            (14, {legL: (0, 0, 0), legR: (0, 0, 0), head: (0, 0, 0)}),
+        ]),
+        # 御守りごと体ごとぶつかるように飛びかかる不意打ち
+        ("attack", [
+            (1, {armL: (0, 0, 0), armR: (0, 0, 0), head: (0, 0, 0)}),
+            (4, {armL: (-42, 0, 22), armR: (-42, 0, -22), head: (-22, 0, 0)}),
+            (8, {armL: (28, 0, -8), armR: (28, 0, 8), head: (12, 0, 0)}),
+            (16, {armL: (0, 0, 0), armR: (0, 0, 0), head: (0, 0, 0)}),
+        ]),
+        # 状態異常を受けないぶん、被弾してもわずかに揺れるだけ
+        ("hit", [
+            (1, {head: (0, 0, 0)}),
+            (4, {head: (17, 0, 0), armL: (-19, 0, 15), armR: (-19, 0, -15)}),
+            (14, {head: (0, 0, 0)}),
+        ]),
+        ("die", [
+            (1, {head: (0, 0, 0)}),
+            (9, {head: (24, 0, 0), legL: (-32, 0, 0), legR: (-32, 0, 0)}),
+            (22, {head: (36, 0, 0), legL: (-58, 0, 0), legR: (-58, 0, 0),
+                  armL: (-52, 0, 21), armR: (-52, 0, -21)}),
+        ]),
+    ]
+
+
 # ========================================================================= かたくなガニ
 
 KATAKUNAGANI_HALF = {
@@ -6784,6 +6910,7 @@ MONSTERS = {
     "ishizuenezumi": (build_ishizuenezumi, ishizuenezumi_animations),
     "kasumiutsubo": (build_kasumiutsubo, kasumiutsubo_animations),
     "katakunagani": (build_katakunagani, katakunagani_animations),
+    "matsurinonushi": (build_matsurinonushi, matsurinonushi_animations),
 }
 
 
