@@ -121,7 +121,8 @@ export const SPECIES: readonly Species[] = [
     // 常時発動になる(ゆるがぬからだ)
     id: "tokoshiepurun",
     name: "とこしえのぷるん",
-    model: "purun",
+    // 専用モデル(plan/models/archive/model-tokoshiepurun.md)
+    model: "tokoshiepurun",
     maxHp: 22,
     atk: 9,
     def: 6,
