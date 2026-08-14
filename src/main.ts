@@ -175,7 +175,7 @@ class App {
   private galleryWasOpen = false;
   /** 拠点の3D化(plan/town-3d-exploration.md)。倉庫・工房等の中身は変えず、
    * そこへ「歩いてたどり着く」入り口だけを差し替える */
-  private readonly village = new VillageView();
+  private readonly village = new VillageView(this.assets);
   private readonly villageHintEl: HTMLElement;
   /** 村なかを歩いている最中か。trueのあいだはダンジョン側のsubmitを止め、村の移動・確定だけを見る */
   private villageActive = false;
@@ -331,6 +331,8 @@ class App {
     // (TownScreen)を開いていたが、まず村なかの3D空間を表示し、建物に
     // 近づいて確定したときだけ`openTownScreen`経由でTownScreenを開く
     this.setVillageActive(true);
+    // 衣装(plan/game/archive/costumes.md): 村なかの自分の姿にも同じ色替えを反映する
+    this.village.setCostumeTint(costumeById(this.save.equippedCostume).tint ?? null);
     this.village.reset();
   }
 

@@ -1,11 +1,25 @@
 import * as THREE from "three";
 import { type Dir, dirDelta } from "../core/grid";
+import { ActorView } from "./actorView";
+import type { Assets } from "./assets";
+
+/** 村なかで操作する自分の姿。ダンジョン・図鑑ギャラリーと同じ主人公のモデル */
+const VILLAGE_PLAYER_MODEL = "garudo";
 
 /** 拠点の3D化(plan/town-3d-exploration.md)。ダンジョンと違い自由移動なので、
  * 座標はマス目(core/grid の Vec2)ではなく実数の平面座標で持つ */
 export interface VillagePos {
   x: number;
   z: number;
+}
+
+/**
+ * 村の平面座標(x,z)を`ActorView`が扱う形(x,y)に読み替える。
+ * `ActorView`は盤面の(x,y)をワールドの(x,z)に置く作りなので、
+ * マス目に丸めずそのまま渡せば実数座標のまま追従する
+ */
+function toActorPos(pos: VillagePos): { x: number; y: number } {
+  return { x: pos.x, y: pos.z };
 }
 
 /** 建物の見た目の作り方。tools/models/ の Blender パイプラインが本セッションの
@@ -207,10 +221,19 @@ function buildStructure(building: VillageBuilding): THREE.Object3D {
 export class VillageView {
   readonly scene = new THREE.Scene();
   readonly camera: THREE.PerspectiveCamera;
+  /**
+   * 主人公のモデルが届くまでのつなぎ。`garudo`は起動時に読む
+   * (modelList.ts の essentialModelNames)ので通常は一瞬も見えないが、
+   * 読み込みが遅れた場合に自分の姿が消えるよりはマシなので残してある
+   */
   private readonly playerMesh: THREE.Object3D;
+  /** 主人公の3Dモデル。モデルが届いた時点で作られ、以後はこちらを動かす */
+  private playerView: ActorView | null = null;
+  /** 衣装の色替え(plan/game/archive/costumes.md)。モデル生成前に指定されたぶんも覚えておく */
+  private costumeTint: readonly [number, number, number] | null = null;
   private pos: VillagePos = { ...VILLAGE_PLAYER_START };
 
-  constructor() {
+  constructor(private readonly assets: Assets) {
     this.scene.background = new THREE.Color(0x0c1420);
     this.scene.fog = new THREE.Fog(0x0c1420, 14, 30);
 
@@ -249,6 +272,32 @@ export class VillageView {
     this.pos = { ...VILLAGE_PLAYER_START };
     this.updateCamera();
     this.playerMesh.position.set(this.pos.x, 0.75, this.pos.z);
+    this.ensurePlayerView();
+    this.playerView?.setPosition(toActorPos(this.pos));
+  }
+
+  /**
+   * 衣装の色替え(plan/game/archive/costumes.md)をこの姿にも反映する。
+   * ダイブ中の`applyCostumeTint`と同じ色をそのまま渡す想定。
+   * モデルがまだ届いていなければ覚えておき、生成時に適用する
+   */
+  setCostumeTint(tint: readonly [number, number, number] | null): void {
+    this.costumeTint = tint;
+    if (tint && this.playerView) this.playerView.applyTint(tint);
+  }
+
+  /**
+   * 主人公のモデルが読めるようになっていれば、つなぎのカプセルと差し替える。
+   * `Assets`は起動直後は一部しか持っていないので、毎フレーム様子を見て、
+   * 届いた回に1度だけ作る(Stage.syncActorsと同じ考え方)
+   */
+  private ensurePlayerView(): void {
+    if (this.playerView || !this.assets.has(VILLAGE_PLAYER_MODEL)) return;
+    // 手前(カメラ側=+z)を向いて立たせる。dirDeltaの4が南(画面手前)
+    this.playerView = new ActorView(this.assets.instantiate(VILLAGE_PLAYER_MODEL), toActorPos(this.pos), 4);
+    if (this.costumeTint) this.playerView.applyTint(this.costumeTint);
+    this.scene.add(this.playerView.root);
+    this.playerMesh.visible = false;
   }
 
   get playerPos(): VillagePos {
@@ -257,9 +306,23 @@ export class VillageView {
 
   /** 押されている方向に応じて歩かせる。`dir`は`Input.direction()`をそのまま渡す */
   update(dt: number, dir: Dir | null): void {
+    const before = this.pos;
     this.pos = moveVillagePlayer(this.pos, dir, dt);
     this.playerMesh.position.set(this.pos.x, 0.75, this.pos.z);
     this.updateCamera();
+
+    this.ensurePlayerView();
+    const view = this.playerView;
+    if (!view) return;
+    view.setPosition(toActorPos(this.pos));
+    // 歩いた向きへ向き直り、歩き/待機の仕草を切り替える。
+    // 壁際で押し続けている場合は位置が変わらないので、待機に戻る
+    const dx = this.pos.x - before.x;
+    const dz = this.pos.z - before.z;
+    const moving = dx !== 0 || dz !== 0;
+    if (moving) view.faceTowards(dx, dz);
+    view.play(moving ? "walk" : "idle");
+    view.update(dt);
   }
 
   /** 確定キーで入れる建物があれば返す */
