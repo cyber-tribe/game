@@ -7291,6 +7291,94 @@ def surigarasu_animations():
     ]
 
 
+# ====================================================================== とこしえのぷるん
+
+TOKOSHIEPURUN_JOINTS = {
+    "base": (0.0, 0.0, 0.092),
+    "mid": (0.0, 0.0, 0.230),
+    "top": (0.0, 0.0, 0.3795),
+}
+TOKOSHIEPURUN_RADII = {"base": 0.3335, "mid": 0.2875, "top": 0.1035}
+TOKOSHIEPURUN_BONES = [("base", "mid"), ("mid", "top")]
+
+
+def build_tokoshiepurun():
+    """
+    まどろみの余韻を重ねすぎた結果、被弾を和らげる性質が常に発動する
+    ようになった姿。姿はぷるんのままだが、揺るぎなさだけが増している
+    ため、purunと同じ形をおよそ1.15倍にするだけにとどめ、根元に
+    揺るがない土台を思わせる薄い輪を足す。目は見開いたままだが、
+    落ち着いて据わった雰囲気にわずかに絞る。配色は第一地方
+    (うたたねの参道)の、参道の土色に馴染む素朴な淡い色合い。
+    """
+    body = C.build_skinned("tokoshiepurun", TOKOSHIEPURUN_JOINTS, TOKOSHIEPURUN_BONES,
+                           TOKOSHIEPURUN_RADII, root="base", subsurf=2)
+    for vert in body.data.vertices:
+        if vert.co.z < 0.028:
+            vert.co.z = 0.028 - (0.028 - vert.co.z) * 0.25
+    C.assign_material(body, C.make_material("tokoshie_body", (0.70, 0.60, 0.46),
+                                            roughness=0.3, metallic=0.0))
+
+    extras = []
+    for side in (-1.0, 1.0):
+        extras += eyeball(f"tokoshie_eye{side}", (0.098 * side, -0.225, 0.297), 0.062,
+                          look=(0.15 * side, -1.0, 0.0), squash=0.85)
+    mouth = C.uv_sphere("tokoshie_mouth", (0.0, -0.262, 0.182), 0.055,
+                        segments=14, rings=10, scale=(1.5, 0.5, 0.65))
+    C.assign_material(mouth, C.make_material("tokoshie_mouth_m", (0.20, 0.14, 0.12), roughness=0.3))
+    extras.append(mouth)
+
+    # 揺るがない土台を思わせる、根元の薄い輪
+    ring_mat = C.make_material("tokoshie_ring", (0.54, 0.46, 0.34), roughness=0.6)
+    ring = C.cylinder("tokoshie_ring", (0.0, 0.0, 0.030), 0.345, 0.020, segments=28)
+    C.assign_material(ring, ring_mat)
+    extras.append(ring)
+
+    mesh = C.join([body] + extras, "tokoshiepurun")
+    armature = C.build_armature("tokoshiepurun", C.mirrored(TOKOSHIEPURUN_JOINTS),
+                                TOKOSHIEPURUN_BONES, mesh, root="base")
+    return [mesh, armature], armature
+
+
+def tokoshiepurun_animations():
+    lower, upper = "base-mid", "mid-top"
+    squash = {"scale": (1.22, 0.72, 1.22)}
+    stretch = {"scale": (0.86, 1.28, 0.86)}
+    neutral = {"scale": (1.0, 1.0, 1.0)}
+    return [
+        # 揺るぎなさそのものとして、ほとんど動かず静かに佇む
+        ("idle", [
+            (1, {lower: neutral, upper: neutral}),
+            (36, {lower: {"scale": (1.02, 0.98, 1.02)}, upper: {"scale": (0.98, 1.02, 0.98)}}),
+            (72, {lower: neutral, upper: neutral}),
+        ]),
+        ("walk", [
+            (1, {lower: neutral, upper: neutral}),
+            (4, {lower: squash, upper: stretch}),
+            (9, {lower: {**stretch, "loc": (0, 0.10, 0)}, upper: squash}),
+            (14, {lower: {"scale": (1.1, 0.85, 1.1)}, upper: neutral}),
+            (20, {lower: neutral, upper: neutral}),
+        ]),
+        ("attack", [
+            (1, {lower: neutral, upper: neutral}),
+            (5, {lower: squash, upper: stretch}),
+            (10, {lower: {"scale": (0.85, 1.28, 0.85), "loc": (0, 0.08, 0)}, upper: {"scale": (1.20, 0.80, 1.20)}}),
+            (20, {lower: neutral, upper: neutral}),
+        ]),
+        # みをまもるが常時発動する性質どおり、被弾してもほとんど揺るがない
+        ("hit", [
+            (1, {lower: neutral, upper: neutral}),
+            (4, {lower: {"scale": (1.12, 0.88, 1.12)}, upper: {"scale": (0.94, 1.08, 0.94)}}),
+            (14, {lower: neutral, upper: neutral}),
+        ]),
+        ("die", [
+            (1, {lower: neutral, upper: neutral}),
+            (10, {lower: {"scale": (1.4, 0.45, 1.4)}, upper: {"scale": (1.3, 0.5, 1.3)}}),
+            (24, {lower: {"scale": (1.55, 0.05, 1.55)}, upper: {"scale": (1.45, 0.07, 1.45)}}),
+        ]),
+    ]
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -7353,6 +7441,7 @@ MONSTERS = {
     "mouhitotsunokage": (build_mouhitotsunokage, mouhitotsunokage_animations),
     "moyautsubo": (build_moyautsubo, moyautsubo_animations),
     "surigarasu": (build_surigarasu, surigarasu_animations),
+    "tokoshiepurun": (build_tokoshiepurun, tokoshiepurun_animations),
 }
 
 
