@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   BANNER_LINE_COUNT,
   bannerLinesFor,
+  bannerVisible,
   fadeBanner,
   showBanner,
+  INITIAL_BANNER_STATE,
   type BannerState,
 } from "../src/entities/messageBanner";
 
@@ -47,5 +49,34 @@ describe("entities/messageBanner.ts(plan/game/mobile-layout-redesign.md)", () =>
     const reshown = showBanner([...faded.lines, "b"]);
     expect(reshown.faded).toBe(false);
     expect(reshown.lines).toEqual(["a", "b"]);
+  });
+});
+
+describe("entities/messageBanner.ts: モーダルと帯の重なり (#461)", () => {
+  it("モーダルが開いていなければ、フェード前の帯は見える", () => {
+    expect(bannerVisible(showBanner(["装備した。"]), false)).toBe(true);
+  });
+
+  it("モーダルが開いているあいだは、新着メッセージでも帯を出さない", () => {
+    // 「◯◯を装備した。」はもちものを開いたまま流れる。これがモーダルに
+    // 重なって、効果説明・操作ヒントを隠していたのが元の不具合
+    expect(bannerVisible(showBanner(["装備した。"]), true)).toBe(false);
+  });
+
+  it("モーダルを閉じれば、隠していたメッセージがそのまま帯に出る", () => {
+    const state = showBanner(["装備した。"]);
+    expect(bannerVisible(state, true)).toBe(false);
+    expect(bannerVisible(state, false)).toBe(true);
+    // 行は捨てていない(閉じたあとに読める)
+    expect(state.lines).toEqual(["装備した。"]);
+  });
+
+  it("フェード済みなら、モーダルが閉じていても出さない", () => {
+    expect(bannerVisible(fadeBanner(showBanner(["a"])), false)).toBe(false);
+  });
+
+  it("行が1つも無ければ出さない(初期状態)", () => {
+    expect(bannerVisible(INITIAL_BANNER_STATE, false)).toBe(false);
+    expect(bannerVisible({ lines: [], faded: false }, false)).toBe(false);
   });
 });

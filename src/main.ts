@@ -797,6 +797,11 @@ class App {
 
     this.step(dt);
 
+    // メッセージ帯とモーダルのゾーンが衝突する(issue #461)。開閉のたびに
+    // 呼び出し口を増やすと漏れるので、毎フレーム今の開閉をそのまま渡す
+    // (Hud側は変化が無ければ何もしない)
+    this.hud.setBannerModalOpen(this.anyModalOpen());
+
     // 仲間になった瞬間の一時停止(plan/game/archive/companion-recruit-showcase.md):
     // ダイアログが閉じていれば、隠していたHUDを戻して保留していた残りの
     // 演出を再開する(1ターンで複数体が同時に仲間になった場合は、続けて

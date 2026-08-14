@@ -6,6 +6,7 @@ import { MAX_SATIETY, type PlayerState, expToNext } from "../entities/player";
 import { t } from "../i18n";
 import {
   BANNER_FADE_MS,
+  bannerVisible,
   fadeBanner,
   showBanner,
   type BannerState,
@@ -76,6 +77,8 @@ export class Hud {
   private readonly bannerEl: HTMLElement;
   private bannerState: BannerState = INITIAL_BANNER_STATE;
   private bannerFadeTimer: ReturnType<typeof setTimeout> | null = null;
+  /** モーダルが開いているあいだ帯を伏せる(issue #461)。main.tsが毎フレーム教える */
+  private bannerModalOpen = false;
 
   // 全文ログモーダル(「≡」→ログ、同上)
   private readonly logModalEl: HTMLElement;
@@ -235,7 +238,28 @@ export class Hud {
         return div;
       }),
     );
-    this.bannerEl.classList.toggle("faded", this.bannerState.faded);
+    // `faded`は「見せない状態」を表すクラス。フェード満了だけでなく、
+    // モーダルで伏せているあいだも同じ見た目(opacity: 0)にする
+    this.bannerEl.classList.toggle("faded", !bannerVisible(this.bannerState, this.bannerModalOpen));
+  }
+
+  /**
+   * モーダル(もちもの・指示・技・確認・拠点・命名)の開閉を受け取る。
+   * 毎フレーム呼ばれるので、変化が無ければ何もしない。
+   *
+   * 伏せているあいだはフェードの計測を止める。モーダルを見ているうちに
+   * 4秒を使い切ってしまうと、閉じた時点ではもう消えていて「装備した」等の
+   * 直前のメッセージが一度も読めないため。閉じたらそこから数え直す
+   */
+  setBannerModalOpen(open: boolean): void {
+    if (open === this.bannerModalOpen) return;
+    this.bannerModalOpen = open;
+    if (open) {
+      this.clearBannerFadeTimer();
+    } else if (!this.bannerState.faded) {
+      this.resetBannerFadeTimer();
+    }
+    this.renderBanner();
   }
 
   /**
@@ -244,11 +268,20 @@ export class Hud {
    * タイマーを取り消して積み直す
    */
   private resetBannerFadeTimer(): void {
-    if (this.bannerFadeTimer !== null) clearTimeout(this.bannerFadeTimer);
+    this.clearBannerFadeTimer();
+    // モーダルで伏せているあいだは数えない。閉じたときにsetBannerModalOpenが
+    // 積み直すので、閉じた瞬間からあらためて4秒見せられる
+    if (this.bannerModalOpen) return;
     this.bannerFadeTimer = setTimeout(() => {
       this.bannerState = fadeBanner(this.bannerState);
       this.renderBanner();
     }, BANNER_FADE_MS);
+  }
+
+  private clearBannerFadeTimer(): void {
+    if (this.bannerFadeTimer === null) return;
+    clearTimeout(this.bannerFadeTimer);
+    this.bannerFadeTimer = null;
   }
 
   /** 全文ログモーダル(「≡」→ログ)を開く。開いている間は最新の行を末尾に表示しスクロールする */
