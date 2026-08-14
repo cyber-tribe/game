@@ -417,7 +417,7 @@ export const SPECIES: readonly Species[] = [
     // 表示されるタイプ(plan/region-boss-horikuinonushi.md)
     id: "horikuiNoNushi",
     name: "掘り杭の主",
-    model: "honegarami",
+    model: "horikuiNoNushi",
     maxHp: 304,
     atk: 59,
     def: 42,

@@ -6140,6 +6140,241 @@ def honezukaNoNushi_animations():
     ]
 
 
+# =================================================================== 掘り杭の主
+
+# 第八地方(めざめの前庭)のボス。honegarami・honezukaNoNushiと同じ人型骨組みの
+# "種類"(hip/chest/neck/head/crown, shoulder-elbow-hand, thigh-knee-foot)を
+# 踏襲するが、他の地方ボスと違い夢が自然に生んだ存在ではなく、近道屋が山へ
+# 打ち込んだ杭そのものに、ヨリシロの反発と痛みが絡みついてできた異物――という
+# 由来を造形の軸にする。そのため関節配置は honegarami 系のまま、これまでで
+# 最も太く・高く育てて melee AI らしい正面から迫る力強いシルエットにしつつ、
+# 巨大な杭そのもの(horikui_stake、断面を八角にして smooth=False にした
+# ゆがんだ古木の梁)を体幹へ斜めに剪断変形させて突き刺し、刺さった位置から
+# 木片と発光する亀裂(反発と痛みの発露)を突き出させることで「外から
+# 打ち込まれ、ねじくれたまま固まった」異形感を出す。第八地方のテーマ
+# 「第一〜第七地方の色が淡く混ざり合った、統一感のない配色」は、
+# hajimeNoYume(傘の角度による放射状パッチワーク)・yorishironozankyo
+# (高さによる帯分け)とは別の第三の手法として、体表の各面ごとに最も近い
+# 関節(冠・胸・腰・左肩・右手・左膝・右足――左右非対称に選ぶことで
+# 「統一感のない」印象を強める)を求め、そこに紐付けた地方色を塗る
+# ボロノイ状の塗り分けで表現する。境界が滑らかな曲線にならず、関節の
+# 位置関係のまま不規則にねじれるため、パッチワークというより「継ぎ接ぎの
+# 傷跡」に近い見た目になる。
+HORIKUINONUSHI_HALF = {
+    "hip": (0.0, 0.0, 0.400),
+    "chest": (0.0, 0.0, 0.640),
+    "neck": (0.0, 0.0, 0.760),
+    "head": (0.0, -0.014, 0.890),
+    "crown": (0.0, 0.0, 1.010),
+    "shoulder.L": (0.212, 0.0, 0.685),
+    "elbow.L": (0.302, 0.042, 0.510),
+    "hand.L": (0.292, -0.020, 0.330),
+    "thigh.L": (0.116, 0.0, 0.370),
+    "knee.L": (0.124, 0.0, 0.185),
+    "foot.L": (0.130, -0.043, 0.025),
+}
+# がっしりした体格。honezukaNoNushiより厚みを持たせ、地方ボスの中で
+# 最大の maxHp(304)に見合う量感にする
+HORIKUINONUSHI_RADII_HALF = {
+    "hip": 0.198, "chest": 0.214, "neck": 0.080, "head": 0.140, "crown": 0.052,
+    "shoulder.L": 0.104, "elbow.L": 0.082, "hand.L": 0.092,
+    "thigh.L": 0.112, "knee.L": 0.088, "foot.L": 0.096,
+}
+HORIKUINONUSHI_BONES_HALF = [
+    ("hip", "chest"), ("chest", "neck"), ("neck", "head"), ("head", "crown"),
+    ("chest", "shoulder.L"), ("shoulder.L", "elbow.L"), ("elbow.L", "hand.L"),
+    ("hip", "thigh.L"), ("thigh.L", "knee.L"), ("knee.L", "foot.L"),
+]
+
+
+def build_horikuiNoNushi():
+    """
+    近道屋が山へ打ち込んだ杭そのものに、ヨリシロの反発と痛みが絡みついて
+    できあがった、いびつな姿。honegarami系の人型骨組みを、これまでで
+    最も太く高く育て、melee AIらしい正面から迫る力強いシルエットにする。
+    体幹には巨大な杭(八角断面・フラットシェードのゆがんだ古木)を斜めに
+    剪断変形させて突き刺し、刺さった位置から木片と発光する亀裂を突き出させる。
+    配色は第一〜第七地方の色を淡くしたものを、体表の各面から最も近い関節
+    (左右非対称に選ぶ)で塗り分けるボロノイ状の継ぎ接ぎにし、「統一感のない」
+    第八地方のテーマを、hajimeNoYume(放射状)・yorishironozankyo(高さ帯)
+    とは異なる手法で表現する。
+    """
+    joints = C.mirrored(HORIKUINONUSHI_HALF)
+    radii = C.mirrored_radii(HORIKUINONUSHI_RADII_HALF)
+    bones = C.mirrored_bones(HORIKUINONUSHI_BONES_HALF)
+
+    body = C.build_skinned("horikuiNoNushi", joints, bones, radii, root="hip", subsurf=2)
+
+    # 第一〜第七地方の代表色を淡くしたもの(hajimeNoYumeと同じ配色表を使い、
+    # 「同じ地方は同じ色」という世界観の一貫性を保つ)
+    region_colors = [
+        (0.72, 0.82, 0.88),  # 第一地方 うたたねの参道(淡い空色)
+        (0.70, 0.80, 0.62),  # 第二地方 忘れ潮の湿地(淡い緑)
+        (0.82, 0.66, 0.74),  # 第三地方 まどろみの茸林(淡い紅紫)
+        (0.80, 0.78, 0.72),  # 第四地方 骨積みの回廊(淡い白骨色)
+        (0.64, 0.68, 0.76),  # 第五地方 なみだの滝つぼ(淡い青灰)
+        (0.76, 0.70, 0.60),  # 第六地方 こだまの尾根(淡い土色)
+        (0.82, 0.62, 0.54),  # 第七地方 わすれられた祭りの跡(淡い紅)
+    ]
+    region_mats = [C.make_material(f"horikui_region{i}", c, roughness=0.62)
+                   for i, c in enumerate(region_colors)]
+
+    # ボロノイ状の塗り分け。左右非対称に関節を選ぶことで、境界が体の左右で
+    # 揃わず「統一感のない配色」を強める
+    anchor_names = ["crown", "chest", "hip", "shoulder.L", "hand.R", "knee.L", "foot.R"]
+    anchor_pos = [joints[n] for n in anchor_names]
+
+    def classify(c):
+        best_i, best_d = 0, None
+        for i, pos in enumerate(anchor_pos):
+            d = (c - pos).length_squared
+            if best_d is None or d < best_d:
+                best_d, best_i = d, i
+        return best_i
+
+    C.assign_materials_by_region(body, region_mats, classify)
+    counts = [0] * len(region_mats)
+    for poly in body.data.polygons:
+        counts[poly.material_index] += 1
+    print(f"horikuiNoNushi: 地方色 {counts} / 計{sum(counts)}")
+
+    extras = []
+    wood_mat = C.make_material("horikui_wood", (0.27, 0.20, 0.15), roughness=0.85)
+    wood_dark_mat = C.make_material("horikui_wood_dark", (0.15, 0.11, 0.09), roughness=0.9)
+    crack_mat = C.make_material("horikui_crack", (1.0, 0.32, 0.12), roughness=0.3, emission=2.6)
+    rock_mat = C.make_material("horikui_rock", (0.36, 0.35, 0.34), roughness=0.95)
+
+    # 巨大な杭本体。八角断面・フラットシェードの、根元が太く先端が尖った梁を
+    # 縦に作ってから、高さに応じてX方向へずらして「まっすぐ打ち込まれて
+    # いない、ねじくれた」傾きを作る(honegaramiの剣の切先を絞る手法と
+    # 同じ、生成後の頂点操作)。下端は地面に埋まる位置、上端は頭上へ突き出す
+    stake_bottom_z, stake_top_z = -0.26, 1.32
+    stake_len = stake_top_z - stake_bottom_z
+    stake = C.cone("horikui_stake", (0.0, 0.0, (stake_bottom_z + stake_top_z) * 0.5),
+                   0.095, 0.016, stake_len, segments=7)
+    for vert in stake.data.vertices:
+        t = (vert.co.z - stake_bottom_z) / stake_len
+        vert.co.x += 0.190 * t + 0.028 * math.sin(t * 5.4)
+        vert.co.y += -0.020 * t
+    C.assign_material(stake, wood_mat)
+    extras.append(stake)
+
+    # 刺さった位置(胸〜肩まわり)で裂けて突き出す木片。不揃いな間隔・角度で
+    # 配置し、左右対称にはしない
+    for i, (sx, sy, sz, rb, rt, depth) in enumerate([
+        (0.060, -0.150, 0.560, 0.026, 0.006, 0.130),
+        (-0.040, 0.130, 0.610, 0.022, 0.005, 0.100),
+        (0.145, -0.040, 0.700, 0.024, 0.005, 0.115),
+        (0.020, 0.160, 0.430, 0.028, 0.007, 0.140),
+        (0.175, 0.070, 0.320, 0.022, 0.005, 0.095),
+    ]):
+        shard = C.cone(f"horikui_shard{i}", (sx, sy, sz), rb, rt, depth, segments=8)
+        C.assign_material(shard, wood_dark_mat if i % 2 else wood_mat)
+        extras.append(shard)
+
+    # 反発と痛みの発露として、杭が食い込んだ線に沿って発光する亀裂を刻む
+    for i, (cx, cy, cz, length, angle_deg) in enumerate([
+        (0.080, -0.175, 0.605, 0.090, 18.0),
+        (0.030, -0.205, 0.500, 0.075, -12.0),
+        (0.150, -0.060, 0.740, 0.065, 32.0),
+        (0.010, 0.195, 0.380, 0.080, -20.0),
+    ]):
+        crack = C.box(f"horikui_crack{i}", (cx, cy, cz), (length, 0.008, 0.008), bevel=0.003)
+        angle = math.radians(angle_deg)
+        for vert in crack.data.vertices:
+            dx, dz = vert.co.x - cx, vert.co.z - cz
+            vert.co.x = cx + dx * math.cos(angle) - dz * math.sin(angle)
+            vert.co.z = cz + dx * math.sin(angle) + dz * math.cos(angle)
+        C.assign_material(crack, crack_mat)
+        extras.append(crack)
+
+    # 顔。ゆがんだ由来を映して左右非対称にする――発光する目は片方だけ大きく
+    # 吊り上がり、口はまっすぐな裂け目ではなくジグザグの食いしばりにする
+    eye_specs = [(-1.0, 0.062, 0.026, 6.0), (1.0, 0.050, 0.020, -10.0)]
+    for side, off, size, tilt_deg in eye_specs:
+        eye = C.box(f"horikui_eye{side}", (off * side, -0.150, 0.870),
+                    (size, 0.010, size * 0.42), bevel=0.003)
+        tilt = math.radians(tilt_deg)
+        ex, ez = off * side, 0.870
+        for vert in eye.data.vertices:
+            dx, dz = vert.co.x - ex, vert.co.z - ez
+            vert.co.x = ex + dx * math.cos(tilt) - dz * math.sin(tilt)
+            vert.co.z = ez + dx * math.sin(tilt) + dz * math.cos(tilt)
+        C.assign_material(eye, crack_mat)
+        extras.append(eye)
+    mouth_mat = C.make_material("horikui_mouth", (0.12, 0.09, 0.10), roughness=0.6)
+    for i, (mx, mz) in enumerate([(-0.058, 0.812), (-0.018, 0.800), (0.024, 0.814), (0.062, 0.802)]):
+        tooth = C.box(f"horikui_mouth{i}", (mx, -0.148, mz), (0.020, 0.012, 0.010), bevel=0.003)
+        C.assign_material(tooth, mouth_mat)
+        extras.append(tooth)
+
+    # 山へ打ち込まれた根元らしく、腰から下の脚まわりに割れた岩の欠片が
+    # 不揃いにこびりついたままになっている
+    for angle_deg, dist, r in [
+        (35.0, 0.185, 0.058), (110.0, 0.175, 0.050), (200.0, 0.190, 0.062),
+        (260.0, 0.170, 0.046),
+    ]:
+        angle = math.radians(angle_deg)
+        rock = C.uv_sphere(f"horikui_rock{int(angle_deg)}",
+                           (math.cos(angle) * dist, math.sin(angle) * dist, 0.060),
+                           r, segments=10, rings=7, scale=(1.0, 1.0, 0.6))
+        C.assign_material(rock, rock_mat)
+        extras.append(rock)
+
+    mesh = C.join([body] + extras, "horikuiNoNushi")
+    armature = C.build_armature("horikuiNoNushi", joints, bones, mesh, root="hip")
+    return [mesh, armature], armature
+
+
+def horikuiNoNushi_animations():
+    hipc, neck = "hip-chest", "neck-head"
+    armL, armR = "chest-shoulder.L", "chest-shoulder.R"
+    foreL, foreR = "shoulder.L-elbow.L", "shoulder.R-elbow.R"
+    legL, legR = "hip-thigh.L", "hip-thigh.R"
+    shinL, shinR = "thigh.L-knee.L", "thigh.R-knee.R"
+    return [
+        # 体幹を貫く杭に縛られ、大きくは揺れない。軋むような硬い微動のみ
+        ("idle", [
+            (1, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+            (26, {hipc: (1, 0, 1), neck: (-2, 0, 0)}),
+            (52, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+        ]),
+        # 杭に貫かれたまま引きずるような、硬く重い足取り
+        ("walk", [
+            (1, {legL: (14, 0, 0), legR: (-14, 0, 0), shinL: (-7, 0, 0), shinR: (6, 0, 0),
+                 armL: (-9, 0, 5), armR: (9, 0, -5)}),
+            (11, {legL: (0, 0, 0), legR: (0, 0, 0), armL: (0, 0, 5), armR: (0, 0, -5)}),
+            (21, {legL: (-14, 0, 0), legR: (14, 0, 0), shinL: (6, 0, 0), shinR: (-7, 0, 0),
+                  armL: (9, 0, 5), armR: (-9, 0, -5)}),
+            (31, {legL: (0, 0, 0), legR: (0, 0, 0), armL: (0, 0, 5), armR: (0, 0, -5)}),
+        ]),
+        # 得物は持たず、貫かれた体幹ごと突き出すように両腕でのしかかる
+        ("attack", [
+            (1, {armL: (0, 0, 7), armR: (0, 0, -7), foreL: (0, 0, 0), foreR: (0, 0, 0),
+                 hipc: (0, 0, 0)}),
+            (6, {armL: (-34, 0, 20), armR: (-34, 0, -20), foreL: (-24, 0, 0), foreR: (-24, 0, 0),
+                 hipc: (-12, 0, 0), neck: (-8, 0, 0)}),
+            (11, {armL: (58, 0, 3), armR: (58, 0, -3), foreL: (18, 0, 0), foreR: (18, 0, 0),
+                  hipc: (16, 0, 0), neck: (5, 0, 0)}),
+            (22, {armL: (0, 0, 7), armR: (0, 0, -7), foreL: (0, 0, 0), foreR: (0, 0, 0),
+                  hipc: (0, 0, 0)}),
+        ]),
+        # がっしりした体格どおり、当たってもほぼ動じない
+        ("hit", [
+            (1, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+            (4, {hipc: (-7, 0, 0), neck: (-9, 0, 0)}),
+            (14, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+        ]),
+        # 杭ごと支えを失い、根元から引き抜かれるように大きく傾いで崩れ落ちる
+        ("die", [
+            (1, {hipc: (0, 0, 0)}),
+            (11, {hipc: (-14, 0, 10), neck: (-22, 0, 0), armL: (-30, 0, 30), armR: (-30, 0, -30)}),
+            (29, {hipc: (-84, 0, 30), neck: (-46, 0, 0), legL: (34, 0, 0), legR: (30, 0, 0),
+                  armL: (-72, 0, 58), armR: (-72, 0, -58)}),
+        ]),
+    ]
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -6192,6 +6427,7 @@ MONSTERS = {
     "honezukanotsukai": (build_honezukanotsukai, honezukanotsukai_animations),
     "hajimeNoYume": (build_hajimeNoYume, hajimeNoYume_animations),
     "honezukaNoNushi": (build_honezukaNoNushi, honezukaNoNushi_animations),
+    "horikuiNoNushi": (build_horikuiNoNushi, horikuiNoNushi_animations),
 }
 
 
