@@ -190,7 +190,8 @@ export const SPECIES: readonly Species[] = [
     // ダメージを返す。「置いていかれる」恐れを鎧に変える
     id: "yoroioiteke",
     name: "ヨロイオイテケ",
-    model: "honegarami",
+    // 専用モデル(plan/models/archive/model-yoroioiteke.md)
+    model: "yoroioiteke",
     maxHp: 72,
     atk: 24,
     def: 22,
