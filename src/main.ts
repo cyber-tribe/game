@@ -230,8 +230,8 @@ class App {
     new TouchControls(document.querySelector<HTMLElement>("#touch")!, this.canvas, this.input, () =>
       this.hud.showLogModal(),
     );
-    // 縦持ち案内(plan/touch-ui-overlap-fix.md): matchMediaの監視結果を
-    // document.bodyへクラスとして反映するだけなので、以後参照する必要が無い
+    // 縦持ちでの強制横向き(plan/game/archive/forced-landscape.md): matchMediaの
+    // 監視結果をdocument.bodyへクラスとして反映するだけなので、以後参照する必要が無い
     new OrientationGuard();
     this.town = new TownScreen(document.querySelector<HTMLElement>("#town")!);
     this.namingRoot = document.querySelector<HTMLElement>("#naming")!;

@@ -45,6 +45,17 @@
          */
         --zone-tr-reserve: 0px; /* 右上: ミニマップの高さぶん、≡メニューボタンを下へ押しやる */
         --zone-bottom-reserve: 0px; /* 左下: 仮想パッドの高さぶん、ログを上へ押しやる */
+
+        /*
+         * セーフエリア(plan/game/mobile-layout-redesign.md)。各パネルは
+         * env(safe-area-inset-*)を直接参照せず、この--safe-*経由で参照する
+         * (plan/game/archive/forced-landscape.md: forced-landscape中は下で
+         * 参照軸を入れ替えるため、直接参照だと90度ずれる)
+         */
+        --safe-top: env(safe-area-inset-top, 0px);
+        --safe-right: env(safe-area-inset-right, 0px);
+        --safe-bottom: env(safe-area-inset-bottom, 0px);
+        --safe-left: env(safe-area-inset-left, 0px);
       }
       * { box-sizing: border-box; }
       html, body {
@@ -292,7 +303,7 @@
         padding: 16px;
         /* セーフエリア対応(plan/game/mobile-layout-redesign.md): 下端に張り付く
            モーダルなので、ホームインジケータの上に閉じるボタンが埋もれないようにする */
-        padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+        padding-bottom: calc(16px + var(--safe-bottom));
         background: rgba(3, 4, 10, 0.86);
         pointer-events: auto;
       }
@@ -448,11 +459,11 @@
           row-gap: 3px;
           column-gap: 10px;
           min-width: 0;
-          max-width: calc(100vw - 16px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px));
+          max-width: calc(100vw - 16px - var(--safe-left) - var(--safe-right));
           min-height: 40px;
           padding: 6px 12px;
-          top: calc(8px + env(safe-area-inset-top, 0px));
-          left: calc(8px + env(safe-area-inset-left, 0px));
+          top: calc(8px + var(--safe-top));
+          left: calc(8px + var(--safe-left));
         }
         #status .row { display: contents; }
         #hud-depth { font-size: 12px; }
@@ -474,8 +485,8 @@
         #allies {
           /* HUDバーは状態異常・かかえ中タルの表示が重なると2行に折り返すことが
              あるため、目安の40pxより余裕を持たせたオフセットにする */
-          top: calc(70px + env(safe-area-inset-top, 0px));
-          left: calc(8px + env(safe-area-inset-left, 0px));
+          top: calc(70px + var(--safe-top));
+          left: calc(8px + var(--safe-left));
           max-height: 38vh;
           overflow-y: auto;
         }
@@ -486,8 +497,8 @@
            (未決事項への回答: 状態はCSSクラス1つで表現できコストが低いため採用。
            src/ui/minimap-zoom.ts) */
         #minimap-wrap {
-          top: calc(8px + env(safe-area-inset-top, 0px));
-          right: calc(8px + env(safe-area-inset-right, 0px));
+          top: calc(8px + var(--safe-top));
+          right: calc(8px + var(--safe-right));
           padding: 6px;
           background: rgba(10, 13, 24, 0.4);
           border-color: rgba(126, 148, 210, 0.16);
@@ -506,9 +517,9 @@
         /* ------------------------------------------------ メッセージ帯(バナー) */
         #logBanner {
           display: block;
-          left: calc(150px + env(safe-area-inset-left, 0px));
-          right: calc(210px + env(safe-area-inset-right, 0px));
-          bottom: calc(30px + env(safe-area-inset-bottom, 0px));
+          left: calc(150px + var(--safe-left));
+          right: calc(210px + var(--safe-right));
+          bottom: calc(30px + var(--safe-bottom));
         }
         /* デスクトップの縦長ログパネルは廃止し、#logBannerに置き換える */
         #log { display: none; }
@@ -519,8 +530,8 @@
          この右端を避けて配置される(上のCSS参照) */
       .touch-pad {
         position: absolute;
-        left: calc(26px + env(safe-area-inset-left, 0px));
-        bottom: calc(26px + env(safe-area-inset-bottom, 0px));
+        left: calc(26px + var(--safe-left));
+        bottom: calc(26px + var(--safe-bottom));
         width: 108px; height: 108px;
         border-radius: 50%;
         background: rgba(10, 13, 24, 0.55);
@@ -544,8 +555,8 @@
          セーフエリア対応(右端・下端) */
       .touch-actions {
         position: absolute;
-        right: calc(18px + env(safe-area-inset-right, 0px));
-        bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+        right: calc(18px + var(--safe-right));
+        bottom: calc(22px + var(--safe-bottom));
         display: grid;
         grid-template-columns: repeat(3, 52px);
         gap: 10px;
@@ -581,8 +592,8 @@
          --zone-tr-reserveぶんだけその下に押しやる。セーフエリア対応(右端・上端) */
       .touch-menu-btn {
         position: absolute;
-        right: calc(16px + env(safe-area-inset-right, 0px));
-        top: calc(16px + env(safe-area-inset-top, 0px) + var(--zone-tr-reserve));
+        right: calc(16px + var(--safe-right));
+        top: calc(16px + var(--safe-top) + var(--zone-tr-reserve));
         pointer-events: auto;
         width: 42px; height: 42px;
         border-radius: 8px;
@@ -594,8 +605,8 @@
       }
       .touch-menu {
         position: absolute;
-        right: calc(16px + env(safe-area-inset-right, 0px));
-        top: calc(64px + env(safe-area-inset-top, 0px) + var(--zone-tr-reserve));
+        right: calc(16px + var(--safe-right));
+        top: calc(64px + var(--safe-top) + var(--zone-tr-reserve));
         pointer-events: auto;
         display: flex;
         flex-direction: column;
@@ -605,7 +616,7 @@
         /* 項目数が増えても(plan/game/mobile-layout-redesign.mdで「ログ」を追加)
            横幅の狭い横持ち画面(短辺400px級の端末)からはみ出さないよう、
            高さを画面基準で抑えて自前でスクロールさせる */
-        max-height: calc(100vh - 64px - env(safe-area-inset-top, 0px) - var(--zone-tr-reserve) - 12px);
+        max-height: calc(100vh - 64px - var(--safe-top) - var(--zone-tr-reserve) - 12px);
         overflow-y: auto;
         background: var(--panel);
         border: 1px solid var(--edge);
@@ -623,39 +634,56 @@
         touch-action: none;
       }
 
-      /* ------------------------------------------------ 縦持ち案内(plan/touch-ui-overlap-fix.md) */
+      /* ------------------------------------------------ 縦持ちでの強制横向き(plan/game/archive/forced-landscape.md) */
       /*
        * タッチ端末(pointer: coarse)かつ縦持ち(orientation: portrait)のときだけ、
-       * `src/ui/orientation-guard.ts`がdocument.bodyへportrait-lockクラスを
+       * `src/ui/orientation-guard.ts`がdocument.bodyへforced-landscapeクラスを
        * 付ける。専用の縦持ちレイアウトは作らず(意図的に対象外)、ゲーム画面
-       * (3Dビューポート・HUD一式)を隠して案内だけを表示する。横向きに戻せば
-       * クラスが外れ、自動的に元のレイアウトへ戻る
+       * (#app、3Dビューポート・HUD一式)そのものを90度回転させ、横向きの
+       * まま描画する。案内文で「横に持ち替えてください」と要求する代わりに、
+       * ひと目で伝わる見た目で誘導する狙い(HTML5ゲームで広く使われる定石)。
+       * OS側の画面回転ロックが縦向きで固定されていて`orientation: portrait`
+       * が変わらないケースでも、この方式なら端末を物理的に横へ持ち替えるだけで
+       * 正しいレイアウトになる(旧方式の案内画面は、回転ロック中は永遠に
+       * 案内から抜けられない実質バグを抱えていた)。
+       *
+       * 横向きに戻せば`orientation: portrait`が外れてクラスごと外れ、
+       * 自動的に通常の横持ちレイアウトへ戻る(既存の`change`イベント監視の
+       * まま、リロード不要)。
+       *
+       * 幅・高さは100dvh/100dvwで入れ替え、transform-origin: top leftを
+       * 基準にrotate(90deg)(時計回り)してtranslateY(-100%)で画面内へ
+       * はめ込む。デスクトップ(pointer: fine)ではクラスが付かないため無効。
+       *
+       * 入力座標の補正(PointerEventのclientX/Yは回転前の画面座標系のまま
+       * 届く)は`src/ui/touch-controls.ts`側で行う(要素の当たり判定は
+       * ブラウザがtransformを考慮するため補正不要、生座標から差分を計算する
+       * 箇所のみ対象)。
        */
-      #rotatePrompt {
-        display: none;
-        position: absolute;
-        inset: 0;
-        z-index: 40;
-        flex-direction: column;
-        align-items: center; justify-content: center;
-        gap: 14px;
-        padding: 24px;
-        text-align: center;
-        background: #05060c;
+      body.forced-landscape #app {
+        width: 100dvh;
+        height: 100dvw;
+        transform: rotate(90deg) translateY(-100%);
+        transform-origin: top left;
       }
-      #rotatePrompt .rotate-icon { font-size: 42px; }
-      #rotatePrompt p { margin: 0; font-size: 15px; line-height: 1.75; color: var(--ink); }
-      #rotatePrompt .hint { font-size: 12px; color: var(--dim); }
-
-      body.portrait-lock #scene,
-      body.portrait-lock #ui,
-      body.portrait-lock #gallery-info,
-      body.portrait-lock #village-hint,
-      body.portrait-lock #naming,
-      body.portrait-lock #loading {
-        display: none;
+      /*
+       * セーフエリアの参照軸入れ替え。env(safe-area-inset-*)はCSSの
+       * transformとは無関係に、端末の物理的な向き(ここでは縦持ちのまま)
+       * での上下左右を指し続ける。90度回転して描画しているレイアウト側の
+       * 上下左右とはズレる(rotate(90deg) translateY(-100%)の変換から
+       * 逆算すると、レイアウト上のtopが物理right、rightが物理bottom、
+       * bottomが物理left、leftが物理topに対応する)ため、forced-landscape
+       * 中は--safe-*の参照元を90度分ずらす。
+       * 実機での確認はできておらず、幾何計算から導いた対応(未検証、
+       * plan/game/archive/forced-landscape.md参照)。ズレていた場合は
+       * ここを直せば各パネルの実装には触れずに直る
+       */
+      body.forced-landscape {
+        --safe-top: env(safe-area-inset-right, 0px);
+        --safe-right: env(safe-area-inset-bottom, 0px);
+        --safe-bottom: env(safe-area-inset-left, 0px);
+        --safe-left: env(safe-area-inset-top, 0px);
       }
-      body.portrait-lock #rotatePrompt { display: flex; }
 
       /* ------------------------------------------------ メニュー */
       #menu, #stance, #arts, #stairsConfirm {
@@ -1041,13 +1069,6 @@
         <p>モデルを読み込んでいます…</p>
       </div>
 
-      <!-- 縦持ち案内(plan/touch-ui-overlap-fix.md)。表示切り替えはCSS
-           (body.portrait-lock)まかせで、中身のJS依存は無い -->
-      <div id="rotatePrompt">
-        <div class="rotate-icon" aria-hidden="true">📱↻</div>
-        <p>画面を横向きにしてください</p>
-        <p class="hint">この端末は横向き専用のレイアウトです</p>
-      </div>
     </div>
 
     <script type="module" src="/src/main.ts"></script>
