@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "少年ガルドと迷いの洞窟 — 不思議のダンジョン型 3D ローグライク",
+  "description": "少年ガルドと迷いの洞窟 — ターン制で潜る 3D ローグライク",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
