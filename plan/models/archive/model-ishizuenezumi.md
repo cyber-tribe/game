@@ -1,5 +1,68 @@
 # いしずえねずみ(ishizuenezumi)の3Dモデル
 
+> **実装済み。** `tools/models/monsters.py`に`build_ishizuenezumi()`/
+> `ishizuenezumi_animations()`を追加し、`MONSTERS`に登録した
+> (`tools/venv/bin/python tools/build_models.py ishizuenezumi`で
+> `public/models/ishizuenezumi.glb`を書き出し)。
+>
+> **骨格は計画書どおり`gajiri`と同じ関節構成(chest/hip/neck/snout/
+> tail1-3/ear.L/hipF.L-footF.L/hipB.L-footB.L)をベースにした。**
+> 未決事項にあった「アーマチュアの流用可否」は、関節名・ボーン構成は
+> そのまま流用できたが、座標・太さはそのままでは使えなかった。gajiriの
+> 座標をそのまま太らせただけだと、chest-hip・chest-neckの半径が
+> 関節間距離に対して大きくなりすぎ、Skinモディファイアが体表に平らな
+> 三角の「ヒレ」状の破綻(非多様体)を作ってしまったため、胴の関節
+> どうしの間隔を1〜2割広げてから太らせることで解消した(単体レンダーで
+> 破綻がないことを確認)。
+>
+> **AI挙動`guard`に合わせ、低い重心・厚い胴・太い脚のどっしりした
+> シルエットにした。** gajiriの長く跳ねる尻尾は、逃げるための尻尾では
+> なく踏ん張るための尻尾として、短く太い形に変えた。耳も「逃げ足の
+> 速さ」を示す大きさが要らなくなった分だけ、gajiriより小さく控えめに
+> している。
+>
+> **「厚い甲羅や装甲質の表皮」は、背に3枚の甲羅状プレート
+> (`uv_sphere`を並べて重ねる)・前脚の付け根の肩当て・尻尾の先の
+> 石畳のキャップとして表現した。** 甲羅は尾寄りの胴だけを覆い、首から
+> 先(頭・耳)はあえて覆わず露出させている(耳のシルエットとの衝突を
+> 避けつつ、甲羅と柔らかい首もとの対比を作るため)。
+>
+> **配色は計画書どおり、参道の土色に馴染む素朴で淡いトーン。** 地の
+> 毛色は淡い黄土色、甲羅は淡い石灰色寄りの落ち着いたグレーベージュに
+> して、装甲部分と地の体表を色でも塗り分けた。
+>
+> **サイズはgajiri(maxHp 10)基準から、ステータス(maxHp 24・def 9)に
+> 見合うよう一回り大きく・太くした。**
+>
+> **三角形数は6,012**(既存モデルの目安1,800〜7,500の範囲内)。
+>
+> **アニメーションは`gajiri_animations()`をそのまま流用せず、「動じ
+> ない」性格に合わせて新規にキーフレームを書いた(クリップ構成・
+> ボーン名は変えていない)。** `idle`はgajiriの落ち着かない小刻みな
+> 動きより長い周期のゆったりした呼吸に、`attack`は噛みつきではなく
+> 前脚を踏ん張っての頭突きに、`hit`はほとんど動じない小さな揺れに、
+> `die`はすぐ逃げていた頃とは違う、最後まで踏みとどまってからの重い
+> 崩れ方にした。
+>
+> **見た目の確認は`tools/build_models.py ishizuenezumi`が書き出す
+> `tools/preview/ishizuenezumi.png`のCyclesレンダー、および複数アングル
+> の追加レンダーで行った。** 裏返り・体積ゼロ・パーツの誤結合はない
+> (上記のとおり非多様体の破綻は座標調整で解消済み)。
+>
+> **`src/entities/species.ts`の`ishizuenezumi.model`を`"gajiri"`→
+> `"ishizuenezumi"`に変更した。** `ishizuenezumi`は
+> `plan/companion-evolution.md`由来の配合限定種で、60種化ロースター拡張
+> (`tests/monster-roster-expansion-species.test.ts`の`NEW_SPECIES_IDS`/
+> `KNOWN_MODEL_IDS`)の対象外のため、同テストへの追記はしていない。
+>
+> `npx tsc --noEmit`・`npx vitest run`(1229/1229)・`npm run build`は
+> すべてgreen。`tools/build_models.py --no-preview`で全モンスターを
+> 再ビルドし、ishizuenezumi以外に構造上の変化がないことも確認した
+> (書き出しバイナリの差分は非決定的なノイズのため、ishizuenezumi以外は
+> `git checkout`で元に戻した)。未決事項だった「最終的な三角形数・
+> 関節配置の微調整」は上記の数値・座標で確定させた。対象外の項目
+> (装備の重ね表現)は計画書どおり手を付けていない。
+
 現在は`gajiri`モデルを流用している(仮、`src/entities/species.ts`参照)。
 `design/characters.md`の生態設定に基づき、専用モデルを新規に作る。
 
