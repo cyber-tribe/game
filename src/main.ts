@@ -267,6 +267,17 @@ class App {
     // 複数回呼ばれても安全なので、両方発火しても問題ない
     window.addEventListener("keydown", () => this.audio.resume(), { once: true });
     window.addEventListener("pointerdown", () => this.audio.resume(), { once: true });
+
+    // ブラウザのピンチズーム抑止(plan/game/archive/pinch-zoom-block.md):
+    // 仮想パッドとアクションボタンを同時操作すると、iOS Safariは2本目の指が
+    // 別要素(canvas等)に触れていてもページピンチと解釈してしまう。要素単位の
+    // touch-action だけでは塞ぎきれないため、iOS独自のgesturestart/gesturechange
+    // をdocumentで直接止める(viewport metaのmaximum-scale/user-scalableは
+    // iOS Safariが無視するため、Android Chrome等の側の対策として別途index.htmlに
+    // ある)。ゲーム内の二本指カメラズーム(touch-controls.tsのPointerEvent実装)は
+    // ブラウザ既定動作と独立しているため影響しない
+    document.addEventListener("gesturestart", (e) => e.preventDefault());
+    document.addEventListener("gesturechange", (e) => e.preventDefault());
   }
 
   async start(): Promise<void> {
