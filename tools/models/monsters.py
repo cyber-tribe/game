@@ -7379,6 +7379,124 @@ def tokoshiepurun_animations():
     ]
 
 
+# =========================================================================== わすれぼね
+
+WASUREBONE_HALF = {
+    "hip": (0.0, 0.02, 0.245),
+    "chest": (0.0, 0.03, 0.395),
+    "neck": (0.0, 0.02, 0.462),
+    "head": (0.0, -0.04, 0.540),
+    "crown": (0.0, 0.01, 0.605),
+    "shoulder.L": (0.095, 0.02, 0.415),
+    "elbow.L": (0.145, 0.03, 0.325),
+    "hand.L": (0.145, -0.01, 0.235),
+    "thigh.L": (0.050, 0.02, 0.225),
+    "knee.L": (0.054, 0.02, 0.120),
+    "foot.L": (0.057, -0.01, 0.020),
+}
+WASUREBONE_RADII_HALF = {
+    "hip": 0.044, "chest": 0.042, "neck": 0.020, "head": 0.076, "crown": 0.044,
+    "shoulder.L": 0.020, "elbow.L": 0.015, "hand.L": 0.020,
+    "thigh.L": 0.022, "knee.L": 0.018, "foot.L": 0.024,
+}
+WASUREBONE_BONES_HALF = [
+    ("hip", "chest"), ("chest", "neck"), ("neck", "head"), ("head", "crown"),
+    ("chest", "shoulder.L"), ("shoulder.L", "elbow.L"), ("elbow.L", "hand.L"),
+    ("hip", "thigh.L"), ("thigh.L", "knee.L"), ("knee.L", "foot.L"),
+]
+
+
+def build_wasurebone():
+    """
+    誰のものかも忘れられた骨。honegaramiと同じ人型骨組みをベースに、
+    ぐっと小柄で華奢な体格にし、前かがみの姿勢で今にも逃げ出しそうな
+    軽いシルエットにする。眼窩は不安げに大きく見開かせ、光は
+    honegaramiの力強い橙色より弱々しい青白い光にする。配色は
+    第四地方(骨積みの回廊)の白骨色・くすんだ灰色。
+    """
+    joints = C.mirrored(WASUREBONE_HALF)
+    radii = C.mirrored_radii(WASUREBONE_RADII_HALF)
+    bones = C.mirrored_bones(WASUREBONE_BONES_HALF)
+
+    body = C.build_skinned("wasurebone", joints, bones, radii, root="hip", subsurf=2)
+    bone_mat = C.make_material("wasure_bone", (0.80, 0.78, 0.70), roughness=0.75)
+    dust_mat = C.make_material("wasure_dust", (0.50, 0.49, 0.46), roughness=0.85)
+    C.assign_materials_by_region(body, [bone_mat, dust_mat], lambda c: 1 if c.z < 0.30 else 0)
+
+    extras = []
+    dark = C.make_material("wasure_socket", (0.05, 0.05, 0.07), roughness=0.9)
+    glow_mat = C.make_material("wasure_glow", (0.55, 0.70, 0.85), roughness=0.3, emission=1.4)
+
+    jaw = C.uv_sphere("wasure_jaw", (0.0, -0.033, 0.487), 0.056,
+                      segments=16, rings=10, scale=(0.92, 1.12, 0.58))
+    C.assign_material(jaw, bone_mat)
+    extras.append(jaw)
+    for side in (-1.0, 1.0):
+        # 不安げに大きく見開いた眼窩
+        socket = C.uv_sphere(f"wasure_socket{side}", (0.036 * side, -0.058, 0.548), 0.028,
+                             segments=14, rings=10, scale=(1.0, 0.85, 1.15))
+        C.assign_material(socket, dark)
+        extras.append(socket)
+        glow = C.uv_sphere(f"wasure_glow{side}", (0.036 * side, -0.064, 0.548), 0.014,
+                           segments=10, rings=8)
+        C.assign_material(glow, glow_mat)
+        extras.append(glow)
+
+    # 肋骨。honegaramiより数を減らし、隙間だらけの粗末な体を見せる
+    for i, z in enumerate((0.320, 0.360, 0.400)):
+        radius = 0.070 - abs(i - 1) * 0.008
+        rib = C.cylinder(f"wasure_rib{i}", (0.0, 0.02, z), radius, 0.016, segments=14)
+        for vert in rib.data.vertices:
+            vert.co.y *= 0.65
+        C.assign_material(rib, dust_mat)
+        extras.append(rib)
+
+    mesh = C.join([body] + extras, "wasurebone")
+    armature = C.build_armature("wasurebone", joints, bones, mesh, root="hip")
+    return [mesh, armature], armature
+
+
+def wasurebone_animations():
+    hipc, neck = "hip-chest", "neck-head"
+    armL, armR = "chest-shoulder.L", "chest-shoulder.R"
+    legL, legR = "hip-thigh.L", "hip-thigh.R"
+    return [
+        # 気配に怯えるように、絶えずびくびくと震える
+        ("idle", [
+            (1, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+            (10, {hipc: (2, 0, 1), neck: (4, 0, -2)}),
+            (20, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+            (30, {hipc: (-2, 0, -1), neck: (-3, 0, 2)}),
+        ]),
+        # 逃げ足の速さを感じさせる、せかせかとした足取り
+        ("walk", [
+            (1, {legL: (24, 0, 0), legR: (-24, 0, 0), armL: (-16, 0, 0), armR: (16, 0, 0)}),
+            (5, {legL: (0, 0, 0), legR: (0, 0, 0), armL: (0, 0, 0), armR: (0, 0, 0)}),
+            (9, {legL: (-24, 0, 0), legR: (24, 0, 0), armL: (16, 0, 0), armR: (-16, 0, 0)}),
+            (13, {legL: (0, 0, 0), legR: (0, 0, 0), armL: (0, 0, 0), armR: (0, 0, 0)}),
+        ]),
+        ("attack", [
+            (1, {armL: (0, 0, 6), armR: (0, 0, -6)}),
+            (4, {armL: (-20, 0, 12), armR: (-20, 0, -12)}),
+            (8, {armL: (26, 0, -6), armR: (26, 0, 6)}),
+            (16, {armL: (0, 0, 6), armR: (0, 0, -6)}),
+        ]),
+        # 非力な体は、わずかな一撃でも大きくよろける
+        ("hit", [
+            (1, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+            (4, {hipc: (-14, 0, 0), neck: (-18, 0, 0)}),
+            (14, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+        ]),
+        # 倒れながらも、仲間を奮い立たせるように輪郭がほどけて散る
+        ("die", [
+            (1, {hipc: (0, 0, 0)}),
+            (8, {hipc: (-18, 0, 8), neck: (-24, 0, 0), armL: (-22, 0, 20), armR: (-22, 0, -20)}),
+            (18, {hipc: (-56, 0, 20), neck: (-40, 0, 0), legL: (24, 0, 0), legR: (20, 0, 0),
+                  armL: (-48, 0, 40), armR: (-48, 0, -40)}),
+        ]),
+    ]
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -7442,6 +7560,7 @@ MONSTERS = {
     "moyautsubo": (build_moyautsubo, moyautsubo_animations),
     "surigarasu": (build_surigarasu, surigarasu_animations),
     "tokoshiepurun": (build_tokoshiepurun, tokoshiepurun_animations),
+    "wasurebone": (build_wasurebone, wasurebone_animations),
 }
 
 

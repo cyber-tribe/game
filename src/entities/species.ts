@@ -831,7 +831,8 @@ export const SPECIES: readonly Species[] = [
     // 誰のものかも忘れられた骨。honegaramiモデルを流用する
     id: "wasurebone",
     name: "わすれぼね",
-    model: "honegarami",
+    // 専用モデル(plan/models/archive/model-wasurebone.md)
+    model: "wasurebone",
     // 「倒されると近くの骨系モンスターの攻撃力を上げる」は種族横断の
     // on-death連携が必要になり本文書の規模を超えるため実装せず、
     // 素の非力なcowardとした(アーカイブ注記参照)
