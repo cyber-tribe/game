@@ -1063,7 +1063,8 @@ export const SPECIES: readonly Species[] = [
     // 全地方の記憶が混ざり合ったぷるん。purunモデルを流用する
     id: "subetenopurun",
     name: "すべてのぷるん",
-    model: "purun",
+    // 専用モデル(plan/models/archive/model-subetenopurun.md)
+    model: "subetenopurun",
     // マドロミダケ(眠り付与)となみだぐま(瀕死で攻撃力上昇)を薄く併せ持つ集大成として実装した
     maxHp: 56,
     atk: 30,

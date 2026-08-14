@@ -5547,6 +5547,106 @@ def oonebosuke_animations():
     ]
 
 
+# ======================================================================= すべてのぷるん
+
+SUBETENOPURUN_JOINTS = {
+    "base": (0.0, 0.0, 0.096),
+    "mid": (0.0, 0.0, 0.24),
+    "top": (0.0, 0.0, 0.396),
+}
+SUBETENOPURUN_RADII = {"base": 0.348, "mid": 0.30, "top": 0.108}
+SUBETENOPURUN_BONES = [("base", "mid"), ("mid", "top")]
+
+
+def build_subetenopurun():
+    """
+    全地方の記憶が混ざり合ったぷるん。purunと同じ縦2本の骨組みを
+    そのまま流用し、全体をおよそ1.2倍に拡大してがっしりした力強い
+    シルエットにする。第一〜第七地方それぞれの色を、角度で不揃いに
+    区切った継ぎ接ぎ模様として体にまとわせ、統一感のない配色にする。
+    まどろみの余韻の名残として、目はわずかに眠たげにする。
+    """
+    body = C.build_skinned("subetenopurun", SUBETENOPURUN_JOINTS, SUBETENOPURUN_BONES,
+                           SUBETENOPURUN_RADII, root="base", subsurf=3)
+    for vert in body.data.vertices:
+        if vert.co.z < 0.024:
+            vert.co.z = 0.024 - (0.024 - vert.co.z) * 0.25
+
+    # 第一〜第七地方それぞれの配色を継ぎ接ぎにする
+    region_mats = [
+        C.make_material("subete_r1", (0.72, 0.62, 0.48), roughness=0.7),   # 第1: うたたねの参道
+        C.make_material("subete_r2", (0.40, 0.52, 0.54), roughness=0.6),   # 第2: 忘れ潮の湿地
+        C.make_material("subete_r3", (0.46, 0.30, 0.24), roughness=0.6),   # 第3: まどろみの茸林
+        C.make_material("subete_r4", (0.74, 0.70, 0.62), roughness=0.65),  # 第4: 骨積みの回廊
+        C.make_material("subete_r5", (0.22, 0.26, 0.42), roughness=0.55), # 第5: なみだの滝つぼ
+        C.make_material("subete_r6", (0.58, 0.48, 0.34), roughness=0.7),  # 第6: こだまの尾根
+        C.make_material("subete_r7", (0.54, 0.20, 0.18), roughness=0.55), # 第7: 忘れられた祭りの跡
+    ]
+    bounds = [0.0, 45.0, 95.0, 130.0, 190.0, 235.0, 300.0, 360.0]
+
+    def classify(c):
+        deg = math.degrees(math.atan2(c.y, c.x)) % 360.0
+        for i in range(7):
+            if bounds[i] <= deg < bounds[i + 1]:
+                return i
+        return 6
+
+    C.assign_materials_by_region(body, region_mats, classify)
+
+    extras = []
+    for side in (-1.0, 1.0):
+        # まどろみの余韻の名残で、わずかに眠たげな目
+        extras += eyeball(f"subete_eye{side}", (0.102 * side, -0.235, 0.310), 0.065,
+                          look=(0.15 * side, -1.0, 0.0), squash=0.75)
+    mouth = C.uv_sphere("subete_mouth", (0.0, -0.274, 0.190), 0.058,
+                        segments=14, rings=10, scale=(1.5, 0.5, 0.65))
+    C.assign_material(mouth, C.make_material("subete_mouth_m", (0.10, 0.10, 0.14), roughness=0.3))
+    extras.append(mouth)
+
+    mesh = C.join([body] + extras, "subetenopurun")
+    armature = C.build_armature("subetenopurun", C.mirrored(SUBETENOPURUN_JOINTS),
+                                SUBETENOPURUN_BONES, mesh, root="base")
+    return [mesh, armature], armature
+
+
+def subetenopurun_animations():
+    lower, upper = "base-mid", "mid-top"
+    squash = {"scale": (1.22, 0.72, 1.22)}
+    stretch = {"scale": (0.86, 1.28, 0.86)}
+    neutral = {"scale": (1.0, 1.0, 1.0)}
+    return [
+        ("idle", [
+            (1, {lower: neutral, upper: neutral}),
+            (24, {lower: {"scale": (1.03, 0.96, 1.03)}, upper: {"scale": (0.97, 1.04, 0.97)}}),
+            (48, {lower: neutral, upper: neutral}),
+        ]),
+        ("walk", [
+            (1, {lower: neutral, upper: neutral}),
+            (4, {lower: squash, upper: stretch}),
+            (9, {lower: {**stretch, "loc": (0, 0.10, 0)}, upper: squash}),
+            (14, {lower: {"scale": (1.1, 0.85, 1.1)}, upper: neutral}),
+            (20, {lower: neutral, upper: neutral}),
+        ]),
+        # 瀕死になるほど攻撃力が増す性質も併せ持つため、力強く踏み込んで叩きつける
+        ("attack", [
+            (1, {lower: neutral, upper: neutral}),
+            (5, {lower: squash, upper: stretch}),
+            (10, {lower: {"scale": (0.82, 1.32, 0.82), "loc": (0, 0.08, 0)}, upper: {"scale": (1.20, 0.80, 1.20)}}),
+            (20, {lower: neutral, upper: neutral}),
+        ]),
+        ("hit", [
+            (1, {lower: neutral, upper: neutral}),
+            (4, {lower: {"scale": (1.3, 0.66, 1.3)}, upper: {"scale": (0.88, 1.16, 0.88)}}),
+            (14, {lower: neutral, upper: neutral}),
+        ]),
+        ("die", [
+            (1, {lower: neutral, upper: neutral}),
+            (10, {lower: {"scale": (1.4, 0.45, 1.4)}, upper: {"scale": (1.3, 0.5, 1.3)}}),
+            (24, {lower: {"scale": (1.55, 0.05, 1.55)}, upper: {"scale": (1.45, 0.07, 1.45)}}),
+        ]),
+    ]
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -5595,6 +5695,7 @@ MONSTERS = {
     "oitekeboshi": (build_oitekeboshi, oitekeboshi_animations),
     "oomadoromi": (build_oomadoromi, oomadoromi_animations),
     "oonebosuke": (build_oonebosuke, oonebosuke_animations),
+    "subetenopurun": (build_subetenopurun, subetenopurun_animations),
 }
 
 
