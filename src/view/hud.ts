@@ -194,7 +194,12 @@ export class Hud {
     window.setTimeout(() => el.remove(), 900);
   }
 
-  showOverlay(title: string, detail: string, hint: string): void {
+  /**
+   * 力尽きた・踏破・樽比べ終了の各オーバーレイ(plan/game/archive/gameover-touch-return.md)。
+   * onReturnはRキーと全く同じ処理経路(App.handleGlobalAction("restart"))を渡してもらい、
+   * ここでは新しい戻り方を作らずボタンのクリックからそれを呼ぶだけにする
+   */
+  showOverlay(title: string, detail: string, hint: string, onReturn: () => void): void {
     this.overlayEl.innerHTML = "";
     const box = document.createElement("div");
     box.className = "overlay-box";
@@ -202,10 +207,15 @@ export class Hud {
     h.textContent = title;
     const p = document.createElement("p");
     p.textContent = detail;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "overlay-return-button";
+    button.textContent = t("hud.overlayReturn");
+    button.addEventListener("click", onReturn);
     const small = document.createElement("p");
     small.className = "hint";
     small.textContent = hint;
-    box.append(h, p, small);
+    box.append(h, p, button, small);
     this.overlayEl.appendChild(box);
     this.overlayEl.style.display = "flex";
   }

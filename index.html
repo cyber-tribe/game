@@ -624,6 +624,25 @@
       }
       .overlay-box p { margin: 6px 0; font-size: 15px; }
       .overlay-box .hint { margin-top: 20px; font-size: 12px; color: var(--dim); }
+      /* タッチでも拠点へ戻れるように(plan/game/archive/gameover-touch-return.md)。
+         キーボードの無い端末向けだが、デスクトップでクリックしても困らないので
+         常時表示する。見た目は拠点の「潜る」ボタン(.town-depart-button)に合わせる */
+      .overlay-return-button {
+        display: block;
+        margin: 22px auto 0;
+        padding: 12px 32px;
+        min-height: 44px;
+        font-family: inherit;
+        font-size: 15px;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        color: #05060c;
+        background: #7fd6ff;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+      }
+      .overlay-return-button:active { background: #63c2f0; }
 
       /* ------------------------------------------------ エンドロール(plan/ending-sequence.md) */
       #ending {

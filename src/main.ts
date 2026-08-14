@@ -1208,6 +1208,7 @@ class App {
       "樽比べ終了!",
       `合計 ${this.game.tarukurabeScore} 点 ・ 自己ベスト ${this.save.tarukurabeBestScore} 点`,
       `${reason} — R キーで拠点にもどる`,
+      () => this.handleGlobalAction("restart"),
     );
   }
 
@@ -1260,6 +1261,7 @@ class App {
       detail + trueAwakeningLine,
       `Lv ${this.game.player.level} / ${this.game.turnCount} ターン ・ ` +
         `最深記録 ${this.save.deepest} 階 — R キーで拠点にもどる`,
+      () => this.handleGlobalAction("restart"),
     );
   }
 

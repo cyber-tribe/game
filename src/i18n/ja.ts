@@ -17,6 +17,7 @@ export const ja: Record<string, string> = {
   "hud.stance": "構え: {name}",
   "hud.keyHelpTitle": "操作説明",
   "hud.keyHelpHint": "Hでとじる",
+  "hud.overlayReturn": "拠点にもどる",
 
   // もちものメニュー(src/ui/menu.ts)
   "ui.menu.inventory": "もちもの  {count} / {max}",
