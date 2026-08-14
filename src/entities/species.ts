@@ -446,7 +446,8 @@ export const SPECIES: readonly Species[] = [
   {
     id: "moyautsubo",
     name: "モヤウツボ",
-    model: "tsubute",
+    // 専用モデル(plan/models/archive/model-moyautsubo.md)
+    model: "moyautsubo",
     maxHp: 24,
     atk: 15,
     def: 6,
