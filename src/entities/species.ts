@@ -1114,7 +1114,8 @@ export const SPECIES: readonly Species[] = [
     // ゆめまよいの影のもう一つの姿。同じmadoromiモデルを流用する
     id: "mouhitotsunokage",
     name: "もうひとつのかげ",
-    model: "madoromi",
+    // 専用モデル(plan/models/archive/model-mouhitotsunokage.md)
+    model: "mouhitotsunokage",
     maxHp: 48,
     atk: 29,
     def: 15,
