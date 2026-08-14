@@ -5833,7 +5833,210 @@ def hajimeNoYume_animations():
     ]
 
 
+# =================================================================== ホネヅカのぬし
 
+# 第四地方(骨積みの回廊)のボス。honegarami・honedatamiと同じ人型骨組みの
+# "種類"(hip/chest/neck/head/crown, shoulder-elbow-hand, thigh-knee-foot)を
+# 踏襲しつつ、ボスらしくがっしりと大きく育てる。honedatamiが1体の骸骨に
+# 骨板を「まとった」姿だったのに対し、こちらは「無数の古い記憶が寄り集まって
+# ひとつの巨体を成した」という由来どおり、まだ形を保った小さな頭蓋骨を
+# 肩・胸・背に複数めり込ませ、複数の骸骨が溶け合った塊として造形する。
+# 灯る目を持つのは主頭蓋だけで、埋もれた頭蓋は空洞のまま
+# ――無数の記憶のうち、いまなお憶えているのはひとつだけ、という含み。
+# 剣などの得物は持たせず(honedatami同様、素手のまま)、配色は第四地方の
+# テーマである白骨色・くすんだ灰色でまとめる。
+HONEZUKANONUSHI_HALF = {
+    "hip": (0.0, 0.0, 0.335),
+    "chest": (0.0, 0.0, 0.560),
+    "neck": (0.0, 0.0, 0.690),
+    "head": (0.0, -0.012, 0.795),
+    "crown": (0.0, 0.0, 0.900),
+    "shoulder.L": (0.228, 0.0, 0.605),
+    "elbow.L": (0.308, 0.032, 0.450),
+    "hand.L": (0.302, -0.010, 0.290),
+    "thigh.L": (0.130, 0.0, 0.320),
+    "knee.L": (0.138, 0.0, 0.160),
+    "foot.L": (0.145, -0.048, 0.020),
+}
+# honegarami/honedatamiよりひとまわり太い。ぬしらしい防御特化のがっしりした
+# シルエットを作るため、胴・肩・腿を特に厚くする
+HONEZUKANONUSHI_RADII_HALF = {
+    "hip": 0.165, "chest": 0.182, "neck": 0.070, "head": 0.125, "crown": 0.048,
+    "shoulder.L": 0.090, "elbow.L": 0.070, "hand.L": 0.080,
+    "thigh.L": 0.098, "knee.L": 0.076, "foot.L": 0.084,
+}
+HONEZUKANONUSHI_BONES_HALF = [
+    ("hip", "chest"), ("chest", "neck"), ("neck", "head"), ("head", "crown"),
+    ("chest", "shoulder.L"), ("shoulder.L", "elbow.L"), ("elbow.L", "hand.L"),
+    ("hip", "thigh.L"), ("thigh.L", "knee.L"), ("knee.L", "foot.L"),
+]
+
+
+def build_honezukaNoNushi():
+    """
+    この回廊に積もりに積もった、無数の古い記憶が寄り集まってひとつの
+    巨体を成したもの。honegarami・honedatamiと同じ人型骨組みをボスらしく
+    がっしりと大きく育てる。まだ形を保った小さな頭蓋骨を肩・胸・背に
+    複数めり込ませ、複数の骸骨が溶け合った塊として見せる。灯る目を持つのは
+    主頭蓋だけで、埋もれた頭蓋は空洞のまま。配色は第四地方(骨積みの回廊)の
+    白骨色とくすんだ灰色。
+    """
+    joints = C.mirrored(HONEZUKANONUSHI_HALF)
+    radii = C.mirrored_radii(HONEZUKANONUSHI_RADII_HALF)
+    bones = C.mirrored_bones(HONEZUKANONUSHI_BONES_HALF)
+
+    body = C.build_skinned("honezukaNoNushi", joints, bones, radii, root="hip", subsurf=2)
+    bone_mat = C.make_material("kotsuduka_bone", (0.85, 0.83, 0.73), roughness=0.75)
+    dust_mat = C.make_material("kotsuduka_dust", (0.52, 0.51, 0.48), roughness=0.9)
+    # honedatami踏襲。回廊の床に長く積もった意味で、脚まわりの低い位置だけ
+    # くすんだ灰色にする(距離ではなく高さで判定)
+    C.assign_materials_by_region(body, [bone_mat, dust_mat], lambda c: 1 if c.z < 0.140 else 0)
+
+    extras = []
+    dark_mat = C.make_material("kotsuduka_socket", (0.05, 0.05, 0.07), roughness=0.9)
+    glow_mat = C.make_material("kotsuduka_glow", (1.0, 0.5, 0.18), roughness=0.3, emission=2.6)
+    dead_mat = C.make_material("kotsuduka_dead", (0.16, 0.15, 0.16), roughness=0.85)
+    rib_mat = C.make_material("kotsuduka_rib", (0.82, 0.80, 0.70), roughness=0.75)
+
+    # 主頭蓋。honegarami譲りの顎・眼窩・頬骨・歯を、頭の半径比に合わせて
+    # そのまま拡大する(headの半径がhonegaramiの約1.2倍なので、各部品の
+    # 頭関節からの相対位置・大きさも1.2倍にして、同じ突き出し方を保つ)
+    jaw = C.uv_sphere("kotsuduka_jaw", (0.0, -0.058, 0.713), 0.098,
+                      segments=18, rings=12, scale=(0.92, 1.12, 0.58))
+    C.assign_material(jaw, bone_mat)
+    extras.append(jaw)
+    for side in (-1.0, 1.0):
+        socket = C.uv_sphere(f"kotsuduka_socket{side}", (0.055 * side, -0.103, 0.819), 0.041,
+                             segments=12, rings=8, scale=(1.0, 0.85, 1.15))
+        C.assign_material(socket, dark_mat)
+        extras.append(socket)
+        # 主頭蓋だけが灯す、なお憶えている記憶そのものの目
+        glow = C.uv_sphere(f"kotsuduka_glow{side}", (0.055 * side, -0.113, 0.819), 0.019,
+                           segments=10, rings=8)
+        C.assign_material(glow, glow_mat)
+        extras.append(glow)
+        cheek = C.uv_sphere(f"kotsuduka_cheek{side}", (0.094 * side, -0.062, 0.773), 0.038,
+                            segments=10, rings=8, scale=(0.8, 1.0, 0.7))
+        C.assign_material(cheek, bone_mat)
+        extras.append(cheek)
+    teeth_mat = C.make_material("kotsuduka_teeth", (0.90, 0.88, 0.79), roughness=0.5)
+    for i in range(6):
+        tooth = C.box(f"kotsuduka_tooth{i}", ((i - 2.5) * 0.031, -0.118, 0.699),
+                      (0.021, 0.028, 0.033), bevel=0.005)
+        C.assign_material(tooth, teeth_mat)
+        extras.append(tooth)
+
+    # 肋骨。chestの太い胴に対しても、はっきり浮いて見えるよう
+    # chest半径(0.182)より一回り太くとる
+    for i, z in enumerate((0.430, 0.475, 0.520, 0.565, 0.605)):
+        radius = 0.248 - abs(i - 2) * 0.026
+        rib = C.cylinder(f"kotsuduka_rib{i}", (0.0, -0.010, z), radius, 0.034, segments=18)
+        for vert in rib.data.vertices:
+            vert.co.y *= 0.70
+        C.assign_material(rib, rib_mat)
+        extras.append(rib)
+
+    spine = C.cylinder("kotsuduka_spine", (0.0, 0.050, 0.500), 0.046, 0.34, segments=12)
+    C.assign_material(spine, rib_mat)
+    extras.append(spine)
+
+    pelvis = C.uv_sphere("kotsuduka_pelvis", (0.0, 0.0, 0.360), 0.205,
+                         segments=18, rings=12, scale=(1.0, 0.62, 0.52))
+    C.assign_material(pelvis, bone_mat)
+    extras.append(pelvis)
+
+    # 埋もれた頭蓋骨。まだ形を保ったまま体表から半分ほど突き出す、寄せ集めの
+    # 印。灯る目は主頭蓋だけなので、こちらは空洞の眼窩のまま(facingは
+    # 「顔」が向く-Y/+Yの符号)
+    buried_specs = [
+        # (中心, 半径, facing, 色バリエーション)
+        ((0.300, -0.045, 0.615), 0.072, -1.0, 0),  # 左肩から突き出す
+        ((-0.300, -0.045, 0.615), 0.072, -1.0, 0),  # 右肩から突き出す
+        ((0.0, -0.235, 0.620), 0.086, -1.0, 1),     # 胸の正面に埋もれる
+        ((0.0, 0.225, 0.470), 0.066, 1.0, 0),       # 背中に埋もれる
+    ]
+    for i, (center, radius, facing, variant) in enumerate(buried_specs):
+        skull = C.uv_sphere(f"kotsuduka_buried{i}", center, radius,
+                            segments=12, rings=8, scale=(1.0, 0.9, 0.85))
+        C.assign_material(skull, bone_mat if variant == 0 else dust_mat)
+        extras.append(skull)
+        cx, cy, cz = center
+        eye_y = cy + facing * radius * 0.75
+        eye_z = cz + radius * 0.05
+        eye_off = radius * 0.42
+        eye_r = radius * 0.26
+        for side in (-1.0, 1.0):
+            eye = C.uv_sphere(f"kotsuduka_buriedeye{i}_{side}",
+                              (cx + eye_off * side, eye_y, eye_z),
+                              eye_r, segments=8, rings=6, scale=(1.0, 0.6, 1.0))
+            C.assign_material(eye, dead_mat)
+            extras.append(eye)
+
+    # 折れた骨の破片。肩・背・腰から突き出し、寄せ集めの塊であることを示す
+    shard_mat = C.make_material("kotsuduka_shard", (0.80, 0.78, 0.68), roughness=0.8)
+    shard_specs = [
+        (0.185, -0.020, 0.700, 0.030, 0.008, 0.145),
+        (-0.170, 0.080, 0.640, 0.026, 0.006, 0.115),
+        (0.070, 0.175, 0.560, 0.024, 0.005, 0.100),
+        (-0.090, 0.165, 0.390, 0.026, 0.006, 0.110),
+    ]
+    for i, (sx, sy, sz, rb, rt, depth) in enumerate(shard_specs):
+        shard = C.cone(f"kotsuduka_shard{i}", (sx, sy, sz), rb, rt, depth, segments=10)
+        C.assign_material(shard, shard_mat)
+        extras.append(shard)
+
+    mesh = C.join([body] + extras, "honezukaNoNushi")
+    armature = C.build_armature("honezukaNoNushi", joints, bones, mesh, root="hip")
+    return [mesh, armature], armature
+
+
+def honezukaNoNushi_animations():
+    hipc, neck = "hip-chest", "neck-head"
+    armL, armR = "chest-shoulder.L", "chest-shoulder.R"
+    foreL, foreR = "shoulder.L-elbow.L", "shoulder.R-elbow.R"
+    legL, legR = "hip-thigh.L", "hip-thigh.R"
+    shinL, shinR = "thigh.L-knee.L", "thigh.R-knee.R"
+    return [
+        # 回廊の最奥にどっしり居座ったまま、ごく僅かに軋むだけ
+        ("idle", [
+            (1, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+            (32, {hipc: (1, 0, 1), neck: (2, 0, 0)}),
+            (64, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+        ]),
+        # 積み重なった巨体を引きずるような、重く遅い歩み
+        ("walk", [
+            (1, {legL: (12, 0, 0), legR: (-12, 0, 0), shinL: (-6, 0, 0), shinR: (5, 0, 0),
+                 armL: (-8, 0, 6), armR: (8, 0, -6)}),
+            (12, {legL: (0, 0, 0), legR: (0, 0, 0), armL: (0, 0, 6), armR: (0, 0, -6)}),
+            (23, {legL: (-12, 0, 0), legR: (12, 0, 0), shinL: (5, 0, 0), shinR: (-6, 0, 0),
+                  armL: (8, 0, 6), armR: (-8, 0, -6)}),
+            (34, {legL: (0, 0, 0), legR: (0, 0, 0), armL: (0, 0, 6), armR: (0, 0, -6)}),
+        ]),
+        # 得物を持たない代わりに、両腕をまとめて叩きつける正面への体当たり
+        ("attack", [
+            (1, {armL: (0, 0, 8), armR: (0, 0, -8), foreL: (0, 0, 0), foreR: (0, 0, 0),
+                 hipc: (0, 0, 0)}),
+            (7, {armL: (-32, 0, 22), armR: (-32, 0, -22), foreL: (-22, 0, 0), foreR: (-22, 0, 0),
+                 hipc: (-10, 0, 0), neck: (-6, 0, 0)}),
+            (13, {armL: (52, 0, 4), armR: (52, 0, -4), foreL: (16, 0, 0), foreR: (16, 0, 0),
+                  hipc: (14, 0, 0), neck: (4, 0, 0)}),
+            (24, {armL: (0, 0, 8), armR: (0, 0, -8), foreL: (0, 0, 0), foreR: (0, 0, 0),
+                  hipc: (0, 0, 0)}),
+        ]),
+        # 高い防御力どおり、当たってもほとんど揺るがない
+        ("hit", [
+            (1, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+            (4, {hipc: (-6, 0, 0), neck: (-8, 0, 0)}),
+            (15, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+        ]),
+        # 寄せ集まっていた記憶の塊が、支えを失って崩れ落ちる
+        ("die", [
+            (1, {hipc: (0, 0, 0)}),
+            (10, {hipc: (-12, 0, 8), neck: (-20, 0, 0), armL: (-32, 0, 32), armR: (-32, 0, -32)}),
+            (28, {hipc: (-76, 0, 24), neck: (-48, 0, 0), legL: (36, 0, 0), legR: (32, 0, 0),
+                  armL: (-74, 0, 62), armR: (-74, 0, -62)}),
+        ]),
+    ]
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -5884,6 +6087,7 @@ MONSTERS = {
     "oonebosuke": (build_oonebosuke, oonebosuke_animations),
     "honezukanotsukai": (build_honezukanotsukai, honezukanotsukai_animations),
     "hajimeNoYume": (build_hajimeNoYume, hajimeNoYume_animations),
+    "honezukaNoNushi": (build_honezukaNoNushi, honezukaNoNushi_animations),
 }
 
 
