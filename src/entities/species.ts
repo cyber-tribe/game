@@ -459,7 +459,8 @@ export const SPECIES: readonly Species[] = [
   {
     id: "wasuregani",
     name: "ワスレガニ",
-    model: "honegarami",
+    // 専用モデル(plan/models/archive/model-wasuregani.md)
+    model: "wasuregani",
     maxHp: 34,
     atk: 12,
     def: 12,

@@ -7497,6 +7497,125 @@ def wasurebone_animations():
     ]
 
 
+# =========================================================================== ワスレガニ
+
+WASUREGANI_HALF = {
+    "hip": (0.0, 0.02, 0.28),
+    "chest": (0.0, 0.03, 0.44),
+    "neck": (0.0, 0.02, 0.50),
+    "head": (0.0, -0.03, 0.575),
+    "crown": (0.0, 0.01, 0.64),
+    "shoulder.L": (0.11, 0.02, 0.46),
+    "elbow.L": (0.165, 0.02, 0.36),
+    "hand.L": (0.165, -0.02, 0.26),
+    "thigh.L": (0.06, 0.02, 0.245),
+    "knee.L": (0.065, 0.02, 0.13),
+    "foot.L": (0.068, -0.02, 0.02),
+}
+WASUREGANI_RADII_HALF = {
+    "hip": 0.075, "chest": 0.080, "neck": 0.038, "head": 0.088, "crown": 0.050,
+    "shoulder.L": 0.040, "elbow.L": 0.030, "hand.L": 0.036,
+    "thigh.L": 0.042, "knee.L": 0.032, "foot.L": 0.040,
+}
+WASUREGANI_BONES_HALF = [
+    ("hip", "chest"), ("chest", "neck"), ("neck", "head"), ("head", "crown"),
+    ("chest", "shoulder.L"), ("shoulder.L", "elbow.L"), ("elbow.L", "hand.L"),
+    ("hip", "thigh.L"), ("thigh.L", "knee.L"), ("knee.L", "foot.L"),
+]
+
+
+def build_wasuregani():
+    """
+    置き忘れた記憶が硬い殻をまとって居座るもの。honegaramiと同じ人型
+    骨組みをベースに、低い重心のどっしりした体格に組み替える。背に
+    大きな甲羅を重ねて装甲質の表皮にし、両手を小さな鋏に変える。
+    配色は第二地方(忘れ潮の湿地)の、霧と水を思わせる灰みがかった
+    水色・青緑系。
+    """
+    joints = C.mirrored(WASUREGANI_HALF)
+    radii = C.mirrored_radii(WASUREGANI_RADII_HALF)
+    bones = C.mirrored_bones(WASUREGANI_BONES_HALF)
+
+    body = C.build_skinned("wasuregani", joints, bones, radii, root="hip", subsurf=2)
+    skin = C.make_material("wasuregani_skin", (0.42, 0.52, 0.54), roughness=0.7)
+    C.assign_material(body, skin)
+
+    extras = []
+    shell_mat = C.make_material("wasuregani_shell", (0.26, 0.34, 0.38), roughness=0.55)
+    # 背に重ねた大きな甲羅
+    shell = C.uv_sphere("wasuregani_shell_main", (0.0, 0.09, 0.47), 0.155,
+                        segments=20, rings=14, scale=(1.15, 1.0, 0.85))
+    C.assign_material(shell, shell_mat)
+    extras.append(shell)
+    for i, (dy, dz, r) in enumerate([(0.14, 0.55, 0.058), (0.16, 0.42, 0.052), (0.13, 0.36, 0.044)]):
+        ridge = C.uv_sphere(f"wasuregani_ridge{i}", (0.0, dy, dz), r,
+                            segments=14, rings=8, scale=(1.3, 0.7, 0.55))
+        C.assign_material(ridge, shell_mat)
+        extras.append(ridge)
+
+    dark = C.make_material("wasuregani_socket", (0.05, 0.05, 0.07), roughness=0.9)
+    glow_mat = C.make_material("wasuregani_glow", (0.55, 0.72, 0.80), roughness=0.3, emission=1.3)
+    for side in (-1.0, 1.0):
+        socket = C.uv_sphere(f"wasuregani_socket{side}", (0.032 * side, -0.058, 0.583), 0.026,
+                             segments=14, rings=10, scale=(1.0, 0.85, 1.1))
+        C.assign_material(socket, dark)
+        extras.append(socket)
+        glow = C.uv_sphere(f"wasuregani_glow{side}", (0.032 * side, -0.064, 0.583), 0.012,
+                           segments=10, rings=8)
+        C.assign_material(glow, glow_mat)
+        extras.append(glow)
+        # 両手を小さな鋏に変える
+        pincer = C.uv_sphere(f"wasuregani_pincer{side}", (0.165 * side, -0.02, 0.26), 0.040,
+                             segments=14, rings=10, scale=(1.0, 1.2, 0.7))
+        C.assign_material(pincer, shell_mat)
+        extras.append(pincer)
+        claw = C.cone(f"wasuregani_claw{side}", (0.165 * side, -0.065, 0.255), 0.018, 0.004, 0.055)
+        C.assign_material(claw, shell_mat)
+        extras.append(claw)
+
+    mesh = C.join([body] + extras, "wasuregani")
+    armature = C.build_armature("wasuregani", joints, bones, mesh, root="hip")
+    return [mesh, armature], armature
+
+
+def wasuregani_animations():
+    hipc, neck = "hip-chest", "neck-head"
+    armL, armR = "chest-shoulder.L", "chest-shoulder.R"
+    legL, legR = "hip-thigh.L", "hip-thigh.R"
+    return [
+        # 思い出そうとして、ふらふらと据わりの悪い揺れを繰り返す
+        ("idle", [
+            (1, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+            (30, {hipc: (2, 0, 1), neck: (-3, 0, 2)}),
+            (60, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+        ]),
+        ("walk", [
+            (1, {legL: (16, 0, 0), legR: (-16, 0, 0), armL: (-10, 0, 6), armR: (10, 0, -6)}),
+            (10, {legL: (0, 0, 0), legR: (0, 0, 0), armL: (0, 0, 6), armR: (0, 0, -6)}),
+            (19, {legL: (-16, 0, 0), legR: (16, 0, 0), armL: (10, 0, 6), armR: (-10, 0, -6)}),
+            (28, {legL: (0, 0, 0), legR: (0, 0, 0), armL: (0, 0, 6), armR: (0, 0, -6)}),
+        ]),
+        # 鋏を振りかざして鈍く叩きつける
+        ("attack", [
+            (1, {armL: (0, 0, 6), armR: (0, 0, -6)}),
+            (6, {armL: (-26, 0, 16), armR: (-26, 0, -16), hipc: (-8, 0, 0)}),
+            (12, {armL: (36, 0, -6), armR: (36, 0, 6), hipc: (10, 0, 0)}),
+            (22, {armL: (0, 0, 6), armR: (0, 0, -6), hipc: (0, 0, 0)}),
+        ]),
+        ("hit", [
+            (1, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+            (4, {hipc: (-6, 0, 0), neck: (-10, 0, 0)}),
+            (14, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+        ]),
+        ("die", [
+            (1, {hipc: (0, 0, 0)}),
+            (10, {hipc: (-14, 0, 8), neck: (-20, 0, 0), armL: (-24, 0, 24), armR: (-24, 0, -24)}),
+            (24, {hipc: (-60, 0, 20), neck: (-40, 0, 0), legL: (28, 0, 0), legR: (24, 0, 0),
+                  armL: (-56, 0, 46), armR: (-56, 0, -46)}),
+        ]),
+    ]
+
+
 # =========================================================================== 一覧
 MONSTERS = {
     "purun": (build_purun, purun_animations),
@@ -7561,6 +7680,7 @@ MONSTERS = {
     "surigarasu": (build_surigarasu, surigarasu_animations),
     "tokoshiepurun": (build_tokoshiepurun, tokoshiepurun_animations),
     "wasurebone": (build_wasurebone, wasurebone_animations),
+    "wasuregani": (build_wasuregani, wasuregani_animations),
 }
 
 
