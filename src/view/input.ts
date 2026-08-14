@@ -21,7 +21,12 @@ export type ActionKey =
   /** フォトモード(plan/gallery-mode.md)の切り替え */
   | "photoMode"
   /** 操作説明の表示切り替え(plan/difficulty-modes.md アクセシビリティ節) */
-  | "help";
+  | "help"
+  /**
+   * システム系の「≡」メニュー(アクセシビリティ・音・設定)を開く
+   * (plan/game/archive/village-scoped-menus.md)。村でもダイブ中でも開ける
+   */
+  | "systemMenu";
 
 /** テンキーはそのまま8方向に対応する。5は足踏み */
 const NUMPAD_DIRS: Record<string, Dir> = {
@@ -99,6 +104,7 @@ const ACTION_KEYS: Record<string, ActionKey> = {
   KeyC: "arts",
   KeyP: "photoMode",
   KeyH: "help",
+  KeyM: "systemMenu",
   [ATTACK_KEY_CODE]: "attack",
 };
 

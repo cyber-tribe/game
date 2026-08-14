@@ -124,9 +124,8 @@ await page.screenshot({ path: `${OUT}/00-village.png` });
 
 /**
  * 拠点の3D化(plan/town-3d-exploration.md)。拠点は村を3D空間として
- * 歩き回る場面に変わった。北へ歩けば必ず「旅の看板」(村の入口すぐの、
- * 拠点画面(TownScreen)を既定の列で開くための建物)に着くようにしてある
- * ので、決め打ちの方向で近づき、確定キーで拠点画面を開く。
+ * 歩き回る場面に変わった。北へ歩けば必ず「旅の看板」(村の入口すぐ)に
+ * 着くようにしてあるので、決め打ちの方向で近づき、確定キーで拠点画面を開く。
  */
 async function enterNearestVillageBuilding(key = "ArrowUp") {
   await page.keyboard.down(key);
@@ -141,17 +140,72 @@ async function enterNearestVillageBuilding(key = "ArrowUp") {
   await settle();
 }
 
+/**
+ * 建物・村人ごとの役割メニュー(plan/game/archive/village-scoped-menus.md)。
+ * 建物ごとに座標が違うので、決め打ちの方向キーではなく、
+ * `debugVillagePos`/`debugVillageBuildings`(いずれもデバッグ用の入口)を
+ * 見ながら狙った建物のidに着くまで少しずつ歩く。着いたら確定キーで入る
+ */
+async function walkToBuildingAndEnter(id, timeout = 8_000) {
+  const target = await page.evaluate(
+    (bid) => globalThis.__app?.debugVillageBuildings?.()?.find((b) => b.id === bid) ?? null,
+    id,
+  );
+  if (!target) return false;
+
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) {
+    const near = await page.evaluate(() => globalThis.__app?.debugVillageNearBuildingId?.() ?? null);
+    if (near === id) break;
+    const pos = await page.evaluate(() => globalThis.__app?.debugVillagePos?.() ?? null);
+    if (!pos) break;
+    const dx = target.x - pos.x;
+    const dz = target.z - pos.z;
+    const keys = [];
+    if (Math.abs(dx) > 0.25) keys.push(dx > 0 ? "ArrowRight" : "ArrowLeft");
+    if (Math.abs(dz) > 0.25) keys.push(dz > 0 ? "ArrowDown" : "ArrowUp");
+    if (keys.length === 0) break;
+    for (const k of keys) await page.keyboard.down(k);
+    await page.waitForTimeout(120);
+    for (const k of keys) await page.keyboard.up(k);
+  }
+  const near = await page.evaluate(() => globalThis.__app?.debugVillageNearBuildingId?.() ?? null);
+  if (near !== id) return false;
+  await page.keyboard.press("Space");
+  await settle();
+  return true;
+}
+
 await enterNearestVillageBuilding();
 const enteredTownFromVillage = await page.evaluate(
   () => document.querySelector("#town")?.style.display === "flex",
 );
-console.log("村を歩いて拠点画面を開けた:", enteredTownFromVillage);
+console.log("村を歩いて拠点画面(旅の看板)を開けた:", enteredTownFromVillage);
 if (!enteredTownFromVillage) {
   console.error("村なかを歩いて建物に近づいても拠点画面が開かなかった。");
   process.exitCode = 1;
 }
 
-// 拠点。倉庫から持ち込んでから潜る
+// 旅の看板(plan/game/archive/village-scoped-menus.md): 列(0〜19)を持たない
+// 特別な場所になった。掲示を読むだけで出発はしないので、Enterで村へ戻る
+await page.keyboard.press("Enter");
+await settle();
+const backToVillageFromSignpost = await page.evaluate(() => globalThis.__app?.debugVillageActive?.());
+console.log("旅の看板からEnterで村へ戻れた:", backToVillageFromSignpost);
+if (!backToVillageFromSignpost) {
+  console.error("旅の看板を閉じても村なかへ戻らなかった。");
+  process.exitCode = 1;
+}
+
+// 洞窟の入口(plan/game/archive/village-scoped-menus.md): 出発の支度一式
+// (倉庫・持ち込み・出発地点・鍛え方・つれていく仲間・難易度・潜るダンジョン)
+// を開ける建物。ここまで歩いて入り、倉庫から持ち込んでから潜る
+const enteredCave = await walkToBuildingAndEnter("cave");
+console.log("洞窟の入口まで歩いて拠点画面を開けた:", enteredCave);
+if (!enteredCave) {
+  console.error("洞窟の入口まで歩いても拠点画面が開かなかった。");
+  process.exitCode = 1;
+}
 await page.keyboard.press("Enter");
 await settle();
 await page.keyboard.press("Space");
