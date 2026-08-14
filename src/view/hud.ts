@@ -16,6 +16,12 @@ import {
 
 const MAX_LOG_LINES = 6;
 
+/** 全画面のお知らせに添えるボタン(plan/game/gameover-touch-return.md) */
+export interface OverlayAction {
+  label: string;
+  onSelect: () => void;
+}
+
 /**
  * 色だけに頼らない状態異常表示(plan/difficulty-modes.md アクセシビリティ節)。
  * 記号(形)とラベルの両方で区別し、色の識別に頼らない
@@ -194,7 +200,16 @@ export class Hud {
     window.setTimeout(() => el.remove(), 900);
   }
 
-  showOverlay(title: string, detail: string, hint: string): void {
+  /**
+   * 全画面のお知らせ。`action`を渡すと、押せるボタンを1つ添える。
+   *
+   * このオーバーレイは`inset: 0`・`pointer-events: auto`で画面全体を覆うため、
+   * 下にあるタッチUI(仮想パッド・「≡」メニュー)へのタップをすべて奪う。
+   * キーボードの案内文だけを出していると、タッチ端末では拠点に戻る手段が
+   * 1つも無くなり詰んでしまう(plan/game/gameover-touch-return.md)。
+   * ボタンはキーと同じ処理を呼ぶだけで、新しい戻り方は作らない
+   */
+  showOverlay(title: string, detail: string, hint: string, action?: OverlayAction): void {
     this.overlayEl.innerHTML = "";
     const box = document.createElement("div");
     box.className = "overlay-box";
@@ -206,6 +221,14 @@ export class Hud {
     small.className = "hint";
     small.textContent = hint;
     box.append(h, p, small);
+    if (action) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "overlay-button";
+      button.textContent = action.label;
+      button.addEventListener("click", () => action.onSelect());
+      box.appendChild(button);
+    }
     this.overlayEl.appendChild(box);
     this.overlayEl.style.display = "flex";
   }

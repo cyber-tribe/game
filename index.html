@@ -644,6 +644,27 @@
       }
       .overlay-box p { margin: 6px 0; font-size: 15px; }
       .overlay-box .hint { margin-top: 20px; font-size: 12px; color: var(--dim); }
+      /*
+       * ダイブ終了オーバーレイの「拠点にもどる」(plan/game/gameover-touch-return.md)。
+       * #overlayはinset:0・pointer-events:autoで画面全体を覆い、下にある
+       * タッチUI(仮想パッド・「≡」メニュー)へのタップをすべて奪うため、
+       * これが無いとタッチ端末では拠点に戻る手段が1つも無くなる。
+       * 指で押しやすいよう、タッチボタン(.touch-btn)と同等の高さを確保する
+       */
+      .overlay-button {
+        margin-top: 18px;
+        padding: 12px 28px;
+        min-height: 44px;
+        font-family: inherit;
+        font-size: 14px;
+        letter-spacing: 0.08em;
+        color: #05060c;
+        background: #7fd6ff;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+      }
+      .overlay-button:active { background: #5fc2f0; }
 
       /* ------------------------------------------------ エンドロール(plan/ending-sequence.md) */
       #ending {

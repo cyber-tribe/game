@@ -97,6 +97,13 @@ import type { TrainingFocus } from "./entities/player";
 const COVERED_RENDER_INTERVAL = 0.2;
 
 /**
+ * ダイブ終了オーバーレイに出す「拠点にもどる」ボタンの文言
+ * (plan/game/gameover-touch-return.md)。オーバーレイは画面全体を覆って
+ * タッチUIを塞ぐため、このボタンがタッチ端末での唯一の出口になる
+ */
+const RETURN_TO_TOWN_LABEL = "拠点にもどる";
+
+/**
  * submit()が1ターンぶんのGameEventを記録・進行管理に反映するための表。
  * events.tsに新しい種別を追加すると、ここに対応するキーが無い限り
  * typecheckが検出する。見た目やアニメーションはStage側(view/stage.ts)の
@@ -887,14 +894,7 @@ class App {
         return false;
       case "restart":
         if (this.ended) {
-          // エンドロール(plan/ending-sequence.md): 物語クリアで初めてstoryCleared
-          // が立った回だけ、拠点へ戻る前に挟む
-          if (this.pendingEndingSequence) {
-            this.pendingEndingSequence = false;
-            this.endingScreen.show(() => this.showTown());
-          } else {
-            this.showTown();
-          }
+          this.returnToTownAfterRun();
           return true;
         }
         // 生きていてめざめの階段の上にいれば、そこで区切って持ち帰る
@@ -910,6 +910,24 @@ class App {
         return false;
       default:
         return false;
+    }
+  }
+
+  /**
+   * ダイブが終わったあと(全滅・踏破・樽比べ終了)に拠点へ戻る。
+   * Rキーと、終了オーバーレイの「拠点にもどる」ボタン
+   * (plan/game/gameover-touch-return.md)の共通の出口。
+   * タッチ端末ではオーバーレイが画面全体を覆ってタッチUIを塞ぐため、
+   * ボタンが無いと戻る手段が1つも無くなる
+   */
+  private returnToTownAfterRun(): void {
+    // エンドロール(plan/ending-sequence.md): 物語クリアで初めてstoryCleared
+    // が立った回だけ、拠点へ戻る前に挟む
+    if (this.pendingEndingSequence) {
+      this.pendingEndingSequence = false;
+      this.endingScreen.show(() => this.showTown());
+    } else {
+      this.showTown();
     }
   }
 
@@ -1208,6 +1226,7 @@ class App {
       "樽比べ終了!",
       `合計 ${this.game.tarukurabeScore} 点 ・ 自己ベスト ${this.save.tarukurabeBestScore} 点`,
       `${reason} — R キーで拠点にもどる`,
+      { label: RETURN_TO_TOWN_LABEL, onSelect: () => this.returnToTownAfterRun() },
     );
   }
 
@@ -1260,6 +1279,7 @@ class App {
       detail + trueAwakeningLine,
       `Lv ${this.game.player.level} / ${this.game.turnCount} ターン ・ ` +
         `最深記録 ${this.save.deepest} 階 — R キーで拠点にもどる`,
+      { label: RETURN_TO_TOWN_LABEL, onSelect: () => this.returnToTownAfterRun() },
     );
   }
 
