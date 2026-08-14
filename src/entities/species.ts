@@ -1084,7 +1084,8 @@ export const SPECIES: readonly Species[] = [
     // ガジリねずみといしずえねずみが混ざった姿。gajiriモデルを流用する
     id: "mazarinezumi",
     name: "まざりねずみ",
-    model: "gajiri",
+    // 専用モデル(plan/models/archive/model-mazarinezumi.md)
+    model: "mazarinezumi",
     maxHp: 60,
     atk: 34,
     def: 12,
