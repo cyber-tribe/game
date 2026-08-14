@@ -34,9 +34,10 @@ import { LOCALES, type LocaleId, t } from "../i18n";
 import { moodForDate } from "../entities/moods";
 import { MAX_ALLIES, type TrainingFocus } from "../entities/player";
 import { todayKey } from "../entities/quests";
-import { KEY_REFERENCE, MESSAGE_SPEEDS, type MessageSpeed } from "../entities/settings";
+import { KEY_REFERENCE, KEY_REFERENCE_TOUCH, MESSAGE_SPEEDS, type MessageSpeed } from "../entities/settings";
 import { SPECIES, speciesById } from "../entities/species";
-import { TUTORIAL_TIPS, TUTORIAL_TIP_IDS } from "../core/tutorial";
+import { TUTORIAL_TIP_IDS, tutorialTipText } from "../core/tutorial";
+import { currentInputMode } from "./inputMode";
 import { DEFAULT_AUDIO_VOLUME, isCompendiumComplete, isTrueAwakeningUnlocked, isWeaponCompendiumComplete, type CompendiumStatus, type FontSize, type SaveData, type StoredItem, type StoredMonster } from "../save";
 import { ITEMS, itemDef } from "../items/catalog";
 import { MAX_ACTIVE_QUESTS, questDef } from "../entities/quests";
@@ -2350,11 +2351,13 @@ export class TownScreen {
   private renderSettings(): HTMLElement {
     return this.renderColumn(19, t("ui.settings.title"), (wrapper) => {
       if (this.settingsSubView === "tutorialTips") {
+        const mode = currentInputMode();
         const list = document.createElement("ul");
         list.setAttribute("role", "list");
         for (const id of TUTORIAL_TIP_IDS) {
           const li = document.createElement("li");
-          li.textContent = TUTORIAL_TIPS[id];
+          // 文言のタッチ対応(plan/game/mobile-layout-redesign.md)
+          li.textContent = tutorialTipText(id, mode);
           list.appendChild(li);
         }
         // タッチ操作向け(#308): 一覧をタップするとEnter/Escと同じく閉じる
@@ -2365,9 +2368,12 @@ export class TownScreen {
       }
 
       if (this.settingsSubView === "keyReference") {
+        // 文言のタッチ対応(plan/game/mobile-layout-redesign.md): タッチ端末では
+        // キー名の代わりにパッド・ボタン名で書かれた一覧を出す
+        const lines = currentInputMode() === "touch" ? KEY_REFERENCE_TOUCH : KEY_REFERENCE;
         const list = document.createElement("ul");
         list.setAttribute("role", "list");
-        for (const line of KEY_REFERENCE) {
+        for (const line of lines) {
           const li = document.createElement("li");
           li.textContent = line;
           list.appendChild(li);

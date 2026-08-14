@@ -2,7 +2,10 @@
 <html lang="ja">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover(plan/game/mobile-layout-redesign.md セーフエリア対応):
+         PWAの全画面表示でiPhoneのノッチ・ホームインジケータ領域までビューポートを
+         広げる。実際の食い込み回避はenv(safe-area-inset-*)を各ゾーンに加算して行う -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>少年ガルドと迷いの洞窟</title>
     <link
       rel="icon"
@@ -191,7 +194,10 @@
 
       /* ------------------------------------------------ ログ */
       /* ゾーン: 左下。触UIの仮想パッド(#touch側)も同じ左下ゾーンに入るため、
-         パッドの高さぶんだけ上にずれる(--zone-bottom-reserve) */
+         パッドの高さぶんだけ上にずれる(--zone-bottom-reserve)。
+         plan/game/mobile-layout-redesign.md: タッチ端末ではこの縦長パネルを
+         廃止し、#logBanner(帯)+ #logModal(全文)に置き換える。デスクトップ
+         (pointer: fine)側はこれまでどおり */
       #log {
         position: absolute;
         left: 14px; bottom: calc(14px + var(--zone-bottom-reserve));
@@ -199,6 +205,76 @@
         padding: 10px 14px;
         font-size: 13px;
         line-height: 1.65;
+      }
+
+      /* ------------------------------------------------ メッセージ帯(タッチ専用、plan/game/mobile-layout-redesign.md) */
+      /* ゾーン: 下部帯の中央。仮想パッド(左下)・アクションボタン群(右下)の
+         隙間にちょうど収まる幅で置く(両ゾーンの実測値から算出、下記コメント参照)。
+         pointer-events: none にして、下に重なるパッド/ボタンのタップを妨げない。
+         pointer: fine では常に非表示(#touchと同じ、既定display:noneを
+         @media (pointer: coarse) の中だけblockへ) */
+      #logBanner {
+        display: none;
+        position: absolute;
+        z-index: 5;
+        padding: 8px 12px;
+        max-height: 92px;
+        overflow: hidden;
+        border-radius: 10px;
+        background: rgba(10, 13, 24, 0.58);
+        border: 1px solid var(--edge);
+        backdrop-filter: blur(4px);
+        font-size: 12px;
+        line-height: 1.5;
+        text-align: left;
+        pointer-events: none;
+        opacity: 1;
+        transition: opacity 0.6s ease;
+      }
+      #logBanner:empty,
+      #logBanner.faded { opacity: 0; }
+      #logBanner div { opacity: 0.6; }
+      #logBanner div:last-child { opacity: 1; font-weight: 600; }
+
+      /* ------------------------------------------------ 全文ログモーダル(「≡」→ログ、同上) */
+      /* タッチの「≡」メニューからしか開く導線が無いため pointer: coarse に
+         限定しない(desktopでも構造上は無害。表示切り替えは.openクラスのみ) */
+      #logModal {
+        display: none;
+        position: absolute;
+        inset: 0;
+        z-index: 32;
+        align-items: flex-end;
+        justify-content: center;
+        padding: 16px;
+        /* セーフエリア対応(plan/game/mobile-layout-redesign.md): 下端に張り付く
+           モーダルなので、ホームインジケータの上に閉じるボタンが埋もれないようにする */
+        padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+        background: rgba(3, 4, 10, 0.86);
+        pointer-events: auto;
+      }
+      #logModal.open { display: flex; }
+      .log-modal-box {
+        width: min(640px, 94vw);
+        max-height: 82vh;
+        overflow-y: auto;
+        padding: 16px 18px;
+        background: var(--panel);
+        border: 1px solid var(--edge);
+        border-radius: 12px;
+      }
+      .log-modal-box h2 {
+        margin: 0 0 10px; font-size: 14px; letter-spacing: 0.08em; color: #7fd6ff;
+      }
+      .log-modal-list { list-style: none; margin: 0; padding: 0; }
+      .log-modal-list li {
+        padding: 5px 0; font-size: 13px; line-height: 1.6;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      }
+      .log-modal-close {
+        display: block; width: 100%; margin-top: 14px; padding: 10px;
+        font-family: inherit; font-size: 13px; letter-spacing: 0.05em;
+        color: #05060c; background: #7fd6ff; border: none; border-radius: 8px; cursor: pointer;
       }
 
       /* ------------------------------------------------ 操作説明 */
@@ -296,22 +372,112 @@
         #touch { display: block; }
         :root {
           /*
-           * ゾーンレイアウト: 触UIが同居する2ゾーンぶんだけ、既存HUDの
-           * パネルをずらす予約量。
-           *   右上: ミニマップ(高さ約158px = canvas140 + padding16 + border2)
-           *         + 隙間10px の下に「≡」ボタンを置く
-           *   左下: 仮想パッド(bottom26px + 直径108px) + 隙間12px の上に
-           *         ログを置く
+           * ゾーンレイアウト(plan/game/mobile-layout-redesign.md以降):
+           * ミニマップを小さく固定したので、「≡」ボタンをその下に置く
+           * オフセットも小さい固定値でよくなった。
+           *   右上: ミニマップ(高さ上限96px = canvas92px + padding6*2 + border1*2)
+           *         + 隙間12pxの下に「≡」ボタンを置く
+           * 仮想パッド側のログ用の予約(--zone-bottom-reserve)は、ログパネル
+           * そのものをタッチ端末で非表示にした(#logBanner に置き換えた)ため、
+           * もう使われていない。変数だけ残し、値は0で無害化する
            */
-          --zone-tr-reserve: 166px;
-          --zone-bottom-reserve: 132px;
+          --zone-tr-reserve: 114px;
+          --zone-bottom-reserve: 0px;
         }
+        /* ミニマップを拡大しているあいだは、「≡」ボタン・メニューをさらに下げる
+           (未決事項への回答として実装したタップ拡大トグル。:has()はChromium105+/
+           Safari15.4+/Firefox121+で利用可、非対応環境では拡大自体をしないため
+           実害は無い) */
+        body:has(#minimap-wrap.expanded) {
+          --zone-tr-reserve: 248px;
+        }
+
+        /* ------------------------------------------------ HUDバー(タッチ専用の横長化) */
+        /* plan/game/mobile-layout-redesign.md: 縦積みパネルをやめ、階数・Lv・
+           HP・まんぷくを1行に収めた細長いバーにする。DOM/JS(hud.ts)は共通の
+           ままで、並びをflexで組み直すだけに留める。次のLvまでの数値は
+           優先度が低いため触UIでは省く(未決事項への回答: 経験値・所持金は
+           「≡」メニュー・拠点側にゆずる) */
+        #status {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          row-gap: 3px;
+          column-gap: 10px;
+          min-width: 0;
+          max-width: calc(100vw - 16px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px));
+          min-height: 40px;
+          padding: 6px 12px;
+          top: calc(8px + env(safe-area-inset-top, 0px));
+          left: calc(8px + env(safe-area-inset-left, 0px));
+        }
+        #status .row { display: contents; }
+        #hud-depth { font-size: 12px; }
+        #hud-level { font-size: 11px; }
+        #status .label {
+          margin: 0;
+          gap: 4px;
+          font-size: 10.5px;
+          white-space: nowrap;
+          justify-content: flex-start;
+        }
+        #status .bar { width: 34px; height: 7px; margin: 0; }
+        #hud-exp { display: none; }
+        #hud-status { margin: 0; font-size: 10.5px; }
+        #hud-carry { margin: 0; padding: 2px 7px; font-size: 10.5px; }
+
+        /* なかまパネルは、丈の低くなったHUDバーのすぐ下へ寄せる。
+           高さは無制限にせず、パッド/ボタン側のゾーンを侵食しないようにする */
+        #allies {
+          /* HUDバーは状態異常・かかえ中タルの表示が重なると2行に折り返すことが
+             あるため、目安の40pxより余裕を持たせたオフセットにする */
+          top: calc(70px + env(safe-area-inset-top, 0px));
+          left: calc(8px + env(safe-area-inset-left, 0px));
+          max-height: 38vh;
+          overflow-y: auto;
+        }
+
+        /* ------------------------------------------------ ミニマップ(タッチ専用の縮小・透過強化) */
+        /* 目安: 短辺(横持ちなのでvh)の1/4以下。aspect-ratioでcanvasの縦横比
+           (180:140)を保ったまま、高さだけ上限で縛る。タップで拡大/縮小できる
+           (未決事項への回答: 状態はCSSクラス1つで表現できコストが低いため採用。
+           src/ui/minimap-zoom.ts) */
+        #minimap-wrap {
+          top: calc(8px + env(safe-area-inset-top, 0px));
+          right: calc(8px + env(safe-area-inset-right, 0px));
+          padding: 6px;
+          background: rgba(10, 13, 24, 0.4);
+          border-color: rgba(126, 148, 210, 0.16);
+          pointer-events: auto;
+          touch-action: manipulation;
+        }
+        #minimap {
+          width: auto;
+          height: min(25vh, 25vw, 92px);
+          aspect-ratio: 180 / 140;
+        }
+        #minimap-wrap.expanded #minimap {
+          height: min(46vh, 46vw, 224px);
+        }
+
+        /* ------------------------------------------------ メッセージ帯(バナー) */
+        #logBanner {
+          display: block;
+          left: calc(150px + env(safe-area-inset-left, 0px));
+          right: calc(210px + env(safe-area-inset-right, 0px));
+          bottom: calc(30px + env(safe-area-inset-bottom, 0px));
+        }
+        /* デスクトップの縦長ログパネルは廃止し、#logBannerに置き換える */
+        #log { display: none; }
       }
-      /* ゾーン: 左下。#log(メッセージログ)と同じゾーンに入るため、ログ側が
-         --zone-bottom-reserveぶん上へ押しやられる(このパッド自体は動かない) */
+      /* ゾーン: 左下。plan/game/mobile-layout-redesign.mdのセーフエリア対応で
+         左端・下端にenv(safe-area-inset-*)を足す(iPhoneのホームインジケータ・
+         ノッチ回避)。位置自体はここが基準で、メッセージ帯(#logBanner)側が
+         この右端を避けて配置される(上のCSS参照) */
       .touch-pad {
         position: absolute;
-        left: 26px; bottom: 26px;
+        left: calc(26px + env(safe-area-inset-left, 0px));
+        bottom: calc(26px + env(safe-area-inset-bottom, 0px));
         width: 108px; height: 108px;
         border-radius: 50%;
         background: rgba(10, 13, 24, 0.55);
@@ -331,10 +497,12 @@
         transition: transform 0.05s linear;
       }
       /* ゾーン: 右下。#help(操作説明)は同ゾーンに入るが pointer: coarse では
-         非表示にしてある(#help側の定義を参照)ため、常に単独で使える */
+         非表示にしてある(#help側の定義を参照)ため、常に単独で使える。
+         セーフエリア対応(右端・下端) */
       .touch-actions {
         position: absolute;
-        right: 18px; bottom: 22px;
+        right: calc(18px + env(safe-area-inset-right, 0px));
+        bottom: calc(22px + env(safe-area-inset-bottom, 0px));
         display: grid;
         grid-template-columns: repeat(3, 52px);
         gap: 10px;
@@ -367,10 +535,11 @@
         font-weight: 700;
       }
       /* ゾーン: 右上。ミニマップ(#minimap-wrap)と同じゾーンに入るため、
-         --zone-tr-reserveぶんだけその下に押しやる */
+         --zone-tr-reserveぶんだけその下に押しやる。セーフエリア対応(右端・上端) */
       .touch-menu-btn {
         position: absolute;
-        right: 16px; top: calc(16px + var(--zone-tr-reserve));
+        right: calc(16px + env(safe-area-inset-right, 0px));
+        top: calc(16px + env(safe-area-inset-top, 0px) + var(--zone-tr-reserve));
         pointer-events: auto;
         width: 42px; height: 42px;
         border-radius: 8px;
@@ -382,13 +551,19 @@
       }
       .touch-menu {
         position: absolute;
-        right: 16px; top: calc(64px + var(--zone-tr-reserve));
+        right: calc(16px + env(safe-area-inset-right, 0px));
+        top: calc(64px + env(safe-area-inset-top, 0px) + var(--zone-tr-reserve));
         pointer-events: auto;
         display: flex;
         flex-direction: column;
         gap: 6px;
         padding: 8px;
         width: 168px;
+        /* 項目数が増えても(plan/game/mobile-layout-redesign.mdで「ログ」を追加)
+           横幅の狭い横持ち画面(短辺400px級の端末)からはみ出さないよう、
+           高さを画面基準で抑えて自前でスクロールさせる */
+        max-height: calc(100vh - 64px - env(safe-area-inset-top, 0px) - var(--zone-tr-reserve) - 12px);
+        overflow-y: auto;
         background: var(--panel);
         border: 1px solid var(--edge);
         border-radius: 10px;
@@ -766,6 +941,12 @@
 
         <div id="log" class="panel" aria-live="polite" aria-atomic="false"></div>
 
+        <!-- メッセージ帯(タッチ専用、plan/game/mobile-layout-redesign.md)。
+             直近数行だけを表示し、無操作でフェードアウトする。#logの内容(全文)は
+             src/view/hud.tsが#logBannerとは別の履歴として持ち、こちらは
+             src/view/hud.tsのlog()が直接書き換える -->
+        <div id="logBanner" aria-live="polite" aria-atomic="false"></div>
+
         <div id="help" class="panel">
           <b>矢印 / WASD / テンキー</b> 移動・攻撃<br />
           <b>Shift + 方向</b> 向きだけ変える<br />
@@ -787,6 +968,17 @@
         <div id="town"></div>
         <div id="slotSelect"></div>
         <div id="overlay"></div>
+
+        <!-- 全文ログモーダル(「≡」→ログ、plan/game/mobile-layout-redesign.md)。
+             タッチの「≡」メニューからのみ開く導線を持つ -->
+        <div id="logModal" aria-hidden="true">
+          <div id="logModalBox" class="log-modal-box" role="dialog" aria-label="ログ全文">
+            <h2 id="logModalTitle">ログ</h2>
+            <ul id="logModalList" class="log-modal-list"></ul>
+            <button type="button" id="logModalClose" class="log-modal-close">とじる</button>
+          </div>
+        </div>
+
         <div id="ending"></div>
         <div id="debugPanel" class="panel"></div>
       </div>

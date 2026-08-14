@@ -5,6 +5,13 @@ import { ALLY_STANCE_NAMES, BARREL_NAMES } from "../entities/displayNames";
 import { MAX_SATIETY, type PlayerState, expToNext } from "../entities/player";
 import { t } from "../i18n";
 import {
+  BANNER_FADE_MS,
+  fadeBanner,
+  showBanner,
+  type BannerState,
+  INITIAL_BANNER_STATE,
+} from "../entities/messageBanner";
+import {
   STATUS_CONFUSE,
   STATUS_SEAL,
   STATUS_SLEEP,
@@ -15,6 +22,12 @@ import {
 } from "../core/types";
 
 const MAX_LOG_LINES = 6;
+/**
+ * 全文ログ(タッチ「≡」→ログの全画面モーダル、plan/game/mobile-layout-redesign.md)の
+ * 保持上限。MAX_LOG_LINES(デスクトップの縦長ログパネル・バグ報告用recentLog)とは
+ * 別枠で持ち、そちら側の挙動は変えない
+ */
+const MAX_FULL_LOG_LINES = 300;
 
 /** 全画面のお知らせに添えるボタン(plan/game/gameover-touch-return.md) */
 export interface OverlayAction {
@@ -58,6 +71,17 @@ export class Hud {
   private readonly overlayEl: HTMLElement;
   private readonly lines: string[] = [];
 
+  // メッセージ帯(タッチ専用、plan/game/mobile-layout-redesign.md)
+  private readonly fullLines: string[] = [];
+  private readonly bannerEl: HTMLElement;
+  private bannerState: BannerState = INITIAL_BANNER_STATE;
+  private bannerFadeTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // 全文ログモーダル(「≡」→ログ、同上)
+  private readonly logModalEl: HTMLElement;
+  private readonly logModalListEl: HTMLElement;
+  private logModalOpen = false;
+
   constructor(private readonly root: HTMLElement) {
     this.depthEl = must(root, "#hud-depth");
     this.levelEl = must(root, "#hud-level");
@@ -72,9 +96,20 @@ export class Hud {
     this.logEl = must(root, "#log");
     this.fxLayer = must(root, "#fx");
     this.overlayEl = must(root, "#overlay");
+    this.bannerEl = must(root, "#logBanner");
+    this.logModalEl = must(root, "#logModal");
+    this.logModalListEl = must(root, "#logModalList");
     // 多言語対応の土台(plan/i18n-foundation.md): HTML側に直書きしていた見出しをt()で差し替える
     must(root, "#hud-hp-label").textContent = t("ui.hud.hp");
     must(root, "#hud-satiety-label").textContent = t("ui.hud.satiety");
+    must(root, "#logModalTitle").textContent = t("ui.hud.logModalTitle");
+    const closeBtn = must(root, "#logModalClose");
+    closeBtn.textContent = t("ui.hud.logModalClose");
+    closeBtn.addEventListener("click", () => this.hideLogModal());
+    // 背景(#logModal自身)をタップしても閉じる。中身の箱側でクリックを止め、
+    // 誤ってその上をタップしても閉じないようにする
+    this.logModalEl.addEventListener("click", () => this.hideLogModal());
+    must(root, "#logModalBox").addEventListener("click", (e) => e.stopPropagation());
   }
 
   update(player: PlayerState, depth: number, allies: readonly AllyActor[] = []): void {
@@ -179,6 +214,64 @@ export class Hud {
         return div;
       }),
     );
+
+    // メッセージ帯・全文ログ(タッチ専用、plan/game/mobile-layout-redesign.md)。
+    // デスクトップの#log(上のthis.lines)とは別枠の履歴を持つ
+    this.fullLines.push(text);
+    while (this.fullLines.length > MAX_FULL_LOG_LINES) this.fullLines.shift();
+    this.bannerState = showBanner(this.fullLines);
+    this.renderBanner();
+    this.resetBannerFadeTimer();
+    if (this.logModalOpen) this.renderLogModal();
+  }
+
+  private renderBanner(): void {
+    this.bannerEl.replaceChildren(
+      ...this.bannerState.lines.map((line, index, arr) => {
+        const div = document.createElement("div");
+        div.textContent = line;
+        // 最新行だけ強調し、古い行は薄くする(デスクトップの#logと同じ考え方)
+        div.style.opacity = index === arr.length - 1 ? "1" : "0.6";
+        return div;
+      }),
+    );
+    this.bannerEl.classList.toggle("faded", this.bannerState.faded);
+  }
+
+  /**
+   * 無操作でのフェードアウト(plan/game/mobile-layout-redesign.md、未決事項への回答:
+   * 3〜5秒案のうち中間の4秒を採用。実装ノート参照)。新しいメッセージが来るたびに
+   * タイマーを取り消して積み直す
+   */
+  private resetBannerFadeTimer(): void {
+    if (this.bannerFadeTimer !== null) clearTimeout(this.bannerFadeTimer);
+    this.bannerFadeTimer = setTimeout(() => {
+      this.bannerState = fadeBanner(this.bannerState);
+      this.renderBanner();
+    }, BANNER_FADE_MS);
+  }
+
+  /** 全文ログモーダル(「≡」→ログ)を開く。開いている間は最新の行を末尾に表示しスクロールする */
+  showLogModal(): void {
+    this.logModalOpen = true;
+    this.renderLogModal();
+    this.logModalEl.classList.add("open");
+  }
+
+  hideLogModal(): void {
+    this.logModalOpen = false;
+    this.logModalEl.classList.remove("open");
+  }
+
+  private renderLogModal(): void {
+    this.logModalListEl.replaceChildren(
+      ...this.fullLines.map((line) => {
+        const li = document.createElement("li");
+        li.textContent = line;
+        return li;
+      }),
+    );
+    this.logModalListEl.scrollTop = this.logModalListEl.scrollHeight;
   }
 
   /** ダメージや回復の数字を、対象の頭上に浮かせて流す */
@@ -211,6 +304,10 @@ export class Hud {
    */
   showOverlay(title: string, detail: string, hint: string, action?: OverlayAction): void {
     this.overlayEl.innerHTML = "";
+    // showKeyHelp()がタップ閉じ用に残したハンドラが、次にこのオーバーレイを
+    // 使い回すときまで残っていると、意図せず閉じてしまう(タップしても
+    // finish()側の「拠点へ戻る」処理は通らないので中途半端な状態になる)
+    this.overlayEl.onclick = null;
     const box = document.createElement("div");
     box.className = "overlay-box";
     const h = document.createElement("h2");
@@ -235,13 +332,23 @@ export class Hud {
 
   hideOverlay(): void {
     this.overlayEl.style.display = "none";
+    this.overlayEl.onclick = null;
   }
 
   /**
    * 操作の一括確認(plan/difficulty-modes.md アクセシビリティ節)。
-   * 現在使っているキー配置をいつでも呼び出せるようにする
+   * 現在使っているキー配置をいつでも呼び出せるようにする。
+   * `hint`(閉じ方の案内)は呼び出し側(main.ts)がタッチ/キーボードで
+   * 出し分けたものを渡す(plan/game/mobile-layout-redesign.md、文言のタッチ対応。
+   * hud.tsはui層のmatchMedia判定に依存しないため、ここでは受け取るだけにする)。
+   * `onClose`を渡すと、この全画面オーバーレイ自体をタップしても閉じられる
+   * ようにする。タッチ端末では「≡」ボタン自体がオーバーレイの下に隠れて
+   * 押せなくなる(plan/game/mobile-layout-redesign.md、タップで閉じられない
+   * と行き止まりになるため必須)。デスクトップでは物理Hキーで閉じられる
+   * ため、main.ts側はタッチのときだけ渡す想定(渡さなければ従来どおり
+   * クリックしても何も起きない)
    */
-  showKeyHelp(lines: readonly string[]): void {
+  showKeyHelp(lines: readonly string[], hint: string = t("hud.keyHelpHint"), onClose?: () => void): void {
     this.overlayEl.innerHTML = "";
     const box = document.createElement("div");
     box.className = "overlay-box";
@@ -253,12 +360,13 @@ export class Hud {
       p.textContent = line;
       box.appendChild(p);
     }
-    const hint = document.createElement("p");
-    hint.className = "hint";
-    hint.textContent = t("hud.keyHelpHint");
-    box.appendChild(hint);
+    const hintEl = document.createElement("p");
+    hintEl.className = "hint";
+    hintEl.textContent = hint;
+    box.appendChild(hintEl);
     this.overlayEl.appendChild(box);
     this.overlayEl.style.display = "flex";
+    this.overlayEl.onclick = onClose ? () => onClose() : null;
   }
 
   get element(): HTMLElement {

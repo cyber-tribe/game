@@ -15,7 +15,7 @@ import { Stage } from "./view/stage";
 import { VillageView } from "./view/village";
 import { AudioPlayer } from "./audio/player";
 import { ja as jaDict } from "./i18n/ja";
-import { setLocale as applyLocaleDict } from "./i18n";
+import { setLocale as applyLocaleDict, t } from "./i18n";
 import { ArtsMenu } from "./ui/arts";
 import { EndingScreen } from "./ui/ending";
 import { InventoryMenu } from "./ui/menu";
@@ -84,12 +84,15 @@ import { DEFAULT_MOOD_ID, MOOD_VISUALS, moodForDate } from "./entities/moods";
 import { todayKey } from "./entities/quests";
 import { STORY_CHAPTER_MESSAGES, storyChapter, storyChapterEventId } from "./entities/story";
 import { REGION_BOSS_FLOORS, speciesById } from "./entities/species";
-import { KEY_REFERENCE, messageSpeedScale } from "./entities/settings";
+import { KEY_REFERENCE, KEY_REFERENCE_TOUCH, messageSpeedScale } from "./entities/settings";
+import { resolveText, type TextVariant } from "./entities/inputText";
+import { currentInputMode } from "./ui/inputMode";
+import { MinimapZoomToggle } from "./ui/minimap-zoom";
 import { buildBugReportUrl } from "./entities/bugReport";
 import { isDebugEnabled } from "./entities/debugPanel";
 import { DebugPanel } from "./ui/debug-panel";
 import { speciesLore } from "./entities/speciesLore";
-import { TUTORIAL_TIPS, type TutorialTipId } from "./core/tutorial";
+import { tutorialTipText, type TutorialTipId } from "./core/tutorial";
 import type { FloorState, Item } from "./core/types";
 import type { TrainingFocus } from "./entities/player";
 
@@ -102,6 +105,17 @@ const COVERED_RENDER_INTERVAL = 0.2;
  * タッチUIを塞ぐため、このボタンがタッチ端末での唯一の出口になる
  */
 const RETURN_TO_TOWN_LABEL = "拠点にもどる";
+
+/**
+ * 文言のタッチ対応(plan/game/mobile-layout-redesign.md)。ゲームオーバー・
+ * 踏破・樽比べ終了の3オーバーレイが共通で使う「拠点へ戻る」案内。
+ * ボタン自体(上のRETURN_TO_TOWN_LABEL)はplan/game/gameover-touch-return.mdが
+ * 追加したものだが、フッター文言のキーボード/タッチ出し分けはこちらで行う
+ */
+const RETURN_TO_TOWN_HINT: TextVariant = {
+  keyboard: "R キーで拠点にもどる",
+  touch: "「拠点にもどる」ボタンで戻れる",
+};
 
 /**
  * submit()が1ターンぶんのGameEventを記録・進行管理に反映するための表。
@@ -200,14 +214,22 @@ class App {
     this.stage = new Stage(this.renderer.scene, this.assets, this.audio);
     this.hud = new Hud(document.querySelector<HTMLElement>("#ui")!);
     this.minimap = new Minimap(document.querySelector<HTMLCanvasElement>("#minimap")!);
+    // ミニマップのタップ拡大/縮小(plan/game/mobile-layout-redesign.md、未決事項への回答:
+    // クラスをつけ外すだけの薄い配線で済むため採用する。pointer:coarse以外では
+    // CSS側がpointer-events:noneのままなのでクリックは届かず、デスクトップの挙動は変わらない)
+    new MinimapZoomToggle(document.querySelector<HTMLElement>("#minimap-wrap")!);
     this.menu = new InventoryMenu(document.querySelector<HTMLElement>("#menu")!);
     this.stanceMenu = new StanceMenu(document.querySelector<HTMLElement>("#stance")!);
     this.artsMenu = new ArtsMenu(document.querySelector<HTMLElement>("#arts")!);
     this.stairsConfirm = new StairsConfirmModal(document.querySelector<HTMLElement>("#stairsConfirm")!);
     this.endingScreen = new EndingScreen(document.querySelector<HTMLElement>("#ending")!);
     // タッチ操作(plan/touch-controls.md): Inputへ直接press/releaseするだけの
-    // 入力ソースなので、以後参照する必要が無く、フィールドには保持しない
-    new TouchControls(document.querySelector<HTMLElement>("#touch")!, this.canvas, this.input);
+    // 入力ソースなので、以後参照する必要が無く、フィールドには保持しない。
+    // 「≡」メニューの「ログ」(plan/game/mobile-layout-redesign.md)だけは
+    // キーコードに変換できない専用アクションなので、コールバックで直接HUDへつなぐ
+    new TouchControls(document.querySelector<HTMLElement>("#touch")!, this.canvas, this.input, () =>
+      this.hud.showLogModal(),
+    );
     // 縦持ち案内(plan/touch-ui-overlap-fix.md): matchMediaの監視結果を
     // document.bodyへクラスとして反映するだけなので、以後参照する必要が無い
     new OrientationGuard();
@@ -596,7 +618,9 @@ class App {
   private showTutorialTip(id: TutorialTipId): void {
     if (this.save.seenTutorialTips.includes(id)) return;
     this.save = markTutorialTipSeen(this.save, id);
-    this.hud.log(TUTORIAL_TIPS[id]);
+    // 文言のタッチ対応(plan/game/mobile-layout-redesign.md): キー名を含むtipは
+    // タッチ端末では言い換えを出す
+    this.hud.log(tutorialTipText(id, currentInputMode()));
   }
 
   /**
@@ -722,7 +746,13 @@ class App {
     this.renderer.renderer.render(this.village.scene, this.village.camera);
 
     const building = this.village.nearBuilding();
-    this.villageHintEl.textContent = building ? `Space: ${building.label}へ` : "";
+    // 文言のタッチ対応(plan/game/mobile-layout-redesign.md): 「Space」はキーボード前提の表記
+    this.villageHintEl.textContent = building
+      ? resolveText(
+          { keyboard: `Space: ${building.label}へ`, touch: `決定ボタン: ${building.label}へ` },
+          currentInputMode(),
+        )
+      : "";
     this.villageHintEl.style.display = building ? "block" : "none";
   }
 
@@ -945,7 +975,17 @@ class App {
       return;
     }
     this.helpVisible = true;
-    this.hud.showKeyHelp(KEY_REFERENCE);
+    // 操作説明一覧のタッチ対応(plan/game/mobile-layout-redesign.md):
+    // タッチ端末では、キー名の代わりにパッド・ボタン名で書かれた一覧と、
+    // 「≡」から閉じる案内を出す
+    const touchMode = currentInputMode() === "touch";
+    this.hud.showKeyHelp(
+      touchMode ? KEY_REFERENCE_TOUCH : KEY_REFERENCE,
+      touchMode ? t("hud.keyHelpHintTouch") : undefined,
+      // タッチ端末では「≡」ボタンがオーバーレイの下に隠れて押せなくなるため、
+      // オーバーレイ自体をタップしても閉じられるようにする(行き止まり防止)
+      touchMode ? () => this.toggleHelp() : undefined,
+    );
   }
 
   /**
@@ -1225,7 +1265,7 @@ class App {
     this.hud.showOverlay(
       "樽比べ終了!",
       `合計 ${this.game.tarukurabeScore} 点 ・ 自己ベスト ${this.save.tarukurabeBestScore} 点`,
-      `${reason} — R キーで拠点にもどる`,
+      `${reason} — ${resolveText(RETURN_TO_TOWN_HINT, currentInputMode())}`,
       { label: RETURN_TO_TOWN_LABEL, onSelect: () => this.returnToTownAfterRun() },
     );
   }
@@ -1278,7 +1318,7 @@ class App {
       cleared ? "だっしゅつ成功!" : "ちからつきた……",
       detail + trueAwakeningLine,
       `Lv ${this.game.player.level} / ${this.game.turnCount} ターン ・ ` +
-        `最深記録 ${this.save.deepest} 階 — R キーで拠点にもどる`,
+        `最深記録 ${this.save.deepest} 階 — ${resolveText(RETURN_TO_TOWN_HINT, currentInputMode())}`,
       { label: RETURN_TO_TOWN_LABEL, onSelect: () => this.returnToTownAfterRun() },
     );
   }
