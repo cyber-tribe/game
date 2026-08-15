@@ -148,6 +148,18 @@ const BGM_SPECS: readonly BgmSpec[] = [
     reverb: { wet: 0.2, roomSize: 0.35, damping: 0.3 },
     offbeatProb: 0.5,
   },
+  // 腕試しの間(plan/sound/archive/bgm-trial-chamber.md)。地方ボスの再戦だけの
+  // ボスラッシュ → ボス戦テーマの姉妹曲として太鼓厚めの編成を引き継ぎつつ、
+  // 2拍子・より速いテンポで「道場の張り詰め」に寄せる。輪郭優先で残響は控えめ
+  {
+    id: "trial-chamber",
+    seed: 6000,
+    weights: { mallet: 0.45, drum: 0.65, flute: 0.05, string: 0.1 },
+    tempoBpm: 116,
+    beatsPerBar: 2,
+    bars: 16,
+    reverb: { wet: 0.2, roomSize: 0.4, damping: 0.15 },
+  },
 ];
 
 // SFXにも薄くリバーブを掛けBGMと馴染ませるが、操作音の輪郭を保つためウェット率はBGMより下げる
