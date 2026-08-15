@@ -2004,6 +2004,252 @@ def otone_animations():
     ]
 
 
+# ---------------------------------------------------------------- 帳面のイト
+
+# 記録の間の主。若い女性で、几帳面を通り越して記録魔。
+# 背丈はガルドの0.95倍だが、幅・太さを落として細身にし、stoop を負にして
+# 「反り気味=姿勢がよい」を作る。おキヨ(丸っこい老人)と並んだときに
+# 若さが一目で分かるよう、頭は気持ち大きめ(head=1.04)
+ITO = Proportions(height=0.95, width=0.84, girth=0.90, torso=0.90,
+                  head=1.04, stoop=-3.0)
+
+ITO_SKIN = (0.91, 0.79, 0.70)        # 屋内暮らしの明るい肌
+ITO_ROBE = (0.90, 0.89, 0.86)        # 白い小袖。帳面の紙と同系
+ITO_HAKAMA = (0.19, 0.19, 0.23)      # 墨色の袴
+ITO_SHOE = (0.11, 0.11, 0.13)        # 黒い履き物
+ITO_HAIR = (0.09, 0.08, 0.10)        # 濡羽色。艶を出すため roughness を低く取る
+ITO_PAPER = (0.95, 0.93, 0.86)       # 帳面の紙
+ITO_SUMI = (0.14, 0.13, 0.17)        # 帳面の表紙・腰帯・襟。一番濃い墨
+ITO_BAMBOO = (0.72, 0.62, 0.40)      # 筆の軸。唯一の暖色で筆を読ませる
+
+
+def build_ito():
+    """
+    記録の間の主、帳面のイト。細身・姿勢のよさ・切り揃えた前髪・胸に抱えた
+    分厚い帳面の4点で「几帳面な若い記録係」と読ませる。配色は墨色と白の
+    2色だけに絞り、筆の軸だけ竹色を差す。
+    """
+    name = "ito"
+    body, joints, bones = build_base(name, ITO)
+
+    head = joints["head"]
+    neck = joints["neck"]
+    chest = joints["chest"]
+    hip = joints["hip"]
+    foot = joints["foot.L"]
+    hand_r = joints["hand.R"]
+
+    # 色は一式まとめて作り、同じ色の部品で使い回す(描画呼び出しを増やさない)。
+    # 帳面の表紙・腰帯・襟はどれも同じ濃墨なので "sumi" 1つを回す
+    mats = palette("ito", {
+        "skin": (ITO_SKIN, 0.62),
+        "robe": (ITO_ROBE, 0.88),
+        "hakama": (ITO_HAKAMA, 0.86),
+        "shoe": (ITO_SHOE, 0.60),
+        "hair": (ITO_HAIR, 0.55),
+        "paper": (ITO_PAPER, 0.92),
+        "sumi": (ITO_SUMI, 0.70),
+        "eye": ((0.12, 0.10, 0.13), 0.28),
+        "bamboo": (ITO_BAMBOO, 0.72),
+    })
+
+    # 白い小袖に墨色の袴。腰から下はすべて袴なので hem を腰のすぐ下に取る。
+    # かぶりもの(髪)の生え際は後頭部側を低く(cap_slope 正)して、
+    # 後ろ髪が襟足まで下りるようにする。額側は下の前髪の板が覆う
+    C.assign_materials_by_region(
+        body,
+        [mats["skin"], mats["robe"], mats["hakama"], mats["shoe"], mats["hair"]],
+        garment_classifier(
+            joints,
+            hem=hip.z * 0.98,
+            collar=neck.z + 0.028,
+            cuff=abs(joints["elbow.L"].x) * 1.12,
+            cap=head.z + 0.045,
+            cap_slope=0.35,
+        ),
+    )
+
+    extras: list = []
+
+    # 顔。まっすぐ前(-Y)を向く。頭の前面は y≒-0.077 なので、
+    # 目鼻はそこからわずかに前へ出す
+    face_y = head.y - 0.088
+    for side in (-1.0, 1.0):
+        # 丸くて大きい目。細い線の目にすると老けて見えるので、若さは
+        # 「大きい丸目+細く水平な眉」で作る(おキヨとの描き分け)
+        eye = C.uv_sphere(f"ito_eye{side}", (0.042 * side, face_y + 0.014, head.z + 0.014),
+                          0.025, segments=14, rings=10, scale=(1.0, 0.70, 1.15))
+        C.assign_material(eye, mats["eye"])
+        extras.append(eye)
+        # 眉。細く、ほとんど水平。几帳面さの記号
+        brow = C.box(f"ito_brow{side}", (0.0, 0.0, 0.0),
+                     (0.046, 0.016, 0.009), bevel=0.003)
+        brow.rotation_euler = (0.0, math.radians(-3.0 * side), 0.0)
+        brow.location = Vector((0.044 * side, face_y + 0.016, head.z + 0.052))
+        C.assign_material(brow, mats["hair"])
+        extras.append(brow)
+
+    # 小さな鼻。大きくすると年嵩に見える
+    nose = C.uv_sphere("ito_nose", (0.0, face_y - 0.002, head.z - 0.022), 0.022,
+                       segments=12, rings=9, scale=(0.85, 1.15, 0.80))
+    C.assign_material(nose, mats["skin"])
+    extras.append(nose)
+
+    # 前髪。額を横一文字に覆う板。下端を水平に切り揃えるのがこの人物の
+    # 記号なので、そこだけ角を残す。眉の上端とは 0.01 以上あけて、
+    # 眉と前髪が同じ高さでぶつからないようにする。
+    # 塗り分けの生え際(cap)をこの下端に合わせてあるので、板は「前髪の
+    # 厚みと切り口」だけを足せばよく、上へ伸ばす必要はない
+    bang_bottom = head.z + 0.068
+    bang_top = head.z + 0.100
+    bang = C.box("ito_bang", (0.0, -0.062, (bang_bottom + bang_top) * 0.5),
+                 (0.170, 0.040, bang_top - bang_bottom), bevel=0.005)
+    for vert in bang.data.vertices:
+        t = (vert.co.z - bang_bottom) / (bang_top - bang_bottom)   # 0=切り口 1=上端
+        # 上ほど後ろへ寝かせ、かつ細める。天面と側面を頭蓋の中へ逃がさないと、
+        # 平らな面が光を受けて額の上に板が乗って見える
+        vert.co.y += (vert.co.z - bang_bottom) * 0.90
+        vert.co.x *= 1.0 - 0.28 * max(0.0, t)
+    C.assign_material(bang, mats["hair"])
+    extras.append(bang)
+
+    # 横の髪。頬の脇を顎の高さまで下ろす(おかっぱ)。箱で作ると耳当ての
+    # ように見えるので、縦に伸ばした球にして丸みを残す。内側は頭に
+    # 食い込ませ、浮いた板に見えないようにする
+    for side in (-1.0, 1.0):
+        lock = C.uv_sphere(f"ito_side{side}", (0.080 * side, head.y - 0.014, head.z - 0.012),
+                           0.058, segments=12, rings=9, scale=(0.62, 1.05, 1.45))
+        C.assign_material(lock, mats["hair"])
+        extras.append(lock)
+
+    # 後ろ髪。襟足までのひとかたまり
+    back = C.uv_sphere("ito_backhair", (0.0, head.y + 0.040, head.z + 0.020), 0.096,
+                       segments=16, rings=11, scale=(1.00, 1.02, 1.06))
+    C.assign_material(back, mats["hair"])
+    extras.append(back)
+
+    # 襟。首の付け根を一周し、肩へ向かって開く輪。
+    # 塗り分けの collar を首の少し上まで持ち上げてあるので(そうしないと
+    # 肩の上まで肌が回り込んで肩を出した服に見える)、首の付け根はいったん
+    # 上衣の白になる。その上にこの輪をかぶせて和装の襟にする
+    collar = C.cone("ito_collar", (0.0, neck.y * 0.5, neck.z - 0.006),
+                    radius_bottom=0.096, radius_top=0.058, depth=0.056, segments=20)
+    C.assign_material(collar, mats["sumi"])
+    extras.append(collar)
+    # 襟から胸元へ下りる合わせ。V字に重ねる。原点で作って回してから置く
+    for side in (-1.0, 1.0):
+        lapel = C.box(f"ito_lapel{side}", (0.0, 0.0, 0.0), (0.030, 0.022, 0.125),
+                      bevel=0.006)
+        lapel.rotation_euler = (0.0, math.radians(24.0 * side), 0.0)
+        lapel.location = Vector((0.028 * side, -0.058, chest.z + 0.008))
+        C.assign_material(lapel, mats["sumi"])
+        extras.append(lapel)
+
+    # 袴。腰から足首まで、ほとんど広がらない細い筒。モグラ婆の釣鐘形と違って
+    # 裾の広がりを抑えることで細身の silhouette を保つ。裾は履き物が見える
+    # 高さで止める
+    hakama_top, hakama_bottom = hip.z + 0.026, foot.z + 0.062
+    hakama = C.cone("ito_hakama", (0.0, 0.0, (hakama_top + hakama_bottom) * 0.5),
+                    radius_bottom=0.116, radius_top=0.092,
+                    depth=hakama_top - hakama_bottom, segments=20)
+    C.assign_material(hakama, mats["hakama"])
+    extras.append(hakama)
+
+    # 腰帯。袴の上端を締める。筆はここに差す
+    belt = C.cylinder("ito_belt", (0.0, 0.0, hip.z + 0.012), 0.106, 0.058, segments=20)
+    C.assign_material(belt, mats["sumi"])
+    extras.append(belt)
+
+    # 分厚い帳面。胸の前で抱える。背面(+Y側)を胴の表面より内側に置いて
+    # 食い込ませる。前へ逃がすと体から浮いた板に見える
+    book_z = (chest.z + hip.z) * 0.5 + 0.032
+    cover = C.box("ito_book", (0.0, -0.110, book_z), (0.172, 0.062, 0.140), bevel=0.006)
+    C.assign_material(cover, mats["sumi"])
+    extras.append(cover)
+    # 紙の束。表紙より薄く狭く作り、前小口だけが白くのぞくようにする
+    pages = C.box("ito_pages", (0.0, -0.118, book_z), (0.152, 0.068, 0.122), bevel=0.003)
+    C.assign_material(pages, mats["paper"])
+    extras.append(pages)
+
+    # 筆。未決事項だった「別メッシュにするか本体と一体にするか」は**本体と一体**で
+    # 決着。素体に統合すれば自動ウェイトで近くの骨に付き、腕の動きにそのまま
+    # 追従する。ボーンを増やすと村人ごとにアーマチュアが変わって共通基盤の
+    # 利点が消えてしまう。
+    # そのぶん「腰帯から筆を抜く」動きは作れないので、筆を2本にして解決した
+    # (腰帯に差した予備と、右手に持った1本)。記録魔が替えの筆を差している、
+    # という体裁で、見た目の方針の「腰帯に筆を差す」も idle の「筆で書き付ける」も
+    # どちらも成立する
+    def brush(tag: str, length: float, thickness: float) -> list:
+        """原点に立てた筆。軸は竹色、穂先は墨色で下を向く。"""
+        shaft = C.cylinder(f"ito_{tag}_shaft", (0.0, 0.0, length * 0.5), thickness, length,
+                           segments=8)
+        C.assign_material(shaft, mats["bamboo"])
+        tip = C.cone(f"ito_{tag}_tip", (0.0, 0.0, -length * 0.20),
+                     radius_bottom=0.0015, radius_top=thickness * 0.95,
+                     depth=length * 0.40, segments=8)
+        C.assign_material(tip, mats["hair"])
+        return [shaft, tip]
+
+    # 右手に持った筆。素立ちでは手の中に縦に握っている。腕を折れば
+    # 前腕の骨に引かれて帳面の上へ来る(ゲンドの木槌と同じ作り)
+    held = brush("brush", 0.130, 0.010)
+    for part in held:
+        part.location = Vector((hand_r.x - 0.030, hand_r.y - 0.032, hand_r.z + 0.004))
+    extras += held
+
+    # 腰帯に差した予備の筆。左の腰前。帯の表面に半分めり込ませる
+    spare = brush("spare", 0.115, 0.009)
+    for part in spare:
+        part.rotation_euler = (math.radians(14.0), math.radians(16.0), 0.0)
+        part.location = Vector((0.080, -0.078, hip.z + 0.050))
+    extras += spare
+
+    return finish(name, body, extras, joints, bones)
+
+
+def ito_animations():
+    """
+    idle: 帳面を両腕で抱えたまま静かに立ち、途中で右腕だけを上げて
+          さらさらと書き付ける。書いているあいだは首を前に倒して
+          帳面を覗き込む(NECK の正回転が「あごを引く」向き)。
+    talk: 帳面から顔を上げて応え、右手の筆で軽く指し示す。
+          ひな形のうなずきに右腕の動きを重ねている。
+    """
+    # 帳面を抱える基本のポーズ。前腕を大きく折り、手先をさらに深く折って
+    # 胸の前で帳面を挟む。腕は体に沿わせる(細身の silhouette を崩さない)
+    hold = {
+        ARM_L: (2, 0, 1.5), ARM_R: (2, 0, -1.5),
+        FORE_L: (-32, 0, 0), FORE_R: (-32, 0, 0),
+        HAND_L: (-70, 0, 0), HAND_R: (-70, 0, 0),
+    }
+
+    def writing(fore: float, hand: float, roll: float) -> dict:
+        return {ARM_R: (-7, 0, -3.0), FORE_R: (fore, 0, 0), HAND_R: (hand, 0, roll)}
+
+    return [
+        ("idle", idle_clip(length=60, breath=1.6, arm=1.5, head_lag=3, extra={
+            1: hold,
+            30: {**hold, **writing(-44, -82, 0.0)},   # 筆を構える
+            60: hold,
+            26: {NECK: (9, 0, 0)},                    # 帳面へ視線を落とす
+            # さらさらと書く。3フレーム刻みの小さな往復で筆先を走らせる
+            34: writing(-46, -86, -5.0),
+            37: writing(-45, -82, 4.0),
+            40: writing(-46, -86, -4.0),
+            43: writing(-45, -83, 3.0),
+            47: dict(hold),                           # 筆を下ろして抱え直す
+            51: {NECK: (0, 0, 0)},                    # 顔を上げる
+        })),
+        ("talk", talk_clip(length=32, nod=12.0, lean=3.0, arm=1.5, extra={
+            1: hold,
+            6: {**hold, ARM_R: (-10, 0, -4.0), FORE_R: (-40, 0, 0)},   # タメ
+            10: {ARM_R: (-30, 0, -10.0), FORE_R: (-56, 0, 0), HAND_R: (-64, 0, 0)},
+            14: {ARM_R: (-23, 0, -8.0), FORE_R: (-50, 0, 0), HAND_R: (-68, 0, 0)},
+            32: hold,
+        })),
+    ]
+
+
 # =========================================================================== 登録
 
 # 名前 → (造形関数, アニメーション関数)。村人を足すときはここに1行。
@@ -2016,6 +2262,7 @@ VILLAGERS = {
     "otama": (build_otama, otama_animations),
     "okiyo": (build_okiyo, okiyo_animations),
     "otone": (build_otone, otone_animations),
+    "ito": (build_ito, ito_animations),
 }
 
 
