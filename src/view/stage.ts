@@ -2,6 +2,7 @@ import * as THREE from "three";
 import type { Assets } from "./assets";
 import { ActorView } from "./actorView";
 import { DungeonView } from "./dungeonMesh";
+import { ParticleSystem } from "./particles";
 import { TILE } from "./renderer";
 import type { GameEvent } from "../core/events";
 import type { Actor, FloorState } from "../core/types";
@@ -59,11 +60,21 @@ interface Effect {
  * アニメーションを割り当てる。1ターンぶんのイベントは同時に走らせ、
  * 一番長いものが終わるまでを「入力を受け付けない時間」として返す。
  */
+/** プレイヤー(garudo)のモデル名。撃破時の体色取得でspeciesIdが無い場合に使う */
+const PLAYER_MODEL = "garudo";
+/** モデルがまだ読み込まれていない等で体色が引けなかったときの既定色 */
+const DEFAULT_BURST_COLOR = new THREE.Color(0xd8c9a0);
+
 export class Stage {
   readonly dungeon: DungeonView;
   private readonly views = new Map<number, ActorView>();
-  /** 倒れて消える途中のアクター。消えるまで views から外さない */
-  private readonly dying = new Map<number, number>();
+  /**
+   * 倒れて消える途中のアクター。消えるまで views から外さない。
+   * burstColorは撃破時のパーティクル(plan/game/archive/combat-vfx-particles.md)の
+   * 色で、dyingタイマー満了(モデルが消える瞬間)に使う
+   */
+  private readonly dying = new Map<number, { remaining: number; burstColor: THREE.Color }>();
+  private readonly particles: ParticleSystem;
   /**
    * 各アクターの手に今つけている武器モデル名(plan/equipped-weapon-visual.md)。
    * 未装備(素手)は null。actor.equippedWeaponModel との差分だけを見て
@@ -86,6 +97,7 @@ export class Stage {
     this.scene.add(this.actorRoot);
     this.scene.add(this.effectRoot);
     this.dungeon = new DungeonView(scene, assets);
+    this.particles = new ParticleSystem(scene);
   }
 
   enterFloor(floor: FloorState): void {
@@ -206,6 +218,10 @@ export class Stage {
         const view = this.views.get(event.actorId);
         if (!view) return 0;
         view.moveTo(event.from, event.to, MOVE_TIME * scale);
+        // 歩行の足元の砂埃(plan/game/archive/combat-vfx-particles.md)。
+        // 「移動完了時」ではなく移動開始時に出す(完了を待つフックが無く、
+        // 見た目の差はほぼ無いための簡略化)
+        this.particles.spawnFootDust(toWorld(event.to, 0.02));
         return MOVE_TIME * scale;
       },
       bump: (event) => {
@@ -240,6 +256,11 @@ export class Stage {
             critical: event.critical,
             heal: false,
           });
+          // ヒットスパーク。damageイベントに攻撃方向の情報が無いため、
+          // 攻撃方向への扇状ではなく全方位に散らす(plan/game/archive/
+          // combat-vfx-particles.mdの簡略化。攻撃方向を足すにはattack/damage
+          // イベントを跨いだ状態管理が要る)
+          this.particles.spawnHitSpark(view.root.position.clone().setY(1.0), null, event.critical);
         }
         return ATTACK_TIME * scale;
       },
@@ -260,7 +281,9 @@ export class Stage {
         const view = this.views.get(event.actorId);
         if (view) {
           view.play("die", DIE_TIME);
-          this.dying.set(event.actorId, DIE_TIME);
+          const model = event.speciesId ? speciesById(event.speciesId).model : PLAYER_MODEL;
+          const burstColor = this.assets.firstMaterialColor(model) ?? DEFAULT_BURST_COLOR;
+          this.dying.set(event.actorId, { remaining: DIE_TIME, burstColor });
         }
         return 0;
       },
@@ -313,6 +336,7 @@ export class Stage {
       barrelBreak: noop,
       explosion: (event) => {
         this.spawnExplosion(event.pos, event.radius);
+        this.particles.spawnExplosionSparks(toWorld(event.pos, 0.5), event.radius);
         this.audio.playSfx("explosion");
         return 0.42 * scale;
       },
@@ -402,6 +426,7 @@ export class Stage {
   update(dt: number, time: number): void {
     for (const view of this.views.values()) view.update(dt);
     this.dungeon.animate(time);
+    this.particles.update(dt);
 
     // その場かぎりの見せ物。終わったら片付ける
     for (let i = this.effects.length - 1; i >= 0; i--) {
@@ -416,17 +441,18 @@ export class Stage {
       }
     }
 
-    for (const [id, left] of this.dying) {
-      const remaining = left - dt;
+    for (const [id, info] of this.dying) {
+      const remaining = info.remaining - dt;
       if (remaining <= 0) {
         this.dying.delete(id);
         const view = this.views.get(id);
         if (view) {
+          this.particles.spawnDefeatBurst(view.root.position.clone().setY(1.0), info.burstColor);
           view.dispose();
           this.views.delete(id);
         }
       } else {
-        this.dying.set(id, remaining);
+        info.remaining = remaining;
       }
     }
   }

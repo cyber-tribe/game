@@ -216,6 +216,27 @@ export class Assets {
   }
 
   /**
+   * モデルの最初のマテリアルの色。撃破時の「体色の粒が散る」演出
+   * (plan/game/archive/combat-vfx-particles.md)に使う。専用の色テーブルは
+   * 持たず、既存のモデルデータからそのまま引く。輪郭線メッシュ
+   * (`__outline`終わりの名前、黒一色のMeshBasicMaterial)は候補から除く。
+   */
+  firstMaterialColor(name: string): THREE.Color | null {
+    const asset = this.cache.get(name);
+    if (!asset) return null;
+    let found: THREE.Color | null = null;
+    asset.scene.traverse((obj) => {
+      if (found) return;
+      const mesh = obj as THREE.Mesh;
+      if (!mesh.isMesh || mesh.name.endsWith("__outline")) return;
+      const material = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
+      const colored = material as THREE.MeshToonMaterial | undefined;
+      if (colored?.color) found = colored.color;
+    });
+    return found;
+  }
+
+  /**
    * InstancedMesh に使うための形状と材質。
    * 壁や床のように同じものを大量に並べるものは、1つのジオメトリにまとめて
    * 描画コールを1回に抑える。
