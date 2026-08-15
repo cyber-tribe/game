@@ -23,6 +23,7 @@ import common as C  # noqa: E402
 import garudo  # noqa: E402
 import monsters  # noqa: E402
 import props  # noqa: E402
+import villagers  # noqa: E402
 
 
 def targets() -> dict:
@@ -30,6 +31,8 @@ def targets() -> dict:
     out: dict = {"garudo": (garudo.make, True)}
     for name in monsters.MONSTERS:
         out[name] = ((lambda n: lambda: monsters.make(n))(name), True)
+    for name in villagers.VILLAGERS:
+        out[name] = ((lambda n: lambda: villagers.make(n))(name), True)
     for name, fn in props.PROPS.items():
         out[name] = (fn, False)
     return out

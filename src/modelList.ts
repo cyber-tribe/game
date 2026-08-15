@@ -26,6 +26,28 @@ export const BARREL_MODELS = {
 } as const;
 
 /**
+ * 村人NPCのモデル(`plan/models/model-*.md`、`tools/models/villagers.py`)。
+ * 建物の内装に立たせる(`plan/game/village-interiors.md`)ためのもので、
+ * 種族表にもアイテム表にも載らないのでここに直接並べる。
+ *
+ * **村人を1人実装したら、この配列に名前を1行足す。** 村人は8人
+ * (mogurabaa / gendo / otone / okiyo / pochi / otama / fuku / ito)いて、
+ * 1人1PRで順に足していく。
+ *
+ * 村人の名寄せに1つ落とし穴がある。`entities/village.ts` の
+ * `VillageNpcId` とモデル名は綴りが違うものがあり(モグラ婆は
+ * NPC が `mogurababa`・モデルが `mogurabaa`)、両者は別物として扱う。
+ */
+export const VILLAGER_MODELS = ["mogurabaa"] as const;
+
+/**
+ * 村人が備えているべきクリップ。村人は戦わないので、モンスターの5本
+ * (`REQUIRED_CLIPS`)ではなく待機と会話の2本だけに揃える
+ * (`tools/models/villagers.py` の `CLIPS` と対になっている)。
+ */
+export const VILLAGER_CLIPS = ["idle", "talk"] as const;
+
+/**
  * ゲームが必要とするモデルの一覧を、種族表とアイテム表から組み立てる。
  *
  * 起動時の読み込みとテストの両方がここを見る。モンスターやアイテムを足したのに
@@ -38,6 +60,7 @@ export function modelNames(): string[] {
   for (const item of ITEMS) names.add(item.model);
   for (const model of Object.values(TRAP_MODELS)) names.add(model);
   for (const model of Object.values(BARREL_MODELS)) names.add(model);
+  for (const model of VILLAGER_MODELS) names.add(model);
   return [...names];
 }
 
@@ -59,7 +82,10 @@ export function essentialModelNames(): string[] {
   return [...names];
 }
 
-/** アニメーションを持っているべきモデル(プレイヤーとモンスター) */
+/**
+ * 5つのクリップをすべて持っているべきモデル(プレイヤーとモンスター)。
+ * 村人はここに入れない。戦わないので `VILLAGER_CLIPS` の2本しか持たない。
+ */
 export function animatedModelNames(): string[] {
   return ["garudo", ...new Set(SPECIES.map((s) => s.model))];
 }

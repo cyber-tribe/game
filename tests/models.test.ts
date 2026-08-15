@@ -3,6 +3,8 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   REQUIRED_CLIPS,
+  VILLAGER_CLIPS,
+  VILLAGER_MODELS,
   animatedModelNames,
   modelNames,
 } from "../src/modelList";
@@ -66,6 +68,26 @@ describe("3Dモデル", () => {
   it("1体あたりのポリゴン数が予算内に収まっている", () => {
     // 描画は同時に十数体ぶん走る。1体が肥大すると効いてくるので上限を決めておく
     for (const name of animatedModelNames()) {
+      const bytes = statSync(join(MODEL_DIR, `${name}.glb`)).size;
+      expect(bytes, `${name}: ${Math.round(bytes / 1024)}KB は大きすぎる`).toBeLessThan(
+        700 * 1024,
+      );
+    }
+  });
+
+  it.each([...VILLAGER_MODELS])("村人 %s に idle と talk とスキンがある", (name) => {
+    const gltf = readGlb(name);
+    const clips = (gltf.animations ?? []).map((a) => a.name);
+    // 村人は戦わないので、モンスターの5本ではなくこの2本に揃える。
+    // 余計なクリップが混ざっていないことまで見る(村人8人で揃うのが大事)
+    expect([...clips].sort(), `${name}: 村人のクリップは idle と talk の2本`).toEqual(
+      [...VILLAGER_CLIPS].sort(),
+    );
+    expect(gltf.skins?.length ?? 0, `${name}: スキンが無い。骨と皮が結びついていない`).toBe(1);
+  });
+
+  it("村人も1体あたりの大きさが予算内に収まっている", () => {
+    for (const name of VILLAGER_MODELS) {
       const bytes = statSync(join(MODEL_DIR, `${name}.glb`)).size;
       expect(bytes, `${name}: ${Math.round(bytes / 1024)}KB は大きすぎる`).toBeLessThan(
         700 * 1024,
