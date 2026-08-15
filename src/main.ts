@@ -79,7 +79,7 @@ import {
 } from "./save";
 import type { DifficultyMode } from "./entities/difficulty";
 import { costumeById } from "./entities/costumes";
-import { MAIN_CAVE_ID, REGION_SIZE, TARUKURABE_ID, TRIAL_CHAMBER_ID, TRUE_AWAKENING_ID } from "./entities/dungeons";
+import { MAIN_CAVE_ID, MOUNTAIN_CORE_ID, REGION_SIZE, TARUKURABE_ID, TRIAL_CHAMBER_ID, TRUE_AWAKENING_ID } from "./entities/dungeons";
 import { isYoimatsuri } from "./entities/festivals";
 import { DEFAULT_MOOD_ID, MOOD_VISUALS, moodForDate } from "./entities/moods";
 import { todayKey } from "./entities/quests";
@@ -662,6 +662,8 @@ class App {
     if (dungeonId === "shortcutBackHole") return "shortcut";
     // 腕試しの間(plan/sound/archive/bgm-trial-chamber.md)。ボスごとに切り替えず通しで1曲
     if (dungeonId === TRIAL_CHAMBER_ID) return "trial-chamber";
+    // 山の芯(plan/sound/archive/bgm-mountain-core.md)。3階通しで1曲
+    if (dungeonId === MOUNTAIN_CORE_ID) return "mountain-core";
     // 他のダンジョン種別(夜ごとの夢など)は本文書の対象外。直前のBGMを維持する
     return undefined;
   }
