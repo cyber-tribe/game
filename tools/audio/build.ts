@@ -36,6 +36,8 @@ interface BgmSpec {
   offbeatProb?: number;
   /** 旋律・和声の発音確率に掛ける係数。省略時は1(従来どおり) */
   melodyDensity?: number;
+  /** 2小節ごとにコードの根音を歌うハミングのレイヤーを重ねるか。省略時false */
+  humLayer?: boolean;
 }
 
 // design/regions.mdの各地方の雰囲気を、木琴/太鼓/笛/弦の重みづけ・テンポ・拍子・
@@ -129,7 +131,9 @@ const BGM_SPECS: readonly BgmSpec[] = [
     reverb: { wet: 0.26, roomSize: 0.45, damping: 0.15 },
   },
   // 真の目覚め。誰もいない頃の記憶 → 弦+笛のみ、太鼓はほぼ鳴らさない。
-  // 締めくくりの場面として、最も深く広がりのある残響にする
+  // 締めくくりの場面として、最も深く広がりのある残響にする。
+  // ハミング(plan/sound/archive/bgm-true-awakening.md)は歌(design/audio-direction.mdが
+  // 定めていた未実装要素)をこの曲だけに足す拡張
   {
     id: "true-awakening",
     seed: 3000,
@@ -137,6 +141,7 @@ const BGM_SPECS: readonly BgmSpec[] = [
     tempoBpm: 65,
     bars: 8,
     reverb: { wet: 0.4, roomSize: 0.7, damping: 0.15 },
+    humLayer: true,
   },
   // 近道屋の裏穴(plan/sound/archive/bgm-shortcut-back-hole.md)。無理やり掘った
   // 短く手荒な穴 → 全曲中最速のテンポ+裏拍の木琴でせかせかした足取りを出す。
@@ -249,6 +254,7 @@ function main(): void {
       sampleRate: SAMPLE_RATE,
       offbeatProb: spec.offbeatProb,
       melodyDensity: spec.melodyDensity,
+      humLayer: spec.humLayer,
     });
     const path = resolve(AUDIO_ROOT, "bgm", `${spec.id}.wav`);
     writeFileSync(path, encodeWav([track.left, track.right], SAMPLE_RATE));

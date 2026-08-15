@@ -5,7 +5,7 @@
  * 使わせる」考え方を音楽にも当てはめる。音階・楽器群は全曲共通の定数として
  * 固定し、地方ごとにシード・楽器の重み・テンポ・拍子・リバーブの深さを変える。
  */
-import { drumHit, fluteNote, malletNote, mixIn, mulberry32, normalize, pluckedString } from "./synth.ts";
+import { drumHit, fluteNote, humVoice, malletNote, mixIn, mulberry32, normalize, pluckedString } from "./synth.ts";
 import {
   mixStereoIn,
   normalizeStereo,
@@ -80,6 +80,12 @@ export interface TrackParams {
    * (plan/sound/archive/bgm-nightly-dream.md)
    */
   melodyDensity?: number;
+  /**
+   * 2小節ごとにコードの根音を歌うハミングのレイヤーを重ねる。既定false。
+   * 締めくくりの場面(はじめの夢)向けの拡張
+   * (plan/sound/archive/bgm-true-awakening.md)
+   */
+  humLayer?: boolean;
 }
 
 /**
@@ -91,6 +97,7 @@ export function composeTrack(params: TrackParams): StereoTrack {
   const beatsPerBar = params.beatsPerBar ?? 4;
   const offbeatProb = params.offbeatProb ?? 0;
   const melodyDensity = params.melodyDensity ?? 1;
+  const humLayer = params.humLayer ?? false;
   const beatSec = 60 / tempoBpm;
   const totalSamples = Math.floor(bars * beatsPerBar * beatSec * sampleRate);
 
@@ -99,6 +106,7 @@ export function composeTrack(params: TrackParams): StereoTrack {
   const stringMono = new Float32Array(totalSamples);
   const drumMono = new Float32Array(totalSamples);
   const bassMono = new Float32Array(totalSamples);
+  const humMono = new Float32Array(totalSamples);
   const byInstrument = { mallet: malletMono, flute: fluteMono, string: stringMono } as const;
 
   const rng = mulberry32(seed);
@@ -162,23 +170,39 @@ export function composeTrack(params: TrackParams): StereoTrack {
     }
   }
 
-  // 楽器ごとにパンを振る: 木琴やや左・笛中央・太鼓とベースは中央、弦は左右に広げる
+  // ハミング: 2小節ごとにコードの根音(中央オクターブ、旋律もベースも歌わない)を
+  // 2小節ぶんの長さで歌う専用レイヤー。既定falseで従来曲には影響なし
+  if (humLayer) {
+    for (let bar = 0; bar < bars; bar += 2) {
+      const chordDegree = CHORD_SKELETON[bar % CHORD_SKELETON.length]!;
+      const barOffset = Math.floor(bar * beatsPerBar * beatSec * sampleRate);
+      const pairBars = Math.min(2, bars - bar);
+      const humDur = pairBars * beatsPerBar * beatSec * 0.95;
+      noteSeed = (noteSeed + 1) | 0;
+      mixIn(humMono, humVoice(degreeToFreq(chordDegree), humDur, sampleRate, noteSeed, 0.3), barOffset);
+    }
+  }
+
+  // 楽器ごとにパンを振る: 木琴やや左・笛中央・太鼓とベースは中央、弦は左右に広げる。
+  // ハミングも中央(主旋律より一段下の音量ですでに調整済み)
   const malletStereo = panMono(malletMono, -0.35);
   const fluteStereo = panMono(fluteMono, 0);
   const stringStereo = widenMono(stringMono, sampleRate);
   const drumStereo = panMono(drumMono, 0);
   const bassStereo = panMono(bassMono, 0);
+  const humStereo = panMono(humMono, 0);
 
   const dryLeft = new Float32Array(totalSamples);
   const dryRight = new Float32Array(totalSamples);
-  for (const s of [malletStereo, fluteStereo, stringStereo, drumStereo, bassStereo]) {
+  for (const s of [malletStereo, fluteStereo, stringStereo, drumStereo, bassStereo, humStereo]) {
     mixStereoIn(dryLeft, dryRight, s.left, s.right, 0);
   }
 
-  // リバーブはパン前のモノラル和音源にかける(ウェット成分は左右に広く散らして空間の広がりを出す)
+  // リバーブはパン前のモノラル和音源にかける(ウェット成分は左右に広く散らして空間の広がりを出す)。
+  // ハミングも他の楽器と同じバスへ送り、残響の中に声が溶けるようにする
   const monoDrySum = new Float32Array(totalSamples);
   for (let i = 0; i < totalSamples; i++) {
-    monoDrySum[i] = malletMono[i]! + fluteMono[i]! + stringMono[i]! + drumMono[i]! + bassMono[i]!;
+    monoDrySum[i] = malletMono[i]! + fluteMono[i]! + stringMono[i]! + drumMono[i]! + bassMono[i]! + humMono[i]!;
   }
   const wet = reverbLoopStereo(monoDrySum, sampleRate, reverb);
 
