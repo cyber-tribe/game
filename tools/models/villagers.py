@@ -1323,6 +1323,223 @@ def pochi_animations():
     ]
 
 
+# ---------------------------------------------------------------- 目覚めたおたま
+
+# 第二章で眠り病から救出される若い村人。長い眠りから覚めたばかり、を
+# 「色」だけでなく**輪郭と姿勢**で読ませるのがこの村人の要:
+#   1. 肩に掛けたかいまき(綿入りの寝具)で、肩から腰までを丸く大きくする
+#   2. わずかな猫背と、そこから伸びる細い脚で「まだ立ち慣れていない」体
+#   3. 寝癖の房が頭の輪郭を左右非対称に崩す
+OTAMA = Proportions(height=0.97, width=0.90, girth=0.96, torso=1.00,
+                    head=1.10, stoop=12.0)
+
+OTAMA_SKIN = (0.87, 0.76, 0.71)       # 長く眠っていた、血の気の薄い肌
+OTAMA_WEAR = (0.71, 0.70, 0.72)       # 寝間着。薄鼠
+OTAMA_BOTTOM = (0.52, 0.51, 0.54)     # 下衣。薄鼠を一段沈めた色
+OTAMA_SHOE = (0.36, 0.34, 0.35)
+OTAMA_HAIR = (0.31, 0.26, 0.27)       # 寝癖の黒髪。わずかに桜を含ませる
+OTAMA_KAIMAKI = (0.76, 0.57, 0.59)    # かいまき本体。くすんだ桜色
+OTAMA_LINING = (0.56, 0.40, 0.43)     # かいまきの裏地と縁。一段濃い桜鼠
+OTAMA_COTTON = (0.90, 0.85, 0.85)     # 襟からのぞく綿
+
+
+def build_otama():
+    """
+    眠り病から目覚めたばかりの村人。肩に掛けたかいまきで上半身を
+    まるく大きくし、そこから細い脚と半目の顔をのぞかせる。
+    """
+    name = "otama"
+    body, joints, bones = build_base(name, OTAMA)
+
+    head = joints["head"]
+    neck = joints["neck"]
+    chest = joints["chest"]
+    hip = joints["hip"]
+    knee = joints["knee.L"]
+    shoulder = joints["shoulder.L"]
+
+    mats = palette("otama", {
+        "skin": (OTAMA_SKIN, 0.74),
+        "wear": (OTAMA_WEAR, 0.88),
+        "bottom": (OTAMA_BOTTOM, 0.88),
+        "shoe": (OTAMA_SHOE, 0.70),
+        "hair": (OTAMA_HAIR, 0.86),
+        "kaimaki": (OTAMA_KAIMAKI, 0.93),   # 綿入れなので艶を持たせない
+        "lining": (OTAMA_LINING, 0.90),
+        "cotton": (OTAMA_COTTON, 0.95),
+        "eye": ((0.15, 0.13, 0.14), 0.30),
+    })
+
+    # 寝間着の裾は膝の下。cuff を細く取って前腕から先を素肌にする(袖の
+    # 境目が腕を縦に切ると、目立つ階段状の縫い目になってしまうため)。
+    # 生え際の塗り分けは、この下で被せる髪の殻の裏当てとして残しておく
+    C.assign_materials_by_region(
+        body,
+        [mats["skin"], mats["wear"], mats["bottom"], mats["shoe"], mats["hair"]],
+        garment_classifier(
+            joints,
+            hem=knee.z - 0.014,
+            collar=neck.z - 0.012,
+            cuff=0.148,
+            cap=head.z + 0.045,
+            cap_slope=0.50,
+        ),
+    )
+
+    extras: list = []
+
+    # ---- 髪。塗り分けだけで生え際を作ると、面の中心で判定するぶん輪郭が
+    # 階段状にギザつく。頭より一回り大きい殻を後ろへずらして被せると、
+    # 顔の側は頭蓋の内側に潜って見えなくなり、生え際がなめらかに出る
+    hair = C.uv_sphere("otama_hair", (0.0, head.y + 0.015, head.z + 0.045), 1.0,
+                       segments=16, rings=11, scale=(0.122, 0.108, 0.098))
+    C.assign_material(hair, mats["hair"])
+    extras.append(hair)
+
+    # ---- 顔。半目(まぶたが重く垂れて、下に細い線だけがのぞく)
+    face_y = head.y - 0.098
+    for side in (-1.0, 1.0):
+        eye_x = 0.052 * side
+        extras.append(eye_slit(
+            f"otama_eye{side}", (eye_x, face_y - 0.004, head.z + 0.010),
+            width=0.060, material=mats["eye"], tilt=6.0 * side,
+        ))
+        # 垂れた上まぶた。目の線より**細く**した肌色の庇をすぐ上にかぶせる。
+        # 線より太いと化粧のように浮くので、幅も厚みも目の線に負けさせる
+        lid = C.box(f"otama_lid{side}", (0.0, 0.0, 0.0),
+                    (0.054, 0.026, 0.015), bevel=0.005)
+        lid.rotation_euler = (0.0, math.radians(9.0 * side), 0.0)
+        lid.location = Vector((eye_x, face_y + 0.010, head.z + 0.024))
+        C.assign_material(lid, mats["skin"])
+        extras.append(lid)
+
+        # 眉。細く短く、目尻側を下げて、力の抜けた寝起きの顔にする
+        brow = C.box(f"otama_brow{side}", (0.0, 0.0, 0.0),
+                     (0.036, 0.012, 0.006), bevel=0.002)
+        brow.rotation_euler = (0.0, math.radians(8.0 * side), 0.0)
+        brow.location = Vector((eye_x, face_y + 0.012, head.z + 0.044))
+        C.assign_material(brow, mats["hair"])
+        extras.append(brow)
+
+    nose = C.uv_sphere("otama_nose", (0.0, face_y - 0.008, head.z - 0.020), 0.021,
+                       segments=12, rings=8, scale=(0.85, 1.15, 0.85))
+    C.assign_material(nose, mats["skin"])
+    extras.append(nose)
+
+    # 半分開いた口。まだ寝ぼけている記号として、閉じずに小さく開けておく
+    mouth = C.box("otama_mouth", (0.0, face_y - 0.002, head.z - 0.052),
+                  (0.026, 0.014, 0.013), bevel=0.005)
+    C.assign_material(mouth, mats["eye"])
+    extras.append(mouth)
+
+    # ---- 寝癖。頭の輪郭を左右非対称に崩す。放射状に立てると剣山になるので、
+    # 「片側だけ」に寄せて、寝押しで潰れた側と跳ねた側を作る
+    skull = Vector((0.0, head.y + 0.015, head.z + 0.045))
+    for i, (direction, length, thick) in enumerate((
+        ((0.46, 0.68, 0.57), 0.084, 0.032),    # 左後ろへ大きく跳ねた一房
+        ((0.78, 0.56, 0.28), 0.062, 0.026),    # その根元から分かれた小さな房
+        ((-0.20, 0.90, 0.38), 0.054, 0.024),   # 後頭部の寝押し跡
+    )):
+        d = Vector(direction).normalized()
+        tuft = C.cone(f"otama_tuft{i}", (0.0, 0.0, 0.0),
+                      radius_bottom=thick, radius_top=thick * 0.34,
+                      depth=length, segments=8)
+        # 原点で作る → 回す → 置く。先に置いてから回すと原点まわりに飛ぶ
+        tuft.rotation_euler = Vector((0.0, 0.0, 1.0)).rotation_difference(d).to_euler()
+        tuft.location = skull + d * (0.086 + length * 0.28)
+        C.assign_material(tuft, mats["hair"])
+        extras.append(tuft)
+
+    # 割れた前髪。幅も角度も高さも違う房を3つ額に垂らす。一枚の板にすると
+    # 眉の上に黒い帯が渡ってしまうので、房ごとに分けて隙間から額を見せる
+    for i, (px, tilt, width, pz) in enumerate((
+        (-0.048, 21.0, 0.042, 0.082),
+        (-0.004, -13.0, 0.036, 0.068),
+        (+0.046, 7.0, 0.032, 0.078),
+    )):
+        bang = C.box(f"otama_bang{i}", (0.0, 0.0, 0.0), (width, 0.034, 0.040),
+                     bevel=0.008)
+        bang.rotation_euler = (0.0, math.radians(tilt), 0.0)
+        bang.location = Vector((px, head.y - 0.092, head.z + pz))
+        C.assign_material(bang, mats["hair"])
+        extras.append(bang)
+
+    # ---- かいまき。肩に掛けた綿入りの寝具。この村人の輪郭の主役。
+    #
+    # 板や筒で作ると、寝具ではなく看板か合羽に見えてしまった。綿入れは
+    # 角のない塊なので、**まるい塊をいくつも重ねて**上半身をぼってりと
+    # 大きくし、胸の中央だけ空けて寝間着をのぞかせる。腕は寝具の外側に
+    # 出して、前で寝具を抱えている形にする。
+    # 塊は左右で対にせず、肩・背・腰・前の4段に分ける。左右一対の丸みを
+    # 胸の高さに置くと体つきの記号に見えてしまうので、前は1つにまとめる
+    for tag, (cx, cy, cz), face, (sx, sy, sz) in (
+        ("shoulderL", (+0.118, chest.y + 0.004, shoulder.z - 0.008), "kaimaki",
+         (0.106, 0.086, 0.098)),
+        ("shoulderR", (-0.118, chest.y + 0.004, shoulder.z - 0.008), "kaimaki",
+         (0.106, 0.086, 0.098)),
+        ("back", (0.000, chest.y + 0.062, chest.z - 0.030), "kaimaki",
+         (0.144, 0.068, 0.110)),
+        ("clutch", (0.000, chest.y - 0.062, hip.z + 0.106), "kaimaki",
+         (0.138, 0.058, 0.094)),   # 胸の下で抱え込んだ分
+        # 腰の下で裏返って垂れた裾。ここだけ裏地の色にすると、綿の塊ではなく
+        # 「めくれた掛け布団を掛けている」と読める
+        ("tail", (0.000, chest.y + 0.056, hip.z + 0.034), "lining",
+         (0.134, 0.058, 0.090)),
+    ):
+        blob = C.uv_sphere(f"otama_kaimaki_{tag}", (cx, cy, cz), 1.0,
+                           segments=12, rings=8, scale=(sx, sy, sz))
+        C.assign_material(blob, mats[face])
+        extras.append(blob)
+
+    # 襟からのぞく綿。首のうしろ寄りに一周させると、綿入れの厚みが出つつ
+    # あごの下に白い玉が居座らない
+    extras += fluff_ring("otama_cotton", (0.0, neck.y + 0.008, neck.z - 0.028),
+                         radius=0.082, blob=0.024, material=mats["cotton"], count=8)
+
+    # 寝間着の帯。腰の一本で、丸い上半身と細い脚を区切る
+    belt = C.cylinder("otama_belt", (0.0, 0.0, hip.z + 0.030), 0.108, 0.028,
+                      segments=18)
+    C.assign_material(belt, mats["lining"])
+    extras.append(belt)
+
+    return finish(name, body, extras, joints, bones)
+
+
+def otama_animations():
+    """
+    idle: ゆっくりした呼吸。長い周期の後半で、こっくりと船を漕いで
+          はっと持ち上げる(あごが落ちる → 急に戻る → 少し行き過ぎて戻る)。
+    talk: 話しかけられて目を開き、背筋を伸ばしてからうなずく。
+          ひな形のタメ(6f)・ツメ(8f)にそのまま「はっとする」動きを乗せる。
+    """
+    # かいまきの前を軽く押さえた手。腕はほとんど開かない
+    hold = {ARM_L: (0, 0, 2.0), ARM_R: (0, 0, -2.0),
+            FORE_L: (-14, 0, 0), FORE_R: (-14, 0, 0)}
+    doze = {SPINE: (4.0, 0, 0), NECK: (13.0, 0, 0)}
+    return [
+        ("idle", idle_clip(length=64, breath=1.8, arm=2.0, head_lag=3, extra={
+            1: hold,
+            32: {**hold, FORE_L: (-15.5, 0, 0), FORE_R: (-15.5, 0, 0)},
+            # 船を漕ぐ。ゆっくり落ちて、急に戻す
+            40: {SPINE: (1.6, 0, 0)},
+            43: {NECK: (5.0, 0, 0)},
+            48: {**doze, ARM_L: (0, 0, 1.0), ARM_R: (0, 0, -1.0)},
+            51: {SPINE: (-1.2, 0, 0)},                  # はっと戻る
+            53: {NECK: (-4.0, 0, 0)},                   # 行き過ぎ
+            58: {SPINE: (0, 0, 0), NECK: (1.5, 0, 0)},  # ゆっくり収まる
+            64: hold,
+        })),
+        ("talk", talk_clip(length=34, nod=12.0, lean=3.2, arm=2.0, extra={
+            # 話しかけられた瞬間はまだ寝ぼけている
+            1: {**hold, **doze},
+            6: {SPINE: (-6.0, 0, 0)},                   # 背筋を伸ばす(ツメ)
+            8: {NECK: (-8.0, 0, 0)},                    # はっと顔を上げる
+            10: {SPINE: (3.2, 0, 0), ARM_L: (0, 0, 3.0), ARM_R: (0, 0, -3.0)},
+            34: hold,
+        })),
+    ]
+
+
 # =========================================================================== 登録
 
 # 名前 → (造形関数, アニメーション関数)。村人を足すときはここに1行。
@@ -1332,6 +1549,7 @@ VILLAGERS = {
     "gendo": (build_gendo, gendo_animations),
     "fuku": (build_fuku, fuku_animations),
     "pochi": (build_pochi, pochi_animations),
+    "otama": (build_otama, otama_animations),
 }
 
 
