@@ -1,3 +1,15 @@
+> **実装済み。** `tools/audio/build.ts` の `BGM_SPECS` に計画書どおりの
+> 値(`trial-chamber`、116bpm・2拍子・16小節・mallet0.45/drum0.65/
+> flute0.05/string0.1・`wet 0.2/roomSize 0.4/damping 0.15`)で
+> `trial-chamber` エントリを追加し、`public/audio/bgm/trial-chamber.wav`
+> (約16.6秒)を生成した。新しい合成機能は不要だった(計画書の見込みどおり)。
+> `src/main.ts` の `bgmForDive` に `TRIAL_CHAMBER_ID` の分岐を追加し、
+> ボス・階ごとに切り替えず通しで1曲流す。
+>
+> **検証**: `npx tsc --noEmit`・`npx vitest run`(105ファイル/1349件、
+> 既存の決定性テストで新曲もカバーされる)・`npm run build`・
+> `npm run audio` いずれも成功。`public/audio/`合計は約25MB。
+
 # 腕試しの間のBGM
 
 ## 経緯・現状

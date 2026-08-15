@@ -79,7 +79,7 @@ import {
 } from "./save";
 import type { DifficultyMode } from "./entities/difficulty";
 import { costumeById } from "./entities/costumes";
-import { MAIN_CAVE_ID, REGION_SIZE, TARUKURABE_ID, TRUE_AWAKENING_ID } from "./entities/dungeons";
+import { MAIN_CAVE_ID, REGION_SIZE, TARUKURABE_ID, TRIAL_CHAMBER_ID, TRUE_AWAKENING_ID } from "./entities/dungeons";
 import { isYoimatsuri } from "./entities/festivals";
 import { DEFAULT_MOOD_ID, MOOD_VISUALS, moodForDate } from "./entities/moods";
 import { todayKey } from "./entities/quests";
@@ -660,8 +660,9 @@ class App {
     }
     // 近道屋の裏穴(plan/sound/archive/bgm-shortcut-back-hole.md)。5階通しで1曲
     if (dungeonId === "shortcutBackHole") return "shortcut";
-    // 他のダンジョン種別(夜ごとの夢・腕試しの間など)は本文書の対象外。
-    // 直前のBGMを維持する
+    // 腕試しの間(plan/sound/archive/bgm-trial-chamber.md)。ボスごとに切り替えず通しで1曲
+    if (dungeonId === TRIAL_CHAMBER_ID) return "trial-chamber";
+    // 他のダンジョン種別(夜ごとの夢など)は本文書の対象外。直前のBGMを維持する
     return undefined;
   }
 
