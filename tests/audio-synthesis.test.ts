@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { composeSfx, composeTrack } from "../tools/audio/compose.ts";
-import { drumHit, fluteNote, malletNote, mixIn, mulberry32, normalize, pluckedString } from "../tools/audio/synth.ts";
+import { drumHit, fluteNote, humVoice, malletNote, mixIn, mulberry32, normalize, pluckedString } from "../tools/audio/synth.ts";
 import { encodeWav } from "../tools/audio/wav.ts";
 
 const NO_REVERB = { wet: 0, roomSize: 0.3 };
@@ -74,6 +74,7 @@ describe("tools/audio/synth.ts(plan/sound/archive/audio-synthesis.md)", () => {
     ["drumHit", () => drumHit(0.3, 22050, 1)],
     ["fluteNote", () => fluteNote(440, 0.3, 22050)],
     ["pluckedString", () => pluckedString(440, 0.3, 22050, 1)],
+    ["humVoice", () => humVoice(440, 0.3, 22050, 1)],
   ])("%sは指定した長さの有限な値の配列を返す", (_name, make) => {
     const out = make();
     expect(out.length).toBe(Math.floor(0.3 * 22050));
@@ -100,6 +101,15 @@ describe("tools/audio/synth.ts(plan/sound/archive/audio-synthesis.md)", () => {
     const quiet = new Float32Array([0, 0.2, -0.2]);
     normalize(quiet, 0.9);
     expect(Array.from(quiet)).toEqual(Array.from(new Float32Array([0, 0.2, -0.2]))); // 既にヘッドルーム内なら変えない
+  });
+
+  it("humVoiceは同じシードから決定的に同じ波形を返す(plan/sound/archive/bgm-true-awakening.md)", () => {
+    const a = humVoice(220, 0.5, 22050, 3);
+    const b = humVoice(220, 0.5, 22050, 3);
+    expect(Array.from(a)).toEqual(Array.from(b));
+
+    const c = humVoice(220, 0.5, 22050, 4);
+    expect(Array.from(a)).not.toEqual(Array.from(c));
   });
 });
 
@@ -164,6 +174,15 @@ describe("tools/audio/compose.ts(plan/sound/archive/bgm-quality-upgrade.md)", ()
 
     const explicitOne = composeTrack({ ...baseParams, seed: 11, melodyDensity: 1 });
     expect(Array.from(explicitOne.left)).toEqual(Array.from(without.left));
+  });
+
+  it("humLayerを指定すると波形が変わり、未指定(既定false)の曲には影響しない(plan/sound/archive/bgm-true-awakening.md)", () => {
+    const without = composeTrack({ ...baseParams, seed: 13 });
+    const withHum = composeTrack({ ...baseParams, seed: 13, humLayer: true });
+    expect(Array.from(withHum.left)).not.toEqual(Array.from(without.left));
+
+    const explicitFalse = composeTrack({ ...baseParams, seed: 13, humLayer: false });
+    expect(Array.from(explicitFalse.left)).toEqual(Array.from(without.left));
   });
 
   it("composeSfxは有限な値の配列を返す", () => {

@@ -1,3 +1,31 @@
+> **実装済み。** `tools/audio/synth.ts` に `humVoice(freq, duration,
+> sampleRate, seed, velocity)` を追加した。計画書どおり、正弦波の
+> 基音+第2倍音0.2+第3倍音0.05、ビブラート4.5Hz・深さ0.8%、
+> アタック/リリース各25%、シード付き乱数による薄い息ノイズ(振幅2%)で
+> 構成している。
+>
+> `compose.ts` の `TrackParams` に `humLayer?: boolean`(既定false)を
+> 追加。trueのとき、2小節ごとにコードの根音(`chordDegree`をオクターブ
+> シフトなしの中央オクターブのまま使用。ベースは`-SCALE_LEN`、旋律は
+> `+SCALE_LEN`でオクターブを振っているのに対し、ハミングだけ両方
+> 使わない)を2小節ぶんの長さで歌う専用レイヤーを重ねる。定位は中央
+> (`panMono(humMono, 0)`)、音量は主旋律(velocity 0.5前後)より
+> 一段下のvelocity 0.3。他の楽器と同じモノラル和音源からリバーブバスへ
+> 送っている(残響の中に声が溶ける)。既定falseのため既存曲には
+> 影響しない(`tests/audio-synthesis.test.ts`に決定性のテストを追加)。
+>
+> `build.ts` の `true-awakening` エントリにのみ `humLayer: true` を
+> 追加し、`public/audio/bgm/true-awakening.wav` を再生成した(seed・
+> テンポ・重み・残響は現状のまま)。他の10曲の`.wav`はバイト単位で
+> 無変化であることを確認済み。
+>
+> **検証**: `npx tsc --noEmit`・`npx vitest run`(105ファイル/1353件、
+> `humVoice`の決定性テスト・`humLayer`の決定性テストを追加)・
+> `npm run build`・`npm run audio` いずれも成功。
+>
+> **対象外どおり**、歌詞・言葉のあるボイス、表の寝穴のモチーフ導入後の
+> 引用強化は今回のスコープに含めていない。
+
 # はじめの夢のBGM: ハミングの追加
 
 ## 経緯・現状
