@@ -664,6 +664,8 @@ class App {
     if (dungeonId === TRIAL_CHAMBER_ID) return "trial-chamber";
     // 山の芯(plan/sound/archive/bgm-mountain-core.md)。3階通しで1曲
     if (dungeonId === MOUNTAIN_CORE_ID) return "mountain-core";
+    // 樽比べ(plan/sound/archive/bgm-tarukurabe.md)
+    if (dungeonId === TARUKURABE_ID) return "tarukurabe";
     // 他のダンジョン種別(夜ごとの夢など)は本文書の対象外。直前のBGMを維持する
     return undefined;
   }

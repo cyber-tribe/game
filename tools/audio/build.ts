@@ -172,6 +172,18 @@ const BGM_SPECS: readonly BgmSpec[] = [
     bars: 8,
     reverb: { wet: 0.38, roomSize: 0.7, damping: 0.15 },
   },
+  // 樽比べ(plan/sound/archive/bgm-tarukurabe.md)。村はずれの的当て。第七地方
+  // (囃子の「影」)と対になる、現役の遊びの明るい2拍子囃子。木琴を主役にし、
+  // 残響は村のテーマと同じ浅い屋外の響きにする
+  {
+    id: "tarukurabe",
+    seed: 9000,
+    weights: { mallet: 0.65, drum: 0.4, flute: 0.15, string: 0.1 },
+    tempoBpm: 108,
+    beatsPerBar: 2,
+    bars: 12,
+    reverb: { wet: 0.15, roomSize: 0.3, damping: 0.2 },
+  },
 ];
 
 // SFXにも薄くリバーブを掛けBGMと馴染ませるが、操作音の輪郭を保つためウェット率はBGMより下げる
