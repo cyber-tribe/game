@@ -1,3 +1,15 @@
+> **実装済み。** `tools/audio/build.ts` の `BGM_SPECS` に計画書どおりの
+> 値(`tarukurabe`、108bpm・2拍子・12小節・mallet0.65/drum0.4/
+> flute0.15/string0.1・`wet 0.15/roomSize 0.3/damping 0.2`)で
+> `tarukurabe` エントリを追加し、`public/audio/bgm/tarukurabe.wav`
+> (約13.3秒、全BGM中最短)を生成した。新しい合成機能は不要だった
+> (計画書の見込みどおり)。`src/main.ts` の `bgmForDive` に
+> `TARUKURABE_ID`(既存importを流用)の分岐を追加した。
+>
+> **検証**: `npx tsc --noEmit`・`npx vitest run`(105ファイル/1349件)・
+> `npm run build`・`npm run audio` いずれも成功。`public/audio/`合計は
+> 約28MB。
+
 # 樽比べのBGM
 
 ## 経緯・現状
