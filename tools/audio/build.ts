@@ -200,6 +200,18 @@ const BGM_SPECS: readonly BgmSpec[] = [
     reverb: { wet: 0.33, roomSize: 0.55, damping: 0.25 },
     melodyDensity: 0.8,
   },
+  // 忘れ物蔵(plan/sound/archive/bgm-lost-and-found-vault.md)。誰の記憶とも
+  // 紐づかない品々が眠る、ひっそりした蔵 → 全曲中もっとも音数を間引き、
+  // 全曲中もっとも高域をこもらせた残響(damping)で埃っぽさを出す
+  {
+    id: "lost-and-found",
+    seed: 7000,
+    weights: { mallet: 0.45, drum: 0.05, flute: 0.15, string: 0.35 },
+    tempoBpm: 68,
+    bars: 8,
+    reverb: { wet: 0.3, roomSize: 0.45, damping: 0.45 },
+    melodyDensity: 0.65,
+  },
 ];
 
 // SFXにも薄くリバーブを掛けBGMと馴染ませるが、操作音の輪郭を保つためウェット率はBGMより下げる
