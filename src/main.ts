@@ -658,6 +658,8 @@ class App {
       const regionIndex = Math.floor((depth - 1) / REGION_SIZE);
       return `region${regionIndex + 1}`;
     }
+    // 近道屋の裏穴(plan/sound/archive/bgm-shortcut-back-hole.md)。5階通しで1曲
+    if (dungeonId === "shortcutBackHole") return "shortcut";
     // 他のダンジョン種別(夜ごとの夢・腕試しの間など)は本文書の対象外。
     // 直前のBGMを維持する
     return undefined;
