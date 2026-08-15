@@ -1,4 +1,6 @@
+import { resolveText } from "../entities/inputText";
 import { MAX_NICKNAME_LENGTH, sanitizeNickname } from "../entities/naming";
+import { currentInputMode } from "./inputMode";
 
 /**
  * 仲間への命名(plan/companion-naming.md)。
@@ -72,9 +74,40 @@ export class NamingDialog {
     box.appendChild(input);
     this.input = input;
 
+    // タップできる操作(issue #488)。スマホのソフトウェアキーボードには
+    // Escapeが無く、Enterもかな変換の確定に消費されうるため、キーイベント
+    // だけに頼るとこのダイアログから抜けられなくなる。ここに置いておけば
+    // タッチUI(#touch)の表示状態に左右されず、お披露目中でも改名でも効く
+    const actions = document.createElement("div");
+    actions.className = "naming-actions";
+
+    const confirmButton = document.createElement("button");
+    confirmButton.type = "button";
+    confirmButton.className = "naming-button naming-button-confirm";
+    confirmButton.textContent = "決定";
+    confirmButton.addEventListener("click", () => this.confirm(input.value));
+    actions.appendChild(confirmButton);
+
+    const cancelButton = document.createElement("button");
+    cancelButton.type = "button";
+    cancelButton.className = "naming-button";
+    cancelButton.textContent = "あとで";
+    cancelButton.addEventListener("click", () => this.cancel());
+    actions.appendChild(cancelButton);
+
+    box.appendChild(actions);
+
     const hint = document.createElement("p");
     hint.className = "naming-hint";
-    hint.textContent = `Enter 決定 / Esc あとで(最大${MAX_NICKNAME_LENGTH}文字)`;
+    // 文言のタッチ対応(plan/game/archive/mobile-layout-redesign.md):
+    // 「Enter」「Esc」はキーボード前提の表記
+    hint.textContent = resolveText(
+      {
+        keyboard: `Enter 決定 / Esc あとで(最大${MAX_NICKNAME_LENGTH}文字)`,
+        touch: `ボタンで決定 / あとで(最大${MAX_NICKNAME_LENGTH}文字)`,
+      },
+      currentInputMode(),
+    );
     box.appendChild(hint);
 
     this.root.appendChild(box);

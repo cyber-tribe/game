@@ -939,6 +939,24 @@
         color: inherit; font-family: inherit;
       }
       .naming-input:focus { outline: none; border-color: #7fd6ff; }
+      /* タップできる決定/あとで(issue #488)。ソフトウェアキーボードには
+         Escapeが無いので、ボタンが無いとこのダイアログから抜けられない */
+      .naming-actions {
+        display: flex; gap: 10px; margin-top: 12px;
+      }
+      .naming-button {
+        flex: 1;
+        padding: 9px 10px;
+        font-family: inherit; font-size: 13px;
+        color: var(--ink);
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid var(--edge); border-radius: 6px;
+        cursor: pointer;
+      }
+      .naming-button:active { background: rgba(127, 190, 255, 0.28); }
+      .naming-button-confirm {
+        color: #05060c; background: #7fd6ff; border-color: #7fd6ff; font-weight: 700;
+      }
       .naming-hint {
         margin: 10px 0 0; font-size: 11px; color: #6b789e; text-align: right;
       }
