@@ -226,6 +226,7 @@ export class Stage {
             attacker.lunge(target.pos.x - source.pos.x, target.pos.y - source.pos.y);
           }
           attacker.play("attack", ATTACK_TIME * scale);
+          this.audio.playSfx("attack");
         }
         return ATTACK_TIME * scale;
       },

@@ -49,7 +49,17 @@ interface BgmSpec {
 // 質感になることをねらった相対値(具体値の決定はplan/sound/archive/bgm-quality-upgrade.mdの
 // 未決事項どおり音楽セッションの裁量)
 const BGM_SPECS: readonly BgmSpec[] = [
-  { id: "village", seed: 1000, weights: { mallet: 0.5, drum: 0.15, flute: 0.2, string: 0.3 }, tempoBpm: 90, bars: 8, reverb: TOWN_REVERB },
+  // 村(拠点)のテーマ。主旋律1本(design/audio-direction.md)。地方のような
+  // 冒険の起伏ではなく、穏やかに上って落ち着く「おかえり」の形のモチーフにする
+  {
+    id: "village",
+    seed: 1000,
+    weights: { mallet: 0.5, drum: 0.15, flute: 0.2, string: 0.3 },
+    tempoBpm: 90,
+    bars: 8,
+    reverb: TOWN_REVERB,
+    motif: [0, 2, 4, 2],
+  },
   // 第一地方: うたたねの参道。素朴でチュートリアルを兼ねる地方 → 木琴主体、軽快なテンポ。
   // モチーフ(plan/sound/archive/bgm-main-cave.md): 素直に上って戻る、歩き出しの歌
   {
@@ -259,6 +269,10 @@ const SFX_SPECS: readonly SfxSpec[] = [
   { id: "checkpoint", kind: "mallet", freq: 523, duration: 0.4, seed: 104 },
   { id: "explosion", kind: "drum", freq: 70, duration: 0.5, seed: 105 },
   { id: "bossTelegraph", kind: "drum", freq: 110, duration: 0.45, seed: 106 },
+  // 武器を振ったとき(design/protagonist-weapons.mdの「なた」「大槌」等、
+  // 打ち振る道具が中心なので、フィルタしたノイズ主体の短い「シュッ」に
+  // 軽い一撃の芯を足す)
+  { id: "attack", kind: "drum", freq: 300, duration: 0.15, seed: 107 },
 ];
 
 function main(): void {
