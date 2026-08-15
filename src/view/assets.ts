@@ -62,8 +62,18 @@ const RIM_STRENGTH = 0.35;
  * のときだけtrueにする。壁・床のような非キャラクターの静的な形状には
  * リムライトを掛けない(plan/game/archive/rim-light-and-contact-shadow.md
  * の対象外方針)。
+ *
+ * `hasVertexColors`はジオメトリにAOベイク(plan/game/archive/
+ * ao-vertex-color-bake.md、`tools/models/common.py`の
+ * `bake_ao_to_vertex_colors()`)由来の頂点カラーがあるときtrueにする。
+ * 発光マテリアル(目の光など)では有効にしない。AOで暗くなると
+ * 「弱った光」に見えてしまうため。
  */
-function toToonMaterial(source: THREE.Material, withRim: boolean): THREE.MeshToonMaterial {
+function toToonMaterial(
+  source: THREE.Material,
+  withRim: boolean,
+  hasVertexColors: boolean,
+): THREE.MeshToonMaterial {
   const std = source as THREE.MeshStandardMaterial;
   const material = new THREE.MeshToonMaterial({
     color: std.color,
@@ -74,6 +84,7 @@ function toToonMaterial(source: THREE.Material, withRim: boolean): THREE.MeshToo
     transparent: std.transparent,
     opacity: std.opacity,
     gradientMap: TOON_GRADIENT,
+    vertexColors: hasVertexColors && std.emissiveIntensity <= 0,
     // metalnessはMeshToonMaterialに存在しないため単純に失われる(想定内。
     // plan/game/archive/toon-shading-pipeline.md参照)
   });
@@ -224,9 +235,10 @@ export class Assets {
         mesh.castShadow = true;
         mesh.receiveShadow = true;
         const isSkinned = (mesh as THREE.SkinnedMesh).isSkinnedMesh === true;
+        const hasVertexColors = mesh.geometry.hasAttribute("color");
         mesh.material = Array.isArray(mesh.material)
-          ? mesh.material.map((m) => toToonMaterial(m, isSkinned))
-          : toToonMaterial(mesh.material, isSkinned);
+          ? mesh.material.map((m) => toToonMaterial(m, isSkinned, hasVertexColors))
+          : toToonMaterial(mesh.material, isSkinned, hasVertexColors);
         if (isSkinned) {
           skinnedMeshes.push(mesh as THREE.SkinnedMesh);
         }
