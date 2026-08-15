@@ -770,10 +770,19 @@
         background: rgba(4, 5, 12, 0.88);
         pointer-events: auto;
       }
+      /*
+       * 縦は「見出し類 → 列(ここだけ伸縮して余りを取る) → もぐる」の3段。
+       * 以前は箱ごとスクロールさせ、もぐるをsticky bottomで浮かせていたが、
+       * スマホの低い画面(横向きで実効360px前後)では列が画面に収まらず、
+       * 浮いたボタンが列パネルの上に重なって中身を隠していた(issue #482)。
+       * 列側だけをスクロール領域にすれば、ボタンは常に列の下の別の段に入り、
+       * どの画面幅・高さでも重ならない
+       */
       .town-box {
         width: min(1180px, 96vw);
         max-height: 92vh;
-        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
         padding: 26px 32px 22px;
         background: var(--panel);
         border: 1px solid var(--edge);
@@ -794,7 +803,22 @@
        * (flex:1)にすると文字が1文字ずつ折り返される事態になる。列ごとに
        * 最低幅を確保し、収まりきらない分は横スクロールで見る
        */
-      .town-columns { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 4px; }
+      /* 見出し・説明・脚注は縮ませない。既定のflex-shrink:1のままだと、
+         低い画面で文字が行の途中で切り取られて壊れて見える。伸縮して
+         余りを引き受けるのは列だけにする */
+      .town-box > * { flex: none; }
+      .town-box > .town-columns { flex: 1 1 auto; min-height: 0; }
+
+      /* 伸縮して余った高さを全部取る。min-height:0が無いとflexアイテムは
+         中身より縮まないため、低い画面でスクロールせずはみ出す */
+      .town-columns {
+        display: flex;
+        gap: 14px;
+        overflow: auto;
+        flex: 1 1 auto;
+        min-height: 0;
+        padding-bottom: 4px;
+      }
       .town-col {
         flex: 0 0 168px;
         min-height: 210px;
@@ -828,12 +852,51 @@
       /* タッチ操作向け(#308): どの列にいてもSpaceで潜れるのと同じ操作を、
          キーボードが無くても行えるようにする常時表示のボタン。.town-boxが
          自前でスクロールするので、position:stickyでその下端に張り付ける */
+      /* stickyで浮かせるのをやめ、列の下の段に置く(上の.town-boxのコメント参照) */
       .town-depart-button {
-        position: sticky; bottom: 0; left: 0;
-        display: block; width: 100%; margin-top: 16px;
+        flex: none;
+        display: block; width: auto; margin-top: 16px;
         padding: 10px; font-size: 14px; letter-spacing: 0.08em;
         color: #05060c; background: #7fd6ff; border: none; border-radius: 8px;
         cursor: pointer;
+      }
+      /* タッチ端末では右下にアクションボタン群(#touch)が乗る。拠点画面を
+         開いているあいだはそれが手前に来る(issue #483)ので、その幅ぶん
+         空けて「もぐる」が下に潜り込まないようにする。
+         3列×52px + 隙間2×10px + 右端18px ≒ 194px */
+      @media (pointer: coarse) {
+        .town-depart-button { margin-right: calc(200px + var(--safe-right)); }
+      }
+
+      /*
+       * 低い画面(スマホ横向きで実効340px前後)向けの詰め(issue #482)。
+       * 見出し・説明・脚注だけで335px使ってしまい、肝心の列に4pxしか
+       * 残らなかった。余白と文字を詰めて、余りを列に回す。
+       * 説明文(.town-lead)は行数が場面によって変わるので、高さを頭打ちに
+       * して中でスクロールさせる
+       */
+      @media (max-height: 560px) {
+        .town-box { padding: 12px 18px 10px; }
+        .town-box h2 { font-size: 17px; margin-bottom: 2px; }
+        .town-building { margin-bottom: 4px; }
+        .town-stats { margin-bottom: 4px; }
+        /* 行の途中で切れると壊れて見えるので、行単位で丸めて省略記号にする。
+           同じ内容は「≡」→設定の操作説明から全文を読める */
+        .town-lead {
+          margin-bottom: 6px;
+          line-height: 1.5;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+        .town-desc { margin-top: 6px; }
+        .town-flavor { margin-top: 2px; }
+        .town-hint { margin-top: 4px; }
+        .town-depart-button { margin-top: 8px; padding: 7px; }
+        /* 列自体の下限を外す。ここが210pxのままだと、狭い表示領域の中で
+           必ず縦スクロールが出て、1画面に1〜2行しか見えなくなる */
+        .town-col { min-height: 0; }
       }
 
       /* ------------------------------------------------ 命名(plan/game/archive/companion-naming.md) */
