@@ -413,9 +413,36 @@ def reset_pose(arm_obj: bpy.types.Object) -> None:
 
 # --------------------------------------------------------------------------- 書き出し
 
+def bake_ao_to_vertex_colors(obj: bpy.types.Object, samples: int = 64, distance: float = 0.25) -> None:
+    """
+    AO(環境遮蔽)をカラー属性 'ao' に焼く(plan/game/archive/ao-vertex-color-bake.md)。
+    UVアンラップ不要。肋骨の隙間・耳の付け根・装甲の継ぎ目のような近距離の
+    遮蔽だけを拾い、単色ベタ塗りに陰影の密度を足す。export_glb() から
+    全モデル共通で呼ぶので、個々のモデルスクリプト側の変更は要らない。
+    """
+    mesh = obj.data
+    if "ao" not in mesh.color_attributes:
+        mesh.color_attributes.new("ao", type="BYTE_COLOR", domain="CORNER")
+    mesh.color_attributes.active_color = mesh.color_attributes["ao"]
+
+    scene = bpy.context.scene
+    scene.render.engine = "CYCLES"
+    scene.cycles.samples = samples
+    scene.render.bake.target = "VERTEX_COLORS"
+    scene.world.light_settings.distance = distance
+
+    bpy.ops.object.select_all(action="DESELECT")
+    activate(obj)
+    bpy.ops.object.bake(type="AO")
+
+
 def export_glb(name: str, objs: Sequence[bpy.types.Object]) -> str:
     os.makedirs(MODEL_DIR, exist_ok=True)
     path = os.path.join(MODEL_DIR, f"{name}.glb")
+
+    for o in objs:
+        if o.type == "MESH":
+            bake_ao_to_vertex_colors(o)
 
     bpy.ops.object.select_all(action="DESELECT")
     for o in objs:
@@ -430,6 +457,11 @@ def export_glb(name: str, objs: Sequence[bpy.types.Object]) -> str:
         export_animations=True,
         export_animation_mode="ACTIONS",
         export_yup=True,
+        # 既定の"MATERIAL"は、マテリアルのノードツリーがカラー属性を
+        # 参照していないと書き出さない。AOは見た目の演算(three.js側の
+        # vertexColors)に回すだけでBlenderのマテリアルには繋いでいないため、
+        # アクティブなカラー属性を無条件で書き出す"ACTIVE"にする
+        export_vertex_color="ACTIVE",
     )
     return path
 
