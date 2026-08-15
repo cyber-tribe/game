@@ -38,7 +38,7 @@ export const BARREL_MODELS = {
  * `VillageNpcId` とモデル名は綴りが違うものがあり(モグラ婆は
  * NPC が `mogurababa`・モデルが `mogurabaa`)、両者は別物として扱う。
  */
-export const VILLAGER_MODELS = ["mogurabaa", "gendo"] as const;
+export const VILLAGER_MODELS = ["mogurabaa", "gendo", "fuku"] as const;
 
 /**
  * 村人が備えているべきクリップ。村人は戦わないので、モンスターの5本

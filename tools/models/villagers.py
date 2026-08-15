@@ -708,6 +708,344 @@ def gendo_animations():
     ]
 
 
+# ---------------------------------------------------------------- 子守りのフク
+
+# 村人で一番横幅がある。背丈はガルドとほぼ同じ(height=0.98)なのに、
+# 胴(torso)と関節の太さ(girth)を大きく取って「横に伸びた」体型にする。
+# stoop はごくわずか。腹の重みで少しだけ前に傾いている程度に留める
+# (モグラ婆のような老いた猫背にはしない)
+FUKU = Proportions(height=0.98, width=1.16, girth=1.18, torso=1.30,
+                   head=1.00, stoop=4.0)
+
+FUKU_SKIN = (0.89, 0.72, 0.58)         # 薄橙。ねむり小屋の薄暗がりで浮く明るさ
+FUKU_ROBE = (0.94, 0.75, 0.55)         # 寝間着。肌より一段濃い薄橙
+FUKU_WRAP = (0.19, 0.23, 0.40)         # 夜色の腹掛け。この配色の要
+FUKU_TROUSERS = (0.33, 0.34, 0.47)     # 下衣。腹掛けより明るい夜色
+FUKU_SHOE = (0.24, 0.26, 0.36)         # 布靴。一番暗い夜色
+FUKU_HAIR = (0.35, 0.30, 0.27)         # 白いものが混じりはじめた中年の髪
+FUKU_WOOD = (0.56, 0.39, 0.23)         # 抱えたタルの板
+FUKU_HOOP = (0.39, 0.35, 0.29)         # タルの箍(たが)。小さいので鉄より木箍らしく
+
+# 胴の断面。素体を実測した値で、腰(t=0)から胸(t=1)までを4等分してある。
+# 数字は (半幅x, 前後の中心y, 前後の半径y)。この村人は胴が太いので、布を
+# 「体の前に板で置く」と横から見たときに浮いて見える。腹掛けはこの断面に
+# 沿わせて巻きつける
+FUKU_TORSO_PROFILE = (
+    (0.00, 0.279, -0.023, 0.176),   # 腰
+    (0.25, 0.300, -0.021, 0.209),
+    (0.50, 0.299, -0.012, 0.217),   # 腹の一番出たところ
+    (0.75, 0.288, +0.001, 0.203),
+    (1.00, 0.247, -0.001, 0.176),   # 胸
+)
+
+
+def _profile_at(t: float) -> tuple[float, float, float]:
+    """FUKU_TORSO_PROFILE を線形に補間して (半幅, 中心y, 半径y) を返す。"""
+    pts = FUKU_TORSO_PROFILE
+    t = min(max(t, 0.0), 1.0)
+    for (t0, *a), (t1, *b) in zip(pts, pts[1:]):
+        if t <= t1:
+            k = (t - t0) / (t1 - t0)
+            return tuple(p + (q - p) * k for p, q in zip(a, b))
+    return tuple(pts[-1][1:])
+
+
+def _belly_wrap(name: str, joints: dict[str, Vector], bottom: float, top: float,
+                material, margin: float = 0.014):
+    """
+    腹掛け。円筒を素体の断面(FUKU_TORSO_PROFILE)に合わせて潰し、
+    体の表面から margin だけ浮かせた布にする。t は腰〜胸で測った比率なので、
+    丈(bottom/top)を変えても断面の当てはめはずれない。
+    """
+    hip_z, chest_z = joints["hip"].z, joints["chest"].z
+    height = top - bottom
+    wrap = C.cylinder(name, (0.0, 0.0, (top + bottom) * 0.5), 1.0, height, segments=20)
+    for vert in wrap.data.vertices:
+        rx, cy, ry = _profile_at((vert.co.z - hip_z) / (chest_z - hip_z))
+        vert.co.x *= rx + margin
+        vert.co.y = cy + vert.co.y * (ry + margin)
+    C.assign_material(wrap, material)
+    return wrap
+
+
+def _cradle_barrel(name: str, center, tilt: float, wood, hoop) -> list:
+    """
+    赤子のように抱える小さなタル。面を12に落としたフラットシェーディングで
+    板を並べた樽に見せるのは、道具のタル(`props.py`)と同じ作り。
+    寸法も材質も別物(道具のタルは半径0.245、これはその半分以下)なので、
+    メッシュは流用せずこの村人のパレットで作り直している。
+    """
+    length, radius = 0.212, 0.094
+    parts = []
+
+    body = C.cylinder(f"{name}_body", (0.0, 0.0, 0.0), radius, length,
+                      segments=12, axis="X", smooth=False)
+    for vert in body.data.vertices:
+        # 中央を膨らませて樽の腹を出す
+        bulge = 1.0 + 0.15 * math.cos(vert.co.x / length * math.pi)
+        vert.co.y *= bulge
+        vert.co.z *= bulge
+    C.assign_material(body, wood)
+    parts.append(body)
+
+    for i, x in enumerate((-0.054, 0.054)):
+        band = C.cylinder(f"{name}_hoop{i}", (x, 0.0, 0.0), radius * 1.13, 0.022,
+                          segments=14, axis="X")
+        C.assign_material(band, hoop)
+        parts.append(band)
+
+    # 上蓋。腕に抱かれた側の端に付けて、赤子の頭のように見せる
+    lid = C.cylinder(f"{name}_lid", (length * 0.5 + 0.010, 0.0, 0.0), radius * 1.05,
+                     0.026, segments=12, axis="X", smooth=False)
+    C.assign_material(lid, wood)
+    parts.append(lid)
+
+    for part in parts:
+        part.rotation_euler = (0.0, math.radians(tilt), 0.0)
+        part.location = Vector(center)
+    return parts
+
+
+def _bind_to_bone(mesh, materials, bone: str) -> None:
+    """
+    指定したマテリアルの面に属する頂点を、その骨だけに100%付け直す。
+
+    自動ウェイトは小道具の頂点を「近い骨に少しずつ」配ってしまう。杖や木槌の
+    ような細い棒なら目立たないが、タルのようなかたまりだと腕を畳んだだけで
+    箍(たが)と胴が別々の骨に引かれて捻れ、ばらばらに散る。抱えたタルは
+    体幹と一緒に動けばよいので、剛体として体幹の骨に付け直してしまう。
+
+    マテリアルで拾っているのは、タルの木と箍がこの村人でタルにしか
+    使われていないため(`palette()` で色を一意にしてある)。
+    """
+    names = {m.name for m in materials}
+    slots = {i for i, m in enumerate(mesh.data.materials) if m is not None and m.name in names}
+    verts = set()
+    for poly in mesh.data.polygons:
+        if poly.material_index in slots:
+            verts.update(poly.vertices)
+    verts = list(verts)
+    target = mesh.vertex_groups.get(bone)
+    if target is None:
+        target = mesh.vertex_groups.new(name=bone)
+    for group in mesh.vertex_groups:
+        if group.name != bone:
+            group.remove(verts)
+    target.add(verts, 1.0, "REPLACE")
+
+
+def build_fuku():
+    """
+    ねむり小屋の番人。横幅・垂れ目・二重あご・抱えたタルの4点で
+    「ふくよかで眠たげな子守り」と読ませる。配色は薄橙の寝間着に
+    夜色の腹掛けを重ね、暖かい薄暗がりの中で腹掛けだけが沈んで見えるようにする。
+    """
+    name = "fuku"
+    body, joints, bones = build_base(name, FUKU)
+
+    head = joints["head"]
+    neck = joints["neck"]
+    chest = joints["chest"]
+    hip = joints["hip"]
+
+    mats = palette("fuku", {
+        "skin": (FUKU_SKIN, 0.70),
+        "robe": (FUKU_ROBE, 0.88),
+        "wrap": (FUKU_WRAP, 0.82),
+        "trousers": (FUKU_TROUSERS, 0.86),
+        "shoe": (FUKU_SHOE, 0.72),
+        "hair": (FUKU_HAIR, 0.90),
+        "eye": ((0.13, 0.11, 0.12), 0.30),
+        "wood": (FUKU_WOOD, 0.84),
+        "hoop": (FUKU_HOOP, 0.70),
+    })
+
+    # 寝間着なので裾は長め(hem を膝の上まで下げる)、袖も長め(cuff を外へ
+    # 寄せて手先だけ肌にする)。薄橙を体の大半に回して、夜色は腹掛けと
+    # 脚まわりだけの差し色に留める。
+    # 髪は cap_slope を強めに取って額を広く出す(中年の生え際)
+    C.assign_materials_by_region(
+        body,
+        [mats["skin"], mats["robe"], mats["trousers"], mats["shoe"], mats["hair"]],
+        garment_classifier(
+            joints,
+            hem=hip.z * 0.58,
+            cuff=abs(joints["elbow.L"].x) * 1.10,
+            collar=neck.z + 0.010,
+            cap=head.z + 0.086,
+            cap_slope=0.62,
+        ),
+    )
+
+    extras: list = []
+
+    # 顔。まっすぐ前(-Y)を向いているが、目はほとんど閉じている
+    face_y = head.y - 0.152
+    for side in (-1.0, 1.0):
+        # 垂れ目。丸い眼球を作らず線1本にすると「半分眠っている」と読める。
+        # tilt は正で目尻が下がる
+        extras.append(eye_slit(
+            f"fuku_eye{side}", (0.064 * side, face_y - 0.004, head.z + 0.012),
+            width=0.062, material=mats["eye"], tilt=17.0 * side,
+        ))
+        # 八の字の眉。目より上に離して置く(同じ高さに置くと目とぶつかって
+        # 一本の太い線に潰れる)
+        brow = C.box(f"fuku_brow{side}", (0.0, 0.0, 0.0),
+                     (0.052, 0.020, 0.013), bevel=0.005)
+        brow.rotation_euler = (0.0, math.radians(15.0 * side), 0.0)
+        brow.location = Vector((0.062 * side, face_y + 0.014, head.z + 0.062))
+        C.assign_material(brow, mats["hair"])
+        extras.append(brow)
+        # ふくらんだ頬。顔の丸みは体の丸みと揃えておく。
+        # 顔の表面は実測で z=0.66 あたりが y≒-0.165 なので、そこから
+        # わずかに前へ出す(奥に置くと頭に呑まれて何も見えない)
+        cheek = C.uv_sphere(f"fuku_cheek{side}", (0.080 * side, head.y - 0.084,
+                                                  head.z - 0.046), 0.046,
+                            segments=12, rings=9, scale=(0.95, 0.85, 0.82))
+        C.assign_material(cheek, mats["skin"])
+        extras.append(cheek)
+
+    nose = C.uv_sphere("fuku_nose", (0.0, face_y - 0.008, head.z - 0.024), 0.038,
+                       segments=14, rings=10, scale=(0.95, 1.15, 0.90))
+    C.assign_material(nose, mats["skin"])
+    extras.append(nose)
+
+    # 半分開いた口。小さな横長の穴で「ぽかんと寝ぼけている」を出す。
+    # あご先はここから急に細るので、これ以上下げると顔から外れる
+    mouth = C.uv_sphere("fuku_mouth", (0.0, head.y - 0.132, head.z - 0.062), 0.026,
+                        segments=12, rings=8, scale=(1.25, 0.55, 0.75))
+    C.assign_material(mouth, mats["eye"])
+    extras.append(mouth)
+
+    # 二重あご。あご先と首のあいだに肉を一段落とす。横幅と並んで
+    # 「ふくよか」を一番はっきり伝える部品。首(半径0.085)より太い輪を
+    # あごの前へずらして置くと、たるんだ肉として読める
+    for i, (z, radius, y) in enumerate(((neck.z + 0.040, 0.100, head.y - 0.062),
+                                        (neck.z + 0.002, 0.114, head.y - 0.050))):
+        chin = C.uv_sphere(f"fuku_chin{i}", (0.0, y, z), radius,
+                           segments=14, rings=9, scale=(1.0, 0.94, 0.44))
+        C.assign_material(chin, mats["skin"])
+        extras.append(chin)
+
+    # 寝癖。後頭部の髪を一房だけ跳ねさせる。
+    # 原点で作る → 回す → location で置く(先に置いてから回すと飛んでいく)
+    tuft = C.uv_sphere("fuku_tuft", (0.0, 0.0, 0.0), 0.026,
+                       segments=10, rings=8, scale=(0.62, 0.80, 1.55))
+    tuft.rotation_euler = (math.radians(-52.0), 0.0, 0.0)
+    tuft.location = Vector((0.026, head.y + 0.108, joints["crown"].z - 0.030))
+    C.assign_material(tuft, mats["hair"])
+    extras.append(tuft)
+
+    # 夜色の腹掛け。腹の一番出たところを帯のように覆う。上下に薄橙の
+    # 寝間着を残して、夜色が体を覆い尽くさないようにする
+    extras.append(_belly_wrap("fuku_wrap", joints, hip.z + 0.006, chest.z - 0.026,
+                              mats["wrap"]))
+    # 腹掛けの肩紐。肩の上を越えて前から後ろへ回す。これが無いと
+    # 腹掛けではなく腹巻きに見える。肩の頂点は実測で z≒0.62・x≒0.14
+    for side in (-1.0, 1.0):
+        strap = C.box(f"fuku_strap{side}", (0.0, 0.0, 0.0), (0.044, 0.300, 0.022),
+                      bevel=0.007)
+        strap.rotation_euler = (math.radians(12.0), 0.0, 0.0)
+        strap.location = Vector((0.146 * side, -0.016,
+                                 joints["shoulder.L"].z + 0.082))
+        C.assign_material(strap, mats["wrap"])
+        extras.append(strap)
+
+    # 抱えたタル。腹の棚に載せ、左(+X)の端を持ち上げて赤子を抱く角度にする。
+    # 未決事項だった「道具のタルのメッシュを流用できるか」は**流用しない**で決着。
+    # `props._barrel_lid` が道具のタルの寸法を直に参照していて縮小できないうえ、
+    # 流用すると木・鉄輪で4つマテリアルが増えて描画呼び出しが増えてしまう。
+    # 作りの決まり(12面フラットの板張り+箍)だけを揃えて作り直す
+    # 高さは自動ウェイトの実測で決めてある。ここより下げるとタルが前腕の骨に
+    # 引っ張られ、抱きかかえのポーズで箍(たが)だけが顔まで伸びてしまう。
+    # 胸の高さまで上げると胴の骨(hip-chest / chest-neck / chest-shoulder)に
+    # ほぼ収まり、腕をどう畳んでもタルの形が崩れない
+    extras += _cradle_barrel("fuku_barrel", (0.0, -0.262, chest.z - 0.029),
+                             tilt=-15.0, wood=mats["wood"], hoop=mats["hoop"])
+
+    objs, armature = finish(name, body, extras, joints, bones)
+    # タルは体幹の骨に剛体で付け直す。idle の揺らしは SPINE を回すので、
+    # これで「抱えたタルごと体を揺らしてあやす」動きになる
+    _bind_to_bone(objs[0], (mats["wood"], mats["hoop"]), SPINE)
+    return objs, armature
+
+
+# 抱きかかえた腕。上腕(FORE_*)を前へ振り出し、前腕(HAND_*)を大きく
+# 折り曲げてタルの下に回す。両クリップの土台になるので1か所にまとめる
+# 角度は実測で決めてある。この体型は腕が短く、手先(elbow-hand の先)は
+# どうポーズを取っても y=-0.21 より前へは届かない。タルの背面が
+# y≒-0.184 に来るように置いてあるので、手はタルの後ろ下に添う
+FUKU_CRADLE = {
+    ARM_L: (-3, 0, 3.0), ARM_R: (-3, 0, -3.0),
+    FORE_L: (-42, 0, 10), FORE_R: (-42, 0, -10),
+    HAND_L: (-46, 0, 12), HAND_R: (-46, 0, -12),
+}
+
+
+def _cradle(*diffs: dict) -> dict:
+    """抱きかかえた腕を土台に、指定した骨だけ差し替えたポーズを作る。"""
+    pose = dict(FUKU_CRADLE)
+    for diff in diffs:
+        pose.update(diff)
+    return pose
+
+
+def fuku_animations():
+    """
+    idle: 抱えたタルを左右にゆっくり揺らしてあやす。体幹のひねり(SPINE の
+          Z回転)と横倒し(Y回転)を、呼吸より長い周期で往復させる。
+          頭は3フレーム遅れて追従し、あやす向きと逆に傾く(赤子を覗き込む首)。
+    talk: 「しーっ」と右手の人差し指を口元へ立ててから応じる。右腕だけ
+          抱きかかえから外して口元まで上げ、うなずいたあとタルへ戻す。
+          左腕はタルを抱えたまま動かさない。
+    """
+    # 揺らしの片道。腰から上を傾けると、腹の前のタルも一緒に振れる。
+    # pitch はひな形の呼吸(SPINE の X回転)。上書きで消さないよう混ぜ直す
+    def sway(k: float, pitch: float = 0.0) -> dict:
+        return _cradle({
+            SPINE: (pitch, 5.0 * k, 3.5 * k),
+            FORE_L: (-42, 0, 10 - 2.5 * k),
+            FORE_R: (-42, 0, -10 - 2.5 * k),
+        })
+
+    # 口元へ立てた指。上腕を大きく振り上げ、前腕を内へひねって手先を
+    # 顔の中心(x≒0)へ寄せる。ひねりを足さないと手が耳の横で止まる
+    hush = {ARM_R: (-9, 0, -5.0), FORE_R: (-98, 0, 36), HAND_R: (-72, 0, -14)}
+
+    return [
+        # 68フレームは共通のひな形(36)の倍近い。眠たげな村人なので、
+        # 呼吸も揺らしも他の村人より目に見えて遅くする
+        ("idle", idle_clip(length=68, breath=1.2, arm=3.0, head_lag=3, extra={
+            1: sway(1.0),
+            18: sway(0.0, 1.2),
+            34: sway(-1.0, 1.2),
+            51: sway(0.0),
+            68: sway(1.0),
+            # 頭は揺らしと逆へ傾けて、腕の中を覗き込んでいるようにする
+            4: {NECK: (2.0, -2.5, -2.0)},
+            21: {NECK: (2.5, 0.0, 0.0)},
+            37: {NECK: (2.0, 2.5, 2.0)},
+            54: {NECK: (2.5, 0.0, 0.0)},
+            71: {NECK: (2.0, -2.5, -2.0)},
+        })),
+        ("talk", talk_clip(length=44, nod=10.0, lean=2.4, arm=3.0, head_lag=3, extra={
+            1: _cradle(),
+            # タメ。指を口元へ持っていく手前で少し引く
+            6: _cradle({ARM_R: (-4, 0, -4.0), FORE_R: (-36, 0, -16),
+                        HAND_R: (-40, 0, -14)}),
+            # ツメ。「しーっ」と一気に立てる
+            10: _cradle(hush),
+            14: _cradle(hush),
+            # うなずきの間は指を立てたまま
+            26: _cradle(hush),
+            # ゆっくりタルへ戻す
+            36: _cradle({ARM_R: (-6, 0, -4.0), FORE_R: (-62, 0, 8),
+                         HAND_R: (-56, 0, -12)}),
+            44: _cradle(),
+        })),
+    ]
+
+
 # =========================================================================== 登録
 
 # 名前 → (造形関数, アニメーション関数)。村人を足すときはここに1行。
@@ -715,6 +1053,7 @@ def gendo_animations():
 VILLAGERS = {
     "mogurabaa": (build_mogurabaa, mogurabaa_animations),
     "gendo": (build_gendo, gendo_animations),
+    "fuku": (build_fuku, fuku_animations),
 }
 
 
