@@ -185,6 +185,24 @@ describe("tools/audio/compose.ts(plan/sound/archive/bgm-quality-upgrade.md)", ()
     expect(Array.from(explicitFalse.left)).toEqual(Array.from(without.left));
   });
 
+  it("motifを指定すると波形が変わり、未指定の曲には影響しない(plan/sound/archive/bgm-main-cave.md)", () => {
+    const without = composeTrack({ ...baseParams, seed: 15 });
+    const withMotif = composeTrack({ ...baseParams, seed: 15, motif: [0, 1, 2, 1] });
+    expect(Array.from(withMotif.left)).not.toEqual(Array.from(without.left));
+  });
+
+  it("motifは同じシードから決定的に同じ波形を返す(再生成しても歌い出しが変わらない前提)", () => {
+    const a = composeTrack({ ...baseParams, seed: 17, motif: [0, 1, 2, 1] });
+    const b = composeTrack({ ...baseParams, seed: 17, motif: [0, 1, 2, 1] });
+    expect(Array.from(a.left)).toEqual(Array.from(b.left));
+  });
+
+  it("motifNoteBeatsを指定すると波形が変わる", () => {
+    const a = composeTrack({ ...baseParams, seed: 19, motif: [0, 1, 2, 1] });
+    const b = composeTrack({ ...baseParams, seed: 19, motif: [0, 1, 2, 1], motifNoteBeats: 2 });
+    expect(Array.from(a.left)).not.toEqual(Array.from(b.left));
+  });
+
   it("composeSfxは有限な値の配列を返す", () => {
     const out = composeSfx({ kind: "mallet", freq: 660, duration: 0.35, sampleRate: 22050, seed: 1 });
     expect(out.length).toBe(Math.floor(0.35 * 22050));

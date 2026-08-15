@@ -38,6 +38,10 @@ interface BgmSpec {
   melodyDensity?: number;
   /** 2小節ごとにコードの根音を歌うハミングのレイヤーを重ねるか。省略時false */
   humLayer?: boolean;
+  /** 地方固有の旋律モチーフ(ペンタトニック上の度数列、コード度数からの相対値) */
+  motif?: readonly number[];
+  /** motifの1音があたる拍数。省略時1 */
+  motifNoteBeats?: number;
 }
 
 // design/regions.mdの各地方の雰囲気を、木琴/太鼓/笛/弦の重みづけ・テンポ・拍子・
@@ -46,7 +50,8 @@ interface BgmSpec {
 // 未決事項どおり音楽セッションの裁量)
 const BGM_SPECS: readonly BgmSpec[] = [
   { id: "village", seed: 1000, weights: { mallet: 0.5, drum: 0.15, flute: 0.2, string: 0.3 }, tempoBpm: 90, bars: 8, reverb: TOWN_REVERB },
-  // 第一地方: うたたねの参道。素朴でチュートリアルを兼ねる地方 → 木琴主体、軽快なテンポ
+  // 第一地方: うたたねの参道。素朴でチュートリアルを兼ねる地方 → 木琴主体、軽快なテンポ。
+  // モチーフ(plan/sound/archive/bgm-main-cave.md): 素直に上って戻る、歩き出しの歌
   {
     id: "region1",
     seed: 1,
@@ -54,8 +59,10 @@ const BGM_SPECS: readonly BgmSpec[] = [
     tempoBpm: 95,
     bars: 9,
     reverb: { wet: 0.3, roomSize: 0.5, damping: 0.2 },
+    motif: [0, 1, 2, 1],
   },
-  // 第二地方: 忘れ潮の湿地。霧の中を歩く湿地 → 笛主体、重めのテンポ
+  // 第二地方: 忘れ潮の湿地。霧の中を歩く湿地 → 笛主体、重めのテンポ。
+  // モチーフ: 長く伸びて半歩沈む、霧の中の遠い声
   {
     id: "region2",
     seed: 2,
@@ -63,8 +70,10 @@ const BGM_SPECS: readonly BgmSpec[] = [
     tempoBpm: 80,
     bars: 8,
     reverb: { wet: 0.34, roomSize: 0.55, damping: 0.25 },
+    motif: [2, 2, 1, -1],
   },
-  // 第三地方: まどろみの茸林。眠気に満ちた森 → 弦主体、遅めの3拍子でまどろみを出す
+  // 第三地方: まどろみの茸林。眠気に満ちた森 → 弦主体、遅めの3拍子でまどろみを出す。
+  // モチーフ: 3拍子に乗ってゆっくり降りる、まぶたが落ちる形
   {
     id: "region3",
     seed: 3,
@@ -73,8 +82,10 @@ const BGM_SPECS: readonly BgmSpec[] = [
     beatsPerBar: 3,
     bars: 9,
     reverb: { wet: 0.32, roomSize: 0.5, damping: 0.35 },
+    motif: [4, 2, 0],
   },
-  // 第四地方: 骨積みの回廊。狭く入り組んだ回廊 → 太鼓主体、乾いた刻み(残響は控えめ)
+  // 第四地方: 骨積みの回廊。狭く入り組んだ回廊 → 太鼓主体、乾いた刻み(残響は控えめ)。
+  // モチーフ: 同音の連打から跳ねる、乾いた足音
   {
     id: "region4",
     seed: 4,
@@ -82,8 +93,10 @@ const BGM_SPECS: readonly BgmSpec[] = [
     tempoBpm: 100,
     bars: 9,
     reverb: { wet: 0.22, roomSize: 0.4, damping: 0.15 },
+    motif: [0, 0, 3, 0],
   },
-  // 第五地方: なみだの滝つぼ。悲しみが形を取った地方 → 笛+弦、ゆったり・水音を思わせる豊かな残響
+  // 第五地方: なみだの滝つぼ。悲しみが形を取った地方 → 笛+弦、ゆったり・水音を思わせる豊かな残響。
+  // モチーフ: 高い所から続けて落ちる、滝の形をなぞる
   {
     id: "region5",
     seed: 5,
@@ -91,8 +104,10 @@ const BGM_SPECS: readonly BgmSpec[] = [
     tempoBpm: 75,
     bars: 8,
     reverb: { wet: 0.36, roomSize: 0.6, damping: 0.2 },
+    motif: [5, 4, 2, 1],
   },
-  // 第六地方: こだまの尾根。物音がよく響く尾根 → 木琴+太鼓、最も深い残響で「よく響く」感触を出す
+  // 第六地方: こだまの尾根。物音がよく響く尾根 → 木琴+太鼓、最も深い残響で「よく響く」感触を出す。
+  // モチーフ: 呼びかけ2音+同じ形の反復(こだま)
   {
     id: "region6",
     seed: 6,
@@ -100,8 +115,10 @@ const BGM_SPECS: readonly BgmSpec[] = [
     tempoBpm: 90,
     bars: 8,
     reverb: { wet: 0.38, roomSize: 0.65, damping: 0.15 },
+    motif: [3, 0, 3, 0],
   },
-  // 第七地方: わすれられた祭りの跡。宵祭りの影のような反映 → 木琴+太鼓、軽快な2拍子の囃子
+  // 第七地方: わすれられた祭りの跡。宵祭りの影のような反映 → 木琴+太鼓、軽快な2拍子の囃子。
+  // モチーフ: 囃子の掛け合い、跳ねて戻る
   {
     id: "region7",
     seed: 7,
@@ -110,14 +127,19 @@ const BGM_SPECS: readonly BgmSpec[] = [
     beatsPerBar: 2,
     bars: 16,
     reverb: { wet: 0.28, roomSize: 0.45, damping: 0.2 },
+    motif: [0, 2, 0, 3],
   },
-  // 第八地方: めざめの前庭。全地方の記憶が入り乱れる → 4種を均等に、遅く荘厳なテンポ
+  // 第八地方: めざめの前庭。全地方の記憶が入り乱れる → 4種を均等に、遅く荘厳なテンポ。
+  // モチーフ: 第一地方のモチーフを2倍の音価に引き延ばした形
+  // (全地方の記憶の入口が最初の記憶に戻る)
   {
     id: "region8",
     seed: 8,
     weights: { mallet: 0.3, drum: 0.3, flute: 0.2, string: 0.2 },
     tempoBpm: 60,
     bars: 8,
+    motif: [0, 1, 2, 1],
+    motifNoteBeats: 2,
     reverb: { wet: 0.34, roomSize: 0.55, damping: 0.2 },
   },
   // 地方ボス戦共通テーマ。太鼓を厚めにして緊張感を出す。各地方の目安+15前後の速いテンポで、
@@ -255,6 +277,8 @@ function main(): void {
       offbeatProb: spec.offbeatProb,
       melodyDensity: spec.melodyDensity,
       humLayer: spec.humLayer,
+      motif: spec.motif,
+      motifNoteBeats: spec.motifNoteBeats,
     });
     const path = resolve(AUDIO_ROOT, "bgm", `${spec.id}.wav`);
     writeFileSync(path, encodeWav([track.left, track.right], SAMPLE_RATE));
