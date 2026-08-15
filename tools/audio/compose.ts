@@ -86,6 +86,15 @@ export interface TrackParams {
    * (plan/sound/archive/bgm-true-awakening.md)
    */
   humLayer?: boolean;
+  /**
+   * 地方固有の旋律モチーフ(ペンタトニック上の度数列、コード度数からの相対値)。
+   * 前半・後半それぞれの最初の小節で必ずこの音列を鳴らし、「この地方の歌」を
+   * 記憶に残す。それ以外の拍は従来どおりランダム徘徊のまま。未指定なら従来どおり
+   * (plan/sound/archive/bgm-main-cave.md)
+   */
+  motif?: readonly number[];
+  /** motifの1音があたる拍数。既定1 */
+  motifNoteBeats?: number;
 }
 
 /**
@@ -98,6 +107,8 @@ export function composeTrack(params: TrackParams): StereoTrack {
   const offbeatProb = params.offbeatProb ?? 0;
   const melodyDensity = params.melodyDensity ?? 1;
   const humLayer = params.humLayer ?? false;
+  const motif = params.motif;
+  const motifNoteBeats = params.motifNoteBeats ?? 1;
   const beatSec = 60 / tempoBpm;
   const totalSamples = Math.floor(bars * beatsPerBar * beatSec * sampleRate);
 
@@ -112,6 +123,13 @@ export function composeTrack(params: TrackParams): StereoTrack {
   const rng = mulberry32(seed);
   let noteSeed = seed;
   const secondHalfStart = Math.floor(bars / 2);
+
+  // モチーフの提示区間(前半・後半それぞれの最初の小節群)。この区間の拍は
+  // 通常のランダム徘徊メロディを鳴らさず、後段の専用パスでモチーフを敷く
+  const motifBarsNeeded = motif ? Math.ceil((motif.length * motifNoteBeats) / beatsPerBar) : 0;
+  const firstPresentationEndBeat = motifBarsNeeded * beatsPerBar;
+  const secondPresentationStartBeat = secondHalfStart * beatsPerBar;
+  const secondPresentationEndBeat = secondPresentationStartBeat + motifBarsNeeded * beatsPerBar;
 
   for (let bar = 0; bar < bars; bar++) {
     const chordDegree = CHORD_SKELETON[bar % CHORD_SKELETON.length]!;
@@ -128,7 +146,8 @@ export function composeTrack(params: TrackParams): StereoTrack {
     const voicedDegree = chordDegree + voicing;
 
     for (let beat = 0; beat < beatsPerBar; beat++) {
-      const tSec = (bar * beatsPerBar + beat) * beatSec;
+      const globalBeat = bar * beatsPerBar + beat;
+      const tSec = globalBeat * beatSec;
       const offset = Math.floor(tSec * sampleRate);
 
       // 太鼓: 拍の頭に、重みに応じた確率で鳴らす。後半は気持ち密度を上げて起伏を付ける
@@ -138,10 +157,16 @@ export function composeTrack(params: TrackParams): StereoTrack {
         mixIn(drumMono, drumHit(beatSec * 0.6, sampleRate, noteSeed, 90, 0.5), offset);
       }
 
+      // モチーフの提示区間はランダム徘徊を鳴らさない(後段の専用パスで敷く)
+      const inMotifPresentation =
+        motif !== undefined &&
+        (globalBeat < firstPresentationEndBeat ||
+          (globalBeat >= secondPresentationStartBeat && globalBeat < secondPresentationEndBeat));
+
       // メロディ: 転回したコード度数を中心に、ペンタトニック上を1度だけ揺らす。
       // melodyDensityで発音確率全体を間引ける(既定1、聞き流せる静けさを出したい曲向け)
       const melodyProb = (isSecondHalf ? 0.9 : 0.85) * melodyDensity;
-      if (rng() < melodyProb) {
+      if (!inMotifPresentation && rng() < melodyProb) {
         const degree = voicedDegree + Math.floor(rng() * 3) - 1 + SCALE_LEN; // 1オクターブ上げて主旋律らしくする
         const freq = degreeToFreq(degree);
         const dur = beatSec * (rng() < 0.3 ? 0.5 : 0.95);
@@ -167,6 +192,41 @@ export function composeTrack(params: TrackParams): StereoTrack {
         const offbeatOffset = Math.floor((tSec + beatSec * 0.5) * sampleRate);
         mixIn(malletMono, malletNote(degreeToFreq(voicedDegree + SCALE_LEN), beatSec * 0.25, sampleRate, 0.3), offbeatOffset);
       }
+    }
+  }
+
+  // モチーフの提示: 前半は通常の主旋律と同じ音域(+1オクターブ)でそのまま1回、
+  // 後半は変奏(シードでオクターブ上げ/倍速2回繰り返しのどちらかに決める)
+  if (motif) {
+    const placeMotifRun = (startBar: number, octaveShift: number, noteBeats: number, repeats: number): void => {
+      let beatsElapsed = 0;
+      for (let r = 0; r < repeats; r++) {
+        for (const motifDegree of motif) {
+          const curBar = startBar + Math.floor(beatsElapsed / beatsPerBar);
+          const chordDegree = CHORD_SKELETON[curBar % CHORD_SKELETON.length]!;
+          const freq = degreeToFreq(chordDegree + motifDegree + SCALE_LEN * octaveShift);
+          const dur = noteBeats * beatSec * 0.95;
+          const posSec = (startBar * beatsPerBar + beatsElapsed) * beatSec;
+          const offset = Math.floor(posSec * sampleRate);
+          noteSeed = (noteSeed + 1) | 0;
+          const instrument = pickMelodyInstrument(mulberry32(noteSeed)(), weights);
+          const note =
+            instrument === "mallet"
+              ? malletNote(freq, dur, sampleRate, 0.55)
+              : instrument === "flute"
+                ? fluteNote(freq, dur, sampleRate, 0.5)
+                : pluckedString(freq, dur, sampleRate, noteSeed, 0.5);
+          mixIn(byInstrument[instrument], note, offset);
+          beatsElapsed += noteBeats;
+        }
+      }
+    };
+
+    placeMotifRun(0, 1, motifNoteBeats, 1);
+    if (seed % 2 === 0) {
+      placeMotifRun(secondHalfStart, 2, motifNoteBeats, 1); // 変奏: 1オクターブ上げる
+    } else {
+      placeMotifRun(secondHalfStart, 1, motifNoteBeats / 2, 2); // 変奏: 音価を半分にして2回繰り返す
     }
   }
 
