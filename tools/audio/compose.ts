@@ -73,6 +73,13 @@ export interface TrackParams {
    * (plan/sound/archive/bgm-shortcut-back-hole.md)
    */
   offbeatProb?: number;
+  /**
+   * 旋律・和声の発音確率に掛ける係数。既定1(従来どおり)。
+   * 音数を間引いて「聞き流せる」静けさを出したい曲
+   * (夜ごとの夢・忘れ物蔵など)向けの拡張
+   * (plan/sound/archive/bgm-nightly-dream.md)
+   */
+  melodyDensity?: number;
 }
 
 /**
@@ -83,6 +90,7 @@ export function composeTrack(params: TrackParams): StereoTrack {
   const { seed, weights, bars, tempoBpm, reverb, sampleRate } = params;
   const beatsPerBar = params.beatsPerBar ?? 4;
   const offbeatProb = params.offbeatProb ?? 0;
+  const melodyDensity = params.melodyDensity ?? 1;
   const beatSec = 60 / tempoBpm;
   const totalSamples = Math.floor(bars * beatsPerBar * beatSec * sampleRate);
 
@@ -122,8 +130,9 @@ export function composeTrack(params: TrackParams): StereoTrack {
         mixIn(drumMono, drumHit(beatSec * 0.6, sampleRate, noteSeed, 90, 0.5), offset);
       }
 
-      // メロディ: 転回したコード度数を中心に、ペンタトニック上を1度だけ揺らす
-      const melodyProb = isSecondHalf ? 0.9 : 0.85;
+      // メロディ: 転回したコード度数を中心に、ペンタトニック上を1度だけ揺らす。
+      // melodyDensityで発音確率全体を間引ける(既定1、聞き流せる静けさを出したい曲向け)
+      const melodyProb = (isSecondHalf ? 0.9 : 0.85) * melodyDensity;
       if (rng() < melodyProb) {
         const degree = voicedDegree + Math.floor(rng() * 3) - 1 + SCALE_LEN; // 1オクターブ上げて主旋律らしくする
         const freq = degreeToFreq(degree);
@@ -139,7 +148,7 @@ export function composeTrack(params: TrackParams): StereoTrack {
         mixIn(byInstrument[instrument], note, offset);
 
         // 後半(Bメロ相当)だけ、五度違いの和音構成音を木琴で重ねて厚みを増す
-        if (isSecondHalf && rng() < 0.4) {
+        if (isSecondHalf && rng() < 0.4 * melodyDensity) {
           const harmonyDegree = chordDegree + (voicing === 0 ? 4 : 0) + SCALE_LEN;
           mixIn(malletMono, malletNote(degreeToFreq(harmonyDegree), dur * 0.8, sampleRate, 0.3), offset);
         }

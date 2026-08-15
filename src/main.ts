@@ -79,7 +79,15 @@ import {
 } from "./save";
 import type { DifficultyMode } from "./entities/difficulty";
 import { costumeById } from "./entities/costumes";
-import { MAIN_CAVE_ID, MOUNTAIN_CORE_ID, REGION_SIZE, TARUKURABE_ID, TRIAL_CHAMBER_ID, TRUE_AWAKENING_ID } from "./entities/dungeons";
+import {
+  MAIN_CAVE_ID,
+  MOUNTAIN_CORE_ID,
+  NIGHTLY_DREAM_ID,
+  REGION_SIZE,
+  TARUKURABE_ID,
+  TRIAL_CHAMBER_ID,
+  TRUE_AWAKENING_ID,
+} from "./entities/dungeons";
 import { isYoimatsuri } from "./entities/festivals";
 import { DEFAULT_MOOD_ID, MOOD_VISUALS, moodForDate } from "./entities/moods";
 import { todayKey } from "./entities/quests";
@@ -666,7 +674,10 @@ class App {
     if (dungeonId === MOUNTAIN_CORE_ID) return "mountain-core";
     // 樽比べ(plan/sound/archive/bgm-tarukurabe.md)
     if (dungeonId === TARUKURABE_ID) return "tarukurabe";
-    // 他のダンジョン種別(夜ごとの夢など)は本文書の対象外。直前のBGMを維持する
+    // 夜ごとの夢(plan/sound/archive/bgm-nightly-dream.md)。深さ・周回数では曲を変えない
+    if (dungeonId === NIGHTLY_DREAM_ID) return "nightly-dream";
+    // 忘れ物蔵(plan/sound/bgm-lost-and-found-vault.md、別PRで対応予定)は
+    // 現時点では未接続。直前のBGMを維持する
     return undefined;
   }
 

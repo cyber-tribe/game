@@ -34,6 +34,8 @@ interface BgmSpec {
   reverb: ReverbParams;
   /** 各拍の裏に短い木琴を置く確率。省略時は鳴らさない */
   offbeatProb?: number;
+  /** 旋律・和声の発音確率に掛ける係数。省略時は1(従来どおり) */
+  melodyDensity?: number;
 }
 
 // design/regions.mdの各地方の雰囲気を、木琴/太鼓/笛/弦の重みづけ・テンポ・拍子・
@@ -184,6 +186,20 @@ const BGM_SPECS: readonly BgmSpec[] = [
     bars: 12,
     reverb: { wet: 0.15, roomSize: 0.3, damping: 0.2 },
   },
+  // 夜ごとの夢(plan/sound/archive/bgm-nightly-dream.md)。無限に潜れるやり込みの場 →
+  // 弦+笛主体・太鼓は薄く、深い残響で夜の遠さを出す。8小節のコード骨格に対して
+  // 12小節ループにすることで、ループ境界が「終わって戻った」ではなく「続きの
+  // 途中に戻った」ように聞こえる(CHORD_SKELETONの折り返しで自然に得られる)。
+  // melodyDensityで音数を間引き、何十分も聞き流せる静けさにする
+  {
+    id: "nightly-dream",
+    seed: 5000,
+    weights: { mallet: 0.1, drum: 0.12, flute: 0.35, string: 0.5 },
+    tempoBpm: 84,
+    bars: 12,
+    reverb: { wet: 0.33, roomSize: 0.55, damping: 0.25 },
+    melodyDensity: 0.8,
+  },
 ];
 
 // SFXにも薄くリバーブを掛けBGMと馴染ませるが、操作音の輪郭を保つためウェット率はBGMより下げる
@@ -220,6 +236,7 @@ function main(): void {
       reverb: spec.reverb,
       sampleRate: SAMPLE_RATE,
       offbeatProb: spec.offbeatProb,
+      melodyDensity: spec.melodyDensity,
     });
     const path = resolve(AUDIO_ROOT, "bgm", `${spec.id}.wav`);
     writeFileSync(path, encodeWav([track.left, track.right], SAMPLE_RATE));

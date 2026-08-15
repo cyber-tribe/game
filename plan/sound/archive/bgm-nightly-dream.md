@@ -1,3 +1,27 @@
+> **実装済み。** `compose.ts` の `TrackParams` に `melodyDensity?: number`
+> (既定1)を追加し、旋律の発音確率(`melodyProb`)と後半の和音重ね
+> (0.4の確率)の両方に係数として掛けた。既定1のため既存曲の波形は
+> 変わらない(`tests/audio-synthesis.test.ts` に決定性のテストを追加)。
+>
+> **「終止感を薄くする仕掛け」は計画書どおり、`bars: 12`を指定するだけで
+> 実現した。** `CHORD_SKELETON`は8小節分の固定配列で、`bar %
+> CHORD_SKELETON.length`のモジュロ演算で度数を選ぶ既存実装のため、
+> 12小節目(0始まりのindex 11)は自動的に`CHORD_SKELETON[3]`
+> (計画書が指す「4番目」)を引く。骨格の定数・ロジックともに変更不要
+> だった。
+>
+> `tools/audio/build.ts` の `BGM_SPECS` に計画書どおりの値
+> (`nightly-dream`、84bpm・12小節・mallet0.1/drum0.12/flute0.35/
+> string0.5・`wet 0.33/roomSize 0.55/damping 0.25`・
+> `melodyDensity: 0.8`)で `nightly-dream` エントリを追加し、
+> `public/audio/bgm/nightly-dream.wav`(約34.3秒)を生成した。
+> `src/main.ts` の `bgmForDive` に `NIGHTLY_DREAM_ID` の分岐を追加。
+> 深さ・周回数による曲の差し替えは計画書どおり対象外のまま。
+>
+> **検証**: `npx tsc --noEmit`・`npx vitest run`(105ファイル/1350件)・
+> `npm run build`・`npm run audio` いずれも成功。`public/audio/`合計は
+> 約32MB。
+
 # 夜ごとの夢のBGM
 
 ## 経緯・現状
