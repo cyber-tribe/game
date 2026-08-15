@@ -80,6 +80,7 @@ import {
 import type { DifficultyMode } from "./entities/difficulty";
 import { costumeById } from "./entities/costumes";
 import {
+  LOST_AND_FOUND_VAULT_ID,
   MAIN_CAVE_ID,
   MOUNTAIN_CORE_ID,
   NIGHTLY_DREAM_ID,
@@ -676,8 +677,8 @@ class App {
     if (dungeonId === TARUKURABE_ID) return "tarukurabe";
     // 夜ごとの夢(plan/sound/archive/bgm-nightly-dream.md)。深さ・周回数では曲を変えない
     if (dungeonId === NIGHTLY_DREAM_ID) return "nightly-dream";
-    // 忘れ物蔵(plan/sound/bgm-lost-and-found-vault.md、別PRで対応予定)は
-    // 現時点では未接続。直前のBGMを維持する
+    // 忘れ物蔵(plan/sound/archive/bgm-lost-and-found-vault.md)
+    if (dungeonId === LOST_AND_FOUND_VAULT_ID) return "lost-and-found";
     return undefined;
   }
 

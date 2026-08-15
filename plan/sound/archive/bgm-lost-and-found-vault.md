@@ -1,3 +1,17 @@
+> **実装済み。** `tools/audio/build.ts` の `BGM_SPECS` に計画書どおりの
+> 値(`lost-and-found`、68bpm・8小節・mallet0.45/drum0.05/flute0.15/
+> string0.35・`wet 0.3/roomSize 0.45/damping 0.45`(全曲中もっとも
+> こもらせる)・`melodyDensity: 0.65`(全曲中もっとも音数を間引く))で
+> `lost-and-found` エントリを追加し、`public/audio/bgm/lost-and-found.wav`
+> (約28.2秒)を生成した。`melodyDensity` は計画書どおり、
+> `plan/sound/archive/bgm-nightly-dream.md` で導入済みの拡張をそのまま
+> 流用した(実装順の前後は発生しなかった)。`src/main.ts` の
+> `bgmForDive` に `LOST_AND_FOUND_VAULT_ID`(既存export)の分岐を追加。
+>
+> **検証**: `npx tsc --noEmit`・`npx vitest run`(105ファイル/1350件)・
+> `npm run build`・`npm run audio` いずれも成功。`public/audio/`合計は
+> 約35MB。
+
 # 忘れ物蔵のBGM
 
 ## 経緯・現状
