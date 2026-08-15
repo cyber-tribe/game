@@ -231,16 +231,21 @@ def palette(prefix: str, colors: dict[str, tuple], roughness: float = 0.85) -> d
     return out
 
 
-def eye_slit(name: str, center, width: float, material, tilt: float = 0.0) -> object:
+def eye_slit(name: str, center, width: float, material, tilt: float = 0.0,
+             yaw: float = 0.0) -> object:
     """
     細く閉じ気味の目。丸い眼球ではなく、線1本で「閉じている」と読ませる。
     tilt は度で、正で目尻が下がる(困り顔・好々爺の記号)。
+
+    yaw も度で、目尻を奥(+Y)へ回す。頭は球なので、顔の中心での前面に
+    合わせて平らな板を置くと、目尻の側が球面から離れて宙に浮く。板ごと
+    顔の丸みに巻き付けるための角度で、顔の断面を実測して決める。
     """
     slit = C.box(name, (0.0, 0.0, 0.0), (width, width * 0.35, width * 0.22),
                  bevel=width * 0.09)
     # 原点で作ってから回して置く。`C.box` は頂点を移動させるだけでオブジェクトの
     # 原点はワールド原点のままなので、先に動かしてから回すと遠くへ飛んでいく
-    slit.rotation_euler = (0.0, math.radians(tilt), 0.0)
+    slit.rotation_euler = (0.0, math.radians(tilt), math.radians(yaw))
     slit.location = Vector(center)
     C.assign_material(slit, material)
     return slit
@@ -1758,6 +1763,247 @@ def okiyo_animations():
     ]
 
 
+# ---------------------------------------------------------------- 肝いりのオトネ
+
+# ネンネ村の顔役。背筋の伸びた細身の老婦人。モグラ婆(小柄・腰が曲がっている)
+# との対比で、**姿勢の良さ**そのものを個性にする。stoop を負にして腰から上を
+# わずかに後ろへ起こし、胸を張らせている
+OTONE = Proportions(height=0.95, width=0.86, girth=0.94, torso=0.96,
+                    head=1.02, stoop=-3.0)
+
+OTONE_SKIN = (0.80, 0.69, 0.60)
+OTONE_INDIGO = (0.17, 0.25, 0.42)      # 藍。羽織風の上着
+OTONE_DEEP = (0.10, 0.16, 0.29)        # 一段濃い藍。裾(下衣)
+OTONE_WHITE = (0.89, 0.90, 0.87)       # 白。襟・帯・足袋
+OTONE_HAIR = (0.71, 0.70, 0.70)        # 白髪まじりの銀
+OTONE_PAPER = (0.94, 0.91, 0.83)       # 依頼の紙。生成り
+OTONE_PIN = (0.72, 0.48, 0.18)         # かんざし。べっ甲色
+
+
+def build_otone():
+    """
+    依頼板の窓口を一手に引き受ける村の顔役。藍の和装に白の襟・帯・足袋を
+    合わせ、「背筋の伸びた姿勢」「きっちり結い上げたまげ」「手元の紙の束」の
+    3点で読ませる。
+
+    小物の位置は関節座標からの当て推量ではなく、素体メッシュの表面を実測して
+    決めてある(Skin+サブディビジョンの表面は関節座標からは読めない。
+    関節を基準に置くと、髷が宙に浮き、襟が胸から数ミリ離れて板に見える)。
+    コメントの座標はその実測値で、`OTONE` を変えたら測り直す。
+    """
+    name = "otone"
+    body, joints, bones = build_base(name, OTONE)
+
+    head = joints["head"]
+    neck = joints["neck"]
+    hip = joints["hip"]
+    foot = joints["foot.L"]
+    hand_l = joints["hand.L"]
+    elbow_l = joints["elbow.L"]
+
+    # 色は一式まとめて作り、同じ色の部品で使い回す(描画呼び出しを増やさない)
+    mats = palette("otone", {
+        "skin": (OTONE_SKIN, 0.72),
+        "indigo": (OTONE_INDIGO, 0.86),
+        "deep": (OTONE_DEEP, 0.86),
+        "white": (OTONE_WHITE, 0.80),
+        "hair": (OTONE_HAIR, 0.88),
+        "paper": (OTONE_PAPER, 0.94),
+        "pin": (OTONE_PIN, 0.45),
+        "eye": ((0.11, 0.10, 0.12), 0.30),
+    })
+
+    # 塗り分け。袂(たもと)が肩から手首まで腕を覆うので、素体側の
+    # 「袖から出た手先」の規則(cuff)は切る。あれは x のしきい値なので、
+    # 真下に垂れた腕では手ではなく腕の外側の縦半分を肌にしてしまう。
+    # 代わりに手の関節から半径 0.058 の球で手だけを拾う
+    hand_ball = Vector((abs(hand_l.x), hand_l.y, hand_l.z))
+    under = garment_classifier(
+        joints,
+        hem=hip.z * 0.62,        # 脚は裾の筒で隠れるので、上衣と裾の境目は低くてよい
+        shoe=foot.z + 0.062,     # 白足袋。裾の筒の下端より上まで白くしておく
+        collar=neck.z - 0.012,
+        cuff=9.0,
+        cap=head.z + 0.012,      # 生え際
+        cap_slope=0.45,          # 前は額を出し、後ろは襟足まで下ろす
+    )
+
+    def classify(center) -> int:
+        if (Vector((abs(center.x), center.y, center.z)) - hand_ball).length < 0.058:
+            return SKIN
+        # 肩の上面は首と同じ高さ(z=0.545〜0.575)にあるので、collar の
+        # z しきい値だけだと肩まで肌になって肩出しの服に見える。
+        # 首は x=0.073 までしかないので、それより外は上衣に戻す
+        if center.z < neck.z + 0.015 and abs(center.x) > 0.078:
+            return TOP
+        return under(center)
+
+    C.assign_materials_by_region(
+        body,
+        [mats["skin"], mats["indigo"], mats["deep"], mats["white"], mats["hair"]],
+        classify,
+    )
+
+    extras: list = []
+
+    # ---- 顔 --------------------------------------------------------------
+    # 顔の断面(実測)。目の高さ z=0.694 では前面が x=0.000 で y=-0.082、
+    # x=0.038 で -0.076、x=0.070 で -0.056 と、外へ行くほど 0.026 ほど奥へ
+    # 引っ込む。板を平らに置くと目尻・眉尻が宙に浮くので、Z 軸まわりに
+    # 25 度ほどふって、部品ごと頬の丸みに巻き付ける
+    for side in (-1.0, 1.0):
+        extras.append(eye_slit(
+            f"otone_eye{side}", (0.046 * side, -0.0706, head.z + 0.006),
+            width=0.056, material=mats["eye"], tilt=-9.0 * side, yaw=25.0 * side,
+        ))
+        # 細くまっすぐな眉。目尻と揃えて外側を上げる
+        brow = C.box(f"otone_brow{side}", (0.0, 0.0, 0.0),
+                     (0.052, 0.016, 0.010), bevel=0.004)
+        brow.rotation_euler = (0.0, math.radians(-9.0 * side), math.radians(26.0 * side))
+        brow.location = Vector((0.048 * side, -0.0660, head.z + 0.034))
+        C.assign_material(brow, mats["hair"])
+        extras.append(brow)
+
+    # 鼻。前面 y=-0.077(z=0.666 の実測)から 0.025 ほど出るだけの小さな鼻。
+    # モグラ婆の団子鼻と対に、こちらは縦に細い「通った鼻筋」にする
+    nose = C.uv_sphere("otone_nose", (0.0, -0.0850, head.z - 0.020), 0.020,
+                       segments=12, rings=8, scale=(0.70, 0.85, 1.15))
+    C.assign_material(nose, mats["skin"])
+    extras.append(nose)
+
+    # ---- 髪 --------------------------------------------------------------
+    # 後ろへ撫でつけて後頭部でまとめた髪の量感。頭の後ろ(z=0.756 で
+    # y=+0.108)から 0.019 ほど膨らませ、そのまま髷へ続ける
+    sweep = C.uv_sphere("otone_hair_sweep", (0.0, 0.082, 0.752), 0.060,
+                        segments=14, rings=9, scale=(0.92, 0.75, 0.88))
+    C.assign_material(sweep, mats["hair"])
+    extras.append(sweep)
+    # 結い上げた髷。頭頂(メッシュの天辺は z=0.810)のやや後ろに埋めて載せる。
+    # 中心 z=0.798・上下半径 0.037 なので、下端 0.761 が頭に食い込む
+    bun = C.uv_sphere("otone_bun", (0.0, 0.050, 0.798), 0.056,
+                      segments=14, rings=10, scale=(1.0, 0.95, 0.66))
+    C.assign_material(bun, mats["hair"])
+    extras.append(bun)
+    # かんざし。髷を横に貫く一本挿し。顔役らしい几帳面さの記号
+    pin = C.cylinder("otone_pin", (0.0, 0.050, 0.802), 0.006, 0.150,
+                     segments=8, axis="X")
+    C.assign_material(pin, mats["pin"])
+    extras.append(pin)
+    pin_head = C.uv_sphere("otone_pin_knob", (0.077, 0.050, 0.802), 0.013,
+                           segments=10, rings=7, scale=(0.8, 1.0, 1.0))
+    C.assign_material(pin_head, mats["pin"])
+    extras.append(pin_head)
+
+    # ---- 和装 ------------------------------------------------------------
+    # 帯。胴の断面は前後に薄い楕円(z=0.400 で幅 0.098・奥行き 0.096)なので、
+    # 円柱のままだと前後だけ大きく張り出す。y を潰して体に沿わせる
+    obi_z = hip.z + 0.077
+    obi = C.cylinder("otone_obi", (0.0, 0.0, obi_z), 0.134, 0.076, segments=20)
+    for vert in obi.data.vertices:
+        vert.co.y *= 0.80
+    C.assign_material(obi, mats["white"])
+    extras.append(obi)
+    # 背中のお太鼓(帯結び)。後ろ姿でも和装と分かる
+    knot = C.box("otone_obi_knot", (0.0, 0.118, obi_z + 0.008),
+                 (0.092, 0.062, 0.078), bevel=0.014)
+    C.assign_material(knot, mats["white"])
+    extras.append(knot)
+
+    # 白い襟。みぞおちから肩へ向かって V に開く、和装だと分かる一番の記号。
+    # 胸の前面は上ほど奥へ逃げる(x≈0.05 で z=0.442→y=-0.089、
+    # z=0.552→y=-0.043)ので、板をそのまま傾けると上端が浮く。
+    # 頂点を z に比例して前後へずらし(shear)、胸の傾きに沿わせてから倒す
+    collar_bottom, collar_top = obi_z + 0.042, neck.z - 0.018
+    lean = 31.7                                    # 下端 x=0.012 → 上端 x=0.080
+    collar_len = (collar_top - collar_bottom) / math.cos(math.radians(lean))
+    for side in (-1.0, 1.0):
+        lapel = C.box(f"otone_lapel{side}", (0.0, 0.0, 0.0),
+                      (0.048, 0.026, collar_len), bevel=0.009)
+        for vert in lapel.data.vertices:
+            vert.co.y += vert.co.z * 0.36
+        lapel.rotation_euler = (0.0, math.radians(lean * side), 0.0)
+        lapel.location = Vector((0.046 * side, -0.0705,
+                                 (collar_top + collar_bottom) * 0.5))
+        C.assign_material(lapel, mats["white"])
+        extras.append(lapel)
+    # 襟足。うなじの後ろ(z=0.548 で y=+0.068)に立てて、襟を首の裏で閉じる
+    nape = C.box("otone_nape", (0.0, 0.062, neck.z - 0.022),
+                 (0.108, 0.042, 0.038), bevel=0.012)
+    C.assign_material(nape, mats["white"])
+    extras.append(nape)
+
+    # 裾。まっすぐな筒で足元まで落とす。脚は半幅 0.119 なので筒はそれより
+    # 太くないと脚がはみ出す。モグラ婆の釣鐘形と対比させて、
+    # 「まっすぐ立っている」印象を silhouette でも出す
+    skirt_top, skirt_bottom = obi_z, foot.z + 0.055
+    skirt = C.cone("otone_skirt", (0.0, 0.0, (skirt_top + skirt_bottom) * 0.5),
+                   radius_bottom=0.124, radius_top=0.128,
+                   depth=skirt_top - skirt_bottom, segments=20)
+    C.assign_material(skirt, mats["deep"])
+    extras.append(skirt)
+
+    # 袂(たもと)。肩(z=0.560)から手首の上(z=0.345)まで垂れる、縦に長い
+    # 布の袋。上端を肩の面まで届かせないと、腕の途中に箱が浮いて見える。
+    # 手首から先は出しておく(紙の束を持つ手が隠れてしまう)。
+    # 自動ウェイトで腕の骨に付くので、腕の動きに合わせて揺れる
+    for side in (-1.0, 1.0):
+        sleeve = C.box(f"otone_sleeve{side}", (0.0, 0.0, 0.0),
+                       (0.100, 0.086, 0.215), bevel=0.030, bevel_segments=3)
+        sleeve.location = Vector((elbow_l.x * 0.93 * side, elbow_l.y - 0.002,
+                                  elbow_l.z + 0.035))
+        C.assign_material(sleeve, mats["indigo"])
+        extras.append(sleeve)
+
+    # ---- 小道具 ----------------------------------------------------------
+    # 依頼の紙の束。左手に握らせて、腰の脇で斜めに抱える。板1枚だと
+    # 「束」に見えないので、厚みのある紙を3枚ずらして層を見せる。
+    # 外側の端が手のメッシュ(x=0.138〜0.213, y=-0.058〜0.020)に食い込む
+    # ように置いてあり、宙に浮かない。内側の端は裾の筒(半径 0.128)の
+    # 外を通すので、体の前へ板が突き出して見えることもない
+    stack = Vector((hand_l.x + 0.012, -0.048, hand_l.z + 0.024))
+    for i in range(3):
+        sheet = C.box(f"otone_paper{i}", (0.0, 0.0, 0.0),
+                      (0.094, 0.008, 0.104), bevel=0.003)
+        sheet.rotation_euler = (math.radians(-8.0), 0.0, math.radians(24.0 + i * 5.0))
+        sheet.location = stack + Vector((-0.004 * i, -0.009 * i, 0.005 * i))
+        C.assign_material(sheet, mats["paper"])
+        extras.append(sheet)
+
+    return finish(name, body, extras, joints, bones)
+
+
+def otone_animations():
+    """
+    idle: 紙の束を左手に構えたまま、右手で束を整えつつあたりを見回す。
+          頭の左右振り(首の Y 回転)を3フレーム遅れの二次揺れに乗せている。
+    talk: 束を小脇に抱え直してから向き合う。ひな形のうなずきに、左腕を体へ
+          引き寄せる動きと、タメで一度脇へ流れる視線を重ねた。
+    """
+    hold = {ARM_L: (0, 0, 4.5), FORE_L: (-10, 0, 0)}      # 束を持つ左腕
+    tuck = {ARM_L: (-2, 0, 2.0), FORE_L: (-24, 0, 0)}     # 小脇に抱え直した左腕
+    rest_r = {ARM_R: (0, 0, -3.0), FORE_R: (-5, 0, 0)}
+    return [
+        ("idle", idle_clip(length=48, breath=1.3, arm=3.0, head_lag=3, extra={
+            1: {**hold, **rest_r, NECK: (0, 9, 0)},
+            12: {ARM_R: (0, 0, -8), FORE_R: (-26, 0, 0)},          # 束へ手を伸ばす
+            24: {ARM_L: (-1.5, 0, 4.5), FORE_L: (-12, 0, 0),
+                 ARM_R: (0, 0, -9), FORE_R: (-32, 0, 0)},          # 紙をそろえる
+            27: {NECK: (-1.2, -9, 0)},                             # 反対側を見る
+            36: {ARM_R: (0, 0, -6), FORE_R: (-16, 0, 0)},
+            48: {**hold, **rest_r},
+            51: {NECK: (0, 9, 0)},
+        })),
+        ("talk", talk_clip(length=30, nod=14.0, lean=3.0, arm=3.0, extra={
+            1: {**hold, **rest_r},
+            6: {**tuck, ARM_R: (0, 0, -6), FORE_R: (-16, 0, 0)},   # タメ: 抱え直す
+            8: {NECK: (-4.2, 5.0, 0)},                             # 一度脇へ流す視線
+            10: {**tuck, **rest_r},
+            14: {**tuck, ARM_R: (0, 0, -4), FORE_R: (-8, 0, 0)},
+            30: {**hold, **rest_r},
+        })),
+    ]
+
+
 # =========================================================================== 登録
 
 # 名前 → (造形関数, アニメーション関数)。村人を足すときはここに1行。
@@ -1769,6 +2015,7 @@ VILLAGERS = {
     "pochi": (build_pochi, pochi_animations),
     "otama": (build_otama, otama_animations),
     "okiyo": (build_okiyo, okiyo_animations),
+    "otone": (build_otone, otone_animations),
 }
 
 
