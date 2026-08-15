@@ -156,6 +156,23 @@
       #ui.gallery-mode .touch-menu-btn,
       #ui.gallery-mode .touch-btn:not(.touch-btn-confirm) { display: none !important; }
 
+      /*
+       * 拠点画面(#town)は inset:0 の全画面モーダル。#touch と同じ#uiの子で
+       * DOM順が後ろなので、開いているあいだ#touchを丸ごと覆ってしまい、
+       * タッチではパッドにもボタンにも触れなかった(issue #483。実測でも
+       * elementFromPointが全部#town側を返す)。開いているあいだだけ#touchを
+       * 前に出して、カーソル移動(パッド)・決定・もどるを届かせる。
+       * z-indexは全文ログモーダル(32)より下に置き、そちらが開いたときは
+       * 従来どおりログが手前に来るようにする
+       */
+      #ui.town-open #touch { z-index: 31; }
+
+      /* ダイブ専用のボタンは拠点では効かない(town.handleKeyが飲む)ので出さない */
+      #ui.town-open .touch-btn-attack,
+      #ui.town-open .touch-btn[data-code="KeyF"],
+      #ui.town-open .touch-btn[data-code="KeyG"],
+      #ui.town-open .touch-btn[data-code="KeyI"] { display: none !important; }
+
       .panel {
         background: var(--panel);
         border: 1px solid var(--edge);

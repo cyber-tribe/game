@@ -850,6 +850,10 @@ class App {
     // (Hud側は変化が無ければ何もしない)
     this.hud.setBannerModalOpen(this.anyModalOpen());
 
+    // 拠点画面はタッチUIを丸ごと覆ってしまう(issue #483)。開いているあいだ
+    // だけ#touchを前に出すためのクラス。こちらも毎フレーム今の開閉を渡す
+    this.uiRoot.classList.toggle("town-open", this.town.isOpen);
+
     // 仲間になった瞬間の一時停止(plan/game/archive/companion-recruit-showcase.md):
     // ダイアログが閉じていれば、隠していたHUDを戻して保留していた残りの
     // 演出を再開する(1ターンで複数体が同時に仲間になった場合は、続けて

@@ -12,6 +12,14 @@ import { ATTACK_KEY_CODE, type Input } from "../view/input";
  * 攻撃専用ボタン(`ATTACK_KEY_CODE`)を新設した。攻撃はプレイヤーが向いている
  * 方向へその場から動かず繰り出す。
  *
+ * issue #483(もどるボタン): タッチUIにはEscape相当が無く、拠点メニュー・
+ * 旅の看板に入ると村へ戻れなくなっていた(「決定」はSpaceを送るため、戻る
+ * つもりで押すと拠点メニューでは「もぐる」が発動してしまう)。アクション
+ * ボタン群に`data-code="Escape"`のボタンを1つ足すだけで、既存の
+ * `tap()`→`Input.onKey`の経路に乗り「Escapeで閉じる」画面すべてに効く。
+ * ダイブ中にメニューが開いていないときのEscapeは`cancel`だがどこも拾わない
+ * ので、何も起きない。
+ *
  * `plan/game/archive/forced-landscape.md`: `body.forced-landscape`中は
  * CSSがゲーム画面全体を90度回転させて描画するが、`PointerEvent`の
  * `clientX/clientY`は回転前の画面座標系のまま届く。生座標から差分を
@@ -139,6 +147,7 @@ export class TouchControls {
         <button type="button" class="touch-btn" data-code="KeyG">投げる</button>
         <button type="button" class="touch-btn" data-code="KeyI">道具</button>
         <button type="button" class="touch-btn touch-btn-confirm" data-code="Space">決定</button>
+        <button type="button" class="touch-btn" data-code="Escape">もどる</button>
       </div>
       <button type="button" class="touch-menu-btn">≡</button>
       <div class="touch-menu" style="display:none">

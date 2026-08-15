@@ -37,6 +37,7 @@ import { todayKey } from "../entities/quests";
 import { KEY_REFERENCE, KEY_REFERENCE_TOUCH, MESSAGE_SPEEDS, type MessageSpeed } from "../entities/settings";
 import { SPECIES, speciesById } from "../entities/species";
 import { TUTORIAL_TIP_IDS, tutorialTipText } from "../core/tutorial";
+import { resolveText } from "../entities/inputText";
 import { currentInputMode } from "./inputMode";
 import { DEFAULT_AUDIO_VOLUME, isCompendiumComplete, isTrueAwakeningUnlocked, isWeaponCompendiumComplete, type CompendiumStatus, type FontSize, type SaveData, type StoredItem, type StoredMonster } from "../save";
 import { ITEMS, itemDef } from "../items/catalog";
@@ -462,7 +463,13 @@ export class TownScreen {
 
     // 設定画面(plan/settings-screen.md): 操作説明・キー配置確認を全件表示中は、閉じる操作だけを受け付ける
     if (this.settingsSubView) {
-      if (code === "Escape" || code === "Enter" || code === "NumpadEnter") {
+      // 読むだけの全件表示なので、旅の看板と同じくSpaceでも閉じられる(issue #483)
+      if (
+        code === "Escape" ||
+        code === "Enter" ||
+        code === "NumpadEnter" ||
+        code === "Space"
+      ) {
         this.settingsSubView = null;
         this.render();
       }
@@ -472,7 +479,14 @@ export class TownScreen {
     // 旅の看板(plan/game/archive/village-scoped-menus.md): 列(0〜19)を
     // 1つも持たない特別な場所。掲示を読むだけで、列移動・出発は行わない
     if (this.openColumns.length === 0) {
-      if (code === "Escape" || code === "Enter" || code === "NumpadEnter") {
+      // 読むだけの掲示なので、Spaceも閉じる側でよい(issue #483)。ここには
+      // 「もぐる」が無いため、図鑑ギャラリーと同じくタッチの「決定」でも閉じられる
+      if (
+        code === "Escape" ||
+        code === "Enter" ||
+        code === "NumpadEnter" ||
+        code === "Space"
+      ) {
         this.hide();
         this.onCloseWithoutDeparting?.();
       }
@@ -490,6 +504,28 @@ export class TownScreen {
         return true;
       }
       if (code === "Space") return true;
+    }
+
+    // 建物ごとのメニュー(列を持つ)をEscapeで閉じて村へ戻る(issue #483)。
+    //
+    // ここまで「Escapeで戻れる」のは旅の看板と「≡」メニューだけで、倉庫・
+    // 工房・洞窟の入口などの列を持つメニューには閉じる道が無かった。出口は
+    // 「もぐる」(出発)しかなく、キーボードでもEscapeが列ごとのswitchの
+    // defaultに吸われて何も起きない。タッチでは「決定」がSpace=もぐるなので、
+    // 戻ろうとして出発してしまう事故にもなっていた。
+    //
+    // 選択の途中(仲間を逃がす確認・夢あわせの相手選び・工房の印/合成選び)は
+    // それぞれEscapeを「その選択の取り消し」に使っているので、そちらを優先する
+    if (
+      code === "Escape" &&
+      this.releaseConfirmUid === null &&
+      this.fusionAxisUid === null &&
+      this.workshopMarkChoices === null &&
+      this.workshopSynthesisChoices === null
+    ) {
+      this.hide();
+      this.onCloseWithoutDeparting?.();
+      return true;
     }
 
     if (this.column === 2) {
@@ -1781,7 +1817,12 @@ export class TownScreen {
 
     const hint = document.createElement("p");
     hint.className = "town-hint";
-    hint.textContent = "Enter / Escape で村に戻る";
+    // 文言のタッチ対応(plan/game/archive/mobile-layout-redesign.md):
+    // 「Enter / Escape」はキーボード前提の表記(issue #483)
+    hint.textContent = resolveText(
+      { keyboard: "Enter / Escape で村に戻る", touch: "決定 / もどるボタンで村に戻る" },
+      currentInputMode(),
+    );
     box.appendChild(hint);
 
     return box;
