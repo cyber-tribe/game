@@ -1,3 +1,15 @@
+> **実装済み。** `tools/audio/build.ts` の `BGM_SPECS` に計画書どおりの
+> 値(`mountain-core`、66bpm・8小節・mallet0.3/drum0.5/flute0.25/
+> string0.4・`wet 0.38/roomSize 0.7/damping 0.15`)で `mountain-core`
+> エントリを追加し、`public/audio/bgm/mountain-core.wav`(約29.1秒)を
+> 生成した。新しい合成機能は不要だった(計画書の見込みどおり)。
+> `src/main.ts` の `bgmForDive` に `MOUNTAIN_CORE_ID` の分岐を追加し、
+> 3階通しで1曲流す。
+>
+> **検証**: `npx tsc --noEmit`・`npx vitest run`(105ファイル/1349件)・
+> `npm run build`・`npm run audio` いずれも成功。`public/audio/`合計は
+> 約27MB。
+
 # 山の芯のBGM
 
 ## 経緯・現状

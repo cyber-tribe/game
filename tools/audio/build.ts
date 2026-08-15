@@ -160,6 +160,18 @@ const BGM_SPECS: readonly BgmSpec[] = [
     bars: 16,
     reverb: { wet: 0.2, roomSize: 0.4, damping: 0.15 },
   },
+  // 山の芯(plan/sound/archive/bgm-mountain-core.md)。近道屋との決着の場で、
+  // 出現テーブルは第八地方(region8)の流用。region8より少し前のめりなテンポと
+  // 厚い太鼓で「対峙している」緊張を足しつつ、地続きの荘厳さは保つ。
+  // 残響は真の目覚めと同格の深さ(意識の核=いちばん深い場所)
+  {
+    id: "mountain-core",
+    seed: 8000,
+    weights: { mallet: 0.3, drum: 0.5, flute: 0.25, string: 0.4 },
+    tempoBpm: 66,
+    bars: 8,
+    reverb: { wet: 0.38, roomSize: 0.7, damping: 0.15 },
+  },
 ];
 
 // SFXにも薄くリバーブを掛けBGMと馴染ませるが、操作音の輪郭を保つためウェット率はBGMより下げる
