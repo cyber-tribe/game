@@ -45,10 +45,27 @@ const TOON_GRADIENT = (() => {
 const OUTLINE_THICKNESS = 0.012;
 const OUTLINE_COLOR = 0x0a0a0c;
 
-/** MeshStandardMaterial(glTFのPBR素材)をトゥーン向けに置き換える */
-function toToonMaterial(source: THREE.Material): THREE.MeshToonMaterial {
+/**
+ * リムライト(逆光の縁光、plan/game/archive/rim-light-and-contact-shadow.md)。
+ * 暗い洞窟の背景からキャラクターを浮き立たせるための、固定色・固定強度の
+ * フレネル項。`MOOD_VISUALS`(気分の色調)との連動は未決事項として計画書に
+ * 残してあり、まずは固定値で入れる。
+ */
+const RIM_COLOR = new THREE.Color(0x8090c0);
+const RIM_POWER = 3.0;
+const RIM_STRENGTH = 0.35;
+
+/**
+ * MeshStandardMaterial(glTFのPBR素材)をトゥーン向けに置き換える。
+ *
+ * `withRim`はスキン付きメッシュ(モンスター・プレイヤーなどのキャラクター)
+ * のときだけtrueにする。壁・床のような非キャラクターの静的な形状には
+ * リムライトを掛けない(plan/game/archive/rim-light-and-contact-shadow.md
+ * の対象外方針)。
+ */
+function toToonMaterial(source: THREE.Material, withRim: boolean): THREE.MeshToonMaterial {
   const std = source as THREE.MeshStandardMaterial;
-  return new THREE.MeshToonMaterial({
+  const material = new THREE.MeshToonMaterial({
     color: std.color,
     map: std.map,
     emissive: std.emissive,
@@ -60,6 +77,38 @@ function toToonMaterial(source: THREE.Material): THREE.MeshToonMaterial {
     // metalnessはMeshToonMaterialに存在しないため単純に失われる(想定内。
     // plan/game/archive/toon-shading-pipeline.md参照)
   });
+  if (withRim) addRimLight(material);
+  return material;
+}
+
+/**
+ * リムライトをtotalEmissiveRadianceへ加算する。被弾フラッシュ
+ * (ActorView.flash()によるmaterial.emissiveの書き換え)・目の発光
+ * (emissiveMap)のどちらも同じ変数への加算/代入なので、素直に重なって
+ * 干渉しない(meshtoon.glsl.jsではtotalEmissiveRadiance = emissiveの
+ * 代入がemissivemap_fragmentの直前にあり、このinclude内でemissiveMapが
+ * 乗算される。その直後にリムを足す)
+ */
+function addRimLight(material: THREE.MeshToonMaterial): void {
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.rimColor = { value: RIM_COLOR };
+    shader.uniforms.rimPower = { value: RIM_POWER };
+    shader.uniforms.rimStrength = { value: RIM_STRENGTH };
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        "#include <common>",
+        "#include <common>\nuniform vec3 rimColor;\nuniform float rimPower;\nuniform float rimStrength;"
+      )
+      .replace(
+        "#include <emissivemap_fragment>",
+        `#include <emissivemap_fragment>
+        {
+          vec3 viewDir = normalize(vViewPosition);
+          float rim = pow(1.0 - saturate(dot(normal, viewDir)), rimPower);
+          totalEmissiveRadiance += rimColor * rim * rimStrength;
+        }`
+      );
+  };
 }
 
 /**
@@ -174,10 +223,11 @@ export class Assets {
         if (!mesh.isMesh) return;
         mesh.castShadow = true;
         mesh.receiveShadow = true;
+        const isSkinned = (mesh as THREE.SkinnedMesh).isSkinnedMesh === true;
         mesh.material = Array.isArray(mesh.material)
-          ? mesh.material.map((m) => toToonMaterial(m))
-          : toToonMaterial(mesh.material);
-        if ((mesh as THREE.SkinnedMesh).isSkinnedMesh) {
+          ? mesh.material.map((m) => toToonMaterial(m, isSkinned))
+          : toToonMaterial(mesh.material, isSkinned);
+        if (isSkinned) {
           skinnedMeshes.push(mesh as THREE.SkinnedMesh);
         }
       });
