@@ -65,6 +65,20 @@ export function toWorld(pos: Vec2, height = 0): THREE.Vector3 {
 /** 影を落とす範囲の半径(マス)。見えている範囲を覆えるだけあれば足りる */
 const SHADOW_HALF_SPAN = 12;
 
+/**
+ * 松明(プレイヤーに付いてまわる点光源)。
+ *
+ * `decay`は物理準拠の2にしてある(issue #524)。以前は1.4で、距離が伸びても
+ * 光がなかなか落ちないぶん足元1〜2マスが過剰に明るく、床・壁の陰影が飛んで
+ * 「明るすぎる」状態だった。2へ上げると足元1マスで約18%、2マス先で約20%
+ * 暗くなり、タイルの陰影が戻る。いちばん暗い気分(deepSleep、ambient 1.3)
+ * でも足元は輝度0.43前後を保つので、暗くて見えなくなることはない。
+ *
+ * `distance`(光の届く上限)は13のまま。ここを縮めると遠くの床が急に
+ * 切り落とされて、視界の境界が不自然に見える
+ */
+export const PLAYER_LIGHT = { intensity: 30, distance: 13, decay: 2 } as const;
+
 export class Renderer {
   readonly scene = new THREE.Scene();
   readonly camera: THREE.PerspectiveCamera;
@@ -140,7 +154,12 @@ export class Renderer {
     this.key = key;
 
     // 松明の代わり。プレイヤーに付いてまわる暖色の光
-    this.playerLight = new THREE.PointLight(0xffd2a6, 30, 13, 1.4);
+    this.playerLight = new THREE.PointLight(
+      0xffd2a6,
+      PLAYER_LIGHT.intensity,
+      PLAYER_LIGHT.distance,
+      PLAYER_LIGHT.decay,
+    );
     this.playerLight.position.set(0, 2.0, 0);
     this.scene.add(this.playerLight);
 
