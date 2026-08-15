@@ -639,20 +639,32 @@
         font-size: 18px;
         touch-action: none;
       }
+      /*
+       * 「≡」メニュー(issue #521)。
+       *
+       * 以前は「≡」ボタンの真下(top: 64px + ミニマップぶんの予約)へ開いて
+       * いたが、横持ちの実効高さが342px級だと開始位置が178pxまで下がり、
+       * 使える高さが152pxしか残らなかった。項目が「ログ」「設定」と increase
+       * した結果、7項目中4項目が画面外へ出て、3項目は押せなくなっていた。
+       *
+       * 開いているあいだはミニマップを避ける必要が無いので、上端は画面の
+       * すぐ内側から取り、高さは画面(セーフエリア内)いっぱいまで使う。
+       * 「≡」ボタンの左隣に置いて、ボタン自体は覆わない(開閉できなくなる)。
+       * 項目がさらに増えたら中でスクロールする。
+       */
       .touch-menu {
         position: absolute;
-        right: calc(16px + var(--safe-right));
-        top: calc(64px + var(--safe-top) + var(--zone-tr-reserve));
+        /* 「≡」ボタン(幅42px・右端16px)の左隣に置く */
+        right: calc(66px + var(--safe-right));
+        top: calc(8px + var(--safe-top));
         pointer-events: auto;
         display: flex;
         flex-direction: column;
         gap: 6px;
         padding: 8px;
         width: 168px;
-        /* 項目数が増えても(plan/game/mobile-layout-redesign.mdで「ログ」を追加)
-           横幅の狭い横持ち画面(短辺400px級の端末)からはみ出さないよう、
-           高さを画面基準で抑えて自前でスクロールさせる */
-        max-height: calc(100vh - 64px - var(--safe-top) - var(--zone-tr-reserve) - 12px);
+        max-width: calc(100vw - 82px - var(--safe-right) - var(--safe-left));
+        max-height: calc(100dvh - 16px - var(--safe-top) - var(--safe-bottom));
         overflow-y: auto;
         background: var(--panel);
         border: 1px solid var(--edge);
