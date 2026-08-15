@@ -354,8 +354,21 @@ def bone_name(parent: str, child: str) -> str:
 
 # 1クリップぶんのキーフレーム。
 #   frames: [(フレーム番号, {ボーン名: (回転XYZ度) または {'rot':..., 'loc':...}}), ...]
+#   末尾に3つ目の要素としてオプション辞書を足せる(plan/game/archive/
+#   animation-quality-guidelines.md):
+#     {"partial": True}   このフレームでは pose に載っているボーンだけに
+#                         キーを打つ(reset_poseもしない)。他のボーンは
+#                         前後の自分のキーからそのまま補間される。
+#                         尻尾・耳のような末端をずらして打つ「二次揺れ」に使う。
+#     {"interp": "LINEAR" | "BEZIER" | "VECTOR"}
+#                         このフレームで打ったキーの補間を指定する。
+#                         "VECTOR"はBlenderの補間モードではなくハンドル種別
+#                         なので、interpolationは"BEZIER"のままハンドルだけ
+#                         VECTORにする(直線的だが前後のキーとなじむ)。
+#                         省略時は既定のBEZIER(既存の全クリップと同じ挙動)。
 Pose = dict[str, object]
-Keyframe = tuple[int, Pose]
+KeyframeOptions = dict[str, object]
+Keyframe = tuple[int, Pose] | tuple[int, Pose, KeyframeOptions]
 
 
 def add_action(arm_obj: bpy.types.Object, name: str, keyframes: Sequence[Keyframe]) -> None:
@@ -373,9 +386,16 @@ def add_action(arm_obj: bpy.types.Object, name: str, keyframes: Sequence[Keyfram
     arm_obj.animation_data.action = action
 
     # クリップごとに前のポーズが残らないよう、毎回リセットしてから打つ
-    for frame, pose in keyframes:
+    # (partialフレームはこの限りでない。下記参照)
+    for kf in keyframes:
+        frame, pose = kf[0], kf[1]
+        options: KeyframeOptions = kf[2] if len(kf) > 2 else {}
+        partial = bool(options.get("partial", False))
+        interp = options.get("interp")
+
         bpy.context.scene.frame_set(frame)
-        reset_pose(arm_obj)
+        if not partial:
+            reset_pose(arm_obj)
         for bone_key, value in pose.items():
             pbone = arm_obj.pose.bones.get(bone_key)
             if pbone is None:
@@ -389,18 +409,60 @@ def add_action(arm_obj: bpy.types.Object, name: str, keyframes: Sequence[Keyfram
                     pbone.location = Vector(value["loc"])
                 if "scale" in value:
                     pbone.scale = Vector(value["scale"])
-        for pbone in arm_obj.pose.bones:
+
+        # partialのときは pose に載っているボーンだけにキーを打つ。
+        # 載っていないボーンは触らない(reset_poseもしていないので、
+        # そのボーン自身の前後のキーから補間された今の値がそのまま残る)
+        target_names = list(pose.keys()) if partial else [b.name for b in arm_obj.pose.bones]
+        for bone_name in target_names:
+            pbone = arm_obj.pose.bones[bone_name]
             pbone.keyframe_insert("rotation_euler", frame=frame)
             pbone.keyframe_insert("location", frame=frame)
             pbone.keyframe_insert("scale", frame=frame)
+
+        if interp is not None:
+            _set_keyframe_interpolation(action, frame, target_names, interp)
 
     track = arm_obj.animation_data.nla_tracks.new()
     track.name = name
     strip = track.strips.new(name, int(keyframes[0][0]), action)
     strip.name = name
     arm_obj.animation_data.action = None
-
     bpy.ops.object.mode_set(mode="OBJECT")
+
+
+def _action_fcurves(action: bpy.types.Action) -> list:
+    """
+    Blender 4.x以降のレイヤー化アクション(action.layers[].strips[].
+    channelbags[].fcurves)と、旧式アクション(action.fcurves)の両方に対応する。
+    """
+    if getattr(action, "is_action_legacy", True):
+        return list(action.fcurves)
+    fcurves = []
+    for layer in action.layers:
+        for strip in layer.strips:
+            for channelbag in getattr(strip, "channelbags", []):
+                fcurves.extend(channelbag.fcurves)
+    return fcurves
+
+
+def _set_keyframe_interpolation(action: bpy.types.Action, frame: int,
+                                 bone_names: Sequence[str], interp: str) -> None:
+    mode = "BEZIER" if interp == "VECTOR" else interp
+    handle = "VECTOR" if interp == "VECTOR" else None
+    paths = set()
+    for bone_name in bone_names:
+        for prop in ("rotation_euler", "location", "scale"):
+            paths.add(f'pose.bones["{bone_name}"].{prop}')
+    for fc in _action_fcurves(action):
+        if fc.data_path not in paths:
+            continue
+        for kp in fc.keyframe_points:
+            if abs(kp.co.x - frame) < 0.5:
+                kp.interpolation = mode
+                if handle:
+                    kp.handle_left_type = handle
+                    kp.handle_right_type = handle
 
 
 def reset_pose(arm_obj: bpy.types.Object) -> None:

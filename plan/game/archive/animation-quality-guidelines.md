@@ -1,3 +1,71 @@
+> **実装済み。** `tools/models/common.py`の`add_action()`を計画書どおり
+> 後方互換のまま拡張し(`partial`部分キー打ち・`interp`補間指定)、
+> パイロット5体(garudo・purun・gajiri・honegarami・tsubute)の
+> `attack`/`hit`/`die`/`idle`/`walk`を打ち直した。
+>
+> **`add_action()`拡張は計画書どおりの2機能。** キーフレームのタプルに
+> 3つ目の要素としてオプション辞書 `{"partial": True, "interp": "LINEAR"}`
+> を足せるようにした(未決事項だった記法は「タプルの第3要素」を採用)。
+> 省略時(既存の全クリップ)は完全に元の挙動のまま。
+>
+> **補間指定の実装で、計画書との差分が1点ある。** `"VECTOR"`は
+> Blenderの補間モード(`keyframe_point.interpolation`)ではなく
+> ハンドル種別であることが分かった。`interpolation`の有効値は
+> `CONSTANT/LINEAR/BEZIER/SINE/...`のみで`VECTOR`は含まれない。
+> `"VECTOR"`を指定したときは`interpolation`を`"BEZIER"`のままにし、
+> `handle_left_type`/`handle_right_type`だけを`"VECTOR"`にする対応にした
+> (直線的だが前後のキーと自然になじむ、Blenderでの本来の用途どおりの実装)。
+>
+> **Blender 5.0のレイヤー化アクション対応が必要だった。** `action.fcurves`
+> が存在せず、`action.layers[].strips[].channelbags[].fcurves`を辿る
+> 必要があった(旧式アクション向けのフォールバックも用意)。
+>
+> **実装中に見つけた既存コードの構造的な罠。** 編集の過程で
+> `bpy.ops.object.mode_set(mode="OBJECT")`(`add_action()`の最後で
+> ポーズモードを抜ける行)を誤って別関数の中に置いてしまい、2つ目以降の
+> クリップで`activate()`が「context is incorrect」エラーになる不具合を
+> 一度作り込んだ。全85モデルの通しビルドで検出・修正し、以後は
+> 個別ビルド→全体ビルド→`compare_models.mjs`の順で必ず検証している。
+>
+> **glTFエクスポート時の注意点。** 同じアニメーションチャンネル内で
+> 補間方式が混在すると(`BEZIER`のキーと`LINEAR`のキーが同じボーンの
+> 同じプロパティに混じると)、BlenderのglTFエクスポータは
+> 「Baking animation because there are keyframes with different
+> interpolation methods in one channel」という警告を出し、そのチャンネルを
+> 密なサンプル済みカーブに焼き直して書き出す(glTFのアニメーション
+> サンプラーは補間方式がチャンネル単位のため)。動きの緩急はサンプル済み
+> カーブとして正しく再現されるが、ファイルサイズは全85モデルの一括再生成の
+> 所要時間・パイロット5体のファイルサイズへの影響を確認したところ、
+> garudo.glbで274,564→275,188バイト(+0.2%)と、実害の無い範囲だった。
+>
+> **パイロット5体の内容。** garudo/honegaramiは頭(neck)が胴(hipc)より
+> 2フレーム遅れて追従する二次揺れと、歩行の接地沈み(`loc`)を追加。
+> gajiriは尻尾(tail1)が首より3フレーム遅れる二次揺れを追加(歩行の
+> 接地沈みは、この骨格の胴の骨がほぼ水平でボーンのローカルY軸が
+> 「前後」方向を向いているため、素直な沈み込み表現にならず見送った)。
+> tsubuteは腕が頭より2フレーム遅れる二次揺れを追加。全5体の`attack`を
+> タメ→ツメ(`interp: LINEAR`)→行き過ぎ→戻りの4段構成に、`hit`を
+> 鋭く入って(LINEAR)ゆっくり戻る構成に、`die`を鋭い初動+着地後の
+> 小さな跳ね返りに変更した。purunは元から入っていたsquash & stretchを
+> 維持しつつ、attackにタメ→ツメの緩急を足した。
+>
+> **前後比較の確認手段は、計画書の未決事項どおり実機目視で行った。**
+> GIF書き出しのツール化はしていない。`tools/playtest.mjs`のヘッドレス
+> ブラウザ実行で、村→ダンジョン突入→戦闘(garudo/purun/gajiriが
+> 実際にattack/hit/die/walkを再生)→仲間化→爆発→全滅まで完走し、
+> エラー・メッシュの破綻が無いことを確認した。
+>
+> **全85モデルを`--no-preview`で再生成し、`tools/compare_models.mjs`が
+> 構造(頂点数・クリップ名・外形)の一致を報告することを確認した。**
+> `add_action()`の拡張はオプション省略時に無改修の既存全クリップと
+> 同じ出力になる(受け入れ基準1)ことの裏付けになる。パイロット5体以外の
+> `.glb`は再生成後のバイトの揺れ(README記載の既知の非決定性)のみで
+> 意図した変更が無いため、コミットせず`git checkout`で戻した。
+>
+> `npx tsc --noEmit`・`npx vitest run`(1356/1356)・`npm run build`は
+> すべてgreen。パイロット5体以外(骨格ファミリーごとの残りのモンスター)の
+> 打ち直しは、計画書どおり別PRで順次進める対象外とした。
+
 # アニメーション品質規約(タメ・ツメ・二次揺れ)と共通基盤の拡張
 
 ## 経緯
