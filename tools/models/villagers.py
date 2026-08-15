@@ -501,12 +501,220 @@ def mogurabaa_animations():
     ]
 
 
+# ---------------------------------------------------------------- 樽転がしのゲンド
+
+# 村人で一番大きい。ガルドの1.2倍の背丈(頭ひとつぶん高い)に、
+# 肩幅と手足の太さを足して「がっしりした中年の職人」にする。
+# 頭は少し小さめ(head=0.92)。子どもっぽさが抜けて大人の頭身になる
+GENDO = Proportions(height=1.20, width=1.10, girth=1.16, torso=1.12,
+                    head=0.92, stoop=-3.0)
+
+GENDO_SKIN = (0.80, 0.58, 0.42)        # 炉の前で灼けた肌
+GENDO_SHIRT = (0.78, 0.42, 0.20)       # 暖色の作務衣。炉の明かりに映える
+GENDO_TROUSERS = (0.33, 0.24, 0.19)    # 焦げ茶のズボン
+GENDO_LEATHER = (0.24, 0.15, 0.10)     # 革前掛けと革靴。一番濃い焦げ茶
+GENDO_HAIR = (0.26, 0.20, 0.16)        # 黒に近い焦げ茶
+GENDO_BAND = (0.86, 0.35, 0.16)        # ねじり鉢巻き。差し色の朱
+GENDO_WOOD = (0.62, 0.45, 0.27)        # 木槌の柄。祠木の色
+GENDO_MALLET = (0.45, 0.31, 0.18)      # 木槌の頭。打ち込んで色が濃くなった木
+
+
+def build_gendo():
+    """
+    村の樽細工職人。背丈・太い腕・革前掛け・ねじり鉢巻き・木槌の5点で
+    「工房の主」と読ませる。配色は焦げ茶を土台に、朱の鉢巻きと暖色の
+    作務衣を差して炉の明かりに映えるようにする。
+    """
+    name = "gendo"
+    body, joints, bones = build_base(name, GENDO)
+
+    head = joints["head"]
+    chest = joints["chest"]
+    hip = joints["hip"]
+    knee = joints["knee.L"]
+    hand_r = joints["hand.R"]
+
+    # 色は一式まとめて作り、同じ色の部品で使い回す(描画呼び出しを増やさない)。
+    # 靴は革前掛けと同じ革なので、素体の塗り分けでも同じマテリアルを渡す
+    mats = palette("gendo", {
+        "skin": (GENDO_SKIN, 0.68),
+        "shirt": (GENDO_SHIRT, 0.86),
+        "trousers": (GENDO_TROUSERS, 0.88),
+        "leather": (GENDO_LEATHER, 0.55),
+        "hair": (GENDO_HAIR, 0.90),
+        "band": (GENDO_BAND, 0.84),
+        "eye": ((0.11, 0.09, 0.09), 0.30),
+        "wood": (GENDO_WOOD, 0.80),
+        "mallet": (GENDO_MALLET, 0.72),
+    })
+
+    # 袖はまくり上げてある(cuff を内側に寄せて、肘から先を肌にする)。
+    # 太い腕を見せるのが職人らしさの要
+    C.assign_materials_by_region(
+        body,
+        [mats["skin"], mats["shirt"], mats["trousers"], mats["leather"], mats["hair"]],
+        garment_classifier(
+            joints,
+            hem=hip.z * 0.92,
+            cuff=abs(joints["elbow.L"].x) * 0.72,
+            cap=head.z + 0.070,
+            cap_slope=0.30,
+        ),
+    )
+
+    extras: list = []
+
+    # 顔。まっすぐ前(-Y)を見ている
+    face_y = head.y - 0.150
+    for side in (-1.0, 1.0):
+        # 眼球は白目を作らず黒目だけ。トゥーンの塗りでも潰れずに残る
+        eye = C.uv_sphere(f"gendo_eye{side}", (0.061 * side, face_y + 0.004, head.z + 0.012),
+                          0.026, segments=14, rings=10, scale=(1.0, 0.75, 1.15))
+        C.assign_material(eye, mats["eye"])
+        extras.append(eye)
+        # 太くて真っ直ぐな眉。目尻を上げて頑固そうな顔にする
+        brow = C.box(f"gendo_brow{side}", (0.0, 0.0, 0.0),
+                     (0.062, 0.022, 0.017), bevel=0.006)
+        brow.rotation_euler = (0.0, math.radians(-9.0 * side), 0.0)
+        brow.location = Vector((0.062 * side, face_y + 0.018, head.z + 0.052))
+        C.assign_material(brow, mats["hair"])
+        extras.append(brow)
+        # 口ひげ。中年の職人らしさが一気に出る
+        tache = C.box(f"gendo_tache{side}", (0.0, 0.0, 0.0),
+                      (0.040, 0.022, 0.015), bevel=0.005)
+        tache.rotation_euler = (0.0, math.radians(13.0 * side), 0.0)
+        tache.location = Vector((0.026 * side, face_y + 0.020, head.z - 0.066))
+        C.assign_material(tache, mats["hair"])
+        extras.append(tache)
+
+    # 大きな鼻
+    nose = C.uv_sphere("gendo_nose", (0.0, face_y - 0.006, head.z - 0.036), 0.040,
+                       segments=14, rings=10, scale=(0.95, 1.25, 0.85))
+    C.assign_material(nose, mats["skin"])
+    extras.append(nose)
+
+    # あごひげ。あごの下に短く生やす
+    beard = C.uv_sphere("gendo_beard", (0.0, head.y - 0.074, head.z - 0.140), 0.062,
+                        segments=12, rings=9, scale=(1.0, 0.95, 0.52))
+    C.assign_material(beard, mats["hair"])
+    extras.append(beard)
+
+    # ねじり鉢巻き。額を一周させる。小球を輪に並べる部品を流用すると
+    # 布をねじった凹凸がそのまま出る。
+    # 半径は頭の半幅(0.138)より内側に取って地肌へ食い込ませる。外に出すと
+    # 頭から浮いた輪に見える。玉は小さく数を増やすほど「ねじった布」に近づく
+    band_z = head.z + 0.092
+    extras += fluff_ring("gendo_band", (0.0, head.y, band_z),
+                         radius=0.130, blob=0.028, material=mats["band"],
+                         count=12, squash=0.72)
+    # 後ろの結び目と、垂らした端
+    knot = C.uv_sphere("gendo_knot", (0.0, head.y + 0.130, band_z + 0.004), 0.042,
+                       segments=12, rings=8, scale=(1.0, 0.9, 0.8))
+    C.assign_material(knot, mats["band"])
+    extras.append(knot)
+    for side in (-1.0, 1.0):
+        tail = C.uv_sphere(f"gendo_bandtail{side}", (0.0, 0.0, 0.0), 0.030,
+                           segments=10, rings=8, scale=(0.55, 0.65, 1.9))
+        tail.rotation_euler = (math.radians(24.0), 0.0, 0.0)
+        tail.location = Vector((0.030 * side, head.y + 0.134, band_z - 0.066))
+        C.assign_material(tail, mats["band"])
+        extras.append(tail)
+
+    # 革前掛け。胸から膝の上まで届く1枚革。上ほど幅が狭い(胸当て)。
+    # 胴の前面は胸から腰までほぼ垂直(y≒-0.152)なので、革も垂直に垂らし、
+    # 背面が体に少し食い込む位置に置く。前へ逃がすと体から浮いた板に見える
+    apron_top, apron_bottom = chest.z + 0.034, knee.z + 0.120
+    apron_h = apron_top - apron_bottom
+    apron = C.box("gendo_apron", (0.0, -0.166, (apron_top + apron_bottom) * 0.5),
+                  (0.268, 0.030, apron_h), bevel=0.012)
+    for vert in apron.data.vertices:
+        t = (vert.co.z - apron_bottom) / apron_h        # 0=裾 1=胸
+        vert.co.x *= 1.0 - 0.42 * max(0.0, t - 0.45) / 0.55
+    C.assign_material(apron, mats["leather"])
+    extras.append(apron)
+
+    # 前掛けの肩紐。胸当ての上端から肩を越えて後ろへ回る
+    for side in (-1.0, 1.0):
+        strap = C.box(f"gendo_strap{side}", (0.0, 0.0, 0.0), (0.052, 0.330, 0.026),
+                      bevel=0.008)
+        strap.rotation_euler = (math.radians(-13.0), 0.0, 0.0)
+        strap.location = Vector((0.116 * side, -0.075,
+                                 joints["shoulder.L"].z + 0.052))
+        C.assign_material(strap, mats["leather"])
+        extras.append(strap)
+
+    # 腰の革帯。前掛けを締めている
+    belt = C.cylinder("gendo_belt", (0.0, 0.0, hip.z + 0.030), 0.188, 0.052, segments=22)
+    C.assign_material(belt, mats["leather"])
+    extras.append(belt)
+
+    # 木槌。右手に握らせる。未決事項だった「別メッシュ(手ボーン追従)にするか」は
+    # **本体と一体**で決着。素体に統合すれば自動ウェイトで前腕の骨に付き、
+    # talk の「木槌を掲げる」動きにそのまま追従する。ボーンを増やすと村人ごとに
+    # アーマチュアが変わって共通基盤の利点が消えてしまう
+    # 体の幅(腰で半幅0.29)より外、かつ前掛けより前に出す。胴に寄せると
+    # 腕と前掛けの陰に入って、職人の目印である木槌が読めなくなる
+    grip = Vector((hand_r.x - 0.048, hand_r.y - 0.098, hand_r.z + 0.010))
+    shaft = C.cylinder("gendo_haft", grip + Vector((0.0, 0.0, 0.030)), 0.019, 0.260,
+                       segments=10)
+    C.assign_material(shaft, mats["wood"])
+    extras.append(shaft)
+    head_c = grip + Vector((0.0, 0.0, 0.170))
+    mallet = C.cylinder("gendo_mallet", head_c, 0.058, 0.150, segments=12, axis="X",
+                        bevel=0.010)
+    C.assign_material(mallet, mats["mallet"])
+    extras.append(mallet)
+
+    return finish(name, body, extras, joints, bones)
+
+
+def gendo_animations():
+    """
+    idle: 腕組みでどっしり立つ。呼吸は浅く、たまに肩を回して(28〜44
+          フレーム)固まって見えないようにする。木槌は右手にあるので、
+          右腕は左腕の上に浅く重ねる程度に留める。
+    talk: 木槌を軽く掲げて応える。ひな形のうなずきに、右腕を持ち上げて
+          ゆっくり下ろす動きを重ねている。
+    """
+    # 腕組み。前腕(elbow-hand)を大きく折り、上腕(shoulder-elbow)を
+    # 少し前へ出して胸の前で組む。右は木槌を持つぶん浅い
+    folded = {
+        ARM_L: (4, 0, 1.5), ARM_R: (4, 0, -1.5),
+        FORE_L: (-20, 0, 0), FORE_R: (-16, 0, 0),
+        HAND_L: (-64, 0, 0), HAND_R: (-52, 0, 0),
+    }
+
+    def shrug(lift: float, open_: float) -> dict:
+        return {ARM_L: (-lift, 0, 1.5 + open_), ARM_R: (-lift, 0, -(1.5 + open_))}
+
+    return [
+        ("idle", idle_clip(length=52, breath=1.4, arm=1.5, head_lag=3, extra={
+            1: folded,
+            26: folded,
+            52: folded,
+            # 肩を回す。上げる(28)→ 後ろへ開く(34)→ 落とす(40)→ 戻る(46)
+            28: shrug(5.0, 2.0),
+            34: shrug(7.5, 5.0),
+            40: shrug(1.5, 3.0),
+            46: dict(folded),
+        })),
+        ("talk", talk_clip(length=34, nod=12.0, lean=3.0, arm=1.5, extra={
+            1: folded,
+            6: {**folded, ARM_R: (-6, 0, -2.5), HAND_R: (-64, 0, 0)},   # タメ
+            10: {ARM_R: (-20, 0, -5.0), FORE_R: (-24, 0, 0), HAND_R: (-78, 0, 0)},
+            14: {ARM_R: (-14, 0, -4.0), FORE_R: (-20, 0, 0), HAND_R: (-70, 0, 0)},
+            34: folded,
+        })),
+    ]
+
+
 # =========================================================================== 登録
 
 # 名前 → (造形関数, アニメーション関数)。村人を足すときはここに1行。
 # `tools/build_models.py` がこの辞書をそのまま拾う
 VILLAGERS = {
     "mogurabaa": (build_mogurabaa, mogurabaa_animations),
+    "gendo": (build_gendo, gendo_animations),
 }
 
 
