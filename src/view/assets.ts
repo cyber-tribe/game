@@ -15,9 +15,20 @@ export interface ModelAsset {
  * 最暗部を0にすると陰の面がほぼ黒く潰れてモンスターの配色が読めなくなったため、
  * 90まで持ち上げてある。NearestFilterは必須(線形補間だと階調が滑らかにボケて
  * トゥーンにならない)。
+ *
+ * ハイライト段を255から215へ下げてある(issue #484)。既存のライト強度は
+ * 置き換え前の`MeshStandardMaterial`(PBR、エネルギー保存で暗めに出る)向けに
+ * 調整されており、ランバート系の`MeshToonMaterial`で同じ光量を受けると
+ * 255段では受光面が飽和して「発光している」ように見えていた。松明の近くの
+ * キャラクター周辺で測ると、輝度0.9超の画素が3.51%→0.85%、0.98超が
+ * 0.015%→0%になり、白飛びが解消する。さらに下げても0.9超は0.85%前後で
+ * 頭打ちになり、絵全体が暗くなるだけだったのでここで止めている。
+ * 最暗部の90は上記の理由があるのでそのまま。
  */
+export const TOON_GRADIENT_STEPS = [90, 150, 215] as const;
+
 const TOON_GRADIENT = (() => {
-  const data = new Uint8Array([90, 170, 255]);
+  const data = new Uint8Array(TOON_GRADIENT_STEPS);
   const texture = new THREE.DataTexture(data, data.length, 1, THREE.RedFormat);
   texture.minFilter = THREE.NearestFilter;
   texture.magFilter = THREE.NearestFilter;
