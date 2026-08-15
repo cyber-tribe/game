@@ -273,6 +273,10 @@ const SFX_SPECS: readonly SfxSpec[] = [
   // 打ち振る道具が中心なので、フィルタしたノイズ主体の短い「シュッ」に
   // 軽い一撃の芯を足す)
   { id: "attack", kind: "drum", freq: 300, duration: 0.15, seed: 107 },
+  // 吸い込み失敗(plan/game/barrel-capture-clarity.md)。成功時(capture)の
+  // 澄んだ高いマレットと対になるよう、タルが弾かれて転がる鈍く低い一撃にする。
+  // 音だけで成功・失敗を取り違えないことが狙いなので、音色の差をはっきりつける
+  { id: "captureFailed", kind: "drum", freq: 190, duration: 0.26, seed: 108 },
 ];
 
 function main(): void {

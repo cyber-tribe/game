@@ -243,6 +243,35 @@
         color: #8fdcff;
       }
 
+      /* 捕獲の見込み(plan/game/barrel-capture-clarity.md)。空のタルを抱えて
+         モンスターに向いているあいだだけ、抱え中の表示に続けて出す。
+         記号(◎○△)も併記しているので、色が判別できなくても段階が分かる */
+      #hud-capture {
+        margin-top: 4px;
+        padding: 3px 8px;
+        border-radius: 5px;
+        font-size: 11.5px;
+        font-weight: 600;
+        background: rgba(255, 255, 255, 0.07);
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        color: var(--dim);
+      }
+      #hud-capture[data-tier="likely"] {
+        background: rgba(120, 220, 140, 0.16);
+        border-color: rgba(120, 220, 140, 0.45);
+        color: #a5e8b6;
+      }
+      #hud-capture[data-tier="even"] {
+        background: rgba(230, 200, 110, 0.16);
+        border-color: rgba(230, 200, 110, 0.45);
+        color: #efd691;
+      }
+      #hud-capture[data-tier="hard"] {
+        background: rgba(190, 190, 205, 0.12);
+        border-color: rgba(190, 190, 205, 0.35);
+        color: #c3c3d2;
+      }
+
       /* ------------------------------------------------ なかま */
       #allies {
         position: absolute;
@@ -515,6 +544,8 @@
         #hud-exp { display: none; }
         #hud-status { margin: 0; font-size: 10.5px; }
         #hud-carry { margin: 0; padding: 2px 7px; font-size: 10.5px; }
+        /* 捕獲の見込みも、抱え中の表示と同じくHUDバーの1要素として横に並べる */
+        #hud-capture { margin: 0; padding: 2px 7px; font-size: 10.5px; }
 
         /* なかまパネルは、丈の低くなったHUDバーのすぐ下へ寄せる。
            高さは無制限にせず、パッド/ボタン側のゾーンを侵食しないようにする */
@@ -1122,6 +1153,7 @@
           <div id="hud-exp">次のLvまで 10</div>
           <div id="hud-status"></div>
           <div id="hud-carry"></div>
+          <div id="hud-capture"></div>
         </div>
 
         <div id="allies" class="panel" aria-label="なかま"></div>

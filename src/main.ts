@@ -643,7 +643,12 @@ class App {
     this.applyCostumeTint();
     this.applyCarriedBarrelVisual();
     this.renderer.setFocus(this.game.player.pos, true);
-    this.hud.update(this.game.player, this.game.depth, this.game.allyList);
+    this.hud.update(
+      this.game.player,
+      this.game.depth,
+      this.game.allyList,
+      this.game.captureOutlook(),
+    );
     this.minimap.draw(this.game.floor, this.game.player);
     this.updateDiveBgm();
     // 気分の視覚演出(plan/mood-visual-effects.md): ダイブ中に気分が変わることは
@@ -766,7 +771,12 @@ class App {
     this.namingRoot.classList.add("naming-showcase");
     this.namingDialog.show(`${speciesName}に名前をつける?`, ally.nickname, (value) => {
       ally.nickname = value;
-      this.hud.update(this.game.player, this.game.depth, this.game.allyList);
+      this.hud.update(
+      this.game.player,
+      this.game.depth,
+      this.game.allyList,
+      this.game.captureOutlook(),
+    );
     });
   }
 
@@ -1349,7 +1359,12 @@ class App {
     }
 
     this.stage.dungeon.refresh(this.game.floor);
-    this.hud.update(this.game.player, this.game.depth, this.game.allyList);
+    this.hud.update(
+      this.game.player,
+      this.game.depth,
+      this.game.allyList,
+      this.game.captureOutlook(),
+    );
     this.minimap.draw(this.game.floor, this.game.player);
     // 盤面が変わったので、影も1度は作り直す(以後は再生が終わるまで毎フレーム更新)
     this.renderer.requestShadowUpdate();
@@ -1504,7 +1519,12 @@ class App {
 
   debugGive(defId: string): void {
     this.game.giveItem(defId);
-    this.hud.update(this.game.player, this.game.depth, this.game.allyList);
+    this.hud.update(
+      this.game.player,
+      this.game.depth,
+      this.game.allyList,
+      this.game.captureOutlook(),
+    );
   }
 
   /** 正面が開けている方向を向く。タルの落下先を確保するために使う */
@@ -1526,7 +1546,12 @@ class App {
     this.stage
       .viewOf(this.game.player.id)
       ?.setCarried(this.assets.instantiate(BARREL_MODELS[barrel.kind]).root);
-    this.hud.update(this.game.player, this.game.depth, this.game.allyList);
+    this.hud.update(
+      this.game.player,
+      this.game.depth,
+      this.game.allyList,
+      this.game.captureOutlook(),
+    );
   }
 
   /**

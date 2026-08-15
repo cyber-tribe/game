@@ -3,7 +3,8 @@ import type { DamageFx } from "./stage";
 import { displayActorName } from "../entities/naming";
 import { ALLY_STANCE_NAMES, BARREL_NAMES } from "../entities/displayNames";
 import { MAX_SATIETY, type PlayerState, expToNext } from "../entities/player";
-import { t } from "../i18n";
+import { t, type LocaleKey } from "../i18n";
+import type { CaptureOutlook, CaptureTier } from "../game";
 import {
   BANNER_FADE_MS,
   bannerVisible,
@@ -46,6 +47,16 @@ const STATUS_DISPLAY: Partial<Record<StatusKind, string>> = {
   [STATUS_SEAL]: "◆封じ",
 };
 
+/**
+ * 捕獲の入りやすさ3段階の表示(plan/game/barrel-capture-clarity.md)。
+ * 状態異常表示と同じく、色だけでなく記号(◎○△)でも区別できるようにしてある
+ */
+const CAPTURE_TIER_LABELS: Record<CaptureTier, LocaleKey> = {
+  likely: "hud.captureTier.likely",
+  even: "hud.captureTier.even",
+  hard: "hud.captureTier.hard",
+};
+
 export function activeStatusLabels(actor: Actor): string[] {
   return (Object.keys(STATUS_DISPLAY) as StatusKind[])
     .filter((kind) => hasStatus(actor, kind))
@@ -66,6 +77,7 @@ export class Hud {
   private readonly expEl: HTMLElement;
   private readonly statusEl: HTMLElement;
   private readonly carryEl: HTMLElement;
+  private readonly captureEl: HTMLElement;
   private readonly alliesEl: HTMLElement;
   private readonly logEl: HTMLElement;
   private readonly fxLayer: HTMLElement;
@@ -95,6 +107,7 @@ export class Hud {
     this.expEl = must(root, "#hud-exp");
     this.statusEl = must(root, "#hud-status");
     this.carryEl = must(root, "#hud-carry");
+    this.captureEl = must(root, "#hud-capture");
     this.alliesEl = must(root, "#allies");
     this.logEl = must(root, "#log");
     this.fxLayer = must(root, "#fx");
@@ -115,7 +128,16 @@ export class Hud {
     must(root, "#logModalBox").addEventListener("click", (e) => e.stopPropagation());
   }
 
-  update(player: PlayerState, depth: number, allies: readonly AllyActor[] = []): void {
+  /**
+   * @param captureOutlook 空のタルを抱えているときの、投げ先のモンスターの
+   *   入りやすさ(plan/game/barrel-capture-clarity.md)。null なら何も出さない
+   */
+  update(
+    player: PlayerState,
+    depth: number,
+    allies: readonly AllyActor[] = [],
+    captureOutlook: CaptureOutlook | null = null,
+  ): void {
     this.depthEl.textContent = t("hud.depth", { depth });
     this.levelEl.textContent = t("hud.level", { level: player.level });
 
@@ -144,6 +166,19 @@ export class Hud {
       this.carryEl.style.display = "block";
     } else {
       this.carryEl.style.display = "none";
+    }
+
+    // 捕獲の見込み(plan/game/barrel-capture-clarity.md)。空のタルを抱えて
+    // モンスターに向いているあいだだけ、対象名の横に3段階の目安を出す
+    if (captureOutlook) {
+      this.captureEl.textContent = t("hud.captureOutlook", {
+        name: captureOutlook.name,
+        tier: t(CAPTURE_TIER_LABELS[captureOutlook.tier]),
+      });
+      this.captureEl.dataset.tier = captureOutlook.tier;
+      this.captureEl.style.display = "block";
+    } else {
+      this.captureEl.style.display = "none";
     }
 
     this.renderAllies(allies);

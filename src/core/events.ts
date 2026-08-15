@@ -36,8 +36,11 @@ export type GameEvent =
   | { type: "explosion"; pos: Vec2; radius: number }
   /** モンスターをタルに吸い込んだ */
   | { type: "capture"; actorId: number; barrelId: number; name: string }
-  /** 吸い込みに失敗した */
-  | { type: "captureFailed"; actorId: number; name: string }
+  /**
+   * 吸い込みに失敗した。`from`はタルが飛んできた位置(投げた側)で、
+   * 弾かれるノックバックの向きに使う(plan/game/barrel-capture-clarity.md)
+   */
+  | { type: "captureFailed"; actorId: number; name: string; from: Vec2 }
   /** タルから出して仲間になった */
   | { type: "recruit"; actorId: number; name: string }
   | { type: "descend"; depth: number }

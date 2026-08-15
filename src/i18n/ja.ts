@@ -13,6 +13,11 @@ export const ja: Record<string, string> = {
   "hud.expMax": "経験値 最大",
   "hud.expToNext": "次のLvまで {next}",
   "hud.carrying": "かかえ中: {name}",
+  // 捕獲の見込み(plan/game/barrel-capture-clarity.md)。厳密な%は出さず3段階だけ見せる
+  "hud.captureOutlook": "{name}: {tier}",
+  "hud.captureTier.likely": "入りそう◎",
+  "hud.captureTier.even": "五分○",
+  "hud.captureTier.hard": "難しい△",
   "hud.alliesTitle": "なかま",
   "hud.stance": "構え: {name}",
   "hud.keyHelpTitle": "操作説明",
@@ -59,7 +64,10 @@ export const ja: Record<string, string> = {
   "msg.levelUp": "レベルが{level}に上がった!",
   "msg.recruit": "{name}が仲間になった!",
   "msg.captureSuccess": "{name}をタルに吸い込んだ!",
-  "msg.captureFailed": "{name}は吸い込まれなかった。",
+  // 捕獲失敗(plan/game/barrel-capture-clarity.md)。タルが落ちて拾い直せることまで伝える。
+  // 置き場所が無くて砕けた場合だけ、拾える前提のない側の文言を出す
+  "msg.captureFailed": "{name}はタルから逃れた! タルはその場に落ちた。",
+  "msg.captureFailedBarrelLost": "{name}はタルから逃れた!",
   "msg.satietyDrained": "満腹度が{amount}減った!",
   "msg.goldPicked": "{amount}ゴールドを拾った。",
 };
