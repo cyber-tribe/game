@@ -1,6 +1,53 @@
 import * as THREE from "three";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
+import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+import { SMAAPass } from "three/addons/postprocessing/SMAAPass.js";
 import type { Vec2 } from "../core/grid";
 import type { MoodVisual } from "../entities/moods";
+
+/**
+ * 色調グレーディング(plan/game/post-processing-stack.md)。彩度を少し上げ、
+ * 暗部にわずかな青みを足し、画面端を薄く暗くする。外部LUT画像は使わず、
+ * 「アセットはコードから生成する」方針に合わせて小さな自作シェーダーにする。
+ */
+const GRADE_SHADER = {
+  uniforms: {
+    tDiffuse: { value: null as THREE.Texture | null },
+    saturation: { value: 1.08 },
+    shadowTint: { value: new THREE.Vector3(0.02, 0.03, 0.05) },
+    vignetteStrength: { value: 0.08 },
+  },
+  vertexShader: /* glsl */ `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: /* glsl */ `
+    uniform sampler2D tDiffuse;
+    uniform float saturation;
+    uniform vec3 shadowTint;
+    uniform float vignetteStrength;
+    varying vec2 vUv;
+
+    void main() {
+      vec4 texel = texture2D(tDiffuse, vUv);
+      float luma = dot(texel.rgb, vec3(0.2126, 0.7152, 0.0722));
+      vec3 graded = mix(vec3(luma), texel.rgb, saturation);
+      // 暗部だけ青みを足す(明るい部分ほど寄与が小さくなるよう二乗で減衰)
+      float shadowAmount = (1.0 - luma) * (1.0 - luma);
+      graded += shadowTint * shadowAmount;
+      // 画面端をわずかに暗くする
+      float dist = length(vUv - 0.5) * 2.0;
+      graded *= 1.0 - vignetteStrength * dist * dist;
+      gl_FragColor = vec4(graded, texel.a);
+    }
+  `,
+};
 
 /** 1マスの大きさ。すべての座標変換はここを基準にする */
 export const TILE = 1.0;
@@ -23,6 +70,14 @@ export class Renderer {
   readonly camera: THREE.PerspectiveCamera;
   readonly renderer: THREE.WebGLRenderer;
   readonly playerLight: THREE.PointLight;
+  /**
+   * ダンジョン画面だけに掛けるポストプロセスチェーン
+   * (plan/game/post-processing-stack.md)。図鑑ギャラリー・村(拠点)は
+   * `renderer.renderer.render(...)`にだけ相乗りする既存の描画経路のままで、
+   * このcomposerを経由しない。
+   */
+  private readonly composer: EffectComposer;
+  private readonly bloomPass: UnrealBloomPass;
   /** 影を落とす唯一の光。注視点に合わせて動かす */
   private readonly key: THREE.DirectionalLight;
   /** 気分の視覚演出(plan/mood-visual-effects.md)で色・強度を差し替える対象 */
@@ -89,6 +144,19 @@ export class Renderer {
     this.playerLight.position.set(0, 2.0, 0);
     this.scene.add(this.playerLight);
 
+    // ポストプロセスチェーン: RenderPass → ブルーム → 色調グレーディング
+    // → SMAA(AA) → OutputPass(トーンマッピング+色空間変換を一括適用)。
+    // composer経由だとMSAA(antialias: true)が効かなくなるため、代わりに
+    // SMAAPassでAAを掛ける。OutputPassは必ず最後に置く(renderer.toneMapping/
+    // outputColorSpaceの設定をここで反映するため)
+    this.composer = new EffectComposer(this.renderer);
+    this.composer.addPass(new RenderPass(this.scene, this.camera));
+    this.bloomPass = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.35, 0.4, 0.9);
+    this.composer.addPass(this.bloomPass);
+    this.composer.addPass(new ShaderPass(GRADE_SHADER));
+    this.composer.addPass(new SMAAPass());
+    this.composer.addPass(new OutputPass());
+
     this.resize();
     window.addEventListener("resize", () => this.resize());
     // 画面回転・アドレスバーの伸縮(100dvh)・レイアウト変更を漏れなく拾う。
@@ -114,6 +182,12 @@ export class Renderer {
     this.renderer.setSize(width, height, false);
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
+    // composerはコンストラクタでrendererにぶら下げた時点のサイズ(1x1)を
+    // 引きずっているため、renderer本体のリサイズに追従させる。
+    // EffectComposer.setSizeは中のパス(ブルームの半解像度計算含む)にも
+    // 自動で伝播する
+    this.composer.setPixelRatio(this.renderer.getPixelRatio());
+    this.composer.setSize(width, height);
   }
 
   /**
@@ -189,9 +263,18 @@ export class Renderer {
   }
 
   render(): void {
-    this.renderer.render(this.scene, this.camera);
+    this.composer.render();
     // three は描画のたびに needsUpdate を落とすが、自前で管理していることを
     // はっきりさせるためここでも倒しておく
     this.renderer.shadowMap.needsUpdate = false;
+  }
+
+  /**
+   * ブルームだけを止める、モバイル負荷対策の逃げ道
+   * (plan/game/post-processing-stack.md)。色調グレーディング・AAは
+   * 負荷が軽いため対象にしない。
+   */
+  setBloomEnabled(enabled: boolean): void {
+    this.bloomPass.enabled = enabled;
   }
 }

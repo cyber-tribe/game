@@ -1,3 +1,42 @@
+> **実装済み。** `src/view/renderer.ts`の`Renderer`に`EffectComposer`を
+> 導入し、計画書どおり`RenderPass → UnrealBloomPass → ShaderPass(自作
+> 色調グレーディング) → SMAAPass → OutputPass`の順で構築した。
+>
+> **`OutputPass`を末尾に置くことで、`renderer.toneMapping`
+> (ACESFilmicToneMapping・露出0.98)の設定はそのまま活きた。**
+>
+> **ブルームは`UnrealBloomPass(resolution, 0.35, 0.4, 0.9)`。**
+> `UnrealBloomPass.setSize()`が内部で幅・高さを自動的に半分にするため、
+> 計画書にあった「1/2解像度で計算する」対応は追加コード無しで
+> 満たされている(`EffectComposer.setSize()`が全パスの`setSize()`を
+> 呼ぶ既存の仕組みに乗せただけ)。
+>
+> **色調グレーディングは計画書どおり、彩度+8%・暗部への薄い青みの
+> 加算・画面端のビネット(距離の2乗で減衰)の自作`ShaderPass`。**
+> 外部LUT画像は使っていない。
+>
+> **AAは計画書どおり`SMAAPass`を採用した。** `WebGLRenderer`の
+> `antialias: true`はComposer経由になった時点で効かなくなる点は
+> 計画書の指摘どおりで、置き換えで解決した。
+>
+> **モバイル負荷対策として`Renderer.setBloomEnabled(enabled)`を
+> 追加した。** 呼び出し側(呼ぶかどうかの判断)は未実装のままで、
+> 逃げ道の口だけを用意した状態(未決事項参照)。
+>
+> **図鑑ギャラリー・村(拠点)の描画経路(`main.ts`の
+> `this.renderer.renderer.render(...)`直呼び)には適用していない。**
+> 計画書の対象外どおり、今回はダンジョン画面(`Renderer.render()`)
+> だけを対象にした。
+>
+> **確認は`tools/playtest.mjs`のヘッドレスブラウザ実行で行った。**
+> 輪郭線・段階陰影・ポストプロセスが揃った状態で、村→ダンジョン
+> 突入→戦闘→爆発→全滅までエラー無く完走し、スクリーンショットで
+> 輪郭線・ビネット・発光部の見え方に破綻がないことを確認した。
+>
+> `npx tsc --noEmit`・`npx vitest run`(1350/1350)・`npm run build`は
+> すべてgreen。未決事項だった細部のパラメータ調整・SMAA/FXAAの選択・
+> 村画面への適用可否は、初期実装の値のまま持ち越している(下記未決事項)。
+
 # ポストプロセスの導入(ブルーム・色調グレーディング・アンチエイリアス)
 
 ## 経緯
