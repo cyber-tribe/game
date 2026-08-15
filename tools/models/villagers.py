@@ -1046,6 +1046,283 @@ def fuku_animations():
     ]
 
 
+# ---------------------------------------------------------------- ポチ
+
+# 村の子供。全高0.492 = ガルド(0.849)のおよそ6割で、そのぶん頭を大きく取って
+# 頭身を下げる(全高がおよそ頭3つぶん)。stoop は猫背ではなく「前のめり」。
+# じっとしていられない子の重心を前に置く
+POCHI = Proportions(height=0.56, width=0.84, girth=0.97, torso=1.16,
+                    head=1.14, stoop=9.0)
+
+POCHI_SKIN = (0.93, 0.76, 0.58)       # 日に焼ける前の子供の肌。ガルドより明るい
+POCHI_COAT = (0.95, 0.68, 0.13)       # 山吹。村で一番彩度の高い上着
+POCHI_TRIM = (0.78, 0.45, 0.08)       # 上着の襟・袖口・裾。山吹を一段濃くした縁
+POCHI_PANTS = (0.56, 0.78, 0.31)      # 若草。半ズボン
+POCHI_SHOE = (0.44, 0.31, 0.20)
+POCHI_HAIR = (0.35, 0.23, 0.15)       # 栗色。寝ぐせで跳ねている
+
+
+def _face_point(head, azim: float, elev: float, depth: float):
+    """
+    頭を球とみなして、その球面上に顔の部品を置くための座標を返す。
+
+    頭の中心(head)から方位 azim(度、正で右)・仰角 elev(度)の向きへ
+    depth だけ進んだ点。ポチの素体は半径およそ0.105のほぼ真球なので、
+    depth に「表面までの距離 - 部品の半径 + 出したい高さ」を渡せば、
+    部品の裏側が必ず頭の中に埋まる。
+
+    z だけを見て y を当て推量すると、目のように大きい部品は端が頭の
+    輪郭からはみ出して飛び出し目になる。向きで置けばそれが起きない。
+    """
+    a, e = math.radians(azim), math.radians(elev)
+    return Vector(head) + Vector((
+        math.sin(a) * math.cos(e), -math.cos(a) * math.cos(e), math.sin(e)
+    )) * depth
+
+
+def _cowlick(name: str, base, length: float, thickness: float,
+             tilt_x: float, tilt_y: float, material) -> object:
+    """
+    寝ぐせの毛束。根元(base)から生えて先が細くなる角。
+
+    原点で作る → 回す → 置く、の順。`C.cone` は頂点を動かすだけで
+    オブジェクトの原点はワールド原点に残るので、置いてから回すと飛んでいく。
+    根元が原点に来るように作れば、回転が「生え際を軸に傾ける」になる。
+    """
+    tuft = C.cone(name, (0.0, 0.0, length * 0.5), radius_bottom=thickness,
+                  radius_top=thickness * 0.16, depth=length, segments=8)
+    tuft.rotation_euler = (math.radians(tilt_x), math.radians(tilt_y), 0.0)
+    tuft.location = Vector(base)
+    C.assign_material(tuft, material)
+    return tuft
+
+
+def build_pochi():
+    """
+    村の子供。「小さい・頭が大きい・お下がりのだぶだぶな上着・半ズボンから
+    出た素足・寝ぐせ」の5点で読ませる。前のめりの立ち姿と丸く大きい目で、
+    村の中で一番元気な存在に見せる。
+    """
+    name = "pochi"
+    body, joints, bones = build_base(name, POCHI)
+
+    crown = joints["crown"]
+    head = joints["head"]
+    neck = joints["neck"]
+    chest = joints["chest"]
+    hip = joints["hip"]
+    knee = joints["knee.L"]
+    elbow_l = joints["elbow.L"]
+    hand_l = joints["hand.L"]
+
+    mats = palette("pochi", {
+        "skin": (POCHI_SKIN, 0.68),
+        "coat": (POCHI_COAT, 0.82),
+        "trim": (POCHI_TRIM, 0.82),
+        "pants": (POCHI_PANTS, 0.86),
+        "shoe": (POCHI_SHOE, 0.70),
+        "hair": (POCHI_HAIR, 0.88),
+        "eye": ((0.12, 0.10, 0.11), 0.25),
+        "white": ((0.97, 0.96, 0.93), 0.30),
+    })
+
+    # 上着は腰まで届くお下がり(hem を下げる)。袖も長めにして手先を
+    # 少しだけ出す(cuff を広げると、袖から出る肌の範囲が狭まる)。
+    #
+    # cap / cap_slope は素体を測って決めた。頭は半径およそ0.107の球で、
+    # z=0.303〜0.492 を占める。傾きを強く取ると、額を出したまま
+    # 側頭部と後頭部だけを深く覆える(0.108 は頭の中心から顔の表面まで):
+    #   前: 0.416 + 0.42*0.108 = 0.461   横: 0.416   後ろ: 0.371
+    # おでこは広く残しつつ、横と後ろは髪で覆ったおかっぱ寄りの髪型になる
+    base_classify = garment_classifier(
+        joints,
+        hem=hip.z * 0.80,
+        cuff=abs(elbow_l.x) * 1.08,
+        collar=neck.z - 0.004,
+        cap=head.z + 0.006,
+        cap_slope=0.42,
+    )
+    bare_leg_z = knee.z + 0.006
+
+    # 首から上を肌にするしきい値は高さだけを見るので、そのままだと
+    # 肩の丸みの上側(首と同じ高さにある)まで肌になり、襟から肩へ素肌の帯が
+    # 渡ってしまう。頭の中心から 0.122 より遠い襟より上 = 肩なので上着に戻す
+    # (頭も首も中心から 0.12 以内に収まる。手は襟より下なので巻き込まない)
+    collar_z = neck.z - 0.004
+
+    def classify(center) -> int:
+        slot = base_classify(center)
+        if slot == BOTTOM and center.z < bare_leg_z:
+            return SKIN  # 半ズボンから出た素足。膝から下は肌
+        if slot == SKIN and center.z > collar_z and (center - head).length > 0.122:
+            return TOP   # 襟の高さで頭から離れているところ = 肩。上着で覆う
+        return slot
+
+    C.assign_materials_by_region(
+        body,
+        [mats["skin"], mats["coat"], mats["pants"], mats["shoe"], mats["hair"]],
+        classify,
+    )
+
+    extras: list = []
+
+    # 顔。部品はすべて `_face_point()` で頭の球面上に置く。表面までの距離は
+    # 素体にレイを飛ばして測った(向き → 半径):
+    #   目 (35,-6)→0.1049  眉 (30,+22)→0.1049  鼻 (0,-22)→0.0952
+    #   口 (0,-52)→0.0797
+    # 縦は 眉 > 目 > 鼻 > 口 の順に、隣どうしが数ミリ空くよう詰めてある。
+    # 目は大きいが球のまま頭に埋め込むので、飛び出して見えることはない
+    for side in (-1.0, 1.0):
+        eye_dir = (35.0 * side, -6.0)
+        eye_at = _face_point(head, *eye_dir, 0.084)
+        white = C.uv_sphere(f"pochi_eyewhite{side}", eye_at, 0.029, segments=16, rings=12)
+        C.assign_material(white, mats["white"])
+        # 瞳は白目より 0.019 だけ外へ。白目の球面から少しだけ顔を出す
+        pupil = C.uv_sphere(f"pochi_pupil{side}", _face_point(head, *eye_dir, 0.103),
+                            0.0165, segments=14, rings=10)
+        C.assign_material(pupil, mats["eye"])
+        # 瞳のハイライト。白目と同じマテリアルを使い回すので描画は増えない。
+        # 白目の中心から半径ぶん外(=球面上)に置く
+        glint = C.uv_sphere(f"pochi_glint{side}",
+                            _face_point(eye_at, 46.0 * side, 14.0, 0.028),
+                            0.0065, segments=10, rings=7)
+        C.assign_material(glint, mats["white"])
+        # 短くつり上がった眉。元気の記号
+        brow = C.box(f"pochi_brow{side}", (0.0, 0.0, 0.0), (0.034, 0.015, 0.008), bevel=0.004)
+        brow.rotation_euler = (0.0, math.radians(-12.0 * side), 0.0)
+        brow.location = _face_point(head, 30.0 * side, 22.0, 0.103)
+        C.assign_material(brow, mats["hair"])
+        extras += [white, pupil, glint, brow]
+
+    # 小さな鼻と、開いた口。ガルドの大きな鼻と対にして子供っぽさを出す
+    nose = C.uv_sphere("pochi_nose", _face_point(head, 0.0, -22.0, 0.0885), 0.014,
+                       segments=12, rings=9, scale=(0.95, 1.05, 0.75))
+    C.assign_material(nose, mats["skin"])
+    extras.append(nose)
+    mouth = C.uv_sphere("pochi_mouth", _face_point(head, 0.0, -52.0, 0.0727), 0.023,
+                        segments=14, rings=10, scale=(1.35, 0.48, 0.42))
+    C.assign_material(mouth, mats["eye"])
+    extras.append(mouth)
+
+    # 寝ぐせ。跳ねた毛束を頭の上と後ろに散らす。1本だけ長いのを後ろへ
+    hair_top = crown.z - 0.012
+    for tuft_name, base, length, thick, tx, ty in (
+        ("pochi_tuft_a", (0.0, crown.y + 0.018, hair_top), 0.098, 0.032, 34.0, 0.0),
+        ("pochi_tuft_b", (0.052, crown.y - 0.014, hair_top - 0.016), 0.086, 0.026, 20.0, -52.0),
+        ("pochi_tuft_c", (-0.056, crown.y + 0.010, hair_top - 0.022), 0.078, 0.024, -10.0, 56.0),
+        ("pochi_tuft_d", (0.014, crown.y + 0.060, hair_top - 0.060), 0.104, 0.030, 96.0, -12.0),
+    ):
+        extras.append(_cowlick(tuft_name, base, length, thick, tx, ty, mats["hair"]))
+
+    # だぶだぶの上着。素体の塗り分けだけでは「体に色が付いている」だけで
+    # 一枚羽織って見えないので、腰まわりに素体より太い裾広がりの筒をかぶせ、
+    # 襟・裾・袖口を一段濃い縁で締める。
+    #
+    # 太さは素体を測って決めた。腰の表面はおよそ半径0.091、太ももが左右に
+    # 張り出して0.111、首まわりは0.089。上着はそれより少しだけ外側に置く
+    # (離しすぎると浮き輪に見える)
+    hem_z = hip.z * 0.80
+    coat_top = chest.z - 0.020
+    coat = C.cone("pochi_coat", (0.0, 0.0, (hem_z + coat_top) * 0.5),
+                  radius_bottom=0.126, radius_top=0.094,
+                  depth=coat_top - hem_z, segments=20)
+    C.assign_material(coat, mats["coat"])
+    extras.append(coat)
+
+    collar = C.cone("pochi_collar", (0.0, 0.0, neck.z - 0.016),
+                    radius_bottom=0.120, radius_top=0.100, depth=0.034, segments=18)
+    C.assign_material(collar, mats["trim"])
+    extras.append(collar)
+
+    hem = C.cylinder("pochi_hem", (0.0, 0.0, hem_z + 0.004), 0.130, 0.016, segments=20)
+    C.assign_material(hem, mats["trim"])
+    extras.append(hem)
+
+    # 半ズボンの裾。若草がここにしか出ないと面積が足りないので、
+    # 腿に輪を1つずつ足して「短い緑のズボン」をはっきりさせる
+    for side in (-1.0, 1.0):
+        band = C.cylinder(f"pochi_shorts{side}", (0.070 * side, 0.0, bare_leg_z + 0.008),
+                          0.058, 0.016, segments=14)
+        C.assign_material(band, mats["pants"])
+        extras.append(band)
+
+    # 袖口。前腕にかぶせた輪。自動ウェイトで前腕の骨に付いて腕に追従する
+    for side in (-1.0, 1.0):
+        cx = elbow_l.x + (hand_l.x - elbow_l.x) * 0.62
+        cy = elbow_l.y + (hand_l.y - elbow_l.y) * 0.62
+        cz = elbow_l.z + (hand_l.z - elbow_l.z) * 0.62
+        cuff = C.uv_sphere(f"pochi_cuff{side}", (cx * side, cy, cz), 0.050,
+                           segments=14, rings=10, scale=(1.0, 1.0, 0.55))
+        C.assign_material(cuff, mats["trim"])
+        extras.append(cuff)
+
+    return finish(name, body, extras, joints, bones)
+
+
+def pochi_animations():
+    """
+    idle: じっとしていられない子。体を左右に揺らし、頭が遅れてついてくる。
+          ひな形の呼吸(前後)に、腰の左右の振り(SPINE のロール)を重ねた。
+    talk: 両手を上げて跳ねる。沈み込む(タメ)→ 跳ぶ → 着地でつぶれる →
+          戻る、の順。ひな形のうなずきはそのまま生きているので、跳ねながら
+          うなずく形になる。
+
+    腕を上げるのは ARM_* の**X回転**。ガルドから受け継いだ待機の
+    「腕を開く」は Z 回転だが、そちらは大きく回すと腕が背中側へ回り込む。
+    上腕(ARM)を大きく回すと肩が内側へ入り、腕が胴(半径0.109)と大きな頭に
+    埋もれて手先しか見えなくなる。上げるのは主に前腕(FORE)にして、上腕は
+    少しだけ添える。実測: ARM x=+16・FORE x=+100・HAND x=-32 で
+    肘 (x=±0.12, z=0.41)、手先 (x=±0.20, z=0.40) と、どちらも胴より外に出る。
+    """
+    # このアーマチュアには腰より上の親骨が無いので、跳ねは体そのものを
+    # 持ち上げるのではなく SPINE(腰→胸)を骨の長さ方向へずらして出す。
+    # 骨の長さがおよそ0.10しかないので、ずらす量は0.024までに抑えてある
+    sway = 5.5   # 腰の左右の振れ幅(度)
+    return [
+        ("idle", idle_clip(length=40, breath=2.2, arm=5.0, head_lag=3, extra={
+            1: {SPINE: (0, 0, 0)},
+            10: {SPINE: (1.1, 0, sway), ARM_L: (0, 0, 7.5), ARM_R: (0, 0, -3.0)},
+            13: {NECK: (-0.8, 0, -sway * 0.45)},          # 頭は3フレーム遅れて逆に傾く
+            20: {SPINE: (2.2, 0, 0)},
+            30: {SPINE: (1.1, 0, -sway), ARM_L: (0, 0, 3.0), ARM_R: (0, 0, -7.5)},
+            33: {NECK: (-0.8, 0, sway * 0.45)},
+            40: {SPINE: (0, 0, 0)},
+        })),
+        ("talk", talk_clip(length=34, nod=12.0, lean=3.0, arm=5.0, extra={
+            1: {SPINE: {"rot": (0, 0, 0), "loc": (0, 0, 0)},
+                LEG_L: (0, 0, 0), LEG_R: (0, 0, 0)},
+            # タメ。少し沈んで腕を後ろへ引く
+            6: {SPINE: {"rot": (-3.0, 0, 0), "loc": (0, -0.016, 0)},
+                ARM_L: (-10, 0, 0), ARM_R: (-10, 0, 0),
+                FORE_L: (-18, 0, 0), FORE_R: (-18, 0, 0),
+                LEG_L: (6, 0, 0), LEG_R: (6, 0, 0),
+                SHIN_L: (-10, 0, 0), SHIN_R: (-10, 0, 0)},
+            # 跳ぶ。両手は頭より上、脚は縮めて浮かせる
+            10: {SPINE: {"rot": (3.0, 0, 0), "loc": (0, 0.032, 0)},
+                 ARM_L: (16, 0, 0), ARM_R: (16, 0, 0),
+                 FORE_L: (100, 0, 0), FORE_R: (100, 0, 0),
+                 HAND_L: (-32, 0, 0), HAND_R: (-32, 0, 0),
+                 LEG_L: (14, 0, 0), LEG_R: (14, 0, 0),
+                 SHIN_L: (-20, 0, 0), SHIN_R: (-20, 0, 0)},
+            # 着地。行き過ぎてつぶれる
+            14: {SPINE: {"rot": (1.0, 0, 0), "loc": (0, -0.014, 0)},
+                 ARM_L: (10, 0, 0), ARM_R: (10, 0, 0),
+                 FORE_L: (58, 0, 0), FORE_R: (58, 0, 0),
+                 HAND_L: (-18, 0, 0), HAND_R: (-18, 0, 0),
+                 LEG_L: (8, 0, 0), LEG_R: (8, 0, 0),
+                 SHIN_L: (-12, 0, 0), SHIN_R: (-12, 0, 0)},
+            # 反動でもう一度小さく伸び上がってから戻る
+            20: {SPINE: {"rot": (-1.2, 0, 0), "loc": (0, 0.008, 0)},
+                 ARM_L: (4, 0, 0), ARM_R: (4, 0, 0),
+                 FORE_L: (22, 0, 0), FORE_R: (22, 0, 0),
+                 HAND_L: (-6, 0, 0), HAND_R: (-6, 0, 0),
+                 LEG_L: (0, 0, 0), LEG_R: (0, 0, 0),
+                 SHIN_L: (0, 0, 0), SHIN_R: (0, 0, 0)},
+            34: {SPINE: {"rot": (0, 0, 0), "loc": (0, 0, 0)}},
+        })),
+    ]
+
+
 # =========================================================================== 登録
 
 # 名前 → (造形関数, アニメーション関数)。村人を足すときはここに1行。
@@ -1054,6 +1331,7 @@ VILLAGERS = {
     "mogurabaa": (build_mogurabaa, mogurabaa_animations),
     "gendo": (build_gendo, gendo_animations),
     "fuku": (build_fuku, fuku_animations),
+    "pochi": (build_pochi, pochi_animations),
 }
 
 
