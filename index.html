@@ -923,16 +923,10 @@
         .town-box h2 { font-size: 17px; margin-bottom: 2px; }
         .town-building { margin-bottom: 4px; }
         .town-stats { margin-bottom: 4px; }
-        /* 行の途中で切れると壊れて見えるので、行単位で丸めて省略記号にする。
-           同じ内容は「≡」→設定の操作説明から全文を読める */
-        .town-lead {
-          margin-bottom: 6px;
-          line-height: 1.5;
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-        }
+        /* 低い画面では出さない(issue #519)。2行ぶん(約44px)を列に回す。
+           持ち込み数・全滅時の扱いといった導入の説明で、毎回読む種類の
+           文ではない。全文は「≡」→設定の操作説明から読める */
+        .town-lead { display: none; }
         .town-desc { margin-top: 6px; }
         .town-flavor { margin-top: 2px; }
         .town-hint { margin-top: 4px; }
@@ -940,6 +934,20 @@
         /* 列自体の下限を外す。ここが210pxのままだと、狭い表示領域の中で
            必ず縦スクロールが出て、1画面に1〜2行しか見えなくなる */
         .town-col { min-height: 0; }
+      }
+
+      /*
+       * タッチ端末では、列が少ないときに幅いっぱいまで広げる(issue #519)。
+       * 建物・村人ごとに列を絞った(plan/game/archive/village-scoped-menus.md)
+       * 結果、ガルドの家のように列が1本だけの場面が増えた。168px固定のままだと
+       * 720px幅の箱の中で細い1本が左端に寄り、項目名が中途半端に折り返される
+       * 一方で右側が大きく空く。
+       *
+       * grow だけ許して shrink はしない(flex: 1 0 168px)。列が多い場面
+       * (洞窟の入口の7本)では従来どおり168pxを保って横スクロールに逃がす。
+       */
+      @media (pointer: coarse) {
+        .town-col { flex: 1 0 168px; }
       }
 
       /* ------------------------------------------------ 命名(plan/game/archive/companion-naming.md) */
