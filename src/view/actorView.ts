@@ -8,6 +8,65 @@ export type ClipName = "idle" | "walk" | "attack" | "hit" | "die";
 const ONE_SHOT: ReadonlySet<ClipName> = new Set(["attack", "hit", "die"]);
 
 /**
+ * 接地影(ブロブシャドウ、plan/game/archive/rim-light-and-contact-shadow.md)。
+ * ジオメトリ・テクスチャ・マテリアルは形状・見た目に個体差が無いので、
+ * 全アクターで共有する(サイズはmesh.scaleで個体ごとに変える)。共有物なので
+ * ActorView.dispose()では破棄しない。
+ *
+ * `document`が無いテスト環境(vitestのnode環境、tests/actor-view-*.test.ts
+ * 参照)では初回アクセス時にnullを返し、影を出さないだけにする。
+ */
+const CONTACT_SHADOW_GEOMETRY = new THREE.PlaneGeometry(1, 1);
+let contactShadowMaterial: THREE.MeshBasicMaterial | null = null;
+
+function getContactShadowMaterial(): THREE.MeshBasicMaterial | null {
+  if (contactShadowMaterial) return contactShadowMaterial;
+  if (typeof document === "undefined") return null;
+  const size = 128;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  const gradient = ctx.createRadialGradient(
+    size / 2, size / 2, size / 16,
+    size / 2, size / 2, size / 2,
+  );
+  gradient.addColorStop(0, "rgba(0,0,0,0.45)");
+  gradient.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, size, size);
+  const texture = new THREE.CanvasTexture(canvas);
+  contactShadowMaterial = new THREE.MeshBasicMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false,
+  });
+  return contactShadowMaterial;
+}
+
+/**
+ * モデルのバウンディングボックス(XZ)から、体格に応じた接地影を1枚作る。
+ * `root`にまだ位置・回転が乗っていない(コンストラクタの一番最初で呼ぶ)
+ * 前提で、AABBがモデル本来の footprint をそのまま表すようにする。
+ */
+function createContactShadow(root: THREE.Object3D): THREE.Mesh | null {
+  const material = getContactShadowMaterial();
+  if (!material) return null;
+  const box = new THREE.Box3().setFromObject(root);
+  if (box.isEmpty()) return null;
+  const footprint = Math.max(box.max.x - box.min.x, box.max.z - box.min.z) * 1.15;
+  if (!(footprint > 0)) return null;
+  const mesh = new THREE.Mesh(CONTACT_SHADOW_GEOMETRY, material);
+  mesh.scale.set(footprint, footprint, 1);
+  mesh.rotation.x = -Math.PI / 2;
+  mesh.position.y = 0.01; // 床とのZファイティング回避
+  mesh.renderOrder = 1; // 床の後に描く
+  mesh.castShadow = false;
+  mesh.receiveShadow = false;
+  return mesh;
+}
+
+/**
  * 装備した武器を追従させるボーン(plan/equipped-weapon-visual.md)。
  * tools/models/common.py の bone_name(parent, child) の命名規則により、
  * "elbow.R-hand.R" は原点が肘・ローカルY+方向が手側にあたる(garudo.glb限定)
@@ -74,6 +133,9 @@ export class ActorView {
     this.mixer = instance.mixer;
     this.actions = instance.actions;
     this.idleSpeedMul = idleSpeedMul;
+    // 位置・回転を乗せる前に測る(AABBがモデル本来のfootprintのままになる)
+    const contactShadow = createContactShadow(this.root);
+    if (contactShadow) this.root.add(contactShadow);
     this.setPosition(pos);
     this.yaw = this.targetYaw = yawOf(facing);
     this.root.rotation.y = this.yaw;
