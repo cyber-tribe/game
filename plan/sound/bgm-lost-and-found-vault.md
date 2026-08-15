@@ -35,7 +35,7 @@
 | bars | 8(約28秒) |
 | weights | mallet 0.45 / drum 0.05 / flute 0.15 / string 0.35 |
 | reverb | wet 0.3 / roomSize 0.45 / **damping 0.45**(全曲中もっともこもらせる) |
-| melodyDensity | 0.65(`plan/sound/bgm-nightly-dream.md` で導入する係数を流用し、全曲中もっとも音数を少なくする) |
+| melodyDensity | 0.65(`plan/sound/archive/bgm-nightly-dream.md` で導入する係数を流用し、全曲中もっとも音数を少なくする) |
 
 `melodyDensity` は夜ごとの夢のプランで導入する拡張の流用なので、
 実装順が前後する場合はどちらか先のPRで `TrackParams` に入れる

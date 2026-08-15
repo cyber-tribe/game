@@ -157,6 +157,15 @@ describe("tools/audio/compose.ts(plan/sound/archive/bgm-quality-upgrade.md)", ()
     expect(Array.from(explicitZero.left)).toEqual(Array.from(without.left));
   });
 
+  it("melodyDensityを下げると波形が変わり、未指定(既定1)の曲には影響しない(plan/sound/archive/bgm-nightly-dream.md)", () => {
+    const without = composeTrack({ ...baseParams, seed: 11 });
+    const thinned = composeTrack({ ...baseParams, seed: 11, melodyDensity: 0.5 });
+    expect(Array.from(thinned.left)).not.toEqual(Array.from(without.left));
+
+    const explicitOne = composeTrack({ ...baseParams, seed: 11, melodyDensity: 1 });
+    expect(Array.from(explicitOne.left)).toEqual(Array.from(without.left));
+  });
+
   it("composeSfxは有限な値の配列を返す", () => {
     const out = composeSfx({ kind: "mallet", freq: 660, duration: 0.35, sampleRate: 22050, seed: 1 });
     expect(out.length).toBe(Math.floor(0.35 * 22050));
