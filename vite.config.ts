@@ -21,6 +21,10 @@ export default defineConfig({
         // アイコン・manifest自体もprecache対象にする(計算約11.5MB、
         // 初回ロードのみの負担として許容する方針。plan本文参照)
         globPatterns: ["**/*.{js,css,html,svg,png,ico,webmanifest,wav,glb}"],
+        // BGMのステレオ化・ループ延長(plan/sound/archive/bgm-quality-upgrade.md)で
+        // 一部の.wavがWorkbox既定の2MiB上限を超えたため引き上げる
+        // (最大の個別ファイルで約2.8MB。全部precacheする方針は変えない)
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         // GitHub API(バグ報告ボタンはwindow.openで別タブ遷移するだけだが、
         // 将来のみんなの記録機能等も含め念のため)はSWのruntime cache対象外にする。
         // 万一マッチしても素通しでNetworkOnlyにし、キャッシュから古い/失敗した
