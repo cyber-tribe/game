@@ -1540,6 +1540,224 @@ def otama_animations():
     ]
 
 
+# ---------------------------------------------------------------- 物知りのおキヨ
+
+# 小柄で丸っこい老人。ガルドの背丈の0.85倍。腰の曲がりはモグラ婆(25度)より
+# 浅くして、帳面を覗き込む前のめりくらいに留める(立ち姿で読み分けられるように)
+OKIYO = Proportions(height=0.85, width=0.92, girth=1.04, torso=1.20,
+                    head=1.08, stoop=13.0)
+
+OKIYO_SKIN = (0.80, 0.68, 0.56)
+OKIYO_ROBE = (0.17, 0.31, 0.24)       # 深緑の羽織。自然観察者の色
+OKIYO_KINARI = (0.83, 0.78, 0.66)     # 生成りの袴
+OKIYO_SHOE = (0.28, 0.24, 0.19)
+OKIYO_HAIR = (0.88, 0.87, 0.83)       # 白髪。生え際を後退させて年寄りに読ませる
+OKIYO_STRAW = (0.78, 0.65, 0.40)      # 旅笠の菅。旅暮らしの名残
+OKIYO_INK = (0.15, 0.14, 0.13)        # 目・丸眼鏡・帯・笠の紐・帳面の表紙
+OKIYO_PAPER = (0.93, 0.91, 0.84)      # 帳面の紙
+OKIYO_LENS = (0.80, 0.86, 0.83)       # 眼鏡のレンズ。わずかに青みのある白
+
+
+# 眼鏡まわりの部品は、どれも顔の中まで届く奥行きで作ってある。
+# 自動ウェイト(heat weighting)は、素体から浮いた小島に解を出せない。
+# 重みの付かなかった頂点は書き出し時に「どのボーンにも追従しない骨」へ
+# まとめられ、頭を動かしても眼鏡だけ空中に取り残される。顔に埋めておけば
+# 頭のボーンに乗る。細かい部品を輪に並べる作りは、解そのものが壊れて
+# メッシュ全体のウェイトが空になったので採らない。
+OKIYO_GLASS_Y = -0.181     # 眼鏡の円板の中心。顔の表面は y=-0.197 あたり
+OKIYO_GLASS_DEPTH = 0.050  # 顔の中まで届く奥行き
+
+
+def _okiyo_eyepiece(name: str, center, mats: dict, tilt: float) -> list:
+    """
+    丸眼鏡の片方と、その上の目。奥から 縁(濃い円板)→ レンズ(白っぽい
+    円板)→ 目(細い線)の順に重ねる。縁がレンズのまわりに輪として覗き、
+    目はレンズの上に乗るので「レンズ越しの目」としてそのまま読める。
+    """
+    c = Vector(center)
+    d = OKIYO_GLASS_DEPTH
+    rim = C.cylinder(f"{name}_rim", c, 0.036, d, segments=16, axis="Y")
+    C.assign_material(rim, mats["ink"])
+    lens = C.cylinder(f"{name}_lens", c - Vector((0.0, 0.004, 0.0)), 0.029, d,
+                      segments=16, axis="Y")
+    C.assign_material(lens, mats["lens"])
+    # 目。閉じ気味の線1本。`eye_slit()` は厚みが幅に比例するため、レンズを
+    # 突き抜けて顔まで届く奥行きが取れないので、ここだけ箱で作る
+    eye = C.box(f"{name}_eye", (0.0, 0.0, 0.0), (0.046, 0.060, 0.016), bevel=0.004)
+    # 原点で作る → 回す → 置く
+    eye.rotation_euler = (0.0, math.radians(tilt), 0.0)
+    eye.location = c - Vector((0.0, 0.005, 0.0))
+    C.assign_material(eye, mats["ink"])
+    return [rim, lens, eye]
+
+
+def build_okiyo():
+    """
+    図鑑小屋の主。旅暮らしから村に落ち着いた、生き物に詳しい老人。
+    丸眼鏡・後退した白髪・あごひげ・背に掛けた旅笠・開いた帳面の5点で
+    「年季の入った博物学者」と読ませる。色は深緑(羽織)と生成り(袴)。
+    """
+    name = "okiyo"
+    body, joints, bones = build_base(name, OKIYO)
+
+    head = joints["head"]
+    neck = joints["neck"]
+    chest = joints["chest"]
+    hip = joints["hip"]
+    hand_l = joints["hand.L"]
+
+    mats = palette("okiyo", {
+        "skin": (OKIYO_SKIN, 0.72),
+        "robe": (OKIYO_ROBE, 0.88),
+        "kinari": (OKIYO_KINARI, 0.86),
+        "shoe": (OKIYO_SHOE, 0.70),
+        "hair": (OKIYO_HAIR, 0.92),
+        "straw": (OKIYO_STRAW, 0.94),
+        "ink": (OKIYO_INK, 0.35),
+        "paper": (OKIYO_PAPER, 0.88),
+        "lens": (OKIYO_LENS, 0.20),
+    })
+
+    # 羽織は腰までで切り、そこから下は生成りの袴。かぶりものは白髪で、
+    # cap_slope を大きく取って生え際を後退させる(額が広い = 年寄り)
+    hem_z = hip.z * 0.95
+    C.assign_materials_by_region(
+        body,
+        [mats["skin"], mats["robe"], mats["kinari"], mats["shoe"], mats["hair"]],
+        garment_classifier(
+            joints,
+            hem=hem_z,
+            collar=neck.z + 0.010,
+            cap=head.z + 0.070,
+            cap_slope=0.75,
+        ),
+    )
+
+    extras: list = []
+
+    # 顔。素体の表面は頭の中心の高さで y=-0.205 あたり(実測)
+    eye_z = head.z + 0.012
+    face_y = -0.199
+    for side in (-1.0, 1.0):
+        extras += _okiyo_eyepiece(f"okiyo_glass{side}",
+                                  (0.052 * side, OKIYO_GLASS_Y, eye_z),
+                                  mats, tilt=9.0 * side)
+        # つる。輪の外側からこめかみへ。後ろ半分は頭に埋めてしまう
+        temple = C.box(f"okiyo_temple{side}", (0.0, 0.0, 0.0), (0.010, 0.085, 0.010))
+        temple.location = Vector((0.086 * side, face_y + 0.032, eye_z + 0.004))
+        C.assign_material(temple, mats["ink"])
+        extras.append(temple)
+        # 白く太い眉。眼鏡の輪の上に、ぶつからない高さで乗せる
+        brow = C.box(f"okiyo_brow{side}", (0.0, 0.0, 0.0), (0.048, 0.020, 0.013),
+                     bevel=0.005)
+        brow.rotation_euler = (0.0, math.radians(-9.0 * side), 0.0)
+        brow.location = Vector((0.050 * side, face_y + 0.002, eye_z + 0.052))
+        C.assign_material(brow, mats["hair"])
+        extras.append(brow)
+
+    # 眼鏡のブリッジ。左右の輪をつなぐ。これも鼻筋まで届く奥行きにする
+    bridge = C.box("okiyo_bridge", (0.0, OKIYO_GLASS_Y - 0.004, eye_z + 0.008),
+                   (0.048, OKIYO_GLASS_DEPTH, 0.011))
+    C.assign_material(bridge, mats["ink"])
+    extras.append(bridge)
+
+    nose = C.uv_sphere("okiyo_nose", (0.0, face_y - 0.014, head.z - 0.030), 0.030,
+                       segments=14, rings=10, scale=(0.90, 1.20, 0.85))
+    C.assign_material(nose, mats["skin"])
+    extras.append(nose)
+
+    # あごひげ。モグラ婆(白髪の団子)と並んでも別人と分かる決め手
+    beard = C.uv_sphere("okiyo_beard", (0.0, head.y - 0.070, head.z - 0.086), 0.056,
+                        segments=14, rings=10, scale=(0.95, 0.90, 1.05))
+    C.assign_material(beard, mats["hair"])
+    extras.append(beard)
+
+    # 背に掛けた旅笠。浅い円錐を背中に伏せる。中心は背面に少し埋めて
+    # 浮いた板に見えないようにする
+    # 円錐の頂点(ローカル+Z)が後ろ(+Y)を向くように倒す。こうすると
+    # 背中側から見えるのは笠の外側の斜面になる
+    hat_tilt = math.radians(-84.0)
+    hat_at = Vector((0.0, 0.108, chest.z + 0.034))
+    hat = C.cone("okiyo_hat", (0.0, 0.0, 0.0), radius_bottom=0.152, radius_top=0.022,
+                 depth=0.052, segments=22)
+    hat.rotation_euler = (hat_tilt, 0.0, 0.0)
+    hat.location = hat_at
+    C.assign_material(hat, mats["straw"])
+    extras.append(hat)
+    # 笠は菅の色1色で通す。縁取りに濃い色の円板を重ねると、斜め見下ろしの
+    # カメラからは体側を向いた濃い面ばかりが見えて、笠ではなく黒い荷物に
+    # 見えてしまう(実際に試して却下した)
+    # 笠の紐。両肩を越えて胸前へ下りる
+    for side in (-1.0, 1.0):
+        cord = C.box(f"okiyo_cord{side}", (0.0, 0.0, 0.0), (0.013, 0.215, 0.011))
+        cord.rotation_euler = (math.radians(22.0), 0.0, 0.0)
+        cord.location = Vector((0.090 * side, -0.010, chest.z + 0.020))
+        C.assign_material(cord, mats["ink"])
+        extras.append(cord)
+
+    # 帯。羽織と袴の境目を締める。胴の断面は前後に薄い楕円なので、
+    # 円柱を作ってから y を縮めて胴に沿わせる
+    obi = C.cylinder("okiyo_obi", (0.0, 0.0, hem_z + 0.014), 0.132, 0.040, segments=22)
+    for vert in obi.data.vertices:
+        vert.co.y = vert.co.y * 0.95 - 0.029   # 胴の中心は y=-0.029 あたり
+    C.assign_material(obi, mats["ink"])
+    extras.append(obi)
+
+    # 開いた帳面。左手の少し前・上に、紙の面を上へ向けて持たせる。
+    # 手前(体側)の端を腕まで寄せて、宙に浮いて見えないようにする。
+    #
+    # 紙・背表紙は横に並べて、上下に重ねない。表紙の板の上に薄い紙を
+    # 乗せる作りにすると、下の板に遮られた紙が自動ウェイトを受け取れず、
+    # 紙だけが腕に付いてこなくなる(実測で紙の16頂点が丸ごと無重み)
+    book_x, book_y, book_z = hand_l.x - 0.026, -0.145, hand_l.z + 0.046
+    spine = C.box("okiyo_book", (0.0, 0.0, 0.0), (0.020, 0.120, 0.030), bevel=0.003)
+    spine.rotation_euler = (math.radians(18.0), 0.0, 0.0)
+    spine.location = Vector((book_x, book_y, book_z))
+    C.assign_material(spine, mats["ink"])
+    extras.append(spine)
+    for side in (-1.0, 1.0):
+        page = C.box(f"okiyo_page{side}", (0.0, 0.0, 0.0), (0.058, 0.112, 0.024),
+                     bevel=0.002)
+        page.rotation_euler = (math.radians(18.0), math.radians(-7.0 * side), 0.0)
+        page.location = Vector((book_x + 0.036 * side, book_y, book_z))
+        C.assign_material(page, mats["paper"])
+        extras.append(page)
+
+    return finish(name, body, extras, joints, bones)
+
+
+def okiyo_animations():
+    """
+    idle: 帳面をめくりながら、ふと顔を上げる。左腕は帳面を支えて止め、
+          右腕だけが紙をめくる。顔を上げるのは1周のうち一度だけで、
+          体幹より3フレーム遅れて動く(二次揺れ)。
+    talk: 帳面を指し示しながらうなずく。ひな形のうなずきに、右腕で
+          帳面を指す動きを重ねている。
+    """
+    # 帳面は左手の前に付いているので、左腕は前腕を起こしたまま止める。
+    # 右腕は ARM_R の Z(正で前へ振り出す)と FORE_R の X(負で前へ)を
+    # 合わせて、帳面のあたりまで手を持っていく
+    hold_book = {ARM_L: (0, 0, 2.0), FORE_L: (-14, 0, 0)}
+    return [
+        ("idle", idle_clip(length=52, breath=1.4, arm=3.0, head_lag=3, extra={
+            1: {**hold_book, FORE_R: (-8, 0, 0)},
+            14: {ARM_R: (0, 0, 12), FORE_R: (-24, 0, 0), HAND_R: (-10, 0, 0)},  # 紙に指をかける
+            20: {ARM_R: (0, 0, 9), FORE_R: (-16, 0, 0), HAND_R: (6, 0, 0)},     # めくる
+            26: {FORE_R: (-8, 0, 0), HAND_R: (0, 0, 0)},
+            32: {NECK: (-9, 0, 0)},                           # ふと顔を上げる
+            40: {NECK: (0, 0, 0)},
+            52: {**hold_book, FORE_R: (-8, 0, 0)},
+        })),
+        ("talk", talk_clip(length=34, nod=12.0, lean=3.0, arm=3.0, extra={
+            1: {**hold_book, FORE_R: (-8, 0, 0)},
+            6: {ARM_R: (0, 0, 6), FORE_R: (-26, 0, 0)},                    # 手を持ち上げる
+            10: {ARM_R: (0, 0, 16), FORE_R: (-22, 0, 0), HAND_R: (-12, 0, 0)},  # 指し示す
+            14: {ARM_R: (0, 0, 13), FORE_R: (-24, 0, 0), HAND_R: (-8, 0, 0)},
+            34: {**hold_book, FORE_R: (-8, 0, 0)},
+        })),
+    ]
+
+
 # =========================================================================== 登録
 
 # 名前 → (造形関数, アニメーション関数)。村人を足すときはここに1行。
@@ -1550,6 +1768,7 @@ VILLAGERS = {
     "fuku": (build_fuku, fuku_animations),
     "pochi": (build_pochi, pochi_animations),
     "otama": (build_otama, otama_animations),
+    "okiyo": (build_okiyo, okiyo_animations),
 }
 
 
