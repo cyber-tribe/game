@@ -40,8 +40,19 @@ export class NamingDialog {
   hide(): void {
     this.open = false;
     this.onConfirm = null;
+    // 閉じたあとに入力欄を残さない(issue #520)。iOSでは非表示にしただけの
+    // 要素がフォーカスを持ち続けることがあり、編集可能な要素にフォーカスが
+    // ある状態で画面を長押しすると「ペースト / 選択 / すべてを選択」の
+    // 編集メニューが出てしまう。
+    //
+    // blur()だけに頼らず要素ごと捨てるのは、blurがhidden要素で効かない
+    // 場合があるため。消してしまえばフォーカスの持ちようがない。show()は
+    // render()で毎回作り直すので、残しておく必要はそもそも無い。
+    // confirm()もcancel()もここを通るので、閉じ方を問わず片付く
+    this.input?.blur();
     this.input = null;
     this.root.style.display = "none";
+    this.root.replaceChildren();
   }
 
   private render(title: string, initial: string): void {
