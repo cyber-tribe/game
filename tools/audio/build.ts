@@ -32,6 +32,8 @@ interface BgmSpec {
   /** ループの小節数(8〜16小節が目安) */
   bars: number;
   reverb: ReverbParams;
+  /** 各拍の裏に短い木琴を置く確率。省略時は鳴らさない */
+  offbeatProb?: number;
 }
 
 // design/regions.mdの各地方の雰囲気を、木琴/太鼓/笛/弦の重みづけ・テンポ・拍子・
@@ -134,6 +136,18 @@ const BGM_SPECS: readonly BgmSpec[] = [
     bars: 8,
     reverb: { wet: 0.4, roomSize: 0.7, damping: 0.15 },
   },
+  // 近道屋の裏穴(plan/sound/archive/bgm-shortcut-back-hole.md)。無理やり掘った
+  // 短く手荒な穴 → 全曲中最速のテンポ+裏拍の木琴でせかせかした足取りを出す。
+  // 残響は浅く乾かし、掘りたての土壁が響かない感触にする
+  {
+    id: "shortcut",
+    seed: 4000,
+    weights: { mallet: 0.5, drum: 0.5, flute: 0.05, string: 0.2 },
+    tempoBpm: 112,
+    bars: 8,
+    reverb: { wet: 0.2, roomSize: 0.35, damping: 0.3 },
+    offbeatProb: 0.5,
+  },
 ];
 
 // SFXにも薄くリバーブを掛けBGMと馴染ませるが、操作音の輪郭を保つためウェット率はBGMより下げる
@@ -169,6 +183,7 @@ function main(): void {
       tempoBpm: spec.tempoBpm,
       reverb: spec.reverb,
       sampleRate: SAMPLE_RATE,
+      offbeatProb: spec.offbeatProb,
     });
     const path = resolve(AUDIO_ROOT, "bgm", `${spec.id}.wav`);
     writeFileSync(path, encodeWav([track.left, track.right], SAMPLE_RATE));

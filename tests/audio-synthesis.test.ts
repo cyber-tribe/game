@@ -148,6 +148,15 @@ describe("tools/audio/compose.ts(plan/sound/archive/bgm-quality-upgrade.md)", ()
     expect(Array.from(wet.left)).not.toEqual(Array.from(dry.left));
   });
 
+  it("offbeatProbを指定すると波形が変わり、未指定(既定0)の曲には影響しない(plan/sound/archive/bgm-shortcut-back-hole.md)", () => {
+    const without = composeTrack({ ...baseParams, seed: 9 });
+    const withOffbeat = composeTrack({ ...baseParams, seed: 9, offbeatProb: 0.5 });
+    expect(Array.from(withOffbeat.left)).not.toEqual(Array.from(without.left));
+
+    const explicitZero = composeTrack({ ...baseParams, seed: 9, offbeatProb: 0 });
+    expect(Array.from(explicitZero.left)).toEqual(Array.from(without.left));
+  });
+
   it("composeSfxは有限な値の配列を返す", () => {
     const out = composeSfx({ kind: "mallet", freq: 660, duration: 0.35, sampleRate: 22050, seed: 1 });
     expect(out.length).toBe(Math.floor(0.35 * 22050));

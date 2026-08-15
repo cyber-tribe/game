@@ -1,3 +1,22 @@
+> **実装済み。** `tools/audio/build.ts` の `BGM_SPECS` に `shortcut`
+> エントリを計画書どおりの値(112bpm・8小節・mallet0.5/drum0.5/flute0.05/
+> string0.2・`wet 0.2/roomSize 0.35/damping 0.3`)で追加し、
+> `public/audio/bgm/shortcut.wav` を生成した。`src/main.ts` の
+> `bgmForDive` に `dungeonId === "shortcutBackHole"` の分岐を1つ足し、
+> 5階通しでこの曲を流す。
+>
+> **裏拍拡張(未決事項)は初版に含めた。** `compose.ts` の `TrackParams`
+> に `offbeatProb?: number`(既定0)を追加し、各拍の裏(8分裏)に
+> 確率で短い木琴(音価は拍の1/4、velocity 0.3)を重ねる。既定0のため
+> 既存10曲の波形は変わらない(`tests/audio-synthesis.test.ts` に
+> 決定性のテストを追加して確認)。`shortcut`だけ `offbeatProb: 0.5` を
+> 指定している。
+>
+> **検証**: `npx tsc --noEmit`・`npx vitest run`(105ファイル/1349件)・
+> `npm run build`・`npm run audio` いずれも成功。`shortcut.wav` は
+> 約17.1秒・約1.5MB(ステレオ、22.05kHz)で、`public/audio/`合計は
+> 約24MB(既存Workbox上限4MiBの範囲内)。
+
 # 近道屋の裏穴のBGM
 
 ## 経緯・現状

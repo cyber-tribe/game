@@ -67,6 +67,12 @@ export interface TrackParams {
   tempoBpm: number;
   reverb: ReverbParams;
   sampleRate: number;
+  /**
+   * 各拍の裏(8分裏)に短い木琴を置く確率。既定0(鳴らさない)。
+   * せかせかした刻みを出したい曲(近道屋の裏穴など)向けの拡張
+   * (plan/sound/archive/bgm-shortcut-back-hole.md)
+   */
+  offbeatProb?: number;
 }
 
 /**
@@ -76,6 +82,7 @@ export interface TrackParams {
 export function composeTrack(params: TrackParams): StereoTrack {
   const { seed, weights, bars, tempoBpm, reverb, sampleRate } = params;
   const beatsPerBar = params.beatsPerBar ?? 4;
+  const offbeatProb = params.offbeatProb ?? 0;
   const beatSec = 60 / tempoBpm;
   const totalSamples = Math.floor(bars * beatsPerBar * beatSec * sampleRate);
 
@@ -136,6 +143,12 @@ export function composeTrack(params: TrackParams): StereoTrack {
           const harmonyDegree = chordDegree + (voicing === 0 ? 4 : 0) + SCALE_LEN;
           mixIn(malletMono, malletNote(degreeToFreq(harmonyDegree), dur * 0.8, sampleRate, 0.3), offset);
         }
+      }
+
+      // 裏拍: 拍の裏(8分裏)に短い木琴を置き、せかせかした刻みを出す(既定0で従来曲には影響なし)
+      if (offbeatProb > 0 && rng() < offbeatProb) {
+        const offbeatOffset = Math.floor((tSec + beatSec * 0.5) * sampleRate);
+        mixIn(malletMono, malletNote(degreeToFreq(voicedDegree + SCALE_LEN), beatSec * 0.25, sampleRate, 0.3), offbeatOffset);
       }
     }
   }
