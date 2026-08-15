@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Game, captureChance } from "../src/game";
+import { Game, captureChance, captureTier } from "../src/game";
 import { Rng } from "../src/core/rng";
 import { type Dir, dirDelta } from "../src/core/grid";
 import { MAX_ALLIES } from "../src/entities/player";
@@ -382,5 +382,198 @@ describe("爆発の自爆ダメージ", () => {
       return;
     }
     throw new Error("自爆する状況を作れなかった");
+  });
+});
+
+/**
+ * 空のタルは捕獲対象を倒さない・見込みを見せる
+ * (plan/game/barrel-capture-clarity.md)
+ */
+describe("空のタルは捕まえたい相手を倒さない", () => {
+  /** 指定のマスにモンスターを1体置く(既存の住人は片付けてから) */
+  function putMonsterAt(
+    game: Game,
+    pos: { x: number; y: number },
+    overrides: Partial<MonsterActor> = {},
+  ): MonsterActor {
+    const monster: MonsterActor = {
+      id: 9001 + game.floor.actors.length,
+      kind: "monster",
+      name: "テスト用モンスター",
+      speciesId: "mabutamushi",
+      model: "mabutamushi",
+      pos: { ...pos },
+      facing: 4,
+      hp: 5,
+      maxHp: 5,
+      atk: 1,
+      def: 0,
+      level: 1,
+      statuses: [],
+      alive: true,
+      aiKind: "melee",
+      aware: true,
+      ...overrides,
+    };
+    game.floor.actors.push(monster);
+    return monster;
+  }
+
+  it("HP満タンの低HP種に当てても倒れず、HP1で捕獲判定まで進む", () => {
+    // まぶたむし(maxHp 5)はタルのダメージで即死していた。必ずHP1で止まり、
+    // capture(成功) か captureFailed(失敗) のどちらかへ必ず進むこと
+    let tried = 0;
+    for (let seed = 1; seed <= 40; seed++) {
+      const game = new Game({ seed });
+      const dir = faceOpenDirection(game);
+      if (dir === null) continue;
+      const d = dirDelta(dir);
+      const front = { x: game.player.pos.x + d.x, y: game.player.pos.y + d.y };
+      game.floor.actors = game.floor.actors.filter((a) => a.kind === "player");
+      const monster = putMonsterAt(game, front);
+
+      game.giveBarrel("empty");
+      const events = game.command({ type: "throwBarrel" });
+      tried++;
+
+      expect(events.some((e) => e.type === "die" && e.actorId === monster.id)).toBe(false);
+      const captured = events.some((e) => e.type === "capture");
+      const failed = events.some((e) => e.type === "captureFailed");
+      expect(captured || failed, "捕獲判定に進んでいない").toBe(true);
+      // 失敗していれば盤面に生き残り、HPはちょうど1まで削れている
+      if (failed) {
+        expect(monster.alive).toBe(true);
+        expect(monster.hp).toBe(1);
+      }
+    }
+    expect(tried).toBeGreaterThan(0);
+  });
+
+  it("すでにHP1の相手には追い打ちのダメージを与えない", () => {
+    for (let seed = 1; seed <= 40; seed++) {
+      const game = new Game({ seed });
+      const dir = faceOpenDirection(game);
+      if (dir === null) continue;
+      const d = dirDelta(dir);
+      const front = { x: game.player.pos.x + d.x, y: game.player.pos.y + d.y };
+      game.floor.actors = game.floor.actors.filter((a) => a.kind === "player");
+      const monster = putMonsterAt(game, front, { hp: 1, maxHp: 20 });
+
+      game.giveBarrel("empty");
+      const events = game.command({ type: "throwBarrel" });
+
+      expect(events.some((e) => e.type === "damage" && e.actorId === monster.id)).toBe(false);
+      expect(events.some((e) => e.type === "capture" || e.type === "captureFailed")).toBe(true);
+      return;
+    }
+    throw new Error("正面が空いている状況を作れなかった");
+  });
+
+  it("失敗したタルはその場に落ちて拾い直せる", () => {
+    for (let seed = 1; seed <= 60; seed++) {
+      const game = new Game({ seed });
+      const dir = faceOpenDirection(game);
+      if (dir === null) continue;
+      const d = dirDelta(dir);
+      const front = { x: game.player.pos.x + d.x, y: game.player.pos.y + d.y };
+      game.floor.actors = game.floor.actors.filter((a) => a.kind === "player");
+      // 満タンの高HP種は捕獲率が最低(0.12)なので、失敗する状況を作りやすい
+      putMonsterAt(game, front, { hp: 400, maxHp: 400 });
+
+      const barrel = game.giveBarrel("empty");
+      const events = game.command({ type: "throwBarrel" });
+      if (!events.some((e) => e.type === "captureFailed")) continue;
+
+      expect(game.floor.barrels.some((b) => b.id === barrel.id && b.kind === "empty")).toBe(true);
+      expect(
+        events.some((e) => e.type === "message" && e.text.includes("タルはその場に落ちた")),
+      ).toBe(true);
+      return;
+    }
+    throw new Error("60シード試しても吸い込みが1度も失敗しなかった");
+  });
+
+  it("貫通(抱え投げの奥義)の通過ダメージは従来どおり倒せる", () => {
+    for (let seed = 1; seed <= 60; seed++) {
+      const game = new Game({ seed });
+      const dir = faceOpenDirection(game);
+      if (dir === null) continue;
+      const d = dirDelta(dir);
+      const front = { x: game.player.pos.x + d.x, y: game.player.pos.y + d.y };
+      const second = { x: front.x + d.x, y: front.y + d.y };
+      if (!isFree(game.floor, second)) continue;
+
+      game.floor.actors = game.floor.actors.filter((a) => a.kind === "player");
+      game.player.level = 20;
+      // 技の発動を先に済ませてから配置する(runActorsで敵の位置がずれないように)
+      game.command({ type: "useArt", id: "pierce" });
+      if (!game.player.pierceReady) continue;
+      const passThrough = putMonsterAt(game, front);
+      const last = putMonsterAt(game, second, { hp: 400, maxHp: 400 });
+
+      game.giveBarrel("empty");
+      const events = game.command({ type: "throwBarrel" });
+
+      // 手前の相手(捕獲判定の対象ではない)は通過ダメージで倒れる
+      expect(passThrough.alive).toBe(false);
+      expect(events.some((e) => e.type === "die" && e.actorId === passThrough.id)).toBe(true);
+      // 最後に当たった相手だけがHP1未満にならず、捕獲判定へ進む
+      expect(last.hp).toBeGreaterThanOrEqual(1);
+      expect(events.some((e) => e.type === "capture" || e.type === "captureFailed")).toBe(true);
+      return;
+    }
+    throw new Error("直線上に2マス空いている方向が見つからなかった");
+  });
+});
+
+describe("捕獲の見込み表示", () => {
+  it("3段階のしきい値は 0.6 以上◎ / 0.3 以上○ / それ未満△", () => {
+    expect(captureTier(1)).toBe("likely");
+    expect(captureTier(0.6)).toBe("likely");
+    expect(captureTier(0.6 - Number.EPSILON)).toBe("even");
+    expect(captureTier(0.45)).toBe("even");
+    expect(captureTier(0.3)).toBe("even");
+    expect(captureTier(0.3 - Number.EPSILON)).toBe("hard");
+    expect(captureTier(0)).toBe("hard");
+  });
+
+  it("空のタルを抱えて正面のモンスターを向いているときだけ出る", () => {
+    for (let seed = 1; seed <= 40; seed++) {
+      const game = new Game({ seed });
+      const placed = putMonsterInFront(game);
+      if (!placed) continue;
+
+      // 何も抱えていなければ出さない
+      expect(game.captureOutlook()).toBeNull();
+      // 爆発タル・モンスター入りタルは捕獲道具ではないので出さない
+      game.giveBarrel("bomb");
+      expect(game.captureOutlook()).toBeNull();
+      game.giveBarrel("caught", "purun");
+      expect(game.captureOutlook()).toBeNull();
+
+      game.giveBarrel("empty");
+      const outlook = game.captureOutlook();
+      expect(outlook?.name).toBe(placed.monster.name);
+      return;
+    }
+    throw new Error("正面にモンスターを置ける状況を作れなかった");
+  });
+
+  it("弱っている相手ほど良い段階が出る", () => {
+    for (let seed = 1; seed <= 40; seed++) {
+      const game = new Game({ seed });
+      const placed = putMonsterInFront(game);
+      if (!placed) continue;
+      game.giveBarrel("empty");
+
+      placed.monster.maxHp = 400;
+      placed.monster.hp = 400;
+      expect(game.captureOutlook()?.tier).toBe("hard");
+
+      placed.monster.hp = 1;
+      expect(game.captureOutlook()?.tier).toBe("likely");
+      return;
+    }
+    throw new Error("正面にモンスターを置ける状況を作れなかった");
   });
 });

@@ -493,8 +493,36 @@ function isNearRoom(room: Room, pos: Vec2, range: number): boolean {
  * 「弱らせてから捕まえる」が自然な手順になるように振ってある。
  */
 export function captureChance(target: Actor): number {
-  const wounded = 1 - target.hp / target.maxHp;
+  return captureChanceAt(target.hp, target.maxHp);
+}
+
+/** captureChanceの中身。見込み表示(captureOutlook)が「当てた後のHP」で試算するために切り出してある */
+function captureChanceAt(hp: number, maxHp: number): number {
+  const wounded = 1 - hp / maxHp;
   return Math.min(0.85, 0.12 + 0.68 * wounded);
+}
+
+/**
+ * 入りやすさの3段階(plan/game/barrel-capture-clarity.md)。
+ * design/balance-philosophy.md の「数値を見せすぎない」方針に沿って、
+ * 厳密な%は出さずにこの3つへ丸めてHUDに出す。
+ */
+export type CaptureTier = "likely" | "even" | "hard";
+
+/** 3段階のしきい値。計画書の未決事項への回答として、例示された0.6/0.3をそのまま採る */
+const CAPTURE_TIER_LIKELY = 0.6;
+const CAPTURE_TIER_EVEN = 0.3;
+
+export function captureTier(chance: number): CaptureTier {
+  if (chance >= CAPTURE_TIER_LIKELY) return "likely";
+  if (chance >= CAPTURE_TIER_EVEN) return "even";
+  return "hard";
+}
+
+/** 捕獲の見込み(HUD表示用)。相手の名前と3段階だけを渡し、確率そのものは見せない */
+export interface CaptureOutlook {
+  name: string;
+  tier: CaptureTier;
 }
 
 /**
@@ -1477,6 +1505,30 @@ export class Game {
    *   爆発タル      → その場で爆発し、周囲もろとも巻き込む
    *   モンスター入り → 中身が飛び出して仲間になる
    */
+  /**
+   * 抱えているタルを投げたときに、どこへ落ちて誰に当たるかを引く。
+   * 実際の投擲と、投げる前の見込み表示(captureOutlook)で同じ判定を使うために
+   * 切り出してある(plan/game/barrel-capture-clarity.md)
+   */
+  private traceThrow(pierce: boolean): { landing: Vec2; hits: Actor[] } {
+    const player = this.player;
+    let landing = player.pos;
+    const hits: Actor[] = [];
+    const throwRange = this.dungeon.id === TARUKURABE_ID ? TARUKURABE_THROW_RANGE : BARREL_RANGE;
+    for (const p of walkLine(this.floor, player.pos, player.facing, throwRange)) {
+      const blocker = barrelAt(this.floor, p);
+      if (blocker) break;
+      landing = p;
+      const actor = actorAt(this.floor, p);
+      if (actor && actor.id !== player.id) {
+        hits.push(actor);
+        // 「抱え投げの奥義」でなければ、最初に当たった相手で止まる
+        if (!pierce) break;
+      }
+    }
+    return { landing, hits };
+  }
+
   private throwCarriedBarrel(events: GameEvent[]): boolean {
     const player = this.player;
     const barrel = player.carrying;
@@ -1493,21 +1545,7 @@ export class Game {
 
     player.carrying = null;
     const from = player.pos;
-    let landing = from;
-    const hits: Actor[] = [];
-
-    const throwRange = this.dungeon.id === TARUKURABE_ID ? TARUKURABE_THROW_RANGE : BARREL_RANGE;
-    for (const p of walkLine(this.floor, from, player.facing, throwRange)) {
-      const blocker = barrelAt(this.floor, p);
-      if (blocker) break;
-      landing = p;
-      const actor = actorAt(this.floor, p);
-      if (actor && actor.id !== player.id) {
-        hits.push(actor);
-        // 「抱え投げの奥義」でなければ、最初に当たった相手で止まる
-        if (!pierce) break;
-      }
-    }
+    const { landing, hits } = this.traceThrow(pierce);
 
     events.push({
       type: "throwBarrel",
@@ -1584,19 +1622,21 @@ export class Game {
       return true;
     }
 
-    const { damage, critical } = computeDamage(
+    const rolled = computeDamage(
       this.rng,
       this.barrelThrowDamage(),
       hit.def,
       critForced ? { forceCrit: true } : undefined,
     );
-    events.push({ type: "message", text: `${hit.name}に${damage}のダメージ!` });
-    this.damageActor(hit, damage, critical, events);
-
-    // 倒れてしまったら吸い込めない。タルは砕けずその場に落ちる
-    if (!hit.alive) {
-      this.dropBarrelNear(barrel, landing, events);
-      return true;
+    // 空のタルは捕獲道具であって武器ではない(plan/game/barrel-capture-clarity.md)。
+    // 捕獲判定に進む相手(=最後に当たった1体)だけは、命中ダメージでHPが1未満に
+    // ならないよう止める。まぶたむしのような低HP種が「弱らせる前に死ぬ」ために
+    // 捕獲が事実上不可能になっていた矛盾を、仕様として取り除く。
+    // 貫通(抱え投げの奥義)の通過ダメージは従来どおり倒してよい(上の呼び出し元)
+    const damage = Math.max(0, Math.min(rolled.damage, this.hpOwnerOf(hit).hp - 1));
+    if (damage > 0) {
+      events.push({ type: "message", text: `${hit.name}に${damage}のダメージ!` });
+      this.damageActor(hit, damage, rolled.critical, events);
     }
 
     // 仲間にできるのはモンスターだけ。すでに手一杯なら吸い込まない
@@ -1618,9 +1658,21 @@ export class Game {
     const captured =
       critForced || this.rng.chance(Math.min(0.9, captureChance(hit) + bonus + charmBonus));
     if (!captured) {
-      events.push({ type: "captureFailed", actorId: hit.id, name: hit.name });
-      events.push({ type: "message", text: t("msg.captureFailed", { name: hit.name }) });
-      this.dropBarrelNear(barrel, landing, events);
+      // 失敗の演出(plan/game/barrel-capture-clarity.md): 相手がタルを弾く
+      // ノックバックと専用SFXのために、弾かれた向き(投げた側)も渡す。
+      // 文言は「タルが落ちて拾い直せる」ところまで伝えるが、置き場所が
+      // 無くて砕けた場合(dropBarrelNearがfalseを返す)は嘘にならない側を出す
+      events.push({
+        type: "captureFailed",
+        actorId: hit.id,
+        name: hit.name,
+        from: this.player.pos,
+      });
+      const dropped = this.dropBarrelNear(barrel, landing, events);
+      events.push({
+        type: "message",
+        text: t(dropped ? "msg.captureFailed" : "msg.captureFailedBarrelLost", { name: hit.name }),
+      });
       return true;
     }
 
@@ -1672,17 +1724,22 @@ export class Game {
     events.push({ type: "gameOver", reason: this.endReason });
   }
 
-  /** タルを着地点に置く。塞がっていれば近くの空きマスへ転がす */
-  private dropBarrelNear(barrel: Barrel, preferred: Vec2, events: GameEvent[]): void {
+  /**
+   * タルを着地点に置く。塞がっていれば近くの空きマスへ転がす。
+   * 床に残せたらtrue、置き場所が無くて砕けたらfalseを返す(呼び出し側が
+   * 「拾い直せる」と言い切ってよいかの判断に使う)
+   */
+  private dropBarrelNear(barrel: Barrel, preferred: Vec2, events: GameEvent[]): boolean {
     const spot = isFree(this.floor, preferred) ? preferred : this.freeSpotNear(preferred, 2);
     if (!spot) {
       // 置き場所が無ければ壊れたことにする。宙に浮かせるよりは筋が通る
       events.push({ type: "barrelBreak", barrelId: barrel.id, pos: preferred });
       events.push({ type: "message", text: `${BARREL_NAMES[barrel.kind]}は砕けてしまった。` });
-      return;
+      return false;
     }
     barrel.pos = spot;
     this.floor.barrels.push(barrel);
+    return true;
   }
 
   /** 中身入りのタルを開けて、モンスターを仲間として盤面に出す */
@@ -3213,6 +3270,32 @@ export class Game {
     const barrel = createBarrel(this.ids.nextBarrelId(), kind, this.player.pos, speciesId);
     this.player.carrying = barrel;
     return barrel;
+  }
+
+  /**
+   * 空のタルを抱えているあいだ、投げ先のモンスターの入りやすさを返す
+   * (plan/game/barrel-capture-clarity.md)。抱えていない・空のタルでない・
+   * 投げ先にモンスターがいない場合はnull。
+   *
+   * 見込みは「タルを当てた直後のHP」で試算する。空のタルの命中ダメージは
+   * 相手を倒さない(HP1で止まる)ので、低HP種に投げれば実際に高確率で入る。
+   * 現在のHPのまま見せると、この仕様の主目的である低HP種でかえって
+   * 実態と食い違うため。ダメージの乱数・会心は見込みに織り込まない
+   */
+  captureOutlook(): CaptureOutlook | null {
+    const carrying = this.player.carrying;
+    if (!carrying || carrying.kind !== "empty") return null;
+    const hits = this.traceThrow(this.player.pierceReady).hits;
+    const target = hits[hits.length - 1];
+    if (!target || !target.alive || target.kind !== "monster") return null;
+    if (target.speciesId === undefined) return null;
+
+    const expected = Math.max(1, Math.floor(this.barrelThrowDamage() - target.def / 2));
+    const hpAfter = Math.max(1, this.hpOwnerOf(target).hp - expected);
+    const bonus = target.captureBonus ?? 0;
+    const charmBonus = hasEquipEffect(this.player.inventory, "barrelKinship") ? 0.1 : 0;
+    const chance = Math.min(0.9, captureChanceAt(hpAfter, target.maxHp) + bonus + charmBonus);
+    return { name: target.name, tier: captureTier(chance) };
   }
 
   /** 連れている仲間(表示や判定の入口) */

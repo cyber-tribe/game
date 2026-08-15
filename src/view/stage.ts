@@ -341,11 +341,24 @@ export class Stage {
         this.audio.playSfx("explosion");
         return 0.42 * scale;
       },
+      // 吸い込み成功。既存の吸い込み演出はそのままに、澄んだ既存SFXを鳴らす
+      // (plan/game/barrel-capture-clarity.md: 成功と失敗を音だけで区別できるように)
       capture: () => {
         this.audio.playSfx("capture");
         return 0;
       },
-      captureFailed: noop,
+      // 吸い込み失敗。ログを読まなくても失敗と分かるよう、タルを弾き返す
+      // 小さなノックバックと、成功時と対になる鈍い専用SFXを出す
+      captureFailed: (event) => {
+        this.audio.playSfx("captureFailed");
+        const view = this.views.get(event.actorId);
+        if (!view) return 0;
+        const actor = floor.actors.find((a) => a.id === event.actorId);
+        // 飛んできた方向の逆へ弾かれる。踏み込み(lunge)と同じ「行って戻る」動き
+        if (actor) view.lunge(actor.pos.x - event.from.x, actor.pos.y - event.from.y, 0.22, 0.3);
+        view.play("hit", 0.3 * scale);
+        return 0.26 * scale;
+      },
       recruit: noop,
       descend: noop,
       checkpoint: () => {
