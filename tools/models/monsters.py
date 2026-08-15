@@ -74,6 +74,12 @@ def build_purun():
 
 
 def purun_animations():
+    """
+    plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
+    attackにタメ→ツメ(LINEARで鋭く)→行き過ぎ→戻りの緩急を足した。
+    squash & stretch(体積を保った潰し伸ばし)は元から入っている
+    (スライム状の骨・装甲を持たない種族なので規約どおり継続して使う)。
+    """
     lower, upper = "base-mid", "mid-top"
     squash = {"scale": (1.22, 0.72, 1.22)}
     stretch = {"scale": (0.86, 1.28, 0.86)}
@@ -92,16 +98,20 @@ def purun_animations():
             (14, {lower: {"scale": (1.1, 0.85, 1.1)}}),
             (20, {lower: neutral}),
         ]),
+        # タメ(ぐっと縮む)→ ツメ(LINEARで鋭く伸び上がる)→
+        # 行き過ぎ(伸びきった余韻)→ 戻り
         ("attack", [
             (1, {lower: neutral}),
-            (4, {lower: squash}),
-            (9, {lower: {"scale": (0.8, 1.35, 0.8), "loc": (0, 0.06, 0)}, upper: (-18, 0, 0)}),
-            (18, {lower: neutral}),
+            (5, {lower: squash}, {"interp": "LINEAR"}),
+            (8, {lower: {"scale": (0.8, 1.35, 0.8), "loc": (0, 0.06, 0)}, upper: (-18, 0, 0)}),
+            (10, {lower: {"scale": (0.86, 1.26, 0.86), "loc": (0, 0.05, 0)}, upper: (-14, 0, 0)}),
+            (18, {lower: neutral, upper: (0, 0, 0)}),
         ]),
+        # 鋭く潰れて(LINEAR)、ゆっくり戻る
         ("hit", [
-            (1, {lower: neutral}),
-            (4, {lower: {"scale": (1.3, 0.66, 1.3)}, upper: (16, 0, 0)}),
-            (14, {lower: neutral}),
+            (1, {lower: neutral}, {"interp": "LINEAR"}),
+            (3, {lower: {"scale": (1.3, 0.66, 1.3)}, upper: (16, 0, 0)}),
+            (14, {lower: neutral, upper: (0, 0, 0)}),
         ]),
         ("die", [
             (1, {lower: neutral}),
@@ -266,16 +276,25 @@ def build_gajiri():
 
 
 def gajiri_animations():
+    """
+    plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
+    タメ・ツメ(LINEAR補間)・尻尾の遅れ追従(二次揺れ)を足してある。
+    尻尾(t1)は胴(neck)より3フレーム遅れて同じ揺れを追いかける。
+    """
     neck, snout = "chest-neck", "neck-snout"
     t1, t2 = "hip-tail1", "tail1-tail2"
     fL, fR = "chest-hipF.L", "chest-hipF.R"
     bL, bR = "hip-hipB.L", "hip-hipB.R"
     return [
+        # 尻尾が首より3フレーム遅れて揺れる(二次揺れ)
         ("idle", [
-            (1, {t1: (0, 0, 0), neck: (0, 0, 0)}),
-            (14, {t1: (0, 0, 16), neck: (-4, 0, 0), snout: (5, 0, 0)}),
-            (28, {t1: (0, 0, -16), neck: (0, 0, 0)}),
-            (42, {t1: (0, 0, 0), neck: (0, 0, 0)}),
+            (1, {neck: (0, 0, 0), t1: (0, 0, 0)}),
+            (14, {neck: (-4, 0, 0), snout: (5, 0, 0)}),
+            (17, {t1: (0, 0, 16)}, {"partial": True}),
+            (28, {neck: (0, 0, 0)}),
+            (31, {t1: (0, 0, -16)}, {"partial": True}),
+            (42, {neck: (0, 0, 0)}),
+            (45, {t1: (0, 0, 0)}, {"partial": True}),
         ]),
         ("walk", [
             (1, {fL: (30, 0, 0), fR: (-30, 0, 0), bL: (-28, 0, 0), bR: (28, 0, 0), t1: (0, 0, 12)}),
@@ -284,22 +303,28 @@ def gajiri_animations():
             (16, {fL: (0, 0, 0), fR: (0, 0, 0), bL: (0, 0, 0), bR: (0, 0, 0), t1: (0, 0, 0)}),
             (21, {fL: (30, 0, 0), fR: (-30, 0, 0), bL: (-28, 0, 0), bR: (28, 0, 0), t1: (0, 0, 12)}),
         ]),
+        # タメ(首を引く)→ ツメ(LINEARで鋭く噛みつく)→ 行き過ぎ → 戻り
         ("attack", [
             (1, {neck: (0, 0, 0), snout: (0, 0, 0)}),
-            (4, {neck: (22, 0, 0), snout: (14, 0, 0), t2: (0, 0, 20)}),
-            (9, {neck: (-34, 0, 0), snout: (-20, 0, 0), t2: (0, 0, -14)}),
+            (4, {neck: (22, 0, 0), snout: (14, 0, 0), t2: (0, 0, 20)}, {"interp": "LINEAR"}),
+            (7, {neck: (-34, 0, 0), snout: (-20, 0, 0), t2: (0, 0, -14)}),
+            (9, {neck: (-26, 0, 0), snout: (-15, 0, 0), t2: (0, 0, -10)}),
             (18, {neck: (0, 0, 0), snout: (0, 0, 0), t2: (0, 0, 0)}),
         ]),
+        # 鋭く入って(LINEAR)、ゆっくり戻る
         ("hit", [
-            (1, {neck: (0, 0, 0)}),
-            (4, {neck: (26, 0, 0), t1: (0, 0, 24), snout: (12, 0, 0)}),
+            (1, {neck: (0, 0, 0)}, {"interp": "LINEAR"}),
+            (3, {neck: (26, 0, 0), t1: (0, 0, 24), snout: (12, 0, 0)}),
             (14, {neck: (0, 0, 0), t1: (0, 0, 0)}),
         ]),
+        # 倒れの初動を鋭く、接地後に一度だけ小さく跳ね返る
         ("die", [
-            (1, {neck: (0, 0, 0)}),
-            (9, {neck: (30, 0, 0), fL: (-50, 0, 0), fR: (-50, 0, 0)}),
-            (24, {neck: (10, 0, 0), fL: (-90, 0, 0), fR: (-90, 0, 0),
+            (1, {neck: (0, 0, 0)}, {"interp": "LINEAR"}),
+            (7, {neck: (30, 0, 0), fL: (-50, 0, 0), fR: (-50, 0, 0)}),
+            (20, {neck: (10, 0, 0), fL: (-90, 0, 0), fR: (-90, 0, 0),
                   bL: (-70, 0, 0), bR: (-70, 0, 0), t1: (0, 0, 40)}),
+            (24, {neck: (14, 0, 0), fL: (-82, 0, 0), fR: (-82, 0, 0),
+                  bL: (-64, 0, 0), bR: (-64, 0, 0), t1: (0, 0, 36)}),
         ]),
     ]
 
@@ -460,14 +485,21 @@ def build_tsubute():
 
 
 def tsubute_animations():
+    """
+    plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
+    タメ・ツメ(LINEAR補間)・腕の遅れ追従(二次揺れ)を足してある。
+    """
     head = "chest-head"
     armL, armR = "chest-armF.L", "chest-armF.R"
     legL, legR = "hip-kneeB.L", "hip-kneeB.R"
     return [
+        # 腕が頭より2フレーム遅れて追従する(二次揺れ)
         ("idle", [
-            (1, {head: (0, 0, 0)}),
-            (18, {head: (-5, 0, 0), armL: (-6, 0, 0), armR: (-6, 0, 0)}),
+            (1, {head: (0, 0, 0), armL: (0, 0, 0), armR: (0, 0, 0)}),
+            (18, {head: (-5, 0, 0)}),
+            (20, {armL: (-6, 0, 0), armR: (-6, 0, 0)}, {"partial": True}),
             (36, {head: (0, 0, 0)}),
+            (38, {armL: (0, 0, 0), armR: (0, 0, 0)}, {"partial": True}),
         ]),
         ("walk", [
             (1, {legL: (0, 0, 0), legR: (0, 0, 0), head: (0, 0, 0)}),
@@ -476,23 +508,28 @@ def tsubute_animations():
                   armL: (-30, 0, 0), armR: (-30, 0, 0)}),
             (16, {legL: (0, 0, 0), legR: (0, 0, 0), head: (0, 0, 0)}),
         ]),
-        # 振りかぶって石を投げる
+        # タメ(振りかぶる)→ ツメ(LINEARで鋭く投げる)→ 行き過ぎ → 戻り
         ("attack", [
             (1, {armL: (0, 0, 0), head: (0, 0, 0)}),
-            (5, {armL: (-95, 0, -25), head: (-8, 0, 0)}),
-            (10, {armL: (48, 0, 15), head: (12, 0, 0)}),
+            (6, {armL: (-98, 0, -27), head: (-9, 0, 0)}, {"interp": "LINEAR"}),
+            (9, {armL: (52, 0, 16), head: (13, 0, 0)}),
+            (11, {armL: (42, 0, 13), head: (10, 0, 0)}),
             (20, {armL: (0, 0, 0), head: (0, 0, 0)}),
         ]),
+        # 鋭く入って(LINEAR)、ゆっくり戻る
         ("hit", [
-            (1, {head: (0, 0, 0)}),
-            (4, {head: (22, 0, 0), armL: (-28, 0, 20), armR: (-28, 0, -20)}),
+            (1, {head: (0, 0, 0)}, {"interp": "LINEAR"}),
+            (3, {head: (22, 0, 0), armL: (-28, 0, 20), armR: (-28, 0, -20)}),
             (14, {head: (0, 0, 0)}),
         ]),
+        # 倒れの初動を鋭く、接地後に一度だけ小さく跳ね返る
         ("die", [
-            (1, {head: (0, 0, 0)}),
-            (10, {head: (26, 0, 0), legL: (-40, 0, 0), legR: (-40, 0, 0)}),
-            (24, {head: (40, 0, 0), legL: (-80, 0, 0), legR: (-80, 0, 0),
+            (1, {head: (0, 0, 0)}, {"interp": "LINEAR"}),
+            (9, {head: (26, 0, 0), legL: (-40, 0, 0), legR: (-40, 0, 0)}),
+            (22, {head: (40, 0, 0), legL: (-80, 0, 0), legR: (-80, 0, 0),
                   armL: (-70, 0, 30), armR: (-70, 0, -30)}),
+            (26, {head: (36, 0, 0), legL: (-74, 0, 0), legR: (-74, 0, 0),
+                  armL: (-64, 0, 26), armR: (-64, 0, -26)}),
         ]),
     ]
 
@@ -714,44 +751,60 @@ def build_honegarami():
 
 
 def honegarami_animations():
+    """
+    plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
+    タメ・ツメ(LINEAR補間)・頭の遅れ追従(二次揺れ)・歩行の接地沈みを
+    足してある。
+    """
     hipc, neck = "hip-chest", "neck-head"
     armL, armR = "chest-shoulder.L", "chest-shoulder.R"
     foreR = "shoulder.R-elbow.R"
     legL, legR = "hip-thigh.L", "hip-thigh.R"
     shinL, shinR = "thigh.L-knee.L", "thigh.R-knee.R"
     return [
+        # 頭が胴より2フレーム遅れて追従する(二次揺れ)
         ("idle", [
-            (1, {hipc: (0, 0, 0), armL: (0, 0, 5), armR: (0, 0, -5)}),
-            (20, {hipc: (2, 0, 1.5), neck: (-3, 0, 0), armL: (-4, 0, 8), armR: (-4, 0, -8)}),
+            (1, {hipc: (0, 0, 0), armL: (0, 0, 5), armR: (0, 0, -5), neck: (0, 0, 0)}),
+            (20, {hipc: (2, 0, 1.5), armL: (-4, 0, 8), armR: (-4, 0, -8)}),
+            (22, {neck: (-3, 0, 0)}, {"partial": True}),
             (40, {hipc: (0, 0, 0), armL: (0, 0, 5), armR: (0, 0, -5)}),
+            (42, {neck: (0, 0, 0)}, {"partial": True}),
         ]),
+        # 接地の瞬間に胴をわずかに沈める
         ("walk", [
             (1, {legL: (24, 0, 0), legR: (-24, 0, 0), shinL: (-10, 0, 0), shinR: (8, 0, 0),
                  armL: (-20, 0, 6), armR: (20, 0, -6)}),
-            (9, {legL: (0, 0, 0), legR: (0, 0, 0), armL: (0, 0, 6), armR: (0, 0, -6)}),
+            (9, {legL: (0, 0, 0), legR: (0, 0, 0), armL: (0, 0, 6), armR: (0, 0, -6),
+                 hipc: {"loc": (0, -0.010, 0)}}),
             (17, {legL: (-24, 0, 0), legR: (24, 0, 0), shinL: (8, 0, 0), shinR: (-10, 0, 0),
-                  armL: (20, 0, 6), armR: (-20, 0, -6)}),
-            (25, {legL: (0, 0, 0), legR: (0, 0, 0), armL: (0, 0, 6), armR: (0, 0, -6)}),
+                  armL: (20, 0, 6), armR: (-20, 0, -6), hipc: {"loc": (0, 0, 0)}}),
+            (25, {legL: (0, 0, 0), legR: (0, 0, 0), armL: (0, 0, 6), armR: (0, 0, -6),
+                  hipc: {"loc": (0, -0.010, 0)}}),
             (33, {legL: (24, 0, 0), legR: (-24, 0, 0), shinL: (-10, 0, 0), shinR: (8, 0, 0),
-                  armL: (-20, 0, 6), armR: (20, 0, -6)}),
+                  armL: (-20, 0, 6), armR: (20, 0, -6), hipc: {"loc": (0, 0, 0)}}),
         ]),
+        # タメ→ツメ(LINEARで鋭く)→行き過ぎ→戻り
         ("attack", [
             (1, {armR: (0, 0, -5), foreR: (0, 0, 0), hipc: (0, 0, 0)}),
-            (6, {armR: (-120, 0, -18), foreR: (-30, 0, 0), hipc: (-8, 0, -10)}),
-            (11, {armR: (62, 0, 12), foreR: (8, 0, 0), hipc: (14, 0, 12), neck: (-8, 0, 0)}),
-            (22, {armR: (0, 0, -5), foreR: (0, 0, 0), hipc: (0, 0, 0)}),
+            (7, {armR: (-124, 0, -20), foreR: (-32, 0, 0), hipc: (-9, 0, -11)}, {"interp": "LINEAR"}),
+            (10, {armR: (66, 0, 13), foreR: (9, 0, 0), hipc: (15, 0, 13), neck: (-8, 0, 0)}),
+            (12, {armR: (56, 0, 11), foreR: (7, 0, 0), hipc: (12, 0, 10), neck: (-6, 0, 0)}),
+            (22, {armR: (0, 0, -5), foreR: (0, 0, 0), hipc: (0, 0, 0), neck: (0, 0, 0)}),
         ]),
+        # 鋭く入って(LINEAR)、ゆっくり戻る
         ("hit", [
-            (1, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
-            (4, {hipc: (-18, 0, 0), neck: (-16, 0, 0), armL: (-22, 0, 24), armR: (-22, 0, -24)}),
+            (1, {hipc: (0, 0, 0), neck: (0, 0, 0)}, {"interp": "LINEAR"}),
+            (3, {hipc: (-18, 0, 0), neck: (-16, 0, 0), armL: (-22, 0, 24), armR: (-22, 0, -24)}),
             (15, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
         ]),
-        # 崩れ落ちるように倒れる
+        # 崩れ落ちるように倒れ、接地後に一度だけ小さく跳ね返る
         ("die", [
-            (1, {hipc: (0, 0, 0)}),
-            (8, {hipc: (-16, 0, 6), neck: (-24, 0, 0), armL: (-40, 0, 40), armR: (-40, 0, -40)}),
-            (26, {hipc: (-88, 0, 18), neck: (-40, 0, 0), legL: (56, 0, 0), legR: (48, 0, 0),
+            (1, {hipc: (0, 0, 0)}, {"interp": "LINEAR"}),
+            (7, {hipc: (-16, 0, 6), neck: (-24, 0, 0), armL: (-40, 0, 40), armR: (-40, 0, -40)}),
+            (20, {hipc: (-88, 0, 18), neck: (-40, 0, 0), legL: (56, 0, 0), legR: (48, 0, 0),
                   armL: (-80, 0, 55), armR: (-80, 0, -55)}),
+            (24, {hipc: (-82, 0, 16), neck: (-36, 0, 0), legL: (52, 0, 0), legR: (44, 0, 0),
+                  armL: (-74, 0, 50), armR: (-74, 0, -50)}),
         ]),
     ]
 
