@@ -831,6 +831,47 @@
         border: 1px solid var(--edge);
         border-radius: 12px;
       }
+      /*
+       * ------------------------------------------------ 建物の内装
+       * plan/game/village-interiors.md: 屋内系の建物に入っているあいだは、
+       * 背景がダンジョンではなくその建物の内装(3D)になる。内装と住人の
+       * 村人を隠しきらないよう、拠点画面のパネルを画面の左へ寄せ、右側は
+       * 素通しにする(未決事項「パネルを寄せる側」への回答: 左)。
+       *
+       * 3Dのカメラ側も同じぶんだけ視錐台を右へずらしている
+       * (src/view/villageInterior.ts の INTERIOR_VIEW_SHIFT)。片方だけ
+       * 変えると内装がパネルの下に潜るので、両方をセットで直すこと。
+       *
+       * タッチのゾーン(plan/game/archive/mobile-layout-redesign.md)との
+       * 関係: 拠点画面が開いているあいだ画面に出ている触UIは、左下の
+       * 仮想パッド(カーソル移動)・右下の決定/もどる・右上の「≡」だけ。
+       * パネルは全画面(96vw)から左半分に縮むので、重なりは従来より減る。
+       */
+      #ui.village-interior #town {
+        justify-content: flex-start;
+        /* 右側(内装側)へ向かって透けさせる。パネルの下は従来どおり暗く落とす */
+        background: linear-gradient(
+          to right,
+          rgba(4, 5, 12, 0.92) 0%,
+          rgba(4, 5, 12, 0.88) 46%,
+          rgba(4, 5, 12, 0.45) 58%,
+          rgba(4, 5, 12, 0) 70%
+        );
+      }
+      #ui.village-interior .town-box {
+        width: min(660px, 52vw);
+        margin-left: min(3vw, 26px);
+        padding: 18px 22px 16px;
+        background: rgba(8, 10, 22, 0.86);
+      }
+      /* 触UIでは列を1〜2列しか持たない建物ばかりなので、少しだけ広く取り、
+         余白を詰めて低い画面でも「もぐる/とじる」まで届くようにする */
+      @media (pointer: coarse) {
+        #ui.village-interior .town-box {
+          width: min(660px, 56vw);
+          padding: 12px 14px 10px;
+        }
+      }
       .town-box h2 {
         margin: 0 0 6px; font-size: 22px; letter-spacing: 0.12em; color: #7fd6ff;
       }
