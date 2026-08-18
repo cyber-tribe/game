@@ -54,31 +54,42 @@ const VERTEX_SHADER = /* glsl */ `
   void main() {
     vColor = pColor;
     float age = uTime - spawnTime;
-    if (age < 0.0 || age > lifetime || lifetime <= 0.0) {
-      // 未発火・寿命切れの粒は画面外へ飛ばして隠す(頂点シェーダーにdiscardは無い)
-      gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
-      gl_PointSize = 0.0;
-      vAlpha = 0.0;
-      return;
-    }
-    float lifeT = clamp(age / lifetime, 0.0, 1.0);
-    vec3 pos = position + velocity * age;
-    pos.y += -0.5 * uGravity * age * age;
+    // 生きている粒か(発火済み・寿命内)。分岐ではなく乗算のマスクにする。
+    // 実機(iOSのMetal経由)ではシェーダーが fast-math 相当で最適化され、
+    // 分岐の片側で作られた inf/NaN が「通らないはずの側」へ漏れて、寿命切れの
+    // 粒が巨大な光の円や色付きの粒として描かれることがある(issue #551)。
+    // そのため (1) どの経路でも inf/NaN を作らない(除算は max でガード)、
+    // (2) 隠すかどうかはサイズ・不透明度への乗算で決める、の2本立てにする
+    float alive = step(0.0, age) * step(age, lifetime) * step(1e-4, lifetime);
+    float lifeT = clamp(age / max(lifetime, 1e-3), 0.0, 1.0);
+    float clampedAge = min(age, lifetime);
+    vec3 pos = position + velocity * clampedAge;
+    pos.y += -0.5 * uGravity * clampedAge * clampedAge;
     vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
-    gl_Position = projectionMatrix * mvPosition;
-    gl_PointSize = uBaseSize * sizeStart * (1.0 - lifeT * 0.4) * (300.0 / -mvPosition.z);
-    vAlpha = 1.0 - lifeT;
+    gl_Position = mix(vec4(0.0, 0.0, 2.0, 1.0), projectionMatrix * mvPosition, alive);
+    // 距離による拡大は近すぎる粒で発散する(-z が 0 に近づくと除算が暴れる)ので、
+    // 分母と結果の両方を抑える。上限160pxで、画面を覆う巨大円は物理的に出せない。
+    //
+    // 係数は 6.0(以前は 300.0)。カメラの標準距離 11.5 では uBaseSize の約半分の
+    // 画素サイズになる。300 だと標準距離で uBaseSize の26倍(2000px超)を要求して
+    // 全粒が上限に張り付き、火花のはずが画面の1/3を覆う光球になっていた
+    // (issue #551。計画書の未決事項「サイズの最終値はブルーム導入後の見た目で
+    // 詰める」をここで確定させた)
+    float dist = max(-mvPosition.z, 0.5);
+    gl_PointSize = clamp(uBaseSize * sizeStart * (1.0 - lifeT * 0.4) * (6.0 / dist), 0.0, 160.0) * alive;
+    vAlpha = (1.0 - lifeT) * alive;
   }
 `;
 
 const FRAGMENT_SHADER = /* glsl */ `
   uniform sampler2D map;
+  uniform float uAlphaScale;
   varying float vAlpha;
   varying vec3 vColor;
 
   void main() {
     vec4 tex = texture2D(map, gl_PointCoord);
-    float a = tex.a * vAlpha;
+    float a = tex.a * vAlpha * uAlphaScale;
     if (a < 0.01) discard;
     gl_FragColor = vec4(vColor * tex.rgb, a);
   }
@@ -89,6 +100,13 @@ interface PoolConfig {
   baseSize: number;
   blending: THREE.Blending;
   depthWrite: boolean;
+  /**
+   * 1粒あたりの不透明度の上限。加算合成のプールは粒が重なると輝度が積み上がり、
+   * ブルーム(renderer.tsのUnrealBloomPass、閾値0.9)がその明部を巨大な光の円に
+   * 膨らませてしまう(issue #551)。粒単体の見た目を保ちつつ、重なっても
+   * 閾値を大きく超えないところまで下げるための係数
+   */
+  alphaScale: number;
 }
 
 /** 1種別ぶんの固定長パーティクルプール */
@@ -108,7 +126,11 @@ class ParticlePool {
     this.geometry = new THREE.BufferGeometry();
     this.positionAttr = new THREE.BufferAttribute(new Float32Array(CAPACITY * 3), 3);
     this.velocityAttr = new THREE.BufferAttribute(new Float32Array(CAPACITY * 3), 3);
-    this.spawnTimeAttr = new THREE.BufferAttribute(new Float32Array(CAPACITY).fill(-1e9), 1);
+    // 未発火スロットは spawnTime=0 / lifetime=0。シェーダーの alive マスクが
+    // lifetime<1e-4 を死んだ粒として扱う。以前は spawnTime を -1e9 にしていたが、
+    // 桁の大きい番兵値は実機の縮小精度(fp16相当)で inf に化けて
+    // 計算全体を汚しうるので、小さい値で成立する形にしてある(issue #551)
+    this.spawnTimeAttr = new THREE.BufferAttribute(new Float32Array(CAPACITY), 1);
     this.lifetimeAttr = new THREE.BufferAttribute(new Float32Array(CAPACITY), 1);
     this.sizeAttr = new THREE.BufferAttribute(new Float32Array(CAPACITY).fill(1), 1);
     this.colorAttr = new THREE.BufferAttribute(new Float32Array(CAPACITY * 3).fill(1), 3);
@@ -129,6 +151,7 @@ class ParticlePool {
         uTime: { value: 0 },
         uGravity: { value: config.gravity },
         uBaseSize: { value: config.baseSize },
+        uAlphaScale: { value: config.alphaScale },
         map: { value: getDotTexture() },
       },
       transparent: true,
@@ -202,18 +225,22 @@ export class ParticleSystem {
       baseSize: 90,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
+      alphaScale: 0.5,
     });
     this.burst = new ParticlePool({
       gravity: 1.6,
       baseSize: 110,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
+      alphaScale: 0.5,
     });
     this.dust = new ParticlePool({
       gravity: 0.6,
       baseSize: 70,
       blending: THREE.NormalBlending,
       depthWrite: false,
+      // 砂埃は通常合成で積み上がらないため下げない
+      alphaScale: 1,
     });
     this.root.add(this.spark.points, this.burst.points, this.dust.points);
     scene.add(this.root);
