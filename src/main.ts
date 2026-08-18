@@ -13,6 +13,7 @@ import { Renderer } from "./view/renderer";
 import { GalleryView } from "./view/gallery";
 import { Stage } from "./view/stage";
 import { VILLAGE_BUILDINGS, VillageView } from "./view/village";
+import { VillageInteriorView, interiorForBuilding } from "./view/villageInterior";
 import { AudioPlayer } from "./audio/player";
 import { ja as jaDict } from "./i18n/ja";
 import { setLocale as applyLocaleDict, t } from "./i18n";
@@ -189,6 +190,14 @@ class App {
   private readonly villageHintEl: HTMLElement;
   /** 村なかを歩いている最中か。trueのあいだはダンジョン側のsubmitを止め、村の移動・確定だけを見る */
   private villageActive = false;
+  /**
+   * 建物の中(plan/game/village-interiors.md)。屋内系の建物に入っている
+   * あいだ、ダンジョンの代わりにその建物の内装シーンを描く。
+   * `TownScreen`はその上に、画面の左へ寄せたパネルとして重なる
+   */
+  private readonly interior = new VillageInteriorView(this.assets);
+  /** 今入っている建物のid。屋外系の建物・システムメニューではnull */
+  private interiorId: string | null = null;
 
   private game!: Game;
   private save: SaveData;
@@ -354,6 +363,10 @@ class App {
     this.setVillageActive(true);
     // 衣装(plan/game/archive/costumes.md): 村なかの自分の姿にも同じ色替えを反映する
     this.village.setCostumeTint(costumeById(this.save.equippedCostume).tint ?? null);
+    // 屋外の村人(plan/game/village-interiors.md): おたまは第二章の救出後に
+    // だけ広場に現れる。章そのものはdeepest/storyClearedから導出される
+    // (entities/story.ts)ので、新しいセーブ項目は増やさない
+    this.village.setStoryChapter(storyChapter(this.save.deepest, this.save.storyCleared));
     this.village.reset();
   }
 
@@ -391,6 +404,10 @@ class App {
     onClose?: () => void,
   ): void {
     this.setVillageActive(false);
+    // 建物の中(plan/game/village-interiors.md): 直前に入っていた内装は必ず
+    // 畳んでから開く。内装を持つ建物へ入った場合だけ、呼び出し元
+    // (`tryEnterVillageBuilding`)がこのあと`enterInterior`で立て直す
+    this.exitInterior();
     this.town.show(
       this.save,
       (carry, storage, startDepth, trainingFocus, bringAllyUids, difficulty, dungeonId) => {
@@ -525,9 +542,33 @@ class App {
       building.id === "npcSquare" && !isYoimatsuri(todayKey())
         ? building.columns.filter((c) => c !== 17)
         : building.columns;
-    this.openTownScreen(columns, building.label, columns[0] ?? 0, columns.length === 0, () =>
-      this.setVillageActive(true),
-    );
+    this.openTownScreen(columns, building.label, columns[0] ?? 0, columns.length === 0, () => {
+      this.exitInterior();
+      this.setVillageActive(true);
+    });
+    // 建物の中(plan/game/village-interiors.md): 屋内系の7件は、メニューの
+    // 背景がダンジョンではなくその建物の内装になる(屋外系は従来どおり)。
+    // openTownScreenが内装を畳んだあとに立てるので、この順序は入れ替えない
+    this.enterInterior(building.id);
+  }
+
+  /**
+   * 建物の中(plan/game/village-interiors.md)。内装を持つ建物なら内装
+   * シーンへ切り替える。屋外系(旅の看板・依頼板・広場・洞窟の入口)は
+   * 内装を持たないので、従来どおりダンジョンを背景にしたメニューになる
+   */
+  private enterInterior(buildingId: string): void {
+    if (!interiorForBuilding(buildingId)) return;
+    this.interior.enter(buildingId);
+    this.interiorId = buildingId;
+  }
+
+  /** 建物を出る(村なか歩きへ戻る/出発する)。内装の描画とレイアウトを畳む */
+  private exitInterior(): void {
+    if (this.interiorId === null) return;
+    this.interiorId = null;
+    this.interior.leave();
+    this.uiRoot.classList.remove("village-interior");
   }
 
   /**
@@ -866,6 +907,29 @@ class App {
     this.villageHintEl.style.display = building ? "block" : "none";
   }
 
+  /**
+   * 建物の中(plan/game/village-interiors.md)。図鑑ギャラリー・村なか歩きと
+   * 同じく、`Renderer`本体(ダンジョン用のシーン・カメラ)には触れず、
+   * 生の`renderer.renderer`にだけ相乗りして内装のシーンを描く
+   */
+  private renderInterior(dt: number): void {
+    this.interior.setAspect(this.renderer.camera.aspect);
+    this.interior.update(dt);
+    this.renderer.renderer.render(this.interior.scene, this.interior.camera);
+  }
+
+  /**
+   * 図鑑ギャラリーを閉じたあとの後片付け。ギャラリーから戻る先が
+   * ダンジョンとは限らない(建物の内装へ戻ることもある)ので、
+   * 描画の分岐から切り出してある
+   */
+  private closeGalleryView(): void {
+    if (!this.galleryWasOpen) return;
+    this.uiRoot.classList.remove("gallery-mode");
+    this.galleryInfoEl.style.display = "none";
+    this.gallery.clear();
+  }
+
   // ------------------------------------------------------------ ループ
 
   private loop = (): void => {
@@ -897,6 +961,13 @@ class App {
       this.showRecruitShowcase(actorId, name);
     }
 
+    // 建物の中(plan/game/village-interiors.md): 拠点画面が閉じたのに内装が
+    // 残ることが無いようにする(Escapeで村へ戻った場合はonCloseが、
+    // 「もぐる」で出発した場合はここが畳む)
+    if (this.interiorId !== null && !this.town.isOpen) this.exitInterior();
+    // 内装が見えているあいだだけ、拠点画面のパネルを画面の左へ寄せる(CSS)
+    this.uiRoot.classList.toggle("village-interior", this.interiorId !== null);
+
     const gallerySpeciesId = this.town.gallerySpeciesId;
     if (this.recruitShowcaseActive) {
       this.renderRecruitShowcase(dt);
@@ -904,12 +975,11 @@ class App {
       this.renderGallery(dt, gallerySpeciesId);
     } else if (this.villageActive) {
       this.renderVillage();
+    } else if (this.interiorId !== null) {
+      this.closeGalleryView();
+      this.renderInterior(dt);
     } else {
-      if (this.galleryWasOpen) {
-        this.uiRoot.classList.remove("gallery-mode");
-        this.galleryInfoEl.style.display = "none";
-        this.gallery.clear();
-      }
+      this.closeGalleryView();
       this.stage.update(dt, this.elapsed);
       // 松明はプレイヤーの見た目の位置に付いてくる。マス単位の座標ではなく
       // 補間中の位置を使わないと、光だけが先に動いてしまう

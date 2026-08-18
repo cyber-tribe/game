@@ -1,5 +1,7 @@
 import * as THREE from "three";
 import { type Dir, dirDelta } from "../core/grid";
+import type { StoryChapter } from "../entities/story";
+import { type VillageNpcId, visibleVillageNpcs } from "../entities/village";
 import { ActorView } from "./actorView";
 import type { Assets } from "./assets";
 
@@ -99,6 +101,49 @@ export const VILLAGE_BUILDINGS: readonly VillageBuilding[] = [
   // 新設: ガルドの家(衣装の着替え)
   { id: "garudoHouse", label: "ガルドの家", columns: [15], role: "衣装", x: -8, z: -3, radius: 0.9, shape: "hut", color: 0x3a6a7a },
 ];
+
+/**
+ * 屋外に立っている村人(plan/game/village-interiors.md)。屋内系の建物は
+ * それぞれの内装(`src/view/villageInterior.ts`)に住人が立つが、屋外系
+ * (依頼板・広場)には建物の中が無いので、村マップへ直接立たせて村の
+ * にぎわいを兼ねさせる。
+ *
+ * 当たり判定は持たせない(建物と違い、通り抜けられて困るものではないし、
+ * 押し出しの対象が増えるほど村なか歩きの手触りが硬くなる)。代わりに、
+ * 建物の近接判定(`VILLAGE_INTERACT_PADDING`)の外側に立たせて、建物へ
+ * 入る位置と重ならないようにしてある。
+ */
+export interface OutdoorVillager {
+  /** `entities/village.ts`の`VillageNpcId`。出現条件(章)をそこから引く */
+  npcId: VillageNpcId;
+  /** `src/modelList.ts`の`VILLAGER_MODELS`のモデル名 */
+  model: string;
+  x: number;
+  z: number;
+  facing: Dir;
+}
+
+export const OUTDOOR_VILLAGERS: readonly OutdoorVillager[] = [
+  // オトネは依頼板(questBoard)のそば
+  { npcId: "otone", model: "otone", x: -6.6, z: -0.9, facing: 3 },
+  // ポチは村の広場(npcSquare)。焚き火のほうを向いてしゃがみ込んでいる位置
+  { npcId: "pochi", model: "pochi", x: 1.7, z: 0.5, facing: 7 },
+  // おたまも村の広場。第二章の救出後にだけ現れる(下のoutdoorVillagers)
+  { npcId: "otama", model: "otama", x: -1.7, z: 0.5, facing: 1 },
+];
+
+/**
+ * その章で村マップに見えている屋外の村人。
+ *
+ * おたまの「第二章の救出後に現れる」は`entities/village.ts`の
+ * `VILLAGE_NPCS`が既に`appearsFromChapter: 2`として持っているので、
+ * 新しいフラグは作らずそちらへ委ねる(拠点画面の「NPCと話す」列と
+ * 出現条件が食い違わないようにするため)。
+ */
+export function outdoorVillagers(chapter: StoryChapter): readonly OutdoorVillager[] {
+  const visible = new Set(visibleVillageNpcs(chapter).map((npc) => npc.id));
+  return OUTDOOR_VILLAGERS.filter((villager) => visible.has(villager.npcId));
+}
 
 function clamp(v: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, v));
@@ -253,6 +298,14 @@ export class VillageView {
   /** 衣装の色替え(plan/game/archive/costumes.md)。モデル生成前に指定されたぶんも覚えておく */
   private costumeTint: readonly [number, number, number] | null = null;
   private pos: VillagePos = { ...VILLAGE_PLAYER_START };
+  /**
+   * 屋外に立っている村人(plan/game/village-interiors.md)。モデルは
+   * 起動時には読まれない(`essentialModelNames`に入っていない)ので、
+   * 図鑑ギャラリーと同じく毎フレーム様子を見て、届いた回に1度だけ作る
+   */
+  private readonly villagerViews = new Map<VillageNpcId, ActorView>();
+  /** 章立て(plan/game/archive/story-chapters.md)。おたまの出現条件に使う */
+  private chapter: StoryChapter = 0;
 
   constructor(private readonly assets: Assets) {
     this.scene.background = new THREE.Color(0x0c1420);
@@ -288,6 +341,15 @@ export class VillageView {
     this.updateCamera();
   }
 
+  /**
+   * 章立て(plan/game/archive/story-chapters.md)を伝える。おたまは第二章の
+   * 救出後にだけ広場に現れる(`outdoorVillagers`)ので、拠点へ戻るたびに
+   * 今の章を渡してもらう
+   */
+  setStoryChapter(chapter: StoryChapter): void {
+    this.chapter = chapter;
+  }
+
   /** 拠点へ戻るたび(showTown())に、村の中の立ち位置を出発点へ戻す */
   reset(): void {
     this.pos = { ...VILLAGE_PLAYER_START };
@@ -321,6 +383,32 @@ export class VillageView {
     this.playerMesh.visible = false;
   }
 
+  /**
+   * 今の章で見えているはずの屋外の村人のうち、モデルが届いていて
+   * まだ立っていないものを立たせる。`ensurePlayerView`と同じ考え方
+   */
+  private ensureVillagers(dt: number): void {
+    for (const villager of outdoorVillagers(this.chapter)) {
+      let view = this.villagerViews.get(villager.npcId);
+      if (!view) {
+        if (!this.assets.has(villager.model)) {
+          this.assets.loadInBackground([villager.model]);
+          continue;
+        }
+        view = new ActorView(
+          this.assets.instantiate(villager.model),
+          { x: villager.x, y: villager.z },
+          villager.facing,
+        );
+        this.villagerViews.set(villager.npcId, view);
+        this.scene.add(view.root);
+      }
+      // 村人は歩かない。待機モーションだけを回し続ける
+      view.play("idle");
+      view.update(dt);
+    }
+  }
+
   get playerPos(): VillagePos {
     return this.pos;
   }
@@ -332,6 +420,7 @@ export class VillageView {
     this.playerMesh.position.set(this.pos.x, 0.75, this.pos.z);
     this.updateCamera();
 
+    this.ensureVillagers(dt);
     this.ensurePlayerView();
     const view = this.playerView;
     if (!view) return;

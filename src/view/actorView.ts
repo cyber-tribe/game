@@ -3,9 +3,20 @@ import type { Instance } from "./assets";
 import { TILE } from "./renderer";
 import { type Dir, type Vec2, dirDelta } from "../core/grid";
 
-export type ClipName = "idle" | "walk" | "attack" | "hit" | "die";
+/**
+ * `talk`だけは村人専用(`src/modelList.ts`の`VILLAGER_CLIPS`)。村人は
+ * 戦わないのでidle/talkの2本しか持たず、逆にモンスター・主人公はtalkを
+ * 持たない。`play()`はクリップが無ければ黙って何もしないので、どちらの
+ * モデルへ渡しても壊れない
+ */
+export type ClipName = "idle" | "walk" | "attack" | "hit" | "die" | "talk";
 
-const ONE_SHOT: ReadonlySet<ClipName> = new Set(["attack", "hit", "die"]);
+/**
+ * 一度きり再生して`idle`へ戻るクリップ。`talk`をここに入れてあるのは、
+ * 建物に入った一拍だけ村人が応える演出(plan/game/village-interiors.md)の
+ * ためで、話し続けさせたいわけではないから
+ */
+const ONE_SHOT: ReadonlySet<ClipName> = new Set(["attack", "hit", "die", "talk"]);
 
 /**
  * 接地影(ブロブシャドウ、plan/game/archive/rim-light-and-contact-shadow.md)。
