@@ -94,6 +94,12 @@ const readHud = (page) =>
       hp: app.game.player.hp,
       status: app.game.status,
       allies: app.game.allyList.length,
+      // ターン数(issue #396)。足踏み・モンスターの押し出し・空振り攻撃は
+      // ターンを消費するのに位置もHPも変えないため、これが無いと
+      // 「ゲームは入力に応えて進んでいる」のに停滞に見えて誤検知する。
+      // 逆に、入力が届かない本物の進行不能(モーダルが開いたまま・
+      // 再生ロックが解けない等)ではターンも止まるので、検知は残る
+      turn: app.game.turnCount,
     };
   });
 
@@ -233,7 +239,18 @@ async function runSession(browser, index) {
         // 別の場面になっていることがあり、それを頼りに調べると
         // まったく無関係な状況を追いかけることになる(#396)
         const atDetection = await captureDetectionState(page, hud);
-        record("softlock-suspected", `連続${SOFTLOCK_TURNS}ターンHUD状態が変化しない`, {
+        // 入力を遮っているものがあればdetailに含める(issue #396)。detailは
+        // フィンガープリントの材料なので、原因の違う検知が1つのIssueに
+        // 積み重ならず、モーダル起因・ロック起因・原因不明で別々に起票される
+        const blocked = atDetection?.blockedBy ?? {};
+        const cause = blocked.anyModalOpen
+          ? "(モーダルが開いたまま)"
+          : blocked.lock > 0
+            ? "(ターン再生ロックが解けない)"
+            : blocked.photoMode || blocked.helpVisible
+              ? "(フォトモード/操作説明が開いたまま)"
+              : "(入力を遮るものは見当たらない)";
+        record("softlock-suspected", `連続${SOFTLOCK_TURNS}ターンHUD状態が変化しない${cause}`, {
           lowConfidence: true,
           atDetection,
         });
