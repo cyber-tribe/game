@@ -46,6 +46,15 @@ export const MAIN_CAVE_MAX_DEPTH = 48;
 /** 1地方あたりの階数(plan/region-expansion.md)。地方境界は depth % REGION_SIZE === 0 */
 export const REGION_SIZE = 6;
 /**
+ * その階がめざめの階段の階か(plan/game/no-pitfall-on-checkpoint-floors.md)。
+ * 表の寝穴では地方の最終階(6の倍数階)だけ。地方の概念を持たない他の
+ * ダンジョンは全階が該当する。既知チェックポイントの記録・階段の3択
+ * モーダル・落とし穴の生成除外が、みなこの1箇所の判定を共有する
+ */
+export function isCheckpointFloor(dungeonId: string, depth: number): boolean {
+  return dungeonId !== MAIN_CAVE_ID || depth % REGION_SIZE === 0;
+}
+/**
  * 第三章「仲間探し」の崩落イベント(plan/chapter3-collapse-event.md)。
  * 骨積みの回廊(第四地方)最終階=24階
  */

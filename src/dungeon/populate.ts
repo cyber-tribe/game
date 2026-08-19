@@ -257,6 +257,12 @@ export interface PopulateOptions {
   itemCountMultiplier?: number;
   /** ヨリシロの気分(plan/yorishiro-moods.md)。野生湧きでスリガラス(ai: "thief")が選ばれる重みに掛ける倍率 */
   thiefWeightMultiplier?: number;
+  /**
+   * めざめの階段の階か(plan/game/no-pitfall-on-checkpoint-floors.md)。
+   * trueなら落とし穴の罠を生成しない(踏むとチェックポイントに触れる
+   * 機会ごと次の階へ落とされる理不尽を塞ぐ)
+   */
+  checkpointFloor?: boolean;
 }
 
 export function populateFloor(
@@ -278,6 +284,7 @@ export function populateFloor(
     statMultiplier = 1,
     itemCountMultiplier = 1,
     thiefWeightMultiplier = 1,
+    checkpointFloor = false,
   } = opts;
   const gimmick = floor.gimmick;
   const tableDepth = Math.max(1, floor.depth + speciesDepthOffset);
@@ -374,8 +381,12 @@ export function populateFloor(
       minDistanceFrom: { pos: playerStart, distance: 3 },
     });
     if (!pos) break;
+    // めざめの階段の階では落とし穴を出さない(plan/game/no-pitfall-on-checkpoint-floors.md)。
+    // 「おちあなの階」ギミック側もチェックポイント階には割り当てられない
+    // (gimmicks.ts)ので、ここのgimmick分岐と矛盾することはない
+    const kinds = checkpointFloor ? TRAP_KINDS.filter((k) => k !== "pitfall") : TRAP_KINDS;
     const kind: TrapKind =
-      gimmick === "pitfall" && rng.chance(PITFALL_GIMMICK_CHANCE) ? "pitfall" : rng.pick(TRAP_KINDS);
+      gimmick === "pitfall" && rng.chance(PITFALL_GIMMICK_CHANCE) ? "pitfall" : rng.pick(kinds);
     floor.traps.push({ pos, kind, revealed: false });
   }
 
