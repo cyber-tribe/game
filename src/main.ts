@@ -31,7 +31,6 @@ import {
   abandonQuest,
   acceptQuest,
   addFoundVaultPassage,
-  addKnownCheckpoint,
   batchSaves,
   buyFestivalItem,
   checkAchievements,
@@ -343,7 +342,7 @@ class App {
     this.loop();
   }
 
-  /** 潜る前の拠点。倉庫から持ち込む道具・出発地点・鍛え方・仲間を選ぶ */
+  /** 潜る前の拠点。倉庫から持ち込む道具・鍛え方・仲間を選ぶ */
   private showTown(): void {
     this.hud.hideOverlay();
     this.audio.setBgm("village");
@@ -410,7 +409,7 @@ class App {
     this.exitInterior();
     this.town.show(
       this.save,
-      (carry, storage, startDepth, trainingFocus, bringAllyUids, difficulty, dungeonId) => {
+      (carry, storage, trainingFocus, bringAllyUids, difficulty, dungeonId) => {
         const { save: afterTake, taken } = takeFromHut(
           setDifficulty(setTrainingFocus({ ...this.save, storage }, trainingFocus), difficulty),
           bringAllyUids,
@@ -420,7 +419,7 @@ class App {
         // 実績帳(plan/achievements.md): 続けて強化・刻印系の実績も確定させる
         this.save = checkAchievements(checkEquipmentCompendium(afterTake, carry), carry);
         saveData(this.save);
-        this.newRun(carry, startDepth, trainingFocus, taken, difficulty, dungeonId);
+        this.newRun(carry, 1, trainingFocus, taken, difficulty, dungeonId);
       },
       (axisUid, foodUid) => {
         const fused = fuseMonsters(this.save, axisUid, foodUid);
@@ -1354,7 +1353,6 @@ class App {
       descend: noop,
       // めざめの階段は、ダイブの結果によらず足を踏み入れた瞬間に記録する
       checkpoint: (event) => {
-        this.save = addKnownCheckpoint(this.save, event.depth);
         this.diveReachedDepths.push(event.depth);
       },
       hungerWarning: noop,

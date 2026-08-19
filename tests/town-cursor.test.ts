@@ -38,26 +38,26 @@ describe("ui/townCursor.ts", () => {
  */
 describe("ui/townCursor.ts: openColumnsによる巡回範囲の限定", () => {
   it("集合内の隣の列(昇順で1つ先)へ移る", () => {
-    const cave = [0, 1, 2, 3, 4, 10, 12] as const;
+    const cave = [0, 1, 3, 4, 10, 12] as const;
     expect(nextTownColumn(0, 1, cave)).toBe(1);
     expect(nextTownColumn(4, 1, cave)).toBe(10);
     expect(nextTownColumn(10, 1, cave)).toBe(12);
   });
 
   it("集合内の隣の列(昇順で1つ前)へ移る", () => {
-    const cave = [0, 1, 2, 3, 4, 10, 12] as const;
+    const cave = [0, 1, 3, 4, 10, 12] as const;
     expect(nextTownColumn(1, -1, cave)).toBe(0);
     expect(nextTownColumn(10, -1, cave)).toBe(4);
     expect(nextTownColumn(12, -1, cave)).toBe(10);
   });
 
   it("集合の右端で右へ移動しても、集合の外(例えば13以降)へは出ない", () => {
-    const cave = [0, 1, 2, 3, 4, 10, 12] as const;
+    const cave = [0, 1, 3, 4, 10, 12] as const;
     expect(nextTownColumn(12, 1, cave)).toBe(12);
   });
 
   it("集合の左端で左へ移動しても、集合の外(マイナス側)へは出ない", () => {
-    const cave = [0, 1, 2, 3, 4, 10, 12] as const;
+    const cave = [0, 1, 3, 4, 10, 12] as const;
     expect(nextTownColumn(0, -1, cave)).toBe(0);
   });
 

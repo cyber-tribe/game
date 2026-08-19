@@ -147,12 +147,6 @@ export interface SaveData {
   bestLevel: number;
   /** 拠点の倉庫 */
   storage: StoredItem[];
-  /**
-   * 既知のめざめの階段(チェックポイント)がある階。1階(入口)は常に含む。
-   * ダイブの結果(踏破・全滅)によらず、足を踏み入れた瞬間に記録される
-   * (plan/checkpoint-select.md の「知識は失われない」原則)。
-   */
-  knownCheckpoints: number[];
   /** 表示済みのチュートリアルヒントid(plan/tutorial.md、アーカイブ済み) */
   seenTutorialTips: TutorialTipId[];
   /**
@@ -342,7 +336,6 @@ const SAVE_FIELDS: SaveFieldSpecs = {
   clears: { default: 0, sanitize: (p) => numberOr(p.clears, 0) },
   bestLevel: { default: 1, sanitize: (p) => numberOr(p.bestLevel, 1) },
   storage: { default: () => STARTER.map((s) => ({ ...s })), sanitize: (p) => sanitizeStorage(p.storage) },
-  knownCheckpoints: { default: () => [1], sanitize: (p) => sanitizeCheckpoints(p.knownCheckpoints) },
   seenTutorialTips: { default: () => [], sanitize: (p) => sanitizeTutorialTips(p.seenTutorialTips) },
   trainingFocus: { default: "balance", sanitize: (p) => sanitizeTrainingFocus(p.trainingFocus) },
   hut: { default: () => [], sanitize: (p) => sanitizeHut(p.hut) },
@@ -506,17 +499,6 @@ export function batchSaves<T>(run: () => T): T {
 /** 最深記録(deepest)を、既存の記録より深ければ更新する。ダイブ中フロアを移動するたびに呼ぶ */
 export function recordDeepest(current: SaveData, depth: number): SaveData {
   return { ...current, deepest: Math.max(current.deepest, depth) };
-}
-
-/** めざめの階段(チェックポイント)を既知にする。すでに知っていれば何もしない */
-export function addKnownCheckpoint(current: SaveData, depth: number): SaveData {
-  if (current.knownCheckpoints.includes(depth)) return current;
-  const next: SaveData = {
-    ...current,
-    knownCheckpoints: [...current.knownCheckpoints, depth].sort((a, b) => a - b),
-  };
-  saveData(next);
-  return next;
 }
 
 /**
@@ -761,7 +743,6 @@ export function recordRun(
     bestLevel: Math.max(current.bestLevel, result.level),
     // 踏破して帰ってきたぶんだけが倉庫に加わる。倒れた場合は持ち込み品が丸ごと消える
     storage: [...current.storage, ...result.broughtBack.map(toStored)],
-    knownCheckpoints: current.knownCheckpoints,
     seenTutorialTips: current.seenTutorialTips,
     trainingFocus: current.trainingFocus,
     // 生きて連れ帰った仲間だけがねむり小屋に加わる。全滅時は何も加わらない
@@ -1451,16 +1432,6 @@ export function isWeaponCompendiumComplete(current: SaveData): boolean {
 }
 
 /** 1階(入口)は常に知っている扱いにする */
-function sanitizeCheckpoints(value: unknown): number[] {
-  const known = new Set<number>([1]);
-  if (Array.isArray(value)) {
-    for (const entry of value) {
-      if (typeof entry === "number" && Number.isInteger(entry) && entry >= 1) known.add(entry);
-    }
-  }
-  return [...known].sort((a, b) => a - b);
-}
-
 const VALID_SPECIES_IDS = new Set(SPECIES.map((s) => s.id));
 const VALID_SKILL_IDS = new Set(SKILLS.map((s) => s.id));
 const VALID_ACHIEVEMENT_IDS = new Set(ACHIEVEMENTS.map((a) => a.id));

@@ -71,8 +71,9 @@ describe("view/village.ts: 建物・村人ごとの役割メニュー(village-sc
     return VILLAGE_BUILDINGS.find((b) => b.id === id)?.columns ?? [];
   }
 
-  it("洞窟の入口: 出発の支度一式(倉庫・持ち込み・出発地点・鍛え方・つれていく仲間・難易度・潜るダンジョン)", () => {
-    expect(columnsOf("cave")).toEqual([0, 1, 2, 3, 4, 10, 12]);
+  it("洞窟の入口: 出発の支度一式(倉庫・持ち込み・鍛え方・つれていく仲間・難易度・潜るダンジョン)", () => {
+    // 出発地点の列(2)は廃止(plan/game/archive/remove-checkpoint-start.md)
+    expect(columnsOf("cave")).toEqual([0, 1, 3, 4, 10, 12]);
   });
 
   it("モグラ婆の倉庫: 倉庫・持ち込む", () => {

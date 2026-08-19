@@ -44,7 +44,6 @@ describe("save.ts: recordRunは腕試しの間の踏破を記録する(plan/hidd
       clears: 5,
       bestLevel: 20,
       storage: [],
-      knownCheckpoints: [1],
       seenTutorialTips: [],
       trainingFocus: "balance",
       hut: [],
