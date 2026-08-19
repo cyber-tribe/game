@@ -2448,16 +2448,26 @@ def build_kaerukodama():
 
 
 def kaerukodama_animations():
+    """
+    plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
+    タメ・ツメ(LINEAR補間)・前脚の遅れ追従(二次揺れ)を足してある。
+    attackはすでに4段構成が組まれていたため、今回はinterpの付与と
+    coward AIらしい「大きく怯み、素早く立て直す」振幅の強調が中心。
+    """
     head = "chest-head"
     armL, armR = "chest-armF.L", "chest-armF.R"
     legL, legR = "hip-kneeB.L", "hip-kneeB.R"
     return [
-        # 常にそわそわと周囲をうかがう、落ち着かない待機
+        # 常にそわそわと周囲をうかがう、落ち着かない待機。
+        # 前脚(armL,R)が頭より2フレーム遅れて小さく追従する(二次揺れ)
         ("idle", [
-            (1, {head: (0, 0, 0)}),
+            (1, {head: (0, 0, 0), armL: (0, 0, 0), armR: (0, 0, 0)}),
             (10, {head: (10, 14, 0)}),
+            (12, {armL: (4, 0, 0), armR: (4, 0, 0)}, {"partial": True}),
             (20, {head: (8, -16, 0)}),
+            (22, {armL: (-4, 0, 0), armR: (-4, 0, 0)}, {"partial": True}),
             (30, {head: (0, 0, 0)}),
+            (32, {armL: (0, 0, 0), armR: (0, 0, 0)}, {"partial": True}),
         ]),
         # tsubuteより素早く、小刻みに跳ねて逃げる
         ("walk", [
@@ -2467,12 +2477,13 @@ def kaerukodama_animations():
                  armL: (-30, 0, 0), armR: (-30, 0, 0)}),
             (11, {legL: (0, 0, 0), legR: (0, 0, 0), head: (0, 0, 0)}),
         ]),
-        # 石は投げず、追い詰められて仕方なく全身で跳びかかる一撃
+        # 石は投げず、追い詰められて仕方なく全身で跳びかかる一撃。
+        # タメ→LINEARで瞬発力を鋭くした跳びかかり→行き過ぎ→戻り
         ("attack", [
             (1, {legL: (0, 0, 0), legR: (0, 0, 0), head: (0, 0, 0),
                  armL: (0, 0, 0), armR: (0, 0, 0)}),
             (4, {legL: (56, 0, 0), legR: (56, 0, 0), head: (20, 0, 0),
-                 armL: (34, 0, 0), armR: (34, 0, 0)}),
+                 armL: (34, 0, 0), armR: (34, 0, 0)}, {"interp": "LINEAR"}),
             (8, {legL: (-68, 0, 0), legR: (-68, 0, 0), head: (-28, 0, 0),
                  armL: (-60, 0, 0), armR: (-60, 0, 0)}),
             (14, {legL: (8, 0, 0), legR: (8, 0, 0), head: (4, 0, 0),
@@ -2480,16 +2491,21 @@ def kaerukodama_animations():
             (20, {legL: (0, 0, 0), legR: (0, 0, 0), head: (0, 0, 0),
                   armL: (0, 0, 0), armR: (0, 0, 0)}),
         ]),
+        # 入りをLINEARで鋭くし、cowardらしく大きく怯む(振幅を24°→28°へ)
         ("hit", [
-            (1, {head: (0, 0, 0)}),
-            (4, {head: (24, 0, 0), armL: (-30, 0, 22), armR: (-30, 0, -22)}),
+            (1, {head: (0, 0, 0)}, {"interp": "LINEAR"}),
+            (4, {head: (28, 0, 0), armL: (-30, 0, 22), armR: (-30, 0, -22)}),
             (12, {head: (0, 0, 0)}),
         ]),
+        # 初動をLINEARで鋭くし、20f到達後に一度小さく跳ね返ってから
+        # 完全に崩れ落ちる
         ("die", [
-            (1, {head: (0, 0, 0)}),
+            (1, {head: (0, 0, 0)}, {"interp": "LINEAR"}),
             (9, {head: (26, 0, 0), legL: (-38, 0, 0), legR: (-38, 0, 0)}),
             (20, {head: (38, 0, 0), legL: (-74, 0, 0), legR: (-74, 0, 0),
                   armL: (-66, 0, 26), armR: (-66, 0, -26)}),
+            (24, {head: (34, 0, 0), legL: (-67, 0, 0), legR: (-67, 0, 0),
+                  armL: (-59, 0, 23), armR: (-59, 0, -23)}),
         ]),
     ]
 
