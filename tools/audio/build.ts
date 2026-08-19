@@ -282,6 +282,12 @@ const SFX_SPECS: readonly SfxSpec[] = [
   { id: "hit", kind: "drum", freq: 450, duration: 0.12, seed: 109 },
   { id: "miss", kind: "drum", freq: 700, duration: 0.08, seed: 110 },
   { id: "defeat", kind: "mallet", freq: 330, duration: 0.5, seed: 111 },
+  // タルの持ち上げ・置く・投げる・壊れる音(plan/sound/archive/sfx-barrel-handling.md)。
+  // capture/captureFailed(吸い込みの成否)とは別の、物理的な持ち運び音
+  { id: "barrelLift", kind: "mallet", freq: 220, duration: 0.2, seed: 112 },
+  { id: "barrelPut", kind: "drum", freq: 180, duration: 0.15, seed: 113 },
+  { id: "barrelThrow", kind: "drum", freq: 250, duration: 0.2, seed: 114 },
+  { id: "barrelBreak", kind: "drum", freq: 320, duration: 0.3, seed: 115 },
 ];
 
 function main(): void {

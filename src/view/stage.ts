@@ -325,21 +325,27 @@ export class Stage {
         // 床に出ていたタルがあればそれを引き取り、無ければ作って頭上に載せる
         const existing = this.dungeon.detachBarrel(event.barrelId);
         view.setCarried(existing ?? this.assets.instantiate(BARREL_MODELS[event.kind]).root);
+        this.audio.playSfx("barrelLift");
         return 0.22 * scale;
       },
       putBarrel: (event) => {
         const view = this.views.get(event.actorId);
         const removed = view?.setCarried(null);
         removed?.removeFromParent();
+        this.audio.playSfx("barrelPut");
         return 0.22 * scale;
       },
       throwBarrel: (event) => {
         const view = this.views.get(event.actorId);
         const flying = view?.setCarried(null);
         if (flying) this.launchBarrel(flying, event.from, event.to, 0.30 * scale);
+        this.audio.playSfx("barrelThrow");
         return 0.34 * scale;
       },
-      barrelBreak: noop,
+      barrelBreak: () => {
+        this.audio.playSfx("barrelBreak");
+        return 0;
+      },
       explosion: (event) => {
         this.spawnExplosion(event.pos, event.radius);
         this.particles.spawnExplosionSparks(toWorld(event.pos, 0.5), event.radius);
