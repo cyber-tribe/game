@@ -1814,20 +1814,27 @@ def build_houshitobi():
 
 
 def houshitobi_animations():
+    """
+    plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
+    タメ・ツメ(LINEAR補間)・触手の遅れ追従(二次揺れ)を足してある。
+    浮遊系のため接地沈みは使わず、walkの滑らかなbezier補間もそのまま
+    維持する(LINEARで角張らせない)。
+    """
     trunk1 = "root-stem"
     trunk2 = "stem-capbase"
     cap = "capbase-captop"
     spout = "capbase-spout"
     tendrilL, tendrilR = "capbase-tendril.L", "capbase-tendril.R"
     return [
-        # 微かに漂うような、ゆっくりした揺れ
+        # 微かに漂うような、ゆっくりした揺れ。
+        # 左右の触手(tendrilL,R)が傘・幹より2フレーム遅れて追従する(二次揺れ)
         ("idle", [
             (1, {trunk2: (0, 0, 0), cap: (0, 0, 0), spout: (0, 0, 0),
                  tendrilL: (0, 0, 8), tendrilR: (0, 0, -8)}),
-            (28, {trunk2: (3, 0, 2), cap: (-4, 0, -2), spout: (3, 0, 0),
-                  tendrilL: (0, 0, 16), tendrilR: (0, 0, -16)}),
-            (56, {trunk2: (0, 0, 0), cap: (0, 0, 0), spout: (0, 0, 0),
-                  tendrilL: (0, 0, 8), tendrilR: (0, 0, -8)}),
+            (28, {trunk2: (3, 0, 2), cap: (-4, 0, -2), spout: (3, 0, 0)}),
+            (30, {tendrilL: (0, 0, 16), tendrilR: (0, 0, -16)}, {"partial": True}),
+            (56, {trunk2: (0, 0, 0), cap: (0, 0, 0), spout: (0, 0, 0)}),
+            (58, {tendrilL: (0, 0, 8), tendrilR: (0, 0, -8)}, {"partial": True}),
         ]),
         # 左右の触手を交互にはためかせながら漂うように進む
         ("walk", [
@@ -1842,31 +1849,38 @@ def houshitobi_animations():
             (36, {trunk1: (0, 0, -6), trunk2: (0, 0, 4),
                   tendrilL: (0, 0, 6), tendrilR: (0, 0, -6)}),
         ]),
-        # ためてから噴出口を勢いよく突き出し、胞子を撃ち放つ
+        # ためてから噴出口をLINEARで勢いよく突き出し胞子を撃ち放ち、
+        # わずかに行き過ぎてから漂う構えに戻る
         ("attack", [
             (1, {spout: (0, 0, 0), trunk2: (0, 0, 0), cap: (0, 0, 0),
                  tendrilL: (0, 0, 8), tendrilR: (0, 0, -8)}),
             (5, {spout: (24, 0, 0), trunk2: (-9, 0, 0), cap: (6, 0, 0),
-                 tendrilL: (0, 0, 24), tendrilR: (0, 0, -24)}),
+                 tendrilL: (0, 0, 24), tendrilR: (0, 0, -24)}, {"interp": "LINEAR"}),
             (10, {spout: (-32, 0, 0), trunk2: (11, 0, 0), cap: (-14, 0, 0),
+                  tendrilL: (0, 0, -6), tendrilR: (0, 0, 6)}),
+            (13, {spout: (-20, 0, 0), trunk2: (7, 0, 0), cap: (-14, 0, 0),
                   tendrilL: (0, 0, -6), tendrilR: (0, 0, 6)}),
             (20, {spout: (0, 0, 0), trunk2: (0, 0, 0), cap: (0, 0, 0),
                   tendrilL: (0, 0, 8), tendrilR: (0, 0, -8)}),
         ]),
+        # 入りだけLINEARで鋭くする
         ("hit", [
-            (1, {trunk2: (0, 0, 0), cap: (0, 0, 0)}),
+            (1, {trunk2: (0, 0, 0), cap: (0, 0, 0)}, {"interp": "LINEAR"}),
             (4, {trunk2: (-16, 0, 0), cap: (-14, 0, 0),
                  tendrilL: (0, 0, -12), tendrilR: (0, 0, 12)}),
             (14, {trunk2: (0, 0, 0), cap: (0, 0, 0),
                   tendrilL: (0, 0, 8), tendrilR: (0, 0, -8)}),
         ]),
-        # 傘と触手をしぼませながら、幹から崩れ落ちる
+        # 傘と触手をしぼませながら、幹から崩れ落ちる。初動をLINEARで
+        # 鋭くし、24f到達直前にしぼみきる前の萎れの小さな跳ね返りを
+        # 傘(cap)と幹(trunk1)だけに追加する(倒れではなく萎れの表現)
         ("die", [
-            (1, {trunk1: (0, 0, 0), trunk2: (0, 0, 0)}),
+            (1, {trunk1: (0, 0, 0), trunk2: (0, 0, 0)}, {"interp": "LINEAR"}),
             (10, {trunk1: (-20, 0, 8), trunk2: (-24, 0, 4), cap: (-14, 0, 0),
                   tendrilL: (-10, 0, -28), tendrilR: (-10, 0, 28), spout: (18, 0, 0)}),
             (24, {trunk1: (-50, 0, 16), trunk2: (-56, 0, 10), cap: (-30, 0, 0),
                   tendrilL: (-20, 0, -58), tendrilR: (-20, 0, 58), spout: (44, 0, 0)}),
+            (28, {trunk1: (-40, 0, 13), cap: (-24, 0, 0)}, {"partial": True}),
         ]),
     ]
 
