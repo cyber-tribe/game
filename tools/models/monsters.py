@@ -3363,52 +3363,68 @@ def build_honedatami():
 
 
 def honedatami_animations():
+    """
+    plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
+    attackにツメのLINEAR+行き過ぎ段、hitの入りにLINEAR、idleでneckが
+    hipcより3フレーム遅れる二次揺れ、walkに接地沈み(honegaramiより
+    小さく抑える)、dieの初動LINEAR+着地の跳ね返りを足した。guardらしい
+    「どっしり構えて動じない」振幅・速度は現行のまま変えない。
+    """
     hipc, neck = "hip-chest", "neck-head"
     armL, armR = "chest-shoulder.L", "chest-shoulder.R"
     foreL, foreR = "shoulder.L-elbow.L", "shoulder.R-elbow.R"
     legL, legR = "hip-thigh.L", "hip-thigh.R"
     shinL, shinR = "thigh.L-knee.L", "thigh.R-knee.R"
     return [
-        # どっしり構えたまま、ごく僅かに軋むだけのほとんど静止した待機
+        # どっしり構えたまま、ごく僅かに軋むだけのほとんど静止した待機。
+        # 積まれた頭(neck)が本体(hipc)より3フレーム遅れて軋む
         ("idle", [
             (1, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
-            (30, {hipc: (1, 0, 0), neck: (2, 0, 0)}),
+            (30, {hipc: (1, 0, 0)}),
+            (33, {neck: (2, 0, 0)}, {"partial": True}),
             (60, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
         ]),
-        # 重い塊がのろのろ引きずられるような、地を這う歩み
+        # 重い塊がのろのろ引きずられるような、地を這う歩み。脚が正中に
+        # 戻る瞬間、hipcをわずかに沈める(honegaramiより小さく抑える)
         ("walk", [
             (1, {legL: (10, 0, 0), legR: (-10, 0, 0), shinL: (-6, 0, 0), shinR: (5, 0, 0),
                  hipc: (0, 0, 1)}),
-            (12, {legL: (0, 0, 0), legR: (0, 0, 0), hipc: (0, 0, 0)}),
+            (12, {legL: (0, 0, 0), legR: (0, 0, 0), hipc: {"loc": (0, -0.006, 0)}}),
             (23, {legL: (-10, 0, 0), legR: (10, 0, 0), shinL: (5, 0, 0), shinR: (-6, 0, 0),
                   hipc: (0, 0, -1)}),
-            (34, {legL: (0, 0, 0), legR: (0, 0, 0), hipc: (0, 0, 0)}),
+            (34, {legL: (0, 0, 0), legR: (0, 0, 0), hipc: {"loc": (0, -0.006, 0)}}),
             (45, {legL: (10, 0, 0), legR: (-10, 0, 0), shinL: (-6, 0, 0), shinR: (5, 0, 0),
                   hipc: (0, 0, 1)}),
         ]),
-        # 剣を持たない代わりに、両腕をまとめて叩きつける正面への体当たり
+        # 剣を持たない体当たり。タメ(7f)→LINEARで鋭く叩きつける
+        # (7→13f)→行き過ぎ(小さな余韻)→戻り
         ("attack", [
             (1, {armL: (0, 0, 8), armR: (0, 0, -8), foreL: (0, 0, 0), foreR: (0, 0, 0),
                  hipc: (0, 0, 0)}),
             (7, {armL: (-30, 0, 20), armR: (-30, 0, -20), foreL: (-20, 0, 0), foreR: (-20, 0, 0),
                  hipc: (-10, 0, 0), neck: (-6, 0, 0)}),
             (13, {armL: (48, 0, 4), armR: (48, 0, -4), foreL: (14, 0, 0), foreR: (14, 0, 0),
-                  hipc: (12, 0, 0), neck: (4, 0, 0)}),
+                  hipc: (12, 0, 0), neck: (4, 0, 0)}, {"interp": "LINEAR"}),
+            (15, {armL: (56, 0, 4), armR: (56, 0, -4), foreL: (16, 0, 0), foreR: (16, 0, 0),
+                  hipc: (13, 0, 0), neck: (4, 0, 0)}),
             (24, {armL: (0, 0, 8), armR: (0, 0, -8), foreL: (0, 0, 0), foreR: (0, 0, 0),
                   hipc: (0, 0, 0)}),
         ]),
-        # 高い防御力どおり、当たってもほとんど揺るがない
+        # 入り(1f→4f)にLINEARを足す。高い防御力どおり振幅・戻りは
+        # 現行のまま小さく短く維持する
         ("hit", [
-            (1, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+            (1, {hipc: (0, 0, 0), neck: (0, 0, 0)}, {"interp": "LINEAR"}),
             (4, {hipc: (-6, 0, 0), neck: (-8, 0, 0)}),
             (15, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
         ]),
-        # 積まれていた骨の山がそのまま崩れ落ちる
+        # 初動(1f→9f)にLINEARを足す。26f到達後、積まれていた骨板が
+        # 一度弾んでから完全に崩れ落ちる小さな跳ね返りを1回追加する
         ("die", [
-            (1, {hipc: (0, 0, 0)}),
+            (1, {hipc: (0, 0, 0)}, {"interp": "LINEAR"}),
             (9, {hipc: (-10, 0, 8), neck: (-20, 0, 0), armL: (-30, 0, 30), armR: (-30, 0, -30)}),
             (26, {hipc: (-70, 0, 22), neck: (-46, 0, 0), legL: (34, 0, 0), legR: (30, 0, 0),
                   armL: (-70, 0, 60), armR: (-70, 0, -60)}),
+            (29, {hipc: (-66, 0, 21), neck: (-44, 0, 0)}),
         ]),
     ]
 
@@ -5879,13 +5895,22 @@ def build_honezukanotsukai():
 
 
 def honezukanotsukai_animations():
+    """
+    plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
+    attackにツメのLINEAR+短い行き過ぎ段、hitの入りにLINEAR、idleでtopが
+    upperより2フレーム遅れる二次揺れ、dieの初動LINEAR+着地の跳ね返りを
+    足した。rangedの俊敏さを保つため、attackのフレーム間隔はボス級より
+    詰めたまま。hitは「取り乱さない」読み味で戻りも現行の14fを維持する。
+    """
     lower, upper = "root-stem", "stem-capbase"
     top = "capbase-captop"
     return [
-        # ぬしの言いつけを待つように、わずかに揺れながら浮く
+        # ぬしの言いつけを待つように、わずかに揺れながら浮く。topは
+        # upperより2フレーム遅れて追従する(二次揺れ)
         ("idle", [
             (1, {lower: (0, 0, 0), upper: (0, 0, 0)}),
-            (24, {lower: (2, 0, 1.5), upper: (-2, 0, 0), top: (1.5, 0, 0)}),
+            (24, {lower: (2, 0, 1.5), upper: (-2, 0, 0)}),
+            (26, {top: (1.5, 0, 0)}, {"partial": True}),
             (48, {lower: (0, 0, 0), upper: (0, 0, 0), top: (0, 0, 0)}),
         ]),
         ("walk", [
@@ -5895,23 +5920,29 @@ def honezukanotsukai_animations():
             (27, {lower: (4, 0, 0), upper: (-3, 0, 0)}),
             (36, {lower: (0, 0, -7), upper: (0, 0, 5)}),
         ]),
-        # 間合いが近い分、素早く身を乗り出して発射口を突きつける
+        # 引く(4f)→LINEARで鋭く突き出す(4→8f)→短い行き過ぎ→戻る。
+        # 間合いが近い俊敏さを保つため、フレーム間隔はボス級より詰めたまま
         ("attack", [
             (1, {upper: (0, 0, 0), top: (0, 0, 0)}),
             (4, {upper: (-10, 0, 0), top: (-8, 0, 0)}),
-            (8, {upper: (26, 0, 0), top: (22, 0, 0)}),
+            (8, {upper: (26, 0, 0), top: (22, 0, 0)}, {"interp": "LINEAR"}),
+            (9, {upper: (30, 0, 0), top: (25, 0, 0)}),
             (16, {upper: (0, 0, 0), top: (0, 0, 0)}),
         ]),
+        # 入り(1f→4f)にLINEARを足す。「ぬしに仕える者」らしく取り乱さ
+        # ない読み味にするため、振幅・戻り(14f)は現行のまま維持する
         ("hit", [
-            (1, {lower: (0, 0, 0)}),
+            (1, {lower: (0, 0, 0)}, {"interp": "LINEAR"}),
             (4, {lower: (-14, 0, 0), upper: (-12, 0, 0)}),
             (14, {lower: (0, 0, 0), upper: (0, 0, 0)}),
         ]),
-        # 積まれていた骨がほどけるように、崩れ落ちて元の骨積みに還る
+        # 初動(1f→10f)にLINEARを足して鋭い崩れ始めにする。24f到達後、
+        # ほどけた骨が一度小さく弾んでから完全に崩れ落ちる跳ね返りを追加
         ("die", [
-            (1, {lower: (0, 0, 0)}),
+            (1, {lower: (0, 0, 0)}, {"interp": "LINEAR"}),
             (10, {lower: (-26, 0, 8), upper: (-30, 0, 0)}),
             (24, {lower: (-70, 0, 18), upper: (-58, 0, 0), top: (-20, 0, 0)}),
+            (27, {lower: (-66, 0, 17), upper: (-55, 0, 0)}),
         ]),
     ]
 
@@ -6045,13 +6076,22 @@ def build_hajimeNoYume():
 
 
 def hajimeNoYume_animations():
+    """
+    plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
+    attackにツメのLINEAR+行き過ぎ段、hitの入りにLINEAR(振幅はやや
+    抑える)、idleでupperがmidに2フレーム遅れる二次揺れ、dieの初動
+    LINEAR+着地の小さな跳ね返りを足した。巨体らしくタメの時間は長めに
+    保ち、「ゆっくり大きく」というdieの作り込みは崩さない。
+    """
     lower, mid, upper = "root-stem", "stem-capbase", "capbase-captop"
     return [
-        # あらゆる夢の起点として、静かに、しかし途方もない存在感で佇む
+        # あらゆる夢の起点として、静かに、しかし途方もない存在感で佇む。
+        # upperはmidより2フレーム遅れて追従する(二次揺れ)
         ("idle", [
             (1, {lower: (0, 0, 0), mid: (0, 0, 0)}),
-            (30, {lower: (2, 0, 1), mid: (-3, 0, 1), upper: (2, 0, 0)}),
-            (60, {lower: (0, 0, 0), mid: (0, 0, 0)}),
+            (30, {lower: (2, 0, 1), mid: (-3, 0, 1)}),
+            (32, {upper: (2, 0, 0)}, {"partial": True}),
+            (60, {lower: (0, 0, 0), mid: (0, 0, 0), upper: (0, 0, 0)}),
         ]),
         ("walk", [
             (1, {lower: (0, 0, -10), mid: (0, 0, 8), upper: (0, 0, -4)}),
@@ -6060,23 +6100,29 @@ def hajimeNoYume_animations():
             (27, {lower: (7, 0, 0), mid: (-6, 0, 0)}),
             (36, {lower: (0, 0, -10), mid: (0, 0, 8), upper: (0, 0, -4)}),
         ]),
-        # がっしりした幹全体をひねり込み、正面から重くのしかかる一撃
+        # タメ(1→6f、巨体らしくやや長め)→LINEARで鋭くひねり込む
+        # (6→11f)→行き過ぎ(振り込みすぎた余韻)→戻り
         ("attack", [
             (1, {lower: (0, 0, 0), mid: (0, 0, 0), upper: (0, 0, 0)}),
             (6, {lower: (-18, 0, 0), mid: (-20, 0, 0), upper: (-14, 0, 0)}),
-            (11, {lower: (26, 0, 0), mid: (30, 0, 0), upper: (22, 0, 0)}),
+            (11, {lower: (26, 0, 0), mid: (30, 0, 0), upper: (22, 0, 0)}, {"interp": "LINEAR"}),
+            (13, {lower: (32, 0, 0), mid: (36, 0, 0), upper: (28, 0, 0)}),
             (22, {lower: (0, 0, 0), mid: (0, 0, 0), upper: (0, 0, 0)}),
         ]),
+        # 入り(1f→4f)にLINEARを足す。最重量級ボスらしく振幅はやや
+        # 抑えつつ(honezukaNoNushiと同じ方針)、一撃の重さはinterpで示す
         ("hit", [
-            (1, {lower: (0, 0, 0)}),
-            (4, {lower: (-22, 0, 0), mid: (-20, 0, 0)}),
+            (1, {lower: (0, 0, 0)}, {"interp": "LINEAR"}),
+            (4, {lower: (-16, 0, 0), mid: (-20, 0, 0)}),
             (16, {lower: (0, 0, 0), mid: (0, 0, 0)}),
         ]),
-        # 最初の夢が解けるように、巨体がゆっくり大きく崩れ落ちる
+        # 初動(1f→12f)にLINEARを足して倒れ始めを鋭くする。「ゆっくり
+        # 大きく」を壊さないよう、30f到達後の跳ね返りは小さく短く抑える
         ("die", [
-            (1, {lower: (0, 0, 0)}),
+            (1, {lower: (0, 0, 0)}, {"interp": "LINEAR"}),
             (12, {lower: (-38, 0, 12), mid: (-24, 0, 0), upper: (-16, 0, 0)}),
             (30, {lower: (-92, 0, 26), mid: (-40, 0, 0), upper: (-28, 0, 0)}),
+            (34, {lower: (-88, 0, 25), mid: (-38, 0, 0)}),
         ]),
     ]
 
@@ -6239,50 +6285,68 @@ def build_honezukaNoNushi():
 
 
 def honezukaNoNushi_animations():
+    """
+    plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
+    attackにツメのLINEAR+行き過ぎ段、hitの入りにLINEAR(戻りは
+    honedatamiよりさらに短く)、idleでneckがhipcより3フレーム遅れる
+    二次揺れ、walkに接地沈み、dieの初動LINEAR+着地の跳ね返りを足した。
+    honedatamiの方針を、ボスとしてさらに重く・より動じない方向に拡張する。
+    """
     hipc, neck = "hip-chest", "neck-head"
     armL, armR = "chest-shoulder.L", "chest-shoulder.R"
     foreL, foreR = "shoulder.L-elbow.L", "shoulder.R-elbow.R"
     legL, legR = "hip-thigh.L", "hip-thigh.R"
     shinL, shinR = "thigh.L-knee.L", "thigh.R-knee.R"
     return [
-        # 回廊の最奥にどっしり居座ったまま、ごく僅かに軋むだけ
+        # 回廊の最奥にどっしり居座ったまま、ごく僅かに軋むだけ。
+        # 寄せ集まった頭部の塊(neck)がhipcより3フレーム遅れて軋む
         ("idle", [
             (1, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
-            (32, {hipc: (1, 0, 1), neck: (2, 0, 0)}),
+            (32, {hipc: (1, 0, 1)}),
+            (35, {neck: (2, 0, 0)}, {"partial": True}),
             (64, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
         ]),
-        # 積み重なった巨体を引きずるような、重く遅い歩み
+        # 積み重なった巨体を引きずるような、重く遅い歩み。脚が正中に
+        # 戻る瞬間、hipcをわずかに沈める(honedatamiと同程度に抑える)
         ("walk", [
             (1, {legL: (12, 0, 0), legR: (-12, 0, 0), shinL: (-6, 0, 0), shinR: (5, 0, 0),
                  armL: (-8, 0, 6), armR: (8, 0, -6)}),
-            (12, {legL: (0, 0, 0), legR: (0, 0, 0), armL: (0, 0, 6), armR: (0, 0, -6)}),
+            (12, {legL: (0, 0, 0), legR: (0, 0, 0), armL: (0, 0, 6), armR: (0, 0, -6),
+                  hipc: {"loc": (0, -0.006, 0)}}),
             (23, {legL: (-12, 0, 0), legR: (12, 0, 0), shinL: (5, 0, 0), shinR: (-6, 0, 0),
                   armL: (8, 0, 6), armR: (-8, 0, -6)}),
-            (34, {legL: (0, 0, 0), legR: (0, 0, 0), armL: (0, 0, 6), armR: (0, 0, -6)}),
+            (34, {legL: (0, 0, 0), legR: (0, 0, 0), armL: (0, 0, 6), armR: (0, 0, -6),
+                  hipc: {"loc": (0, -0.006, 0)}}),
         ]),
-        # 得物を持たない代わりに、両腕をまとめて叩きつける正面への体当たり
+        # 得物を持たない体当たり。タメ(7f)→LINEARで鋭く叩きつける
+        # (7→13f)→巨体の質量を感じさせる行き過ぎ→戻り
         ("attack", [
             (1, {armL: (0, 0, 8), armR: (0, 0, -8), foreL: (0, 0, 0), foreR: (0, 0, 0),
                  hipc: (0, 0, 0)}),
             (7, {armL: (-32, 0, 22), armR: (-32, 0, -22), foreL: (-22, 0, 0), foreR: (-22, 0, 0),
                  hipc: (-10, 0, 0), neck: (-6, 0, 0)}),
             (13, {armL: (52, 0, 4), armR: (52, 0, -4), foreL: (16, 0, 0), foreR: (16, 0, 0),
-                  hipc: (14, 0, 0), neck: (4, 0, 0)}),
+                  hipc: (14, 0, 0), neck: (4, 0, 0)}, {"interp": "LINEAR"}),
+            (15, {armL: (60, 0, 4), armR: (60, 0, -4), foreL: (18, 0, 0), foreR: (18, 0, 0),
+                  hipc: (15, 0, 0), neck: (4, 0, 0)}),
             (24, {armL: (0, 0, 8), armR: (0, 0, -8), foreL: (0, 0, 0), foreR: (0, 0, 0),
                   hipc: (0, 0, 0)}),
         ]),
-        # 高い防御力どおり、当たってもほとんど揺るがない
+        # 入り(1f→4f)にLINEARを足す。屈指の防御力どおり振幅は現行のまま、
+        # 戻りはhonedatamiよりさらに短く(13f)して「ほとんど揺るがない」を徹底する
         ("hit", [
-            (1, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+            (1, {hipc: (0, 0, 0), neck: (0, 0, 0)}, {"interp": "LINEAR"}),
             (4, {hipc: (-6, 0, 0), neck: (-8, 0, 0)}),
-            (15, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+            (13, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
         ]),
-        # 寄せ集まっていた記憶の塊が、支えを失って崩れ落ちる
+        # 初動(1f→10f)にLINEARを足す。28f到達後、複数の頭蓋骨が一度
+        # ばらけて弾んでから完全に崩れ落ちる小さな跳ね返りを1回追加する
         ("die", [
-            (1, {hipc: (0, 0, 0)}),
+            (1, {hipc: (0, 0, 0)}, {"interp": "LINEAR"}),
             (10, {hipc: (-12, 0, 8), neck: (-20, 0, 0), armL: (-32, 0, 32), armR: (-32, 0, -32)}),
             (28, {hipc: (-76, 0, 24), neck: (-48, 0, 0), legL: (36, 0, 0), legR: (32, 0, 0),
                   armL: (-74, 0, 62), armR: (-74, 0, -62)}),
+            (31, {hipc: (-71, 0, 23), neck: (-45, 0, 0)}),
         ]),
     ]
 
