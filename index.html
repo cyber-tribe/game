@@ -808,6 +808,16 @@
         border-bottom: 1px solid var(--edge);
       }
       .menu-list, .menu-sub { list-style: none; margin: 8px 0 0; padding: 0; }
+      /*
+       * 所持数が多いとき(上限20個)はリストの中だけをスクロールさせる
+       * (issue #553)。パネル全体(max-height: 74vh)のスクロールに任せると、
+       * 効果説明・操作ヒントが下に押し出されて見えなくなり、カーソルを
+       * 見切れた項目へ動かしても画面が追従しなかった。リスト自身を
+       * スクロール領域にし、説明とヒントは常に見える位置に残す。
+       * 追従(選択中の項目へのscrollIntoView)はsrc/ui/menu.ts側で行う。
+       * maxの下限は、低い画面でcalcが負になってリストが潰れるのを防ぐ保険
+       */
+      .menu-list { max-height: max(96px, calc(74vh - 140px)); overflow-y: auto; }
       .menu-list li, .menu-sub li {
         padding: 5px 10px; border-radius: 5px; font-size: 14px;
       }
