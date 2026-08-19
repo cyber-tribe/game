@@ -7073,15 +7073,24 @@ def build_katakunagani():
 
 
 def katakunagani_animations():
+    """
+    plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
+    タメ・ツメ(LINEAR補間)・尻尾の遅れ追従(二次揺れ)を足してある。
+    thiefらしくタメ自体は短く保ち、スナッチの一瞬に緩急を集中させる。
+    """
     neck, snout = "chest-neck", "neck-snout"
     hipF_L, hipF_R = "chest-hipF.L", "chest-hipF.R"
     hipB_L, hipB_R = "hip-hipB.L", "hip-hipB.R"
+    tail1 = "hip-tail1"
     return [
-        # 意地を張ったまま、じっと身構える
+        # 意地を張ったまま、じっと身構える。切り詰めた短い尻尾(tail1)が
+        # 首より3フレーム遅れて小さく(±5°)揺れる(二次揺れ)
         ("idle", [
-            (1, {neck: (0, 0, 0)}),
+            (1, {neck: (0, 0, 0), tail1: (0, 0, 0)}),
             (30, {neck: (2, 0, 1), hipF_L: (0, 0, 3), hipF_R: (0, 0, -3)}),
+            (33, {tail1: (0, 0, 5)}, {"partial": True}),
             (60, {neck: (0, 0, 0), hipF_L: (0, 0, 0), hipF_R: (0, 0, 0)}),
+            (63, {tail1: (0, 0, 0)}, {"partial": True}),
         ]),
         # すばやく横滑りするように進む
         ("walk", [
@@ -7089,22 +7098,28 @@ def katakunagani_animations():
             (7, {hipF_L: (-14, 0, 0), hipF_R: (14, 0, 0), hipB_L: (12, 0, 0), hipB_R: (-12, 0, 0)}),
             (14, {hipF_L: (14, 0, 0), hipF_R: (-14, 0, 0), hipB_L: (-12, 0, 0), hipB_R: (12, 0, 0)}),
         ]),
-        # 素早く近づいて鋏でかすめ取り、意地を張ったまま身を引く
+        # 素早くLINEARで鋭くかすめ取り、わずかに行き過ぎてから、
+        # 意地を張ったまま身を引いた構えに戻る(16f→18fへ延長)
         ("attack", [
             (1, {neck: (0, 0, 0), hipF_L: (0, 0, 0), hipF_R: (0, 0, 0)}),
-            (4, {neck: (-12, 0, 0), hipF_L: (-22, 0, 12), hipF_R: (-22, 0, -12)}),
+            (4, {neck: (-12, 0, 0), hipF_L: (-22, 0, 12), hipF_R: (-22, 0, -12)}, {"interp": "LINEAR"}),
             (8, {neck: (16, 0, 0), hipF_L: (24, 0, -8), hipF_R: (24, 0, 8)}),
-            (16, {neck: (0, 0, 0), hipF_L: (0, 0, 0), hipF_R: (0, 0, 0)}),
+            (11, {neck: (16, 0, 0), hipF_L: (30, 0, -8), hipF_R: (30, 0, 8)}),
+            (18, {neck: (0, 0, 0), hipF_L: (0, 0, 0), hipF_R: (0, 0, 0)}),
         ]),
+        # 入りだけLINEARで鋭くする
         ("hit", [
-            (1, {neck: (0, 0, 0)}),
+            (1, {neck: (0, 0, 0)}, {"interp": "LINEAR"}),
             (4, {neck: (14, 0, 0), hipF_L: (-10, 0, 8), hipF_R: (-10, 0, -8)}),
             (12, {neck: (0, 0, 0), hipF_L: (0, 0, 0), hipF_R: (0, 0, 0)}),
         ]),
+        # 初動をLINEARで鋭くし、18f到達後に一度小さく跳ね返ってから
+        # 完全に力尽きる
         ("die", [
-            (1, {neck: (0, 0, 0)}),
+            (1, {neck: (0, 0, 0)}, {"interp": "LINEAR"}),
             (8, {neck: (10, 0, 0), hipF_L: (16, 0, 0), hipF_R: (16, 0, 0)}),
             (18, {neck: (22, 0, 0), hipF_L: (36, 0, 0), hipF_R: (36, 0, 0)}),
+            (22, {neck: (19, 0, 0), hipF_L: (31, 0, 0), hipF_R: (31, 0, 0)}),
         ]),
     ]
 
