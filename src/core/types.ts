@@ -539,6 +539,34 @@ export type SkillId =
   // ---- ここから plan/companion-evolution.md ----
   | "steadfastBody";
 
+/**
+ * レベルアップ時のスキル選択(plan/game/archive/run-build-skills.md)。
+ * ガルドがそのダイブ限りで身につける、攻撃・支援・タルの3系統のビルドスキル。
+ * SaveDataには持たせず、Game(ラン状態)にだけ持つ
+ */
+export type RunSkillId =
+  // ---- 攻撃系統(自分の戦い方が変わる) ----
+  | "wideSlash"
+  | "stepIn"
+  | "launcher"
+  | "braced"
+  | "allIn"
+  | "finisher"
+  // ---- 支援系統(パーティを維持する) ----
+  | "sharingHand"
+  | "encouragement"
+  | "mutualGuard"
+  | "appreciation"
+  | "captureMastery"
+  | "wakingPrayer"
+  // ---- タル系統(タル・地形の攻略力) ----
+  | "rollingThrow"
+  | "lightCarry"
+  | "gentleThrow"
+  | "refillBarrel"
+  | "barrelBurst"
+  | "stealthCarry";
+
 // ---------------------------------------------------------------- アイテム
 
 export type ItemCategory =
@@ -752,6 +780,11 @@ export interface Barrel {
    * 「すっかりなじんだ」段階以上のとき true になり、投げる/あける効果が強化版になる
    */
   enhanced?: boolean;
+  /**
+   * スキル「つぎたし」(plan/game/archive/run-build-skills.md)。この元素タルが
+   * 「つぎたし」で一度延命済みか。trueなら次にあけたときは素直に空へ戻る
+   */
+  refillUsed?: boolean;
 }
 
 // ---------------------------------------------------------------- フロアギミック

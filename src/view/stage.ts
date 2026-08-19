@@ -307,6 +307,9 @@ export class Stage {
         this.audio.playSfx("levelUp");
         return 0;
       },
+      // レベルアップ時のスキル選択(plan/game/archive/run-build-skills.md):
+      // モーダルの開閉自体はmain.ts側で処理する。盤面演出は特に無い
+      skillChoiceOffered: noop,
       pickup: noop,
       drop: noop,
       useItem: noop,

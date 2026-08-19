@@ -32,6 +32,11 @@ export interface PlayerState extends PlayerActor {
   ukemiReady: boolean;
   /** 抱え投げの奥義が有効。次に投げるタルを貫通させる */
   pierceReady: boolean;
+  /**
+   * スキル「がまんのかまえ」(plan/game/archive/run-build-skills.md)。
+   * 足踏みした直後に立ち、次の1撃だけ与ダメージが2倍になる
+   */
+  bracedReady: boolean;
 }
 
 /** レベル n に上がるのに必要な累計経験値 */
@@ -80,6 +85,7 @@ export function createPlayer(id: number): PlayerState {
     critBarrelReady: false,
     ukemiReady: false,
     pierceReady: false,
+    bracedReady: false,
   };
 }
 

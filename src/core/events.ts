@@ -22,6 +22,12 @@ export type GameEvent =
   | { type: "levelUp"; actorId: number; level: number }
   /** ゆめわざの習得(plan/game/archive/companion-leveling-and-arts.md) */
   | { type: "dreamArtLearned"; actorId: number; id: string; level: number }
+  /**
+   * レベルアップ時のスキル選択(plan/game/archive/run-build-skills.md)。
+   * ガルドがレベルアップし、3系統1件ずつの3択を提示できるタイミングで出る。
+   * 選ぶまで(chooseSkillコマンドが来るまで)他のコマンドは進行しない
+   */
+  | { type: "skillChoiceOffered"; candidates: string[] }
   | { type: "pickup"; actorId: number; itemUid: number; name: string }
   | { type: "drop"; actorId: number; itemUid: number; pos: Vec2 }
   | { type: "useItem"; actorId: number; itemUid: number; name: string }
