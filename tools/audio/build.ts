@@ -277,6 +277,11 @@ const SFX_SPECS: readonly SfxSpec[] = [
   // 澄んだ高いマレットと対になるよう、タルが弾かれて転がる鈍く低い一撃にする。
   // 音だけで成功・失敗を取り違えないことが狙いなので、音色の差をはっきりつける
   { id: "captureFailed", kind: "drum", freq: 190, duration: 0.26, seed: 108 },
+  // 戦闘のヒット・ミス・撃破音(plan/sound/archive/sfx-combat-feedback.md)。
+  // attack.wav(振り)とは別に、当たった/外れた/倒した結果を音で示す
+  { id: "hit", kind: "drum", freq: 450, duration: 0.12, seed: 109 },
+  { id: "miss", kind: "drum", freq: 700, duration: 0.08, seed: 110 },
+  { id: "defeat", kind: "mallet", freq: 330, duration: 0.5, seed: 111 },
 ];
 
 function main(): void {

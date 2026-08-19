@@ -1,3 +1,21 @@
+> **実装済み。** `tools/audio/build.ts` の `SFX_SPECS` に計画書どおりの
+> 値(`hit`: drum/450Hz/0.12s、`miss`: drum/700Hz/0.08s、`defeat`:
+> mallet/330Hz/0.5s)で3エントリを追加し、`public/audio/sfx/`へ生成した。
+> 新しい合成機能は不要だった(既存の`composeSfx`のみ)。
+>
+> `src/view/stage.ts`の`buildEventHandlers`を編集: `damage`ハンドラの
+> 既存の見た目処理(`view.play("hit", ...)`・`flash`・ダメージ数値・
+> ヒットスパーク)はすべて残したまま`this.audio.playSfx("hit")`を1行
+> 追加。`miss: noop`を`this.audio.playSfx("miss")`を呼ぶハンドラに
+> 置き換え。`die`ハンドラの既存の見た目処理(dieアニメーション・
+> 撃破パーティクルの下ごしらえ)はそのままに`this.audio.playSfx("defeat")`
+> を1行追加。
+>
+> **検証**: `npx tsc --noEmit`・`npx vitest run`(111ファイル/1439件)・
+> `npm run build`・`npm run audio`いずれも成功。再生成後の差分は
+> `hit.wav`・`miss.wav`・`defeat.wav`の3ファイル新規のみ(既存音源は
+> 無変更)。
+
 # 戦闘のヒット・ミス・撃破音
 
 ## 経緯

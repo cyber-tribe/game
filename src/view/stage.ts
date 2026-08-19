@@ -251,6 +251,7 @@ export class Stage {
         if (view) {
           view.play("hit", 0.3 * scale);
           view.flash(this.scene);
+          this.audio.playSfx("hit");
           this.damageQueue.push({
             world: view.root.position.clone().setY(1.05),
             amount: event.amount,
@@ -277,7 +278,10 @@ export class Stage {
         }
         return 0;
       },
-      miss: noop,
+      miss: () => {
+        this.audio.playSfx("miss");
+        return 0;
+      },
       die: (event) => {
         const view = this.views.get(event.actorId);
         if (view) {
@@ -285,6 +289,7 @@ export class Stage {
           const model = event.speciesId ? speciesById(event.speciesId).model : PLAYER_MODEL;
           const burstColor = this.assets.firstMaterialColor(model) ?? DEFAULT_BURST_COLOR;
           this.dying.set(event.actorId, { remaining: DIE_TIME, burstColor });
+          this.audio.playSfx("defeat");
         }
         return 0;
       },
