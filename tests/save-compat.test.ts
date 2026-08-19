@@ -34,7 +34,8 @@ describe("save-compat: v1-initial(難易度モード以前)", () => {
       expect(loaded.clears).toBe(v1.clears);
       expect(loaded.bestLevel).toBe(v1.bestLevel);
       expect(loaded.storage).toEqual(v1.storage);
-      expect(loaded.knownCheckpoints).toEqual(v1.knownCheckpoints);
+      // knownCheckpointsは出発地点選択の廃止で読み捨てる(フィールドごと消えている)
+      expect("knownCheckpoints" in loaded).toBe(false);
       expect(loaded.seenTutorialTips).toEqual(v1.seenTutorialTips);
       expect(loaded.trainingFocus).toBe(v1.trainingFocus);
       expect(loaded.nextHutUid).toBe(v1.nextHutUid);

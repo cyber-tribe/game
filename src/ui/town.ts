@@ -65,7 +65,7 @@ export const CARRY_LIMIT = 8;
  * 呼び出し(テスト等)はこれで動く
  */
 export const ALL_TOWN_COLUMNS: readonly TownColumn[] = [
-  0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+  0, 1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
 ];
 
 /**
@@ -96,7 +96,7 @@ const TRAINING_FOCUS_DESCRIPTIONS: Record<TrainingFocus, string> = {
  */
 export class TownScreen {
   private open = false;
-  /** 0=倉庫 1=持ち込み 2=出発地点 3=鍛え方 4=つれていく仲間 5=ゲンドの工房 6=記録の間 7=モンスター図鑑 8=実績帳 9=装備図鑑 10=難易度 11=依頼板 12=潜るダンジョン 13=村の発展 14=アクセシビリティ 15=身支度 16=NPCと話す(plan/village-life.md) 17=宵祭りの出店(plan/yoimatsuri-festival.md) 18=音(plan/audio-playback.md) 19=設定(plan/settings-screen.md) */
+  /** 0=倉庫 1=持ち込み (2=欠番。出発地点の列はplan/game/archive/remove-checkpoint-start.mdで廃止) 3=鍛え方 4=つれていく仲間 5=ゲンドの工房 6=記録の間 7=モンスター図鑑 8=実績帳 9=装備図鑑 10=難易度 11=依頼板 12=潜るダンジョン 13=村の発展 14=アクセシビリティ 15=身支度 16=NPCと話す(plan/village-life.md) 17=宵祭りの出店(plan/yoimatsuri-festival.md) 18=音(plan/audio-playback.md) 19=設定(plan/settings-screen.md) */
   private column: TownColumn = 0;
   /**
    * 村のメニューを建物・村人ごとの役割に分ける
@@ -121,20 +121,18 @@ export class TownScreen {
   /**
    * Space=即時出発(もぐる)が効くスコープか(issue #609)。
    *
-   * 出発地点の列(2)を開くのは「出発の支度」(洞窟の入口)だけなので、
-   * その有無で判定する。倉庫だけ・広場(NPCと話す)・図鑑などの建物
-   * スコープでは、決定(Space)を出発として解釈しない。会話を進めようと
+   * 潜るダンジョンの列(12)を開くのは「出発の支度」(洞窟の入口)だけ
+   * なので、その有無で判定する。倉庫だけ・広場(NPCと話す)・図鑑などの
+   * 建物スコープでは、決定(Space)を出発として解釈しない。会話を進めようと
    * 決定ボタンを押しただけでダイブが始まる事故を防ぐ
    */
   private get canDepart(): boolean {
-    return !this.systemMenuMode && this.openColumns.includes(2);
+    return !this.systemMenuMode && this.openColumns.includes(12);
   }
   private cursor: [number, number] = [0, 0];
   private storage: StoredItem[] = [];
   private carry: StoredItem[] = [];
   private save: SaveData | null = null;
-  /** 出発地点として選んでいる、既知のめざめの階段(1階=常に選べる入口を含む) */
-  private startDepthIndex = 0;
   /** このダイブの鍛え方。前回選んだ方針を引き継いで開く */
   private trainingFocusIndex = TRAINING_FOCI.indexOf("balance");
   /** 難易度モード(plan/difficulty-modes.md)。前回選んだものを引き継いで開く */
@@ -199,7 +197,6 @@ export class TownScreen {
     | ((
         carry: StoredItem[],
         storage: StoredItem[],
-        startDepth: number,
         trainingFocus: TrainingFocus,
         bringAllyUids: number[],
         difficulty: DifficultyMode,
@@ -255,7 +252,6 @@ export class TownScreen {
     onDepart: (
       carry: StoredItem[],
       storage: StoredItem[],
-      startDepth: number,
       trainingFocus: TrainingFocus,
       bringAllyUids: number[],
       difficulty: DifficultyMode,
@@ -318,8 +314,6 @@ export class TownScreen {
     const clampedInitial = Math.min(19, Math.max(0, Math.trunc(initialColumn))) as TownColumn;
     this.column = (this.openColumns.includes(clampedInitial) ? clampedInitial : this.openColumns[0] ?? 0) as typeof this.column;
     this.cursor = [0, 0];
-    // 既知のめざめの階段のうち、最も深いところから出発する状態で開く
-    this.startDepthIndex = Math.max(0, this.checkpoints().length - 1);
     // 前回選んだ鍛え方を引き継ぐ。一度決めておけば以後は何も聞かれない
     const idx = TRAINING_FOCI.indexOf(save.trainingFocus);
     this.trainingFocusIndex = idx >= 0 ? idx : TRAINING_FOCI.indexOf("balance");
@@ -397,10 +391,6 @@ export class TownScreen {
   /** 章立て(plan/story-chapters.md) */
   private currentStoryChapter(): ReturnType<typeof storyChapter> {
     return storyChapter(this.save?.deepest ?? 0, this.save?.storyCleared ?? false);
-  }
-
-  private checkpoints(): number[] {
-    return this.save?.knownCheckpoints ?? [1];
   }
 
   /**
@@ -544,35 +534,6 @@ export class TownScreen {
     ) {
       this.hide();
       this.onCloseWithoutDeparting?.();
-      return true;
-    }
-
-    if (this.column === 2) {
-      const checkpoints = this.checkpoints();
-      switch (code) {
-        case "ArrowUp":
-        case "KeyW":
-          this.startDepthIndex = wrap(this.startDepthIndex - 1, checkpoints.length);
-          break;
-        case "ArrowDown":
-        case "KeyS":
-          this.startDepthIndex = wrap(this.startDepthIndex + 1, checkpoints.length);
-          break;
-        case "ArrowLeft":
-        case "KeyA":
-          this.column = nextTownColumn(this.column, -1, this.openColumns);
-          break;
-        case "ArrowRight":
-        case "KeyD":
-          this.column = nextTownColumn(this.column, 1, this.openColumns);
-          break;
-        case "Space":
-          this.departNow();
-          return true;
-        default:
-          return true;
-      }
-      this.render();
       return true;
     }
 
@@ -1480,13 +1441,12 @@ export class TownScreen {
     const storage = (isTarukurabe ? [...this.storage, ...this.carry] : this.storage).map((s) => ({
       ...s,
     }));
-    // 出発地点(めざめの階段)は表の寝穴だけの仕組み。他のダンジョンは常に1階から
-    const startDepth = dungeon.id === DUNGEONS[0]!.id ? this.checkpoints()[this.startDepthIndex] ?? 1 : 1;
+
     const trainingFocus = TRAINING_FOCI[this.trainingFocusIndex] ?? "balance";
     const difficulty = DIFFICULTY_MODES[this.difficultyIndex] ?? "normal";
     const bringAllyUids = isTarukurabe ? [] : [...this.bringUids];
     this.hide();
-    depart?.(carry, storage, startDepth, trainingFocus, bringAllyUids, difficulty, dungeon.id);
+    depart?.(carry, storage, trainingFocus, bringAllyUids, difficulty, dungeon.id);
   }
 
   private render(): void {
@@ -1558,9 +1518,7 @@ export class TownScreen {
 
     const desc = document.createElement("p");
     desc.className = "town-desc";
-    if (this.column === 2) {
-      desc.textContent = "既知のめざめの階段から選んで出発できる。";
-    } else if (this.column === 3) {
+    if (this.column === 3) {
       const focus = TRAINING_FOCI[this.trainingFocusIndex] ?? "balance";
       desc.textContent = TRAINING_FOCUS_DESCRIPTIONS[focus];
     } else if (this.column === 4) {
@@ -1775,8 +1733,6 @@ export class TownScreen {
         return this.renderList("倉庫", this.storage, 0);
       case 1:
         return this.renderList(`持ち込む (${this.carry.length} / ${CARRY_LIMIT})`, this.carry, 1);
-      case 2:
-        return this.renderCheckpoints();
       case 3:
         return this.renderTrainingFocus();
       case 4:
@@ -1931,25 +1887,6 @@ export class TownScreen {
         const selected = this.column === column && index === this.cursor[column];
         if (selected) li.classList.add("selected");
         li.addEventListener("click", () => this.tapItem(column, selected, () => { this.cursor[column] = index; }));
-        list.appendChild(li);
-      });
-      wrapper.appendChild(list);
-    });
-  }
-
-  /** 既知のめざめの階段(チェックポイント)から出発地点を選ぶ一覧 */
-  private renderCheckpoints(): HTMLElement {
-    return this.renderColumn(2, "出発地点", (wrapper) => {
-      const list = document.createElement("ul");
-      // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
-      // 一部の環境(Safari VoiceOver等)でlist roleが外れるため、明示的に付け直す
-      list.setAttribute("role", "list");
-      this.checkpoints().forEach((depth, index) => {
-        const li = document.createElement("li");
-        li.textContent = depth === 1 ? "表の寝穴の入口(1階)" : `めざめの階段(地下${depth}階)`;
-        const selected = this.column === 2 && index === this.startDepthIndex;
-        if (selected) li.classList.add("selected");
-        li.addEventListener("click", () => this.tapItem(2, selected, () => { this.startDepthIndex = index; }));
         list.appendChild(li);
       });
       wrapper.appendChild(list);
