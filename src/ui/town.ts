@@ -117,6 +117,18 @@ export class TownScreen {
   private systemMenuMode = false;
   /** systemMenuMode(またはあとで追加する他の非出発モード)を閉じたときに呼ぶ */
   private onCloseWithoutDeparting: (() => void) | null = null;
+
+  /**
+   * Space=即時出発(もぐる)が効くスコープか(issue #609)。
+   *
+   * 出発地点の列(2)を開くのは「出発の支度」(洞窟の入口)だけなので、
+   * その有無で判定する。倉庫だけ・広場(NPCと話す)・図鑑などの建物
+   * スコープでは、決定(Space)を出発として解釈しない。会話を進めようと
+   * 決定ボタンを押しただけでダイブが始まる事故を防ぐ
+   */
+  private get canDepart(): boolean {
+    return !this.systemMenuMode && this.openColumns.includes(2);
+  }
   private cursor: [number, number] = [0, 0];
   private storage: StoredItem[] = [];
   private carry: StoredItem[] = [];
@@ -505,6 +517,13 @@ export class TownScreen {
       }
       if (code === "Space") return true;
     }
+
+    // 出発の支度(洞窟の入口)以外の建物スコープでは、Spaceを確定(Enter)として
+    // 読み替える(issue #609)。広場の「NPCと話す」で会話を進めようと決定ボタン
+    // (=Space)を押しただけでダイブが始まってしまっていた。各列のswitchにある
+    // case "Space": departNow() はそのまま残っているが、ここで読み替えるため
+    // このスコープでは到達しない
+    if (code === "Space" && !this.canDepart) code = "Enter";
 
     // 建物ごとのメニュー(列を持つ)をEscapeで閉じて村へ戻る(issue #483)。
     //
@@ -1702,6 +1721,12 @@ export class TownScreen {
     } else {
       hint.textContent = "←→ 列を移る / ↑↓ 選ぶ / Enter 移す / Space もぐる";
     }
+    // 出発できないスコープ(issue #609: 出発の支度以外の建物、および
+    // システム系の「≡」メニュー)では、「Space もぐる」の案内を落とす。
+    // 実際の入力もhandleKey側でSpace=確定に読み替えている
+    if (!this.canDepart) {
+      hint.textContent = hint.textContent.replace(" / Space もぐる", "");
+    }
     // システム系の「≡」メニュー(plan/game/archive/village-scoped-menus.md)では、
     // ダイブ中の潜行を打ち切ってしまわないようSpaceでの即時出発を止めている
     // (handleKey参照)。列ごとの説明文はそのまま活かしつつ、実際の閉じ方を補足する
@@ -1717,7 +1742,9 @@ export class TownScreen {
     // では出発そのものが意味を持たないため、代わりに閉じるボタンにする
     const departButton = document.createElement("button");
     departButton.type = "button";
-    if (this.systemMenuMode) {
+    // 出発できないスコープ(システム系メニュー、および出発の支度以外の建物。
+    // issue #609)では「もぐる」を出さず、閉じるボタンにする
+    if (!this.canDepart) {
       departButton.className = "town-depart-button town-close-button";
       departButton.textContent = "とじる";
       departButton.addEventListener("click", () => {
