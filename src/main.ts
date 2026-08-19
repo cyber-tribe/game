@@ -24,6 +24,7 @@ import { InventoryMenu } from "./ui/menu";
 import { NamingDialog } from "./ui/naming-dialog";
 import { OrientationGuard } from "./ui/orientation-guard";
 import { StairsConfirmModal } from "./ui/stairs-confirm";
+import { SkillChoiceModal } from "./ui/skill-choice";
 import { StanceMenu } from "./ui/stance";
 import { TouchControls } from "./ui/touch-controls";
 import { SYSTEM_TOWN_COLUMNS, TownScreen } from "./ui/town";
@@ -104,7 +105,7 @@ import { isDebugEnabled } from "./entities/debugPanel";
 import { DebugPanel } from "./ui/debug-panel";
 import { speciesLore } from "./entities/speciesLore";
 import { tutorialTipText, type TutorialTipId } from "./core/tutorial";
-import type { FloorState, Item } from "./core/types";
+import type { FloorState, Item, RunSkillId } from "./core/types";
 import type { TrainingFocus } from "./entities/player";
 
 /** 拠点に覆われているあいだ、洞窟を描き直す間隔(秒)。うっすら動いて見えれば足りる */
@@ -152,6 +153,8 @@ class App {
   private readonly artsMenu: ArtsMenu;
   /** 階段を降りる前の確認モーダル(plan/stairs-confirm-modal.md) */
   private readonly stairsConfirm: StairsConfirmModal;
+  /** レベルアップ時のスキル選択(plan/game/archive/run-build-skills.md) */
+  private readonly skillChoice: SkillChoiceModal;
   /** エンドロール(plan/ending-sequence.md) */
   private readonly endingScreen: EndingScreen;
   private readonly town: TownScreen;
@@ -248,6 +251,7 @@ class App {
     this.stanceMenu = new StanceMenu(document.querySelector<HTMLElement>("#stance")!);
     this.artsMenu = new ArtsMenu(document.querySelector<HTMLElement>("#arts")!);
     this.stairsConfirm = new StairsConfirmModal(document.querySelector<HTMLElement>("#stairsConfirm")!);
+    this.skillChoice = new SkillChoiceModal(document.querySelector<HTMLElement>("#skillChoice")!);
     this.endingScreen = new EndingScreen(document.querySelector<HTMLElement>("#ending")!);
     // タッチ操作(plan/touch-controls.md): Inputへ直接press/releaseするだけの
     // 入力ソースなので、以後参照する必要が無く、フィールドには保持しない。
@@ -283,6 +287,7 @@ class App {
       this.stanceMenu.handleKey(code) ||
       this.artsMenu.handleKey(code) ||
       this.stairsConfirm.handleKey(code) ||
+      this.skillChoice.handleKey(code) ||
       this.endingScreen.handleKey(code);
 
     // サウンド再生(plan/audio-playback.md): ブラウザの自動再生制限を避けるため、
@@ -1014,13 +1019,14 @@ class App {
     requestAnimationFrame(this.loop);
   };
 
-  /** menu.ts/stance.ts/arts.ts/stairsConfirm/town.ts/naming-dialog.tsのいずれかのモーダルが開いているか */
+  /** menu.ts/stance.ts/arts.ts/stairsConfirm/skillChoice/town.ts/naming-dialog.tsのいずれかのモーダルが開いているか */
   private anyModalOpen(): boolean {
     return (
       this.menu.isOpen ||
       this.stanceMenu.isOpen ||
       this.artsMenu.isOpen ||
       this.stairsConfirm.isOpen ||
+      this.skillChoice.isOpen ||
       this.town.isOpen ||
       this.namingDialog.isOpen
     );
@@ -1348,6 +1354,14 @@ class App {
       },
       dreamArtLearned: (event) => {
         this.allyHighlightIds.add(event.actorId);
+      },
+      // レベルアップ時のスキル選択(plan/game/archive/run-build-skills.md):
+      // 選ぶまでゲームが進まないモーダルを開く。選んだらchooseSkillコマンドを送る
+      skillChoiceOffered: (event) => {
+        this.skillChoice.show({
+          candidates: event.candidates as RunSkillId[],
+          onChoose: (id) => this.submit({ type: "chooseSkill", id }),
+        });
       },
       pickup: noop,
       drop: noop,

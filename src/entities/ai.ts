@@ -22,7 +22,6 @@ import {
 } from "../core/types";
 import { canSee } from "../dungeon/visibility";
 import { DREAM_ARTS } from "./dreamArts";
-import type { PlayerState } from "./player";
 import { hasSkill } from "./skills";
 import { speciesById } from "./species";
 
@@ -36,8 +35,6 @@ export const GUARD_COUNTER_BONUS = 1.3;
 const WARN_CALL_SUPPRESS_CHANCE = 0.4;
 /** かく乱のこだまが効く範囲(そのモンスターからの距離) */
 const WARN_CALL_RANGE = 4;
-/** 元素タル(plan/game/archive/barrel-arts.md): ねむタルを頭上に持っていると気づかれにくくなる確率 */
-const SLEEP_BARREL_CARRY_AWARE_SUPPRESS_CHANCE = 0.4;
 
 export type MonsterAction =
   | { type: "wait" }
@@ -184,20 +181,20 @@ function attemptSight(
   target: Actor,
   /** ヨリシロの気分(plan/yorishiro-moods.md)。省略時は1(無補正) */
   awareDistanceMul = 1,
+  /**
+   * ねむタル・スキル「かつぎばしり」ぶんの、まだ気づいていない敵に見つからずに
+   * 済む確率。game.ts側で合算して渡す(0なら影響なし)
+   */
+  stealthChance = 0,
 ): boolean {
   if (hasStatus(target, STATUS_INVISIBLE)) return false;
   if (!canSee(floor, monster.pos, target.pos) && nearestVisibleFoe(floor, monster) === null) return false;
   if (monster.aware) return true;
   if (nearbyWarnCallAlly(floor, monster) && rng.chance(WARN_CALL_SUPPRESS_CHANCE)) return false;
-  // 元素タル(plan/game/archive/barrel-arts.md): ねむタルを頭上に持っていると、
+  // 元素タル(plan/game/archive/barrel-arts.md)のねむタル・スキル「かつぎばしり」
+  // (plan/game/archive/run-build-skills.md): game.ts側で合算した確率で、
   // まだ気づいていない敵に見つかりにくくなる
-  if (
-    target.kind === "player" &&
-    (target as PlayerState).carrying?.kind === "sleep" &&
-    rng.chance(SLEEP_BARREL_CARRY_AWARE_SUPPRESS_CHANCE)
-  ) {
-    return false;
-  }
+  if (stealthChance > 0 && rng.chance(stealthChance)) return false;
   // ヨリシロの気分(plan/yorishiro-moods.md): 隣接時は奇襲を許さないため常に気づく。
   // 隣接していない相手(同室内の遠い相手)にだけ、気づきやすさの係数を掛ける
   if (
@@ -271,6 +268,8 @@ export function decideMonsterAction(
   distField: Int32Array,
   /** ヨリシロの気分(plan/yorishiro-moods.md)。省略時は1(無補正) */
   awareDistanceMul = 1,
+  /** ねむタル・スキル「かつぎばしり」ぶんの気づかれにくさ。省略時は0(影響なし) */
+  stealthChance = 0,
 ): MonsterAction {
   // 地方ボス(plan/region-boss-misemonononushi.md): 幻影(mirrorOfを持つ)は
   // 自分からは一切行動しない。単純な待機状態のまま
@@ -335,7 +334,7 @@ export function decideMonsterAction(
 
   // とうめいの巻物・かく乱のこだまを考慮した視認
   const wasAware = monster.aware;
-  if (attemptSight(rng, floor, monster, target, awareDistanceMul)) monster.aware = true;
+  if (attemptSight(rng, floor, monster, target, awareDistanceMul, stealthChance)) monster.aware = true;
 
   // やまびこぎつね(alertsFloorOnSight): 初めて視認した瞬間、フロア中の
   // 他のモンスターにも気づかせる(design/regions.md 第六地方)

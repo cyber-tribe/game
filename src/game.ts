@@ -35,6 +35,7 @@ import {
   type ItemDef,
   type MonsterActor,
   type Room,
+  type RunSkillId,
   type StatusKind,
   type TargetActor,
   type Tile,
@@ -131,6 +132,7 @@ import { REGIONS, regionByIndex } from "./entities/regions";
 import { type BondStage, bondStage } from "./entities/companionBond";
 import { gainAllyExp } from "./entities/companionGrowth";
 import { dreamArtDef, knownBarrelArt } from "./entities/dreamArts";
+import { rollRunSkillChoices, runSkillDef } from "./entities/runSkills";
 import {
   DREAM_ART_EFFECTS,
   HONE_TSUYOSHI_MULTIPLIER,
@@ -250,7 +252,12 @@ export type Command =
   /** めざめの階段を使って、ここで区切ってダイブを成功させる */
   | { type: "bank" }
   /** 樽守りの技(plan/protagonist-arts.md)を繰り出す */
-  | { type: "useArt"; id: ArtId };
+  | { type: "useArt"; id: ArtId }
+  /**
+   * レベルアップ時のスキル選択(plan/game/archive/run-build-skills.md)。
+   * skillChoiceOfferedで提示された候補以外はresolveSkillChoice側で拒否する
+   */
+  | { type: "chooseSkill"; id: RunSkillId };
 
 export interface RunOptions {
   seed: number;
@@ -341,6 +348,10 @@ export interface RunSnapshot {
   tarukurabeScore: number;
   tarukurabeBarrelsLeft: number;
   tarukurabeScoredLanes: number[];
+  /** レベルアップ時のスキル選択(plan/game/archive/run-build-skills.md)。ダイブ限り */
+  runSkills: RunSkillId[];
+  pendingSkillChoice: RunSkillId[] | null;
+  pendingLevelUpChoices: number;
 }
 
 /** 満腹度がこのターン数ぶん減る。100 / 0.2 = 500ターンもつ */
@@ -398,6 +409,27 @@ const ECHO_ATTACK_MAX = 2;
 
 /** ぬしのゆめわざ(plan/game/archive/boss-dream-arts.md): なじみ最高段階でのクールダウン短縮率(2割短縮) */
 const BOSS_DREAM_ART_BOND_COOLDOWN_MULTIPLIER = 0.8;
+
+// ---- レベルアップ時のスキル選択(plan/game/archive/run-build-skills.md) ----
+/** がまんのかまえ: 足踏み直後の1撃の与ダメージ倍率 */
+const BRACED_DAMAGE_MULTIPLIER = 2;
+/** すてみ: 与ダメージ・被ダメージの倍率(常時) */
+const ALL_IN_DAMAGE_MULTIPLIER = 1.5;
+const ALL_IN_TAKEN_MULTIPLIER = 1.25;
+/** とどめのさき: 対象のHP割合がこれ以下なら強制会心 */
+const FINISHER_HP_RATIO = 0.25;
+/** かばいあい: 身代わりが発動する確率 */
+const MUTUAL_GUARD_CHANCE = 0.4;
+/** はげましの声: 仲間のゆめわざクールダウンの倍率 */
+const ENCOURAGEMENT_COOLDOWN_MULTIPLIER = 0.75;
+/** ねぎらい: 敵を倒すたびの仲間の回復量 */
+const APPRECIATION_HEAL_AMOUNT = 1;
+/** つれさりの心得: 捕獲確率への加算 */
+const CAPTURE_MASTERY_BONUS = 0.15;
+/** かるがる: タルの投げ射程への加算 */
+const LIGHT_CARRY_RANGE_BONUS = 2;
+/** かつぎばしり: タルを抱えている間、気づかれにくくなる確率(ねむタルと同じ形) */
+const STEALTH_CARRY_SUPPRESS_CHANCE = 0.3;
 
 /** 松明(plan/region-darkness.md): 使うと持続する視界拡張の効果時間(ターン)。数値は初期案 */
 const TORCH_DURATION_TURNS = 20;
@@ -473,8 +505,8 @@ const SLEEP_BARREL_OPEN_TURNS = 3;
 const LIGHT_BARREL_CARRY_VISION_BONUS = 2;
 /** 頭上に持つ(風タル): 罠を踏んでも発動しない確率 */
 const WIND_BARREL_CARRY_TRAP_SUPPRESS_CHANCE = 0.5;
-// 頭上に持つ(ねむタル): 気づかれにくくなる確率は entities/ai.ts 側の定数を使う
-// (attemptSightがそこにあり、awareDistanceMul等と同じ場所にまとめてある)
+/** 頭上に持つ(ねむタル): 気づかれにくくなる確率(entities/ai.tsのattemptSightへ渡す) */
+const SLEEP_BARREL_CARRY_AWARE_SUPPRESS_CHANCE = 0.4;
 
 // ---- plan/tarukurabe-minigame.md ----
 /** 持ち込めるタルの数(固定10個)。専用モード内で完結し、通常の倉庫は消費しない */
@@ -636,6 +668,14 @@ export class Game {
   /** 連れている仲間。フロアをまたいで付いてくるので、floor とは別に持つ */
   allies: AllyActor[] = [];
 
+  // ---- plan/game/archive/run-build-skills.md ----
+  /** そのダイブ限りで身につけたスキル。SaveDataには持たせない(ダイブ限り) */
+  runSkills: RunSkillId[] = [];
+  /** 提示中の3択。nullなら提示していない。この間はchooseSkill以外のコマンドを受け付けない */
+  private pendingSkillChoice: RunSkillId[] | null = null;
+  /** まだ選択肢を出せていないレベルアップの残数(1手で複数レベル上がった場合に順番に出す) */
+  private pendingLevelUpChoices = 0;
+
   // ---- plan/tarukurabe-minigame.md ----
   /** このセッションの合計得点 */
   tarukurabeScore = 0;
@@ -748,6 +788,11 @@ export class Game {
       this.tarukurabeScore = s.tarukurabeScore;
       this.tarukurabeBarrelsLeft = s.tarukurabeBarrelsLeft;
       for (const points of s.tarukurabeScoredLanes) this.tarukurabeScoredLanes.add(points);
+      // run-build-skills.md導入前のスナップショットには無いフィールドなので、
+      // 欠けていても壊れないようにする
+      this.runSkills = s.runSkills ?? [];
+      this.pendingSkillChoice = s.pendingSkillChoice ?? null;
+      this.pendingLevelUpChoices = s.pendingLevelUpChoices ?? 0;
 
       // JSON化を経由すると、本来は同じオブジェクトを指していたはずの
       // player/allies と floor.actors 内の対応する要素が別オブジェクトに
@@ -822,6 +867,9 @@ export class Game {
       tarukurabeScore: this.tarukurabeScore,
       tarukurabeBarrelsLeft: this.tarukurabeBarrelsLeft,
       tarukurabeScoredLanes: [...this.tarukurabeScoredLanes],
+      runSkills: [...this.runSkills],
+      pendingSkillChoice: this.pendingSkillChoice ? [...this.pendingSkillChoice] : null,
+      pendingLevelUpChoices: this.pendingLevelUpChoices,
     };
   }
 
@@ -1265,6 +1313,13 @@ export class Game {
     const events: GameEvent[] = [];
     if (this.status !== "playing") return events;
 
+    // レベルアップ時のスキル選択(plan/game/archive/run-build-skills.md):
+    // 提示中は選ぶまでゲームが一切進まない。chooseSkill以外のコマンドは無視する
+    if (this.pendingSkillChoice) {
+      if (cmd.type === "chooseSkill") this.resolveSkillChoice(cmd.id, events);
+      return events;
+    }
+
     this.hitThisTurn = new Set();
     const posBeforeCommand = { ...this.player.pos };
     const consumedTurn = this.resolvePlayerCommand(cmd, events);
@@ -1347,6 +1402,9 @@ export class Game {
 
       case "wait":
         player.guarding = true;
+        // スキル「がまんのかまえ」(plan/game/archive/run-build-skills.md):
+        // 足踏みの直後1撃だけ与ダメージ2倍
+        if (this.runSkills.includes("braced")) player.bracedReady = true;
         return true;
 
       case "move": {
@@ -1451,6 +1509,11 @@ export class Game {
 
       case "useArt":
         return this.useArt(cmd.id, events);
+
+      // レベルアップ時のスキル選択(plan/game/archive/run-build-skills.md):
+      // 提示中はcommand()の先頭で丸ごと横取りするため、ここには来ない
+      case "chooseSkill":
+        return false;
     }
   }
 
@@ -1599,7 +1662,10 @@ export class Game {
     const player = this.player;
     let landing = player.pos;
     const hits: Actor[] = [];
-    const throwRange = this.dungeon.id === TARUKURABE_ID ? TARUKURABE_THROW_RANGE : BARREL_RANGE;
+    // スキル「かるがる」(plan/game/archive/run-build-skills.md): タルの投げ射程+2
+    const lightCarryBonus = this.runSkills.includes("lightCarry") ? LIGHT_CARRY_RANGE_BONUS : 0;
+    const throwRange =
+      (this.dungeon.id === TARUKURABE_ID ? TARUKURABE_THROW_RANGE : BARREL_RANGE) + lightCarryBonus;
     for (const p of walkLine(this.floor, player.pos, player.facing, throwRange)) {
       const blocker = barrelAt(this.floor, p);
       if (blocker) break;
@@ -1624,7 +1690,10 @@ export class Game {
 
     // 技の予約は、投げるタルの種類によらず「次に投げた時点」で消費する
     const critForced = player.critBarrelReady;
-    const pierce = player.pierceReady;
+    // スキル「ころがし」(plan/game/archive/run-build-skills.md): 既存の
+    // 「抱え投げの奥義」(貫通)と同じ当たり判定を、都度の予約なしで常に使える
+    // ようにする簡略化とした(轢いた敵全員が通過ダメージを受ける)
+    const pierce = player.pierceReady || this.runSkills.includes("rollingThrow");
     player.critBarrelReady = false;
     player.pierceReady = false;
 
@@ -1807,6 +1876,13 @@ export class Game {
         this.openSleepBarrel(barrel.enhanced ?? false, events);
         break;
     }
+    // スキル「つぎたし」(plan/game/archive/run-build-skills.md): この元素タルで
+    // まだ使っていなければ、空に戻さずもう1回ぶん中身を残す
+    if (this.runSkills.includes("refillBarrel") && !barrel.refillUsed) {
+      player.carrying = { ...barrel, refillUsed: true };
+      events.push({ type: "message", text: "タルに、もう一度ぶん中身が残っている!" });
+      return true;
+    }
     player.carrying = { id: barrel.id, kind: "empty", pos: barrel.pos };
     events.push({ type: "message", text: "からのタルに戻った。" });
     return true;
@@ -1913,7 +1989,12 @@ export class Game {
     // ならないよう止める。まぶたむしのような低HP種が「弱らせる前に死ぬ」ために
     // 捕獲が事実上不可能になっていた矛盾を、仕様として取り除く。
     // 貫通(抱え投げの奥義)の通過ダメージは従来どおり倒してよい(上の呼び出し元)
-    const damage = Math.max(0, Math.min(rolled.damage, this.hpOwnerOf(hit).hp - 1));
+    //
+    // スキル「いたわり投げ」(plan/game/archive/run-build-skills.md): 上の保険を
+    // 強化し、余らせずに必ずHP1ちょうどまで削る(通常はロール次第でそれより残る)
+    const damage = this.runSkills.includes("gentleThrow")
+      ? Math.max(0, this.hpOwnerOf(hit).hp - 1)
+      : Math.max(0, Math.min(rolled.damage, this.hpOwnerOf(hit).hp - 1));
     if (damage > 0) {
       events.push({ type: "message", text: `${hit.name}に${damage}のダメージ!` });
       this.damageActor(hit, damage, rolled.critical, events);
@@ -1935,8 +2016,11 @@ export class Game {
     hit.captureBonus = 0;
     // 樽なじみの腕輪(plan/protagonist-equipment.md): 捕獲確率+10%
     const charmBonus = hasEquipEffect(this.player.inventory, "barrelKinship") ? 0.1 : 0;
+    // スキル「つれさりの心得」(plan/game/archive/run-build-skills.md): 捕獲確率+15%
+    const captureSkillBonus = this.runSkills.includes("captureMastery") ? CAPTURE_MASTERY_BONUS : 0;
     const captured =
-      critForced || this.rng.chance(Math.min(0.9, captureChance(hit) + bonus + charmBonus));
+      critForced ||
+      this.rng.chance(Math.min(0.9, captureChance(hit) + bonus + charmBonus + captureSkillBonus));
     if (!captured) {
       // 失敗の演出(plan/game/barrel-capture-clarity.md): 相手がタルを弾く
       // ノックバックと専用SFXのために、弾かれた向き(投げた側)も渡す。
@@ -2329,6 +2413,20 @@ export class Game {
     return headband + torch + lantern + lightBarrelOpened + lightBarrelCarried;
   }
 
+  /**
+   * まだ気づいていないモンスターに見つからずに済む確率(entities/ai.tsの
+   * attemptSightへ渡す)。元素タル(plan/game/archive/barrel-arts.md)の
+   * ねむタルと、スキル「かつぎばしり」(plan/game/archive/run-build-skills.md)の
+   * どちらもタルを抱えている間だけの効果で、両方満たす間は高い方を使う
+   */
+  private playerStealthChance(): number {
+    if (!this.player.carrying) return 0;
+    let chance = 0;
+    if (this.player.carrying.kind === "sleep") chance = Math.max(chance, SLEEP_BARREL_CARRY_AWARE_SUPPRESS_CHANCE);
+    if (this.runSkills.includes("stealthCarry")) chance = Math.max(chance, STEALTH_CARRY_SUPPRESS_CHANCE);
+    return chance;
+  }
+
   // ------------------------------------------------------------ 戦闘
 
   /** 装備中の武器の定義。未装備なら null(素手扱い、パターンは "single") */
@@ -2348,7 +2446,14 @@ export class Game {
   private resolvePlayerAttack(dir: Dir, events: GameEvent[]): void {
     const player = this.player;
     const weapon = this.equippedWeaponDef();
-    const pattern: WeaponPattern = weapon?.attackPattern ?? "single";
+    let pattern: WeaponPattern = weapon?.attackPattern ?? "single";
+    // スキル「なぎはらい」「ふみこみ」(plan/game/archive/run-build-skills.md):
+    // 武器の形が素手同然(single)のときだけ、ガルド自身の戦い方として上書きする
+    // (専用の攻撃パターンを持つ武器を持っている間は、そちらを優先する)
+    if (pattern === "single") {
+      if (this.runSkills.includes("wideSlash")) pattern = "arc3";
+      else if (this.runSkills.includes("stepIn")) pattern = "line2";
+    }
     const critBonus = pattern === "quickSingle" ? QUICK_SINGLE_CRIT_BONUS : 0;
     let forceCrit = pattern === "quickSingle" && this.firstStrikeAvailable;
 
@@ -2381,6 +2486,11 @@ export class Game {
       this.attack(player, target, totalAttack(player), events, { critBonus, forceCrit });
       forceCrit = false; // 強制会心はその手の最初の1体だけ
 
+      // スキル「かちあげ」(plan/game/archive/run-build-skills.md): 攻撃した敵を1マス吹き飛ばす
+      if (this.runSkills.includes("launcher") && target.alive) {
+        this.pushMonster(dirFromDelta(target.pos.x - player.pos.x, target.pos.y - player.pos.y), target, events);
+      }
+
       // 地方ボス(plan/region-boss-misemonononushi.md): 本体に命中すると、
       // 残っている幻影は見破られてすべて消える
       if (this.floor.actors.some((a) => a.kind === "monster" && a.mirrorOf === target.id)) {
@@ -2392,9 +2502,77 @@ export class Game {
     player.facing = dir;
     this.alertNearbyMonsters(player.pos);
 
+    // スキル「タルやぶり」(plan/game/archive/run-build-skills.md): 敵に当たらなかった
+    // 場合だけ、正面に置かれたタルを攻撃で割れる(敵がいれば従来どおり敵を優先する)
+    if (!hitAny && this.runSkills.includes("barrelBurst")) {
+      const front = { x: player.pos.x + dirDelta(dir).x, y: player.pos.y + dirDelta(dir).y };
+      const barrel = barrelAt(this.floor, front);
+      if (barrel) this.burstBarrel(barrel, events);
+    }
+
     if (hitAny && pattern === "quickSingle") this.firstStrikeAvailable = false;
     if (hitAny && pattern === "heavySingle") {
       addStatus(this.effectContext(events), player, STATUS_RECOVER, HEAVY_RECOVER_TURNS, "隙ができた");
+    }
+  }
+
+  /**
+   * スキル「タルやぶり」。置かれたタルを攻撃で割り、中身の効果を発揮させる。
+   * 爆発タル・モンスター入りタルは従来どおり(自爆・解放)、元素タルは
+   * その場であける効果(openCarriedBarrelの各効果)を発揮する。からのタルは
+   * ただ壊れるだけ
+   */
+  private burstBarrel(barrel: Barrel, events: GameEvent[]): void {
+    events.push({ type: "message", text: `${barrelDisplayName(barrel)}を割った!` });
+    this.floor.barrels = this.floor.barrels.filter((b) => b.id !== barrel.id);
+    events.push({ type: "barrelBreak", barrelId: barrel.id, pos: barrel.pos });
+    switch (barrel.kind) {
+      case "bomb":
+        this.explode(barrel.pos, events, this.player.id);
+        return;
+      case "caught":
+        this.releaseFromBarrel(barrel, barrel.pos, events);
+        return;
+      case "water":
+        this.openWaterBarrel(barrel.pos, barrel.enhanced ?? false, events);
+        return;
+      case "wind": {
+        for (const other of this.floor.actors) {
+          if (!other.alive || other.kind !== "monster") continue;
+          if (chebyshev(barrel.pos, other.pos) !== 1) continue;
+          const dir = dirFromDelta(other.pos.x - barrel.pos.x, other.pos.y - barrel.pos.y);
+          this.pushMonster(dir, other, events);
+        }
+        return;
+      }
+      case "light":
+        this.lightBarrelTurns = Math.max(
+          this.lightBarrelTurns,
+          barrel.enhanced ? LIGHT_BARREL_OPEN_TURNS + 2 : LIGHT_BARREL_OPEN_TURNS,
+        );
+        return;
+      case "stone":
+        // 割れた壁を作るのは筋が通らないので、代わりに直下の敵へダメージを与える
+        for (const other of this.floor.actors) {
+          if (!other.alive || other.kind !== "monster") continue;
+          if (chebyshev(barrel.pos, other.pos) > 1) continue;
+          const power = Math.round(this.barrelThrowDamage() * STONE_BARREL_DAMAGE_MULTIPLIER);
+          const finalDamage = this.mitigateIncomingDamage(other, Math.max(1, power), events);
+          events.push({ type: "message", text: `${displayActorName(other)}に${finalDamage}のダメージ!` });
+          this.damageActor(other, finalDamage, false, events);
+        }
+        return;
+      case "sleep": {
+        const turns = barrel.enhanced ? SLEEP_BARREL_OPEN_TURNS + 1 : SLEEP_BARREL_OPEN_TURNS;
+        for (const other of this.floor.actors) {
+          if (!other.alive || other.kind !== "monster") continue;
+          if (chebyshev(barrel.pos, other.pos) > 1) continue;
+          addStatus(this.effectContext(events), other, STATUS_SLEEP, turns, "眠ってしまった");
+        }
+        return;
+      }
+      case "empty":
+        return;
     }
   }
 
@@ -2420,6 +2598,7 @@ export class Game {
     events: GameEvent[],
     combatOpts?: { critBonus?: number; forceCrit?: boolean },
   ): void {
+    target = this.applyMutualGuard(attacker, target, events) ?? target;
     attacker.facing = dirFromDelta(target.pos.x - attacker.pos.x, target.pos.y - attacker.pos.y);
     events.push({ type: "attack", attackerId: attacker.id, targetId: target.id });
     events.push({ type: "message", text: `${displayActorName(attacker)}のこうげき!` });
@@ -2453,8 +2632,19 @@ export class Game {
     const sporeBonusMax = attackerSpeciesId ? speciesById(attackerSpeciesId).atkMulInSporedRoom ?? 0 : 0;
     const sporeMultiplier =
       sporeBonusMax > 0 && roomOf(this.floor, attacker.pos)?.spored ? 1 + sporeBonusMax : 1;
+    // スキル「がまんのかまえ」(plan/game/archive/run-build-skills.md): 足踏み直後の1撃だけ2倍
+    const bracedActive = attacker.kind === "player" && (attacker as PlayerState).bracedReady === true;
+    if (bracedActive) (attacker as PlayerState).bracedReady = false;
+    const bracedMultiplier = bracedActive ? BRACED_DAMAGE_MULTIPLIER : 1;
+    // スキル「すてみ」: 与ダメージ+50%(常時)
+    const allInMultiplier =
+      attacker.kind === "player" && this.runSkills.includes("allIn") ? ALL_IN_DAMAGE_MULTIPLIER : 1;
     const effectivePower = Math.round(
-      (ambushStrike ? attackPower * 1.5 : attackPower) * lowHpMultiplier * sporeMultiplier,
+      (ambushStrike ? attackPower * 1.5 : attackPower) *
+        lowHpMultiplier *
+        sporeMultiplier *
+        bracedMultiplier *
+        allInMultiplier,
     );
     const { damage, critical } = computeDamage(this.rng, effectivePower, defense, {
       ...combatOpts,
@@ -2507,7 +2697,33 @@ export class Game {
     const ambushStrike = hasAmbushStrikeEffect && !this.oncePerRun.hasUsed("ambushStrike", attacker.id);
     if (hasAmbushStrikeEffect) this.oncePerRun.markUsed("ambushStrike", attacker.id);
 
-    return { forceCrit: sneakAttack || quickStart || ambushSurprise, ambushStrike };
+    // スキル「とどめのさき」(plan/game/archive/run-build-skills.md):
+    // HP1/4以下の敵への攻撃が必ず急所に当たる
+    const finisherCrit =
+      attacker.kind === "player" &&
+      this.runSkills.includes("finisher") &&
+      target.maxHp > 0 &&
+      target.hp / target.maxHp <= FINISHER_HP_RATIO;
+
+    return { forceCrit: sneakAttack || quickStart || ambushSurprise || finisherCrit, ambushStrike };
+  }
+
+  /**
+   * スキル「かばいあい」(plan/game/archive/run-build-skills.md): 隣接する
+   * 仲間・自分への攻撃を、確率でどちらかが代わりに受ける。ダメージ計算より
+   * 前(防御力を確定する前)に対象を差し替えるので、身代わり側の防御力で
+   * 正しく計算される
+   */
+  private applyMutualGuard(attacker: Actor, target: Actor, events: GameEvent[]): Actor | null {
+    if (!this.runSkills.includes("mutualGuard")) return null;
+    if (!isHostile(attacker, target)) return null;
+    if (target.kind !== "player" && target.kind !== "ally") return null;
+    if (!this.rng.chance(MUTUAL_GUARD_CHANCE)) return null;
+    const party: Actor[] = [this.player, ...this.allies];
+    const coverer = party.find((a) => a.alive && a.id !== target.id && chebyshev(a.pos, target.pos) === 1);
+    if (!coverer) return null;
+    events.push({ type: "message", text: `${displayActorName(coverer)}が身代わりになった!` });
+    return coverer;
   }
 
   /**
@@ -2636,6 +2852,11 @@ export class Game {
    */
   private mitigateIncomingDamage(target: Actor, damage: number, events: GameEvent[]): number {
     if (target.kind === "player") {
+      // スキル「すてみ」(plan/game/archive/run-build-skills.md): 被ダメージ+25%
+      // (常時。他の軽減より先に、素の被弾量に掛ける)
+      const incoming = this.runSkills.includes("allIn")
+        ? Math.round(damage * ALL_IN_TAKEN_MULTIPLIER)
+        : damage;
       if (this.player.ukemiReady) {
         this.player.ukemiReady = false;
         events.push({ type: "message", text: "樽受け身で衝撃を受け流した!" });
@@ -2644,13 +2865,13 @@ export class Game {
       if (this.player.guarding) {
         this.player.guarding = false;
         events.push({ type: "message", text: "身構えていたので、ダメージをおさえた!" });
-        return Math.max(1, Math.floor(damage * (1 - GUARD_DAMAGE_REDUCTION)));
+        return Math.max(1, Math.floor(incoming * (1 - GUARD_DAMAGE_REDUCTION)));
       }
       if (hasEquipEffect(this.player.inventory, "damageReduction") && this.rng.chance(0.5)) {
         events.push({ type: "message", text: "印の力で衝撃をやわらげた!" });
-        return Math.max(1, Math.floor(damage * 0.9));
+        return Math.max(1, Math.floor(incoming * 0.9));
       }
-      return damage;
+      return incoming;
     }
 
     if (target.kind === "ally") {
@@ -2727,6 +2948,17 @@ export class Game {
         hpOwner.hp = 1;
         this.oncePerRun.markUsed("stubborn", hpOwner.id);
         events.push({ type: "message", text: `${displayActorName(hpOwner)}はふんばりこらえた!` });
+      } else if (
+        // スキル「目覚めのいのり」(plan/game/archive/run-build-skills.md): 仲間が
+        // 倒れる一撃を、そのダイブで一度だけHP1で耐えさせる(ふんばりと違い、
+        // 直前のHPを問わない代わりに1ラン合計1回だけ)
+        hpOwner.kind === "ally" &&
+        this.runSkills.includes("wakingPrayer") &&
+        !this.oncePerRun.hasUsed("wakingPrayer", 0)
+      ) {
+        hpOwner.hp = 1;
+        this.oncePerRun.markUsed("wakingPrayer", 0);
+        events.push({ type: "message", text: `${displayActorName(hpOwner)}は、目覚めのいのりに支えられて踏みとどまった!` });
       } else if (hpOwner.kind === "monster" && hpOwner.speciesId === HAJIME_NO_YUME_ID) {
         this.trueAwakeningEnding(hpOwner, events);
       } else {
@@ -2777,6 +3009,16 @@ export class Game {
     if (target.kind === "target") return;
 
     events.push({ type: "message", text: `${displayActorName(target)}をたおした!` });
+    // スキル「ねぎらい」(plan/game/archive/run-build-skills.md): 敵を倒すたび仲間全員が少し回復する
+    if (this.runSkills.includes("appreciation")) {
+      for (const ally of this.allies) {
+        if (!ally.alive) continue;
+        const healed = Math.min(ally.maxHp - ally.hp, APPRECIATION_HEAL_AMOUNT);
+        if (healed <= 0) continue;
+        ally.hp += healed;
+        events.push({ type: "heal", actorId: ally.id, amount: healed, hpAfter: ally.hp });
+      }
+    }
     // スリガラス(plan/shops-and-thieves.md): 盗品を持ったまま倒すと、その場に落とす
     if (target.aiKind === "thief" && target.stolenGold !== undefined) {
       this.floor.goldPiles.push({
@@ -2811,7 +3053,13 @@ export class Game {
         events.push({ type: "levelUp", actorId: this.player.id, level: this.player.level });
         events.push({ type: "message", text: t("msg.levelUp", { level: this.player.level }) });
       }
-      if (levels > 0) events.push({ type: "tutorialTip", id: "levelUp" });
+      if (levels > 0) {
+        events.push({ type: "tutorialTip", id: "levelUp" });
+        // レベルアップ時のスキル選択(plan/game/archive/run-build-skills.md):
+        // 1手で複数レベル上がっても、選択肢は1レベルぶんずつ順番に出す
+        this.pendingLevelUpChoices += levels;
+        this.offerNextSkillChoice(events);
+      }
       // 仲間の経験値・レベルアップ(plan/game/archive/companion-leveling-and-arts.md):
       // ガルドが得る全量とは別に、生存して連れている仲間全員がそれぞれ50%を得る
       // (頭割りにしない。複数連れのパーティが不利にならないように)
@@ -2855,6 +3103,32 @@ export class Game {
         });
       }
     }
+  }
+
+  /**
+   * レベルアップ時のスキル選択(plan/game/archive/run-build-skills.md)。
+   * 残っている選択肢があれば1つぶん3択を引いて提示する。系統がすべて
+   * 習得済みで1件も引けなければ(全18件習得済み)、その分は静かに消費する
+   */
+  private offerNextSkillChoice(events: GameEvent[]): void {
+    if (this.pendingLevelUpChoices <= 0) return;
+    const candidates = rollRunSkillChoices(this.rng, this.runSkills);
+    if (candidates.length === 0) {
+      this.pendingLevelUpChoices = 0;
+      return;
+    }
+    this.pendingSkillChoice = candidates;
+    events.push({ type: "skillChoiceOffered", candidates });
+  }
+
+  /** 提示中の3択から1つ選ぶ。候補外のidは無視する(不正な選択・二重送信対策) */
+  private resolveSkillChoice(id: RunSkillId, events: GameEvent[]): void {
+    if (!this.pendingSkillChoice?.includes(id)) return;
+    this.runSkills.push(id);
+    this.pendingSkillChoice = null;
+    this.pendingLevelUpChoices = Math.max(0, this.pendingLevelUpChoices - 1);
+    events.push({ type: "message", text: `『${runSkillDef(id).name}』を身につけた!` });
+    this.offerNextSkillChoice(events);
   }
 
   // ------------------------------------------------------------ アイテム
@@ -2964,6 +3238,11 @@ export class Game {
       if (this.player.satiety > satietyBefore) {
         events.push({ type: "message", text: "……少しだけおなかが満たされた。" });
       }
+      // スキル「わけあう手」(plan/game/archive/run-build-skills.md): 回復の
+      // 草を使うと、隣接する仲間にも半分の効果が及ぶ
+      if (def.effect === "heal" && this.runSkills.includes("sharingHand")) {
+        this.applySharingHand(def.power ?? 0, events);
+      }
     }
 
     if (def.category === "staff") {
@@ -2972,6 +3251,20 @@ export class Game {
       removeItem(inv, uid);
     }
     return true;
+  }
+
+  /** スキル「わけあう手」。隣接する仲間全員に、回復量の半分ぶん分け与える */
+  private applySharingHand(power: number, events: GameEvent[]): void {
+    const amount = Math.round(power / 2);
+    if (amount <= 0) return;
+    for (const ally of this.allies) {
+      if (!ally.alive || chebyshev(ally.pos, this.player.pos) !== 1) continue;
+      const healed = Math.min(ally.maxHp - ally.hp, amount);
+      if (healed <= 0) continue;
+      ally.hp += healed;
+      events.push({ type: "heal", actorId: ally.id, amount: healed, hpAfter: ally.hp });
+      events.push({ type: "message", text: `${displayActorName(ally)}にも分け与え、HPが${healed}回復した。` });
+    }
   }
 
   /**
@@ -3221,6 +3514,7 @@ export class Game {
               this.player,
               towardsFriendly,
               this.mood.awareDistanceMul ?? 1,
+              this.playerStealthChance(),
             );
       // ゆめわざ「ねばりつき」: 移動だけを封じる。攻撃・遠隔等の他の行動は
       // そのまま通す(隣接していれば反撃できる)ため、moveのときだけ差し替える
@@ -3365,10 +3659,15 @@ export class Game {
         const def = dreamArtDef(action.id);
         // ぬしのゆめわざ(plan/game/archive/boss-dream-arts.md): なじみ最高段階では
         // クールダウンを2割短縮する(通常種のゆめわざは対象外)
-        const cooldown =
+        let cooldown =
           def.isBossExclusive && bondStage(actor.bondSuccessCount ?? 0) === "irreplaceable"
             ? Math.round(def.cooldownTurns * BOSS_DREAM_ART_BOND_COOLDOWN_MULTIPLIER)
             : def.cooldownTurns;
+        // スキル「はげましの声」(plan/game/archive/run-build-skills.md): 仲間の
+        // ゆめわざのクールダウン-25%(なじみ短縮とは別枠で重ねて掛かる)
+        if (this.runSkills.includes("encouragement")) {
+          cooldown = Math.round(cooldown * ENCOURAGEMENT_COOLDOWN_MULTIPLIER);
+        }
         actor.dreamArtCooldowns ??= {};
         actor.dreamArtCooldowns[action.id] = cooldown;
         break;
