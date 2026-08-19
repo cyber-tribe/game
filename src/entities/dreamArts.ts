@@ -17,6 +17,8 @@ import {
   type DreamArtId,
   type FloorState,
   isHostile,
+  roomContains,
+  TILE_WALL,
 } from "../core/types";
 
 /** ゆめわざの発動条件が見た情報。判定だけ行い、副作用は一切持たない */
@@ -46,6 +48,38 @@ export interface DreamArtDef {
   activationChance: number;
   description: string;
   trigger: (ctx: DreamArtTriggerContext) => DreamArtTriggerResult | null;
+  /**
+   * ぬしのゆめわざ(plan/game/archive/boss-dream-arts.md)。地方ボス種専用の
+   * 1件だけの習得表であることを示す。なじみ最高段階でのCD短縮の対象になる
+   */
+  isBossExclusive?: boolean;
+}
+
+/** 自分と敵対する、同じ部屋にいる生存アクター。ぬしの部屋規模のゆめわざが使う */
+export function foesInRoom(floor: FloorState, self: Actor): Actor[] {
+  const room = floor.rooms.find((r) => roomContains(r, self.pos));
+  if (!room) return [];
+  return floor.actors.filter((a) => a.alive && isHostile(self, a) && roomContains(room, a.pos));
+}
+
+/**
+ * selfの上下左右で、掘り抜ける壁マス(壁タイル・かつフロア外周ではない)を
+ * 1つ探す。ぬしのゆめわざ「つらぬき掘り」が使う。外周壁を除くのは
+ * ソフトロック防止(plan/game/archive/boss-dream-arts.md)
+ */
+export function diggableWallNear(floor: FloorState, pos: Vec2): Vec2 | null {
+  const deltas: Vec2[] = [
+    { x: pos.x - 1, y: pos.y },
+    { x: pos.x + 1, y: pos.y },
+    { x: pos.x, y: pos.y - 1 },
+    { x: pos.x, y: pos.y + 1 },
+  ];
+  for (const p of deltas) {
+    if (p.x <= 0 || p.y <= 0 || p.x >= floor.width - 1 || p.y >= floor.height - 1) continue;
+    const tile = floor.tiles[p.y * floor.width + p.x];
+    if (tile && tile.kind === TILE_WALL) return p;
+  }
+  return null;
 }
 
 function nearestFoeWithin(
@@ -237,6 +271,102 @@ export const DREAM_ARTS: Readonly<Record<DreamArtId, DreamArtDef>> = {
           isStraightLine(ctx.ally.pos, a.pos),
       );
       return foe ? { targetId: foe.id } : null;
+    },
+  },
+
+  // ---- ぬしのゆめわざ(plan/game/archive/boss-dream-arts.md) ----
+  // 各ぬしが専用の1件だけを習得する(Lv15、Species.dreamArts側で定義)。
+  // 敵として使ってきた大技の「借用」という位置づけで、通常のゆめわざより
+  // 一段強い代わりにクールダウンを長くしてある(1フロア1〜2回の切り札)
+  jibikiNoNegaeri: {
+    id: "jibikiNoNegaeri",
+    name: "じびきの寝がえり",
+    cooldownTurns: 15,
+    activationChance: 0.5,
+    description: "周囲2マスの敵にダメージを与え、1ターン怯ませる(おおねぼすけの大技の借用)。",
+    isBossExclusive: true,
+    trigger(ctx) {
+      const foe = nearestFoeWithin(ctx.floor, ctx.ally, 2);
+      return foe ? {} : null;
+    },
+  },
+  oomarunomi: {
+    id: "oomarunomi",
+    name: "おおまるのみ",
+    cooldownTurns: 18,
+    activationChance: 0.5,
+    description: "隣接する敵1体を呑んで封じ、吐き出して小ダメージを与える(ヌシガエルの大技の借用)。",
+    isBossExclusive: true,
+    trigger(ctx) {
+      return ctx.adjacentFoe ? { targetId: ctx.adjacentFoe.id } : null;
+    },
+  },
+  fukaiMadoromi: {
+    id: "fukaiMadoromi",
+    name: "ふかいまどろみ",
+    cooldownTurns: 25,
+    activationChance: 0.5,
+    description: "同じ部屋にいる敵全員を眠らせる(オオマドロミの大技の借用)。",
+    isBossExclusive: true,
+    trigger(ctx) {
+      return foesInRoom(ctx.floor, ctx.ally).length > 0 ? {} : null;
+    },
+  },
+  honeNoToride: {
+    id: "honeNoToride",
+    name: "ホネのとりで",
+    cooldownTurns: 20,
+    activationChance: 0.5,
+    description: "自分の周囲に骨の壁を最大3マス生成する(ホネヅカのぬしの大技の借用)。",
+    isBossExclusive: true,
+    trigger(ctx) {
+      const foe = nearestFoeWithin(ctx.floor, ctx.ally, 3);
+      return foe ? {} : null;
+    },
+  },
+  uzuNoSasoi: {
+    id: "uzuNoSasoi",
+    name: "うずのさそい",
+    cooldownTurns: 20,
+    activationChance: 0.5,
+    description: "同じ部屋にいる敵を自分へ引き寄せる(淵の主の大技の借用)。",
+    isBossExclusive: true,
+    trigger(ctx) {
+      return foesInRoom(ctx.floor, ctx.ally).length > 0 ? {} : null;
+    },
+  },
+  kodamaNoOtakebi: {
+    id: "kodamaNoOtakebi",
+    name: "こだまのおたけび",
+    cooldownTurns: 25,
+    activationChance: 0.5,
+    description: "次の3ターン、仲間全員の攻撃が2回響くようになる(こだまの主の大技の借用)。",
+    isBossExclusive: true,
+    trigger(ctx) {
+      const foe = nearestFoeWithin(ctx.floor, ctx.ally, 4);
+      return foe ? {} : null;
+    },
+  },
+  maboroshiNoKoujou: {
+    id: "maboroshiNoKoujou",
+    name: "まぼろしの口上",
+    cooldownTurns: 22,
+    activationChance: 0.5,
+    description: "同じ部屋にいる敵全員を混乱させる(見世物のぬしの大技の借用)。",
+    isBossExclusive: true,
+    trigger(ctx) {
+      return foesInRoom(ctx.floor, ctx.ally).length > 0 ? {} : null;
+    },
+  },
+  tsuranukiBori: {
+    id: "tsuranukiBori",
+    name: "つらぬき掘り",
+    cooldownTurns: 15,
+    activationChance: 0.5,
+    description: "隣接する壁を1マス掘り抜いて通路にする(外周壁は不可。掘り杭の主の大技の借用)。",
+    isBossExclusive: true,
+    trigger(ctx) {
+      return diggableWallNear(ctx.floor, ctx.ally.pos) ? {} : null;
     },
   },
 };

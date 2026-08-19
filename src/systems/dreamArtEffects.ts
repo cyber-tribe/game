@@ -10,13 +10,16 @@ import {
   type DreamArtId,
   type FloorState,
   type StatusKind,
+  STATUS_CONFUSE,
   STATUS_FLINCH,
   STATUS_ROOT,
+  STATUS_SEAL,
   STATUS_SLEEP,
 } from "../core/types";
 import type { GameEvent } from "../core/events";
-import { type Dir, chebyshev, dirFromDelta } from "../core/grid";
+import { type Dir, type Vec2, chebyshev, dirFromDelta } from "../core/grid";
 import type { Rng } from "../core/rng";
+import { diggableWallNear, foesInRoom } from "../entities/dreamArts";
 import { displayActorName } from "../entities/naming";
 
 /** ゆめわざの睡眠・封じ・行動封じの持続ターン。共通で3ターン */
@@ -37,6 +40,29 @@ const TSUBUTE_NAGE_POWER_MULTIPLIER = 0.6;
 /** いやしのしずくの回復量(対象のmaxHpに掛ける割合) */
 const IYASHI_NO_SHIZUKU_HEAL_RATIO = 0.2;
 
+// ---- ぬしのゆめわざ(plan/game/archive/boss-dream-arts.md) ----
+/** じびきの寝がえりの威力倍率(ally.atkに掛ける)・怯みの持続ターン */
+const JIBIKI_NO_NEGAERI_POWER_MULTIPLIER = 0.8;
+const JIBIKI_NO_NEGAERI_FLINCH_TURNS = 1;
+/** おおまるのみの封じの持続ターン・吐き出しダメージの威力倍率 */
+const OOMARUNOMI_SEAL_TURNS = 2;
+const OOMARUNOMI_POWER_MULTIPLIER = 0.4;
+/** ふかいまどろみ・まぼろしの口上の持続ターン(部屋全体、確定発動) */
+const FUKAI_MADOROMI_SLEEP_TURNS = 3;
+const MABOROSHI_NO_KOUJOU_CONFUSE_TURNS = 3;
+/**
+ * ホネのとりでが生成する壁の最大数・持続ターン。「壊せる」という手触りは
+ * 今回は実装せず(攻撃で壊す動線はplan外)、一定ターンで自然に崩れる形に
+ * 簡略化した(アーカイブ注記参照)
+ */
+const HONE_NO_TORIDE_MAX_WALLS = 3;
+const HONE_NO_TORIDE_TURNS = 4;
+/** うずのさそいで引き寄せる距離(マス数) */
+const UZU_NO_SASOI_PULL_DISTANCE = 2;
+/** こだまのおたけびの持続ターン・追加の1撃の威力倍率(通常の1撃の半分) */
+const KODAMA_NO_OTAKEBI_TURNS = 3;
+export const KODAMA_NO_OTAKEBI_ECHO_MULTIPLIER = 0.5;
+
 /** ゆめわざの実行に必要な最小限のGameアクセス */
 export interface DreamArtContext {
   actor: AllyActor;
@@ -52,6 +78,27 @@ export interface DreamArtContext {
   extendLanternGlow: (turns: number) => void;
   /** ゆめのかけぶとん(仲間全員の被弾を1ターン軽減)。持続ターン数を上書きする */
   extendPartyGuard: (turns: number) => void;
+  /** 部屋の在室者に状態異常をまとめて判定する(chance=1で確定発動として使う) */
+  applyRoomWideStatus: (
+    occupants: readonly Actor[],
+    kind: StatusKind,
+    chance: number,
+    turns: number,
+    verb: string,
+    events: GameEvent[],
+  ) => void;
+  /**
+   * ぬしのゆめわざ「ホネのとりで」。指定マスを一時的に壁化する
+   * (歩行不可・視線を遮る)。既に壁・アクター・タルがある等で置けなければfalse
+   */
+  placeTemporaryWall: (pos: Vec2, turns: number) => boolean;
+  /**
+   * ぬしのゆめわざ「つらぬき掘り」。指定マス(壁)を通路に変える。
+   * diggableWallNearが返した位置をそのまま渡す前提
+   */
+  digWall: (pos: Vec2) => void;
+  /** ぬしのゆめわざ「こだまのおたけび」。持続ターン数を上書きする */
+  extendEchoAttack: (turns: number) => void;
 }
 
 export interface DreamArtEffectDef {
@@ -172,6 +219,104 @@ export const DREAM_ART_EFFECTS: Readonly<Record<DreamArtId, DreamArtEffectDef>> 
       faceTarget(ctx.actor, target);
       ctx.events.push({ type: "message", text: `${displayActorName(ctx.actor)}は『わすれさせ』をゆめみた!` });
       target.aware = false;
+    },
+  },
+
+  // ---- ぬしのゆめわざ(plan/game/archive/boss-dream-arts.md) ----
+  jibikiNoNegaeri: {
+    execute(ctx) {
+      ctx.events.push({ type: "message", text: `${displayActorName(ctx.actor)}は『じびきの寝がえり』をゆめみた!` });
+      const power = Math.max(1, Math.round(ctx.actor.atk * JIBIKI_NO_NEGAERI_POWER_MULTIPLIER));
+      for (const other of ctx.floor.actors) {
+        if (!other.alive || other.kind !== "monster") continue;
+        if (chebyshev(ctx.actor.pos, other.pos) > 2) continue;
+        const finalDamage = ctx.mitigateIncomingDamage(other, power, ctx.events);
+        ctx.events.push({ type: "message", text: `${displayActorName(other)}に${finalDamage}のダメージ!` });
+        ctx.damageActor(other, finalDamage, false, ctx.events);
+        if (other.alive) ctx.addStatus(other, STATUS_FLINCH, JIBIKI_NO_NEGAERI_FLINCH_TURNS, "怯んでしまった");
+      }
+    },
+  },
+  oomarunomi: {
+    execute(ctx, targetId) {
+      const target = findTarget(ctx, targetId);
+      if (!target) return;
+      faceTarget(ctx.actor, target);
+      ctx.events.push({ type: "message", text: `${displayActorName(ctx.actor)}は『おおまるのみ』をゆめみた!` });
+      ctx.addStatus(target, STATUS_SEAL, OOMARUNOMI_SEAL_TURNS, "呑み込まれて封じられた");
+      const power = Math.max(1, Math.round(ctx.actor.atk * OOMARUNOMI_POWER_MULTIPLIER));
+      const finalDamage = ctx.mitigateIncomingDamage(target, power, ctx.events);
+      ctx.events.push({ type: "message", text: `吐き出され、${displayActorName(target)}に${finalDamage}のダメージ!` });
+      ctx.damageActor(target, finalDamage, false, ctx.events);
+    },
+  },
+  fukaiMadoromi: {
+    execute(ctx) {
+      ctx.events.push({ type: "message", text: `${displayActorName(ctx.actor)}は『ふかいまどろみ』をゆめみた!` });
+      ctx.applyRoomWideStatus(
+        foesInRoom(ctx.floor, ctx.actor),
+        STATUS_SLEEP,
+        1,
+        FUKAI_MADOROMI_SLEEP_TURNS,
+        "眠ってしまった",
+        ctx.events,
+      );
+    },
+  },
+  honeNoToride: {
+    execute(ctx) {
+      ctx.events.push({ type: "message", text: `${displayActorName(ctx.actor)}は『ホネのとりで』をゆめみた!` });
+      const { x, y } = ctx.actor.pos;
+      const neighbors: Vec2[] = [
+        { x: x - 1, y },
+        { x: x + 1, y },
+        { x, y: y - 1 },
+        { x, y: y + 1 },
+      ];
+      let placed = 0;
+      for (const pos of neighbors) {
+        if (placed >= HONE_NO_TORIDE_MAX_WALLS) break;
+        if (ctx.placeTemporaryWall(pos, HONE_NO_TORIDE_TURNS)) placed++;
+      }
+    },
+  },
+  uzuNoSasoi: {
+    execute(ctx) {
+      ctx.events.push({ type: "message", text: `${displayActorName(ctx.actor)}は『うずのさそい』をゆめみた!` });
+      for (const foe of foesInRoom(ctx.floor, ctx.actor)) {
+        for (let step = 0; step < UZU_NO_SASOI_PULL_DISTANCE && foe.alive; step++) {
+          if (foe.pos.x === ctx.actor.pos.x && foe.pos.y === ctx.actor.pos.y) break;
+          const dir = dirFromDelta(ctx.actor.pos.x - foe.pos.x, ctx.actor.pos.y - foe.pos.y);
+          if (!ctx.pushMonster(dir, foe, ctx.events)) break;
+        }
+      }
+    },
+  },
+  kodamaNoOtakebi: {
+    execute(ctx) {
+      ctx.events.push({ type: "message", text: `${displayActorName(ctx.actor)}は『こだまのおたけび』をゆめみた!` });
+      ctx.extendEchoAttack(KODAMA_NO_OTAKEBI_TURNS);
+    },
+  },
+  maboroshiNoKoujou: {
+    execute(ctx) {
+      ctx.events.push({ type: "message", text: `${displayActorName(ctx.actor)}は『まぼろしの口上』をゆめみた!` });
+      ctx.applyRoomWideStatus(
+        foesInRoom(ctx.floor, ctx.actor),
+        STATUS_CONFUSE,
+        1,
+        MABOROSHI_NO_KOUJOU_CONFUSE_TURNS,
+        "混乱した",
+        ctx.events,
+      );
+    },
+  },
+  tsuranukiBori: {
+    execute(ctx) {
+      const pos = diggableWallNear(ctx.floor, ctx.actor.pos);
+      if (!pos) return;
+      ctx.events.push({ type: "message", text: `${displayActorName(ctx.actor)}は『つらぬき掘り』をゆめみた!` });
+      ctx.digWall(pos);
     },
   },
 };

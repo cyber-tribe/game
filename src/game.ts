@@ -135,6 +135,7 @@ import {
   DREAM_ART_EFFECTS,
   HONE_TSUYOSHI_MULTIPLIER,
   HONOKA_NA_AKARI_VISION_EXTRA,
+  KODAMA_NO_OTAKEBI_ECHO_MULTIPLIER,
   YUME_NO_KAKEBUTON_DAMAGE_REDUCTION,
   type DreamArtContext,
 } from "./systems/dreamArtEffects";
@@ -385,6 +386,9 @@ const BONEPILE_REGION = regionByIndex(4);
 /** 地方ごとの成熟系統(plan/companion-evolution-expansion.md): こだまぎつねの反響攻撃の最大追加回数 */
 const ECHO_ATTACK_MAX = 2;
 
+/** ぬしのゆめわざ(plan/game/archive/boss-dream-arts.md): なじみ最高段階でのクールダウン短縮率(2割短縮) */
+const BOSS_DREAM_ART_BOND_COOLDOWN_MULTIPLIER = 0.8;
+
 /** 松明(plan/region-darkness.md): 使うと持続する視界拡張の効果時間(ターン)。数値は初期案 */
 const TORCH_DURATION_TURNS = 20;
 
@@ -575,6 +579,8 @@ export class Game {
   private lanternGlowTurns = 0;
   /** ゆめわざ「ゆめのかけぶとん」。残りターン数。0なら効果切れ */
   private partyGuardTurns = 0;
+  /** ぬしのゆめわざ「こだまのおたけび」。残りターン数。0なら効果切れ */
+  private echoAttackTurns = 0;
   /** 実績帳「挑戦」カテゴリ(plan/challenge-achievements.md)。杖・巻物・食料等を使ったか */
   usedItemThisRun = false;
   /**
@@ -2360,17 +2366,28 @@ export class Game {
    * 命中のたび確率で追加の1撃を同じ相手に放つ(最大2回まで反響)
    */
   private applyEchoAttacks(attacker: Actor, target: Actor, effectivePower: number, events: GameEvent[]): void {
+    // ぬしのゆめわざ「こだまのおたけび」(plan/game/archive/boss-dream-arts.md):
+    // 次の数ターン、仲間全員の攻撃に確率に関わらず半減ダメージの追加1撃を保証する。
+    // 種族特性echoAttackChance(確率式・こだまぎつね系)とは別枠で、両方乗りうる
+    if (attacker.kind === "ally" && this.echoAttackTurns > 0 && target.alive) {
+      this.echoHit(attacker, target, Math.round(effectivePower * KODAMA_NO_OTAKEBI_ECHO_MULTIPLIER), events);
+    }
     const attackerSpeciesId = attacker.kind === "monster" || attacker.kind === "ally" ? attacker.speciesId : undefined;
     const echoChance = attackerSpeciesId ? speciesById(attackerSpeciesId).echoAttackChance ?? 0 : 0;
     if (echoChance <= 0) return;
     for (let echo = 0; echo < ECHO_ATTACK_MAX && target.alive && this.rng.chance(echoChance); echo++) {
-      events.push({ type: "message", text: `${displayActorName(attacker)}のこうげきがこだました!` });
-      const echoDefense = target.kind === "player" ? totalDefense(this.player) : target.def;
-      const { damage: echoDamage, critical: echoCritical } = computeDamage(this.rng, effectivePower, echoDefense);
-      const finalEchoDamage = this.mitigateIncomingDamage(target, echoDamage, events);
-      events.push({ type: "message", text: `${displayActorName(target)}に${finalEchoDamage}のダメージ!` });
-      this.damageActor(target, finalEchoDamage, echoCritical, events);
+      this.echoHit(attacker, target, effectivePower, events);
     }
+  }
+
+  /** applyEchoAttacksの1回ぶんの追加攻撃(種族特性・こだまのおたけびで共有) */
+  private echoHit(attacker: Actor, target: Actor, power: number, events: GameEvent[]): void {
+    events.push({ type: "message", text: `${displayActorName(attacker)}のこうげきがこだました!` });
+    const echoDefense = target.kind === "player" ? totalDefense(this.player) : target.def;
+    const { damage, critical } = computeDamage(this.rng, power, echoDefense);
+    const finalDamage = this.mitigateIncomingDamage(target, damage, events);
+    events.push({ type: "message", text: `${displayActorName(target)}に${finalDamage}のダメージ!` });
+    this.damageActor(target, finalDamage, critical, events);
   }
 
   /**
@@ -3100,8 +3117,15 @@ export class Game {
         // 実装は systems/dreamArtEffects.ts の DREAM_ART_EFFECTS レジストリにある
         if (actor.kind !== "ally") break;
         DREAM_ART_EFFECTS[action.id].execute(this.dreamArtContext(actor, events), action.targetId);
+        const def = dreamArtDef(action.id);
+        // ぬしのゆめわざ(plan/game/archive/boss-dream-arts.md): なじみ最高段階では
+        // クールダウンを2割短縮する(通常種のゆめわざは対象外)
+        const cooldown =
+          def.isBossExclusive && bondStage(actor.bondSuccessCount ?? 0) === "irreplaceable"
+            ? Math.round(def.cooldownTurns * BOSS_DREAM_ART_BOND_COOLDOWN_MULTIPLIER)
+            : def.cooldownTurns;
         actor.dreamArtCooldowns ??= {};
-        actor.dreamArtCooldowns[action.id] = dreamArtDef(action.id).cooldownTurns;
+        actor.dreamArtCooldowns[action.id] = cooldown;
         break;
       }
     }
@@ -3177,6 +3201,7 @@ export class Game {
     this.tickRegen();
     this.tickSporeRooms(events);
     this.tickSummonedTorrentTiles();
+    this.tickBoneWalls();
     this.tickMirrors(events);
     this.tickTorch(events);
 
@@ -3214,6 +3239,10 @@ export class Game {
       if (this.lanternGlowTurns === 0) events.push({ type: "message", text: "ほのかなあかりが消えた。" });
     }
     if (this.partyGuardTurns > 0) this.partyGuardTurns--;
+    if (this.echoAttackTurns > 0) {
+      this.echoAttackTurns--;
+      if (this.echoAttackTurns === 0) events.push({ type: "message", text: "こだまの雄叫びの余韻が消えた。" });
+    }
     for (const actor of this.floor.actors) {
       if (actor.kind !== "ally") continue;
       if (actor.dreamArtCooldowns) {
@@ -3364,6 +3393,29 @@ export class Game {
   }
 
   /**
+   * ぬしのゆめわざ「ホネのとりで」(plan/game/archive/boss-dream-arts.md)で
+   * 一時的に壁化したタイルを、毎ターンexpiresInぶん減らし、0になったら
+   * 元のTileKindに戻す。tickSummonedTorrentTilesと同じ形
+   */
+  private tickBoneWalls(): void {
+    for (const actor of this.floor.actors) {
+      if (actor.kind !== "monster" && actor.kind !== "ally") continue;
+      if (!actor.boneWallTiles || actor.boneWallTiles.length === 0) continue;
+      const remaining: { pos: Vec2; expiresIn: number; originalKind: Tile["kind"] }[] = [];
+      for (const entry of actor.boneWallTiles) {
+        entry.expiresIn--;
+        if (entry.expiresIn <= 0) {
+          const tile = tileAt(this.floor, entry.pos);
+          if (tile) tile.kind = entry.originalKind;
+        } else {
+          remaining.push(entry);
+        }
+      }
+      actor.boneWallTiles = remaining;
+    }
+  }
+
+  /**
    * 地方ボス(plan/region-boss-misemonononushi.md): 幻影を呼び出してから
    * 一定ターン(既定5)経過しても本体を当てられない場合、幻影が自然に消えて
    * 通常状態へ戻る(膠着状態を防ぐ安全弁)
@@ -3440,7 +3492,38 @@ export class Game {
       extendPartyGuard: (turns) => {
         this.partyGuardTurns = Math.max(this.partyGuardTurns, turns);
       },
+      applyRoomWideStatus: (occupants, kind, chance, turns, verb, evts) =>
+        this.applyRoomWideStatus(occupants, kind, chance, turns, verb, evts),
+      placeTemporaryWall: (pos, turns) => this.placeTemporaryWall(actor, pos, turns),
+      digWall: (pos) => this.digWall(pos),
+      extendEchoAttack: (turns) => {
+        this.echoAttackTurns = Math.max(this.echoAttackTurns, turns);
+      },
     };
+  }
+
+  /**
+   * ぬしのゆめわざ「ホネのとりで」。指定マスを一時的に壁化する。既に壁・
+   * アクター・タルがあるマスには置けない(actorのboneWallTilesに記録し、
+   * tickBoneWallsが元に戻す)
+   */
+  private placeTemporaryWall(actor: CombatantActor, pos: Vec2, turns: number): boolean {
+    const tile = tileAt(this.floor, pos);
+    if (!tile || tile.kind === TILE_WALL) return false;
+    if (actorAt(this.floor, pos) || barrelAt(this.floor, pos)) return false;
+    actor.boneWallTiles ??= [];
+    actor.boneWallTiles.push({ pos: { ...pos }, expiresIn: turns, originalKind: tile.kind });
+    tile.kind = TILE_WALL;
+    return true;
+  }
+
+  /**
+   * ぬしのゆめわざ「つらぬき掘り」。壁タイルを通路に変える。
+   * plan/lost-and-found-vault.mdの隠し通路が崩れる処理と同じ形
+   */
+  private digWall(pos: Vec2): void {
+    const tile = tileAt(this.floor, pos);
+    if (tile) tile.kind = TILE_CORRIDOR;
   }
 
   /** テストとデバッグ用。指定した種類のアイテムを持ち物に足す */
