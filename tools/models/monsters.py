@@ -1979,8 +1979,59 @@ def build_kodamausagi():
 
 
 def kodamausagi_animations():
-    """既存5クリップの構成をそのまま流用する(骨の名前がぷるんと同じため、そのまま使える)。"""
-    return purun_animations()
+    """
+    plan/game/archive/animation-quality-guidelines.mdの規約は
+    purun_animations()の流用ですでに満たしているが(骨の名前がぷるんと
+    同じため)、swarm(群れで3〜4体出現)・fieldSkill: "squeeze"という
+    この種族固有の素早さに合わせ、purunより全体を詰めて差別化する。
+    idle/walkはpurunの構成をそのまま踏襲する(idleはakubitokageと同じ
+    「upperを遅らせて耳の付け根の傾きを追従させる」二次揺れだけ追加)。
+    """
+    lower, upper = "base-mid", "mid-top"
+    squash = {"scale": (1.22, 0.72, 1.22)}
+    stretch = {"scale": (0.86, 1.28, 0.86)}
+    neutral = {"scale": (1.0, 1.0, 1.0)}
+    return [
+        # 耳の付け根に近いupperの傾きが、lowerの呼吸より2フレーム遅れて
+        # 追従する(akubitokageと同じ手法の二次揺れ)
+        ("idle", [
+            (1, {lower: neutral, upper: (0, 0, 0)}),
+            (16, {lower: {"scale": (1.06, 0.92, 1.06)}}),
+            (18, {upper: (3, 0, 0)}, {"partial": True}),
+            (32, {lower: neutral}),
+            (34, {upper: (0, 0, 0)}, {"partial": True}),
+        ]),
+        # 縮んでから跳ね上がり、着地でまた潰れる
+        ("walk", [
+            (1, {lower: neutral}),
+            (4, {lower: squash}),
+            (9, {lower: {**stretch, "loc": (0, 0.10, 0)}}),
+            (14, {lower: {"scale": (1.1, 0.85, 1.1)}}),
+            (20, {lower: neutral}),
+        ]),
+        # タメ→ツメ(LINEARで鋭く伸び上がる)→行き過ぎ→戻り。群れで素早く
+        # 動く性格に合わせ、purunよりフレーム間隔を詰め、耳が立った頭
+        # (upper)が過剰に暴れないよう振り角度も心持ち小さくする
+        ("attack", [
+            (1, {lower: neutral, upper: (0, 0, 0)}),
+            (4, {lower: squash}, {"interp": "LINEAR"}),
+            (6, {lower: {"scale": (0.8, 1.35, 0.8), "loc": (0, 0.06, 0)}, upper: (-15, 0, 0)}),
+            (8, {lower: {"scale": (0.86, 1.26, 0.86), "loc": (0, 0.05, 0)}, upper: (-11, 0, 0)}),
+            (14, {lower: neutral, upper: (0, 0, 0)}),
+        ]),
+        # 鋭く潰れて(LINEAR)、HP22はpurunよりやや低めなのでpurunより
+        # 一段強く潰れ、驚いてすぐ跳ねのくように戻りも14fから11fへ短縮する
+        ("hit", [
+            (1, {lower: neutral}, {"interp": "LINEAR"}),
+            (3, {lower: {"scale": (1.36, 0.58, 1.36)}, upper: (16, 0, 0)}),
+            (11, {lower: neutral, upper: (0, 0, 0)}),
+        ]),
+        ("die", [
+            (1, {lower: neutral}),
+            (10, {lower: {"scale": (1.35, 0.5, 1.35)}}),
+            (24, {lower: {"scale": (1.5, 0.06, 1.5)}}),
+        ]),
+    ]
 
 
 # =========================================================================== こだまぐも
