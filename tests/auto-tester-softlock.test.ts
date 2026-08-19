@@ -86,4 +86,29 @@ describe("tools/softlock-detector.mjs: 進行不能の疑い検知(#396)", () =>
     expect(detector.unchangedTurns).toBe(0);
     expect(detector.triedDirections).toEqual([]);
   });
+
+  it("ターンが進む限り報告しない(足踏み・押し出し等。#396の再発の主因)", () => {
+    // 足踏み・モンスターの押し出し・空振り攻撃はターンを消費するのに
+    // 位置もHPも変えない。readHud(tools/auto-tester.mjs)がturnを含む
+    // 前提で、ターンが進めばJSONが変わり計測がやり直されることを留める
+    const detector = new SoftlockDetector();
+    let reported = false;
+    for (let i = 0; i < SOFTLOCK_TURNS * 3; i++) {
+      detector.observe(hud(5, 5, { turn: i }));
+      if (detector.takeReport()) reported = true;
+      detector.noteDirection(MOVE_DIRECTIONS[i % MOVE_DIRECTIONS.length]!);
+    }
+    expect(reported).toBe(false);
+  });
+
+  it("ターンも止まっている(入力が届いていない)なら従来どおり報告する", () => {
+    const detector = new SoftlockDetector();
+    let reported = false;
+    for (let i = 0; i < SOFTLOCK_TURNS + 5; i++) {
+      detector.observe(hud(5, 5, { turn: 42 })); // モーダルが入力を食っている等
+      if (detector.takeReport()) reported = true;
+      detector.noteDirection(MOVE_DIRECTIONS[i % MOVE_DIRECTIONS.length]!);
+    }
+    expect(reported).toBe(true);
+  });
 });
