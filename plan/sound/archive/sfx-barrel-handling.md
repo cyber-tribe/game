@@ -1,3 +1,19 @@
+> **実装済み。** `tools/audio/build.ts` の `SFX_SPECS` に計画書どおりの
+> 値(`barrelLift`: mallet/220Hz/0.2s、`barrelPut`: drum/180Hz/0.15s、
+> `barrelThrow`: drum/250Hz/0.2s、`barrelBreak`: drum/320Hz/0.3s)で
+> 4エントリを追加し、`public/audio/sfx/`へ生成した。新しい合成機能は
+> 不要だった。
+>
+> `src/view/stage.ts`の`buildEventHandlers`を編集: `liftBarrel`・
+> `putBarrel`・`throwBarrel`はいずれも既存の見た目処理(タルの持ち替え・
+> `launchBarrel`)の直後に`this.audio.playSfx(...)`を1行追加。
+> `barrelBreak: noop`は`this.audio.playSfx("barrelBreak")`を呼ぶ
+> ハンドラに置き換えた(計画書どおり見た目の演出は今回追加していない)。
+>
+> **検証**: `npx tsc --noEmit`・`npx vitest run`(111ファイル/1439件)・
+> `npm run build`・`npm run audio`いずれも成功。再生成後の差分は
+> 4ファイル新規のみ(既存音源は無変更)。
+
 # タルの持ち上げ・置く・投げる・壊れる音
 
 ## 経緯
