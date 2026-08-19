@@ -288,6 +288,14 @@ const SFX_SPECS: readonly SfxSpec[] = [
   { id: "barrelPut", kind: "drum", freq: 180, duration: 0.15, seed: 113 },
   { id: "barrelThrow", kind: "drum", freq: 250, duration: 0.2, seed: 114 },
   { id: "barrelBreak", kind: "drum", freq: 320, duration: 0.3, seed: 115 },
+  // 道具の扱い・罠と予兆の音(plan/sound/archive/sfx-item-and-hazard.md)
+  { id: "pickup", kind: "mallet", freq: 990, duration: 0.12, seed: 116 },
+  { id: "drop", kind: "drum", freq: 160, duration: 0.12, seed: 117 },
+  { id: "useItem", kind: "mallet", freq: 740, duration: 0.2, seed: 118 },
+  { id: "equip", kind: "mallet", freq: 440, duration: 0.15, seed: 119 },
+  { id: "trap", kind: "drum", freq: 260, duration: 0.2, seed: 120 },
+  { id: "crackWarning", kind: "drum", freq: 55, duration: 0.6, seed: 121 },
+  { id: "warp", kind: "mallet", freq: 1200, duration: 0.25, seed: 122 },
 ];
 
 function main(): void {
