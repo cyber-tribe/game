@@ -192,7 +192,17 @@ export type DreamArtId =
   | "nebaritsuki"
   | "yumeNoKakebuton"
   | "honeTsuyoshi"
-  | "wasuresase";
+  | "wasuresase"
+  // ぬしのゆめわざ(plan/game/archive/boss-dream-arts.md)。地方ボス種専用、
+  // 各ぬし1種のみ習得する(通常種のような2件構成にはしない)
+  | "jibikiNoNegaeri"
+  | "oomarunomi"
+  | "fukaiMadoromi"
+  | "honeNoToride"
+  | "uzuNoSasoi"
+  | "kodamaNoOtakebi"
+  | "maboroshiNoKoujou"
+  | "tsuranukiBori";
 
 export interface Species {
   id: string;
@@ -404,6 +414,12 @@ export interface CombatantActor extends ActorBase {
    * 幻影を呼び出してからの残りターン数。0になると幻影が自然に消える
    */
   mirrorTurnsLeft?: number;
+  /**
+   * ぬしのゆめわざ「ホネのとりで」(plan/game/archive/boss-dream-arts.md)で
+   * 一時的に壁化したタイルの位置・元に戻すまでの残りターン数・元のTileKind。
+   * summonedTorrentTilesと同じ「一時変化→ターン経過で復元」の形
+   */
+  boneWallTiles?: { pos: Vec2; expiresIn: number; originalKind: TileKind }[];
 }
 
 export interface MonsterActor extends CombatantActor {

@@ -14,9 +14,16 @@ import { speciesById } from "./species";
  */
 const ALLY_EXP_COEFFICIENT = 0.7;
 
+/**
+ * ぬしのゆめわざ(plan/game/archive/boss-dream-arts.md): 地方ボス種は経験値
+ * テーブルが重く、必要量が通常種の2倍になる。専用のゆめわざ(Lv15)は
+ * 長く育てた者だけの到達点にするための調整
+ */
+const BOSS_EXP_MULTIPLIER = 2;
+
 /** 仲間がこのレベルに上がるのに必要な累計経験値 */
-export function allyExpForLevel(level: number): number {
-  return Math.round(expForLevel(level) * ALLY_EXP_COEFFICIENT);
+export function allyExpForLevel(level: number, multiplier = 1): number {
+  return Math.round(expForLevel(level) * ALLY_EXP_COEFFICIENT * multiplier);
 }
 
 /**
@@ -56,9 +63,10 @@ export function gainAllyExp(ally: AllyActor, amount: number): AllyLevelUpResult 
   const result: AllyLevelUpResult = { levelsGained: 0, learnedDreamArts: [] };
   if (!ally.speciesId || amount <= 0) return result;
   const species = speciesById(ally.speciesId);
+  const expMultiplier = species.isRegionBoss ? BOSS_EXP_MULTIPLIER : 1;
   ally.growthExp = (ally.growthExp ?? 0) + amount;
 
-  while (ally.level < MAX_LEVEL && ally.growthExp >= allyExpForLevel(ally.level + 1)) {
+  while (ally.level < MAX_LEVEL && ally.growthExp >= allyExpForLevel(ally.level + 1, expMultiplier)) {
     ally.level++;
     result.levelsGained++;
     const stats = computeAllyStats(species, ally.level, ally.bondSuccessCount ?? 0);

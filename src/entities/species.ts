@@ -277,6 +277,7 @@ export const SPECIES: readonly Species[] = [
     isRegionBoss: true,
     bossTelegraph: { message: "大きく身をかがめた", multiplier: 2, cooldownTurns: 3 },
     bossGuaranteedDrop: "oonebosukeDust",
+    dreamArts: [{ level: 15, id: "jibikiNoNegaeri" }],
   },
   {
     // 第二地方: 忘れ潮の湿地(design/regions.md 7〜12階)。巨大なツブテガエル。
@@ -302,6 +303,7 @@ export const SPECIES: readonly Species[] = [
     },
     bossGuaranteedDrop: "nushigaeruUroko",
     hidesInQuagmire: true,
+    dreamArts: [{ level: 15, id: "oomarunomi" }],
   },
   {
     // 第三地方: まどろみの茸林(design/regions.md 13〜18階)。巨大なマドロミダケ。
@@ -325,6 +327,7 @@ export const SPECIES: readonly Species[] = [
       effect: "aoeSleep",
     },
     bossGuaranteedDrop: "oomadoromiHoushi",
+    dreamArts: [{ level: 15, id: "fukaiMadoromi" }],
   },
   {
     // 第四地方: 骨積みの回廊(design/regions.md 19〜24階)。無数のホネガラミが
@@ -348,6 +351,7 @@ export const SPECIES: readonly Species[] = [
       effect: "aoeSeal",
     },
     bossGuaranteedDrop: "honezukaKotsuban",
+    dreamArts: [{ level: 15, id: "honeNoToride" }],
   },
   {
     // 第五地方: なみだの滝つぼ(design/regions.md 25〜30階)。滝つぼの底に
@@ -371,6 +375,7 @@ export const SPECIES: readonly Species[] = [
       effect: "summonTorrent",
     },
     bossGuaranteedDrop: "fuchiNoNushiNoUroko",
+    dreamArts: [{ level: 15, id: "uzuNoSasoi" }],
   },
   {
     // 第六地方: こだまの尾根(design/regions.md 31〜36階)。物音がよく響く
@@ -394,6 +399,7 @@ export const SPECIES: readonly Species[] = [
       effect: "summonEcho",
     },
     bossGuaranteedDrop: "kodamaNoKakera",
+    dreamArts: [{ level: 15, id: "kodamaNoOtakebi" }],
   },
   {
     // 第七地方: わすれられた祭りの跡(design/regions.md 37〜42階)。かつての
@@ -418,6 +424,7 @@ export const SPECIES: readonly Species[] = [
       effect: "summonMirror",
     },
     bossGuaranteedDrop: "misemonoNoOmen",
+    dreamArts: [{ level: 15, id: "maboroshiNoKoujou" }],
   },
   {
     // 第八地方: めざめの前庭(design/regions.md 43〜48階)。近道屋が打ち込んだ
@@ -443,6 +450,7 @@ export const SPECIES: readonly Species[] = [
       effect: "groundSpikes",
     },
     bossGuaranteedDrop: "horikuiNoKuiSaki",
+    dreamArts: [{ level: 15, id: "tsuranukiBori" }],
   },
 
   // ---- plan/monster-compendium.md: 地方別の新種 ----
