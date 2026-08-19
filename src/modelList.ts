@@ -18,11 +18,20 @@ export const TRAP_MODELS = {
 /** 地形のモデル。種族表やアイテム表からは辿れないので直接並べる */
 export const TERRAIN_MODELS = ["wall", "floor", "stairs"] as const;
 
-/** タルの種類ごとのモデル。BarrelKind と対応する */
+/**
+ * タルの種類ごとのモデル。BarrelKind と対応する。元素タル(plan/game/archive/
+ * barrel-arts.md)は専用モデルをまだ制作しておらず、見た目は空のタルを流用する
+ * (plan/models/への新規モデル追加は別作業とする)
+ */
 export const BARREL_MODELS = {
   empty: "barrel",
   bomb: "barrel_bomb",
   caught: "barrel_caught",
+  water: "barrel",
+  wind: "barrel",
+  light: "barrel",
+  stone: "barrel",
+  sleep: "barrel",
 } as const;
 
 /**

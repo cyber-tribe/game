@@ -14,6 +14,7 @@ import { chebyshev, type Vec2 } from "../core/grid";
 import {
   type Actor,
   type AllyActor,
+  type BarrelKind,
   type DreamArtId,
   type FloorState,
   isHostile,
@@ -53,6 +54,12 @@ export interface DreamArtDef {
    * 1件だけの習得表であることを示す。なじみ最高段階でのCD短縮の対象になる
    */
   isBossExclusive?: boolean;
+  /**
+   * タルわざ(plan/game/archive/barrel-arts.md)。設定されていれば、この
+   * ゆめわざは戦闘中の自動発動ではなく、空のタルをこの種類の元素タルへ
+   * 変えるプレイヤー主導の指示でだけ使う(triggerは常にnullを返す)
+   */
+  barrelKind?: BarrelKind;
 }
 
 /** 自分と敵対する、同じ部屋にいる生存アクター。ぬしの部屋規模のゆめわざが使う */
@@ -369,10 +376,73 @@ export const DREAM_ARTS: Readonly<Record<DreamArtId, DreamArtDef>> = {
       return diggableWallNear(ctx.floor, ctx.ally.pos) ? {} : null;
     },
   },
+
+  // ---- タルわざ(plan/game/archive/barrel-arts.md) ----
+  // 戦闘中には自動発動しない(trigger は常にnull)。空のタルを抱えたプレイヤーが
+  // 「仲間へ指示」から明示的に頼んだときだけ、systems/dreamArtEffects.tsを
+  // 経由せず game.ts が直接 barrelKind を見て処理する
+  waterBarrelArt: {
+    id: "waterBarrelArt",
+    name: "水タルわざ",
+    cooldownTurns: 0,
+    activationChance: 0,
+    description: "空のタルを水タルに変える(仲間へ指示から使う)。",
+    barrelKind: "water",
+    trigger: () => null,
+  },
+  windBarrelArt: {
+    id: "windBarrelArt",
+    name: "風タルわざ",
+    cooldownTurns: 0,
+    activationChance: 0,
+    description: "空のタルを風タルに変える(仲間へ指示から使う)。",
+    barrelKind: "wind",
+    trigger: () => null,
+  },
+  lightBarrelArt: {
+    id: "lightBarrelArt",
+    name: "光タルわざ",
+    cooldownTurns: 0,
+    activationChance: 0,
+    description: "空のタルを光タルに変える(仲間へ指示から使う)。",
+    barrelKind: "light",
+    trigger: () => null,
+  },
+  stoneBarrelArt: {
+    id: "stoneBarrelArt",
+    name: "石タルわざ",
+    cooldownTurns: 0,
+    activationChance: 0,
+    description: "空のタルを石タルに変える(仲間へ指示から使う)。",
+    barrelKind: "stone",
+    trigger: () => null,
+  },
+  sleepBarrelArt: {
+    id: "sleepBarrelArt",
+    name: "ねむタルわざ",
+    cooldownTurns: 0,
+    activationChance: 0,
+    description: "空のタルをねむタルに変える(仲間へ指示から使う)。",
+    barrelKind: "sleep",
+    trigger: () => null,
+  },
 };
 
 export function dreamArtDef(id: DreamArtId): DreamArtDef {
   return DREAM_ARTS[id];
+}
+
+/**
+ * タルわざ(plan/game/archive/barrel-arts.md)。この仲間が習得済みのゆめわざの
+ * うち、タルわざ(barrelKindを持つもの)を1つ返す。1体が複数覚えていても
+ * (MAX_DREAM_ARTS=2の範囲で)最初に見つかったものを使う
+ */
+export function knownBarrelArt(known: readonly DreamArtId[]): DreamArtDef | undefined {
+  for (const id of known) {
+    const def = DREAM_ARTS[id];
+    if (def.barrelKind) return def;
+  }
+  return undefined;
 }
 
 /**

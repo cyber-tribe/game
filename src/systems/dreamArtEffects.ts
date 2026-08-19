@@ -319,6 +319,16 @@ export const DREAM_ART_EFFECTS: Readonly<Record<DreamArtId, DreamArtEffectDef>> 
       ctx.digWall(pos);
     },
   },
+
+  // ---- タルわざ(plan/game/archive/barrel-arts.md) ----
+  // trigger が常にnullを返すため、この execute はAIの自動発動経路からは
+  // 呼ばれない(game.tsのcastBarrelArtが、この登録簿を経由せず直接処理する)。
+  // Record<DreamArtId, ...>の網羅性を満たすためだけの空実装
+  waterBarrelArt: { execute() {} },
+  windBarrelArt: { execute() {} },
+  lightBarrelArt: { execute() {} },
+  stoneBarrelArt: { execute() {} },
+  sleepBarrelArt: { execute() {} },
 };
 
 export const HONE_TSUYOSHI_MULTIPLIER = HONE_TSUYOSHI_DEF_MULTIPLIER;

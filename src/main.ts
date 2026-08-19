@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { Game, type Command, type RunSnapshot } from "./game";
+import { knownBarrelArt } from "./entities/dreamArts";
 import type { GameEvent } from "./core/events";
 import { splitEventsAtRecruits } from "./core/events";
 import { isFree, walkableAt } from "./core/types";
@@ -1265,6 +1266,9 @@ class App {
       case "throwBarrel":
         this.submit({ type: "throwBarrel" });
         break;
+      case "openBarrel":
+        this.submit({ type: "openBarrel" });
+        break;
       case "attack":
         this.submit({ type: "attack" });
         break;
@@ -1272,7 +1276,13 @@ class App {
         if (this.game.allyList.length === 0) {
           this.hud.log("指示できる仲間がいない。");
         } else {
-          this.stanceMenu.show(this.game.allyList, (cmd) => this.submit(cmd));
+          // タルわざ(plan/game/archive/barrel-arts.md): からのタルを抱えている
+          // ときだけ、タルわざを覚えた仲間を「タルわざを頼む」の対象にする
+          const barrelArtAllies =
+            this.game.player.carrying?.kind === "empty"
+              ? this.game.allyList.filter((a) => knownBarrelArt(a.dreamArts ?? []) !== undefined)
+              : [];
+          this.stanceMenu.show(this.game.allyList, (cmd) => this.submit(cmd), { barrelArtAllies });
         }
         break;
       case "arts":

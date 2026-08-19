@@ -202,7 +202,15 @@ export type DreamArtId =
   | "uzuNoSasoi"
   | "kodamaNoOtakebi"
   | "maboroshiNoKoujou"
-  | "tsuranukiBori";
+  | "tsuranukiBori"
+  // タルわざ(plan/game/archive/barrel-arts.md)。習得の枠組みはゆめわざと共通だが、
+  // 発動は戦闘中の自動判断ではなく、空のタルを抱えた状態でプレイヤーが
+  // 「仲間へ指示」から明示的に頼んだときだけ使う(trigger は常にnullを返す)
+  | "waterBarrelArt"
+  | "windBarrelArt"
+  | "lightBarrelArt"
+  | "stoneBarrelArt"
+  | "sleepBarrelArt";
 
 export interface Species {
   id: string;
@@ -720,7 +728,13 @@ export type BarrelKind =
   /** 爆発する。当たった場所の周囲もろとも吹き飛ばす */
   | "bomb"
   /** モンスターが入っている。投げて開けると仲間になる */
-  | "caught";
+  | "caught"
+  // ---- 元素タル(plan/game/archive/barrel-arts.md)。タルわざで空のタルから作る ----
+  | "water"
+  | "wind"
+  | "light"
+  | "stone"
+  | "sleep";
 
 export interface Barrel {
   id: number;
@@ -733,6 +747,11 @@ export interface Barrel {
    * 見た目は本物と同一だが、持ち上げようとすると幻だったと判明して消える
    */
   decoy?: boolean;
+  /**
+   * 元素タル(plan/game/archive/barrel-arts.md)。作った仲間のなじみが
+   * 「すっかりなじんだ」段階以上のとき true になり、投げる/あける効果が強化版になる
+   */
+  enhanced?: boolean;
 }
 
 // ---------------------------------------------------------------- フロアギミック
