@@ -1162,6 +1162,15 @@ export class Game {
   }
 
   /**
+   * 今いる階がめざめの階段の階か(plan/game/checkpoint-stairs-menu.md)。
+   * 表の寝穴では地方の最終階(6階ごと)だけ。他のダンジョンは地方の
+   * 概念を持たないため全階が該当する(既知チェックポイントの記録と同じ条件)
+   */
+  get onCheckpointFloor(): boolean {
+    return this.dungeon.id !== MAIN_CAVE_ID || this.depth % REGION_SIZE === 0;
+  }
+
+  /**
    * めざめの階段を使って、ここで区切ってダイブを成功させる
    * (plan/checkpoint-select.md)。持ち物・仲間・所持金を持ち帰れる点は
    * 通常の踏破と同じ。以後の深い階は次回以降のダイブに持ち越す。
@@ -2013,8 +2022,7 @@ export class Game {
       // 従来どおりどの階の階段でも既知になる。
       // 足を踏み入れた瞬間に「既知」となる。ダイブの結果によらず記録されるべき
       // 事実なので、保存は呼び出し側(main.ts)が checkpoint イベントを見て行う
-      const isCheckpointFloor = this.dungeon.id !== MAIN_CAVE_ID || this.depth % REGION_SIZE === 0;
-      if (isCheckpointFloor) {
+      if (this.onCheckpointFloor) {
         events.push({ type: "checkpoint", depth: this.depth });
         events.push({ type: "tutorialTip", id: "checkpoint" });
       }

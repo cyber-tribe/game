@@ -1280,7 +1280,12 @@ class App {
           if (this.game.player.carrying) {
             this.submit({ type: "descend" });
           } else {
-            this.stairsConfirm.show(() => this.submit({ type: "descend" }));
+            this.stairsConfirm.show({
+              checkpoint: this.game.onCheckpointFloor,
+              onDescend: () => this.submit({ type: "descend" }),
+              // 区切りは既存のRキーとまったく同じ経路(plan/game/checkpoint-stairs-menu.md)
+              onBank: () => this.submit({ type: "bank" }),
+            });
           }
         } else {
           this.submit({ type: "pickup" });
