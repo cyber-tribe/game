@@ -22,6 +22,7 @@ import {
 } from "../core/types";
 import { canSee } from "../dungeon/visibility";
 import { DREAM_ARTS } from "./dreamArts";
+import type { PlayerState } from "./player";
 import { hasSkill } from "./skills";
 import { speciesById } from "./species";
 
@@ -35,6 +36,8 @@ export const GUARD_COUNTER_BONUS = 1.3;
 const WARN_CALL_SUPPRESS_CHANCE = 0.4;
 /** かく乱のこだまが効く範囲(そのモンスターからの距離) */
 const WARN_CALL_RANGE = 4;
+/** 元素タル(plan/game/archive/barrel-arts.md): ねむタルを頭上に持っていると気づかれにくくなる確率 */
+const SLEEP_BARREL_CARRY_AWARE_SUPPRESS_CHANCE = 0.4;
 
 export type MonsterAction =
   | { type: "wait" }
@@ -186,6 +189,15 @@ function attemptSight(
   if (!canSee(floor, monster.pos, target.pos) && nearestVisibleFoe(floor, monster) === null) return false;
   if (monster.aware) return true;
   if (nearbyWarnCallAlly(floor, monster) && rng.chance(WARN_CALL_SUPPRESS_CHANCE)) return false;
+  // 元素タル(plan/game/archive/barrel-arts.md): ねむタルを頭上に持っていると、
+  // まだ気づいていない敵に見つかりにくくなる
+  if (
+    target.kind === "player" &&
+    (target as PlayerState).carrying?.kind === "sleep" &&
+    rng.chance(SLEEP_BARREL_CARRY_AWARE_SUPPRESS_CHANCE)
+  ) {
+    return false;
+  }
   // ヨリシロの気分(plan/yorishiro-moods.md): 隣接時は奇襲を許さないため常に気づく。
   // 隣接していない相手(同室内の遠い相手)にだけ、気づきやすさの係数を掛ける
   if (

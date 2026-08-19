@@ -12,6 +12,8 @@ export type ActionKey =
   | "zoomOut"
   | "liftBarrel"
   | "throwBarrel"
+  /** 抱えている中身を正面(塞がっていれば足元)に放つ(plan/game/archive/barrel-arts.md) */
+  | "openBarrel"
   /** 向いている方向へ攻撃する。移動しない(plan/attack-button.md) */
   | "attack"
   /** 仲間への指示(構え)メニューを開く */
@@ -100,6 +102,7 @@ const ACTION_KEYS: Record<string, ActionKey> = {
   Minus: "zoomOut",
   KeyF: "liftBarrel",
   KeyG: "throwBarrel",
+  KeyV: "openBarrel",
   KeyT: "orders",
   KeyC: "arts",
   KeyP: "photoMode",

@@ -728,6 +728,7 @@ export const SPECIES: readonly Species[] = [
     weight: 5,
     // 深みタイルの上にいると射程が伸びる(ai.ts effectiveRangedRange参照)
     rangeBonusOnQuagmire: 2,
+    dreamArts: [{ level: 10, id: "waterBarrelArt" }],
   },
   {
     // 足を取られた思い出。専用モデル(plan/models/archive/model-nukarumigani.md)
@@ -819,7 +820,10 @@ export const SPECIES: readonly Species[] = [
     // NATIVE_SKILL_BY_SPECIES(entities/skills.ts)側で紐づける
     minFloor: 14,
     weight: 4,
-    dreamArts: [{ level: 5, id: "nemuriUta" }],
+    dreamArts: [
+      { level: 5, id: "nemuriUta" },
+      { level: 10, id: "sleepBarrelArt" },
+    ],
   },
   {
     // ツブテガエルの遠い親戚。専用モデル(plan/models/archive/model-nebosukegaeru.md)
@@ -852,7 +856,10 @@ export const SPECIES: readonly Species[] = [
     ai: "guard",
     minFloor: 19,
     weight: 4,
-    dreamArts: [{ level: 5, id: "honeTsuyoshi" }],
+    dreamArts: [
+      { level: 5, id: "honeTsuyoshi" },
+      { level: 10, id: "stoneBarrelArt" },
+    ],
   },
   {
     // 誰のものかも忘れられた骨。honegaramiモデルを流用する
@@ -919,7 +926,10 @@ export const SPECIES: readonly Species[] = [
     weight: 4,
     // 奔流タイルの近くで射程が伸びる(ai.ts effectiveRangedRange参照)
     rangeBonusNearTorrent: 2,
-    dreamArts: [{ level: 5, id: "chiisanaKaze" }],
+    dreamArts: [
+      { level: 5, id: "chiisanaKaze" },
+      { level: 10, id: "windBarrelArt" },
+    ],
   },
   {
     // 涙で色あせた花。purunモデルを流用する
@@ -1092,7 +1102,10 @@ export const SPECIES: readonly Species[] = [
     minFloor: 37,
     weight: 4,
     swarmSize: [3, 4],
-    dreamArts: [{ level: 5, id: "honokaNaAkari" }],
+    dreamArts: [
+      { level: 5, id: "honokaNaAkari" },
+      { level: 10, id: "lightBarrelArt" },
+    ],
   },
 
   // 第八地方: めざめの前庭(design/regions.md 43〜48階)。+4。エリート個体

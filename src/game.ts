@@ -78,7 +78,7 @@ import {
   spawnWanderingMonster,
 } from "./dungeon/populate";
 import { displayActorName } from "./entities/naming";
-import { ALLY_STANCE_NAMES, BARREL_NAMES } from "./entities/displayNames";
+import { ALLY_STANCE_NAMES, barrelDisplayName } from "./entities/displayNames";
 import {
   isCheckpointFloor,
   CHAPTER3_COLLAPSE_DEPTH,
@@ -130,7 +130,7 @@ import { HAJIME_NO_YUME_ID, REGION_BOSS_FLOORS, REGION_BOSS_ORDER, speciesById }
 import { REGIONS, regionByIndex } from "./entities/regions";
 import { type BondStage, bondStage } from "./entities/companionBond";
 import { gainAllyExp } from "./entities/companionGrowth";
-import { dreamArtDef } from "./entities/dreamArts";
+import { dreamArtDef, knownBarrelArt } from "./entities/dreamArts";
 import {
   DREAM_ART_EFFECTS,
   HONE_TSUYOSHI_MULTIPLIER,
@@ -235,6 +235,16 @@ export type Command =
   | { type: "liftBarrel" }
   /** 抱えているタルを向いている方向へ投げる */
   | { type: "throwBarrel" }
+  /**
+   * タルわざ(plan/game/archive/barrel-arts.md): 抱えている中身を正面
+   * (塞がっていれば足元)へ放つ。あけると中身は失われ、空のタルに戻る
+   */
+  | { type: "openBarrel" }
+  /**
+   * タルわざ(plan/game/archive/barrel-arts.md): 空のタルを抱えた状態で、
+   * タルわざ持ちの仲間へ変化を頼む
+   */
+  | { type: "castBarrelArt"; allyId: number }
   /** 仲間への指示(構え)。"all" なら連れている全員に一括で出す */
   | { type: "setStance"; allyId: number | "all"; stance: AllyStance }
   /** めざめの階段を使って、ここで区切ってダイブを成功させる */
@@ -443,6 +453,29 @@ const TRUE_AWAKENING_CLOSING: readonly string[] = [
 /** タルの飛距離 */
 const BARREL_RANGE = 8;
 
+// ---- 元素タル(plan/game/archive/barrel-arts.md) ----
+/** 投げたときの威力(barrelThrowDamage()に掛ける倍率) */
+const WATER_BARREL_DAMAGE_MULTIPLIER = 1;
+const STONE_BARREL_DAMAGE_MULTIPLIER = 1.5;
+/** 投げて命中した敵を押し出す距離(マス数)。強化版は+1 */
+const WIND_BARREL_PUSH_DISTANCE = 2;
+/** 投げて命中した敵の混乱・眠りの持続ターン。強化版は+1 */
+const LIGHT_BARREL_CONFUSE_TURNS = 3;
+const SLEEP_BARREL_SLEEP_TURNS = 3;
+/** あける(周囲を水びたしにする)の範囲(半径、マス)。強化版は+1 */
+const WATER_BARREL_OPEN_RADIUS = 1;
+/** あける(部屋全体を明るくする)の視界拡張・持続ターン。強化版は視界+1 */
+const LIGHT_BARREL_OPEN_VISION = 2;
+const LIGHT_BARREL_OPEN_TURNS = 5;
+/** あける(周囲1マスの敵に眠りをばらまく)の持続ターン */
+const SLEEP_BARREL_OPEN_TURNS = 3;
+/** 頭上に持つ(光タル): 視界+2(ほのかなあかり等と同じ単純加算) */
+const LIGHT_BARREL_CARRY_VISION_BONUS = 2;
+/** 頭上に持つ(風タル): 罠を踏んでも発動しない確率 */
+const WIND_BARREL_CARRY_TRAP_SUPPRESS_CHANCE = 0.5;
+// 頭上に持つ(ねむタル): 気づかれにくくなる確率は entities/ai.ts 側の定数を使う
+// (attemptSightがそこにあり、awareDistanceMul等と同じ場所にまとめてある)
+
 // ---- plan/tarukurabe-minigame.md ----
 /** 持ち込めるタルの数(固定10個)。専用モード内で完結し、通常の倉庫は消費しない */
 const TARUKURABE_BARREL_COUNT = 10;
@@ -581,6 +614,8 @@ export class Game {
   private partyGuardTurns = 0;
   /** ぬしのゆめわざ「こだまのおたけび」。残りターン数。0なら効果切れ */
   private echoAttackTurns = 0;
+  /** 元素タル(plan/game/archive/barrel-arts.md)。光タルをあけた効果の残りターン数。0なら効果切れ */
+  private lightBarrelTurns = 0;
   /** 実績帳「挑戦」カテゴリ(plan/challenge-achievements.md)。杖・巻物・食料等を使ったか */
   usedItemThisRun = false;
   /**
@@ -1405,6 +1440,12 @@ export class Game {
         return consumed;
       }
 
+      case "openBarrel":
+        return this.openCarriedBarrel(events);
+
+      case "castBarrelArt":
+        return this.castBarrelArt(cmd.allyId, events);
+
       case "setStance":
         return this.setAllyStance(cmd.allyId, cmd.stance, events);
 
@@ -1510,7 +1551,7 @@ export class Game {
       barrel.pos = spot;
       this.floor.barrels.push(barrel);
       events.push({ type: "putBarrel", actorId: player.id, barrelId: barrel.id, pos: spot });
-      events.push({ type: "message", text: `${BARREL_NAMES[barrel.kind]}を置いた。` });
+      events.push({ type: "message", text: `${barrelDisplayName(barrel)}を置いた。` });
       return true;
     }
 
@@ -1538,7 +1579,7 @@ export class Game {
       barrelId: barrel.id,
       kind: barrel.kind,
     });
-    events.push({ type: "message", text: `${BARREL_NAMES[barrel.kind]}を持ち上げた。` });
+    events.push({ type: "message", text: `${barrelDisplayName(barrel)}を持ち上げた。` });
     events.push({ type: "tutorialTip", id: "barrel" });
     return true;
   }
@@ -1598,7 +1639,7 @@ export class Game {
       from,
       to: landing,
     });
-    events.push({ type: "message", text: `${BARREL_NAMES[barrel.kind]}を投げた!` });
+    events.push({ type: "message", text: `${barrelDisplayName(barrel)}を投げた!` });
 
     switch (barrel.kind) {
       case "bomb":
@@ -1644,7 +1685,202 @@ export class Game {
           critForced,
         );
       }
+
+      // ---- 元素タル(plan/game/archive/barrel-arts.md) ----
+      // 命中した最後の1体にだけ効果を発揮し、当たったところで砕ける(ばくはつタルと同じ、使い切り)
+      case "water":
+        this.applyElementalBarrelHit(barrel, landing, hits, events, (target) => {
+          const power = Math.round(this.barrelThrowDamage() * WATER_BARREL_DAMAGE_MULTIPLIER);
+          const finalDamage = this.mitigateIncomingDamage(target, Math.max(1, power), events);
+          events.push({ type: "message", text: `${displayActorName(target)}に${finalDamage}のダメージ!` });
+          this.damageActor(target, finalDamage, false, events);
+        });
+        return true;
+
+      case "wind":
+        this.applyElementalBarrelHit(barrel, landing, hits, events, (target) => {
+          const distance = barrel.enhanced ? WIND_BARREL_PUSH_DISTANCE + 1 : WIND_BARREL_PUSH_DISTANCE;
+          for (let i = 0; i < distance; i++) {
+            if (!this.pushMonster(player.facing, target, events)) break;
+            if (!target.alive) break;
+          }
+        });
+        return true;
+
+      case "light":
+        this.applyElementalBarrelHit(barrel, landing, hits, events, (target) => {
+          const turns = barrel.enhanced ? LIGHT_BARREL_CONFUSE_TURNS + 1 : LIGHT_BARREL_CONFUSE_TURNS;
+          addStatus(this.effectContext(events), target, STATUS_CONFUSE, turns, "目がくらんだ");
+        });
+        return true;
+
+      case "stone":
+        this.applyElementalBarrelHit(barrel, landing, hits, events, (target) => {
+          const power = Math.round(this.barrelThrowDamage() * STONE_BARREL_DAMAGE_MULTIPLIER);
+          const finalDamage = this.mitigateIncomingDamage(target, Math.max(1, power), events);
+          events.push({ type: "message", text: `${displayActorName(target)}に${finalDamage}のダメージ!` });
+          this.damageActor(target, finalDamage, false, events);
+        });
+        return true;
+
+      case "sleep":
+        this.applyElementalBarrelHit(barrel, landing, hits, events, (target) => {
+          const turns = barrel.enhanced ? SLEEP_BARREL_SLEEP_TURNS + 1 : SLEEP_BARREL_SLEEP_TURNS;
+          addStatus(this.effectContext(events), target, STATUS_SLEEP, turns, "眠ってしまった");
+        });
+        return true;
     }
+  }
+
+  /**
+   * 元素タル(plan/game/archive/barrel-arts.md)を投げて命中した最後の1体に
+   * だけ効果を適用する共通処理。当たらなければ何も起きずタルだけ砕ける
+   * (爆発タルと同じ、投げたら使い切り)
+   */
+  private applyElementalBarrelHit(
+    barrel: Barrel,
+    landing: Vec2,
+    hits: Actor[],
+    events: GameEvent[],
+    effect: (target: Actor) => void,
+  ): void {
+    const target = hits[hits.length - 1];
+    if (target?.kind === "target") {
+      this.resolveTarukurabeHit(target, events);
+    } else if (target?.alive) {
+      effect(target);
+    }
+    events.push({ type: "barrelBreak", barrelId: barrel.id, pos: landing });
+  }
+
+  /**
+   * 元素タル(plan/game/archive/barrel-arts.md)。抱えている中身を正面
+   * (塞がっていれば足元)に放つ。爆発タル・モンスター入りタルも既存の
+   * 意味のまま「あける」で使える(自爆・解放)。あけると中身は失われ、
+   * 空のタルに戻る(爆発・モンスター入りは従来どおり消費されて無くなる)
+   */
+  private openCarriedBarrel(events: GameEvent[]): boolean {
+    const player = this.player;
+    const barrel = player.carrying;
+    if (!barrel) {
+      events.push({ type: "message", text: "タルを持っていない。" });
+      return false;
+    }
+    const delta = dirDelta(player.facing);
+    const front = { x: player.pos.x + delta.x, y: player.pos.y + delta.y };
+    const center = walkableAt(this.floor, front) && !actorAt(this.floor, front) ? front : player.pos;
+
+    if (barrel.kind === "empty") {
+      events.push({ type: "message", text: "からのタルだ。あけても何も起きない。" });
+      return false;
+    }
+    events.push({ type: "message", text: `${barrelDisplayName(barrel)}をあけた!` });
+    if (barrel.kind === "bomb") {
+      player.carrying = null;
+      this.explode(center, events, player.id);
+      events.push({ type: "barrelBreak", barrelId: barrel.id, pos: center });
+      return true;
+    }
+    if (barrel.kind === "caught") {
+      player.carrying = null;
+      this.releaseFromBarrel(barrel, center, events);
+      return true;
+    }
+
+    switch (barrel.kind) {
+      case "water":
+        this.openWaterBarrel(center, barrel.enhanced ?? false, events);
+        break;
+      case "wind":
+        this.openWindBarrel(events);
+        break;
+      case "light":
+        this.lightBarrelTurns = Math.max(
+          this.lightBarrelTurns,
+          barrel.enhanced ? LIGHT_BARREL_OPEN_TURNS + 2 : LIGHT_BARREL_OPEN_TURNS,
+        );
+        break;
+      case "stone":
+        this.openStoneBarrel(front, events);
+        break;
+      case "sleep":
+        this.openSleepBarrel(barrel.enhanced ?? false, events);
+        break;
+    }
+    player.carrying = { id: barrel.id, kind: "empty", pos: barrel.pos };
+    events.push({ type: "message", text: "からのタルに戻った。" });
+    return true;
+  }
+
+  /** 水タルをあける: 周囲を水びたしの床(深みタイルと同じ扱い)にする */
+  private openWaterBarrel(center: Vec2, enhanced: boolean, events: GameEvent[]): void {
+    const radius = enhanced ? WATER_BARREL_OPEN_RADIUS + 1 : WATER_BARREL_OPEN_RADIUS;
+    for (let y = center.y - radius; y <= center.y + radius; y++) {
+      for (let x = center.x - radius; x <= center.x + radius; x++) {
+        const tile = tileAt(this.floor, { x, y });
+        if (tile && walkableAt(this.floor, { x, y })) tile.quagmire = true;
+      }
+    }
+    events.push({ type: "message", text: "周囲が水びたしになった。" });
+  }
+
+  /** 風タルをあける: 隣接する敵全員を1マス押し出す */
+  private openWindBarrel(events: GameEvent[]): void {
+    for (const other of this.floor.actors) {
+      if (!other.alive || other.kind !== "monster") continue;
+      if (chebyshev(this.player.pos, other.pos) !== 1) continue;
+      const dir = dirFromDelta(other.pos.x - this.player.pos.x, other.pos.y - this.player.pos.y);
+      this.pushMonster(dir, other, events);
+    }
+  }
+
+  /** 石タルをあける: 正面(足元)に岩の壁を1マス作る(壊せる仕掛けは今回実装せず、恒久の壁とする) */
+  private openStoneBarrel(front: Vec2, events: GameEvent[]): void {
+    const tile = tileAt(this.floor, front);
+    if (!tile || tile.kind === TILE_WALL || actorAt(this.floor, front) || barrelAt(this.floor, front)) {
+      events.push({ type: "message", text: "しかし、壁を作る場所がなかった。" });
+      return;
+    }
+    tile.kind = TILE_WALL;
+    events.push({ type: "message", text: "岩の壁ができた!" });
+  }
+
+  /** ねむタルをあける: 周囲1マスの敵に眠りをばらまく */
+  private openSleepBarrel(enhanced: boolean, events: GameEvent[]): void {
+    const turns = enhanced ? SLEEP_BARREL_OPEN_TURNS + 1 : SLEEP_BARREL_OPEN_TURNS;
+    for (const other of this.floor.actors) {
+      if (!other.alive || other.kind !== "monster") continue;
+      if (chebyshev(this.player.pos, other.pos) > 1) continue;
+      addStatus(this.effectContext(events), other, STATUS_SLEEP, turns, "眠ってしまった");
+    }
+  }
+
+  /**
+   * タルわざ(plan/game/archive/barrel-arts.md): 空のタルを抱えた状態で、
+   * タルわざ持ちの仲間に変化を頼む。なじみが「すっかりなじんだ」段階以上の
+   * 仲間が作ると強化版(enhanced)になる
+   */
+  private castBarrelArt(allyId: number, events: GameEvent[]): boolean {
+    const player = this.player;
+    if (!player.carrying || player.carrying.kind !== "empty") {
+      events.push({ type: "message", text: "からのタルを持っていないと頼めない。" });
+      return false;
+    }
+    const ally = this.allies.find((a) => a.id === allyId && a.alive);
+    if (!ally) return false;
+    const art = knownBarrelArt(ally.dreamArts ?? []);
+    if (!art || !art.barrelKind) {
+      events.push({ type: "message", text: `${displayActorName(ally)}はタルわざを覚えていない。` });
+      return false;
+    }
+    const enhanced = bondStage(ally.bondSuccessCount ?? 0) === "close" || bondStage(ally.bondSuccessCount ?? 0) === "irreplaceable";
+    const barrel = player.carrying;
+    player.carrying = { ...barrel, kind: art.barrelKind, enhanced };
+    events.push({
+      type: "message",
+      text: `${displayActorName(ally)}が『${art.name}』でタルを変えた!`,
+    });
+    return true;
   }
 
   private resolveEmptyBarrel(
@@ -1778,7 +2014,7 @@ export class Game {
     if (!spot) {
       // 置き場所が無ければ壊れたことにする。宙に浮かせるよりは筋が通る
       events.push({ type: "barrelBreak", barrelId: barrel.id, pos: preferred });
-      events.push({ type: "message", text: `${BARREL_NAMES[barrel.kind]}は砕けてしまった。` });
+      events.push({ type: "message", text: `${barrelDisplayName(barrel)}は砕けてしまった。` });
       return false;
     }
     barrel.pos = spot;
@@ -2087,7 +2323,10 @@ export class Game {
     const headband = hasEquipEffect(this.player.inventory, "lookout") ? 1 : 0;
     const torch = this.torchTurnsLeft > 0 ? TORCH_VISION_BONUS : 0;
     const lantern = this.lanternGlowTurns > 0 ? HONOKA_NA_AKARI_VISION_EXTRA : 0;
-    return headband + torch + lantern;
+    // 元素タル(plan/game/archive/barrel-arts.md)
+    const lightBarrelOpened = this.lightBarrelTurns > 0 ? LIGHT_BARREL_OPEN_VISION : 0;
+    const lightBarrelCarried = this.player.carrying?.kind === "light" ? LIGHT_BARREL_CARRY_VISION_BONUS : 0;
+    return headband + torch + lantern + lightBarrelOpened + lightBarrelCarried;
   }
 
   // ------------------------------------------------------------ 戦闘
@@ -2878,6 +3117,12 @@ export class Game {
     trap.revealed = true;
     events.push({ type: "trap", pos, kind: trap.kind });
     this.alertNearbyMonsters(pos);
+    // 元素タル(plan/game/archive/barrel-arts.md): 風タルを頭上に持っていると、
+    // 罠を踏んでも足取りが軽く、確率で発動しない(見つかりはする)
+    if (this.player.carrying?.kind === "wind" && this.rng.chance(WIND_BARREL_CARRY_TRAP_SUPPRESS_CHANCE)) {
+      events.push({ type: "message", text: "足取りが軽く、罠をやり過ごした!" });
+      return;
+    }
     this.triggerTrap(trap, events);
   }
 
@@ -3242,6 +3487,11 @@ export class Game {
     if (this.echoAttackTurns > 0) {
       this.echoAttackTurns--;
       if (this.echoAttackTurns === 0) events.push({ type: "message", text: "こだまの雄叫びの余韻が消えた。" });
+    }
+    // 元素タル(plan/game/archive/barrel-arts.md): 光タルをあけた効果
+    if (this.lightBarrelTurns > 0) {
+      this.lightBarrelTurns--;
+      if (this.lightBarrelTurns === 0) events.push({ type: "message", text: "光タルの明かりが消えた。" });
     }
     for (const actor of this.floor.actors) {
       if (actor.kind !== "ally") continue;
