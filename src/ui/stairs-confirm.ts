@@ -2,13 +2,94 @@
  * 階段を降りる前の確認モーダル(plan/stairs-confirm-modal.md)。
  * 「急にマップが変わって何が起きたのかわからない」という報告を受け、
  * 階段の上での確定操作(Space)から即座に降下させず、一度確認を挟む。
- * モーダルを開いて閉じるだけではターンを消費しない(既存のメニュー類と同じ)
+ * モーダルを開いて閉じるだけではターンを消費しない(既存のメニュー類と同じ)。
+ *
+ * めざめの階段(チェックポイント階)の上では「ここで区切って持ち帰る」を
+ * 含む3択になる(plan/game/checkpoint-stairs-menu.md)。区切りは既存の
+ * Rキーとまったく同じ経路(bankコマンド→bankRun)を呼ぶだけで、
+ * 新しい帰還処理は持たない。通常の階段は従来どおり2択のまま。
  */
+
+/** 選択肢の意味。descend=降りる / bank=区切って持ち帰る / cancel=やめる */
+export type StairsChoiceKey = "descend" | "bank" | "cancel";
+
+export interface StairsChoice {
+  key: StairsChoiceKey;
+  label: string;
+  /** 選択肢の下に添える1行説明。空文字なら表示しない */
+  desc: string;
+}
+
+/**
+ * 階段確認モーダルの選択肢一覧(表示順)。checkpoint=trueなら
+ * めざめの階段用の3択、falseなら従来の2択。
+ * 「やめる」は必ず末尾に置く(既定カーソルが末尾=やめる、という
+ * 誤操作防止の既存方針を維持するため)
+ */
+export function stairsChoices(checkpoint: boolean): StairsChoice[] {
+  if (!checkpoint) {
+    return [
+      { key: "descend", label: "降りる", desc: "" },
+      { key: "cancel", label: "やめる", desc: "" },
+    ];
+  }
+  return [
+    { key: "descend", label: "つぎの階へ降りる", desc: "区切らずに、さらに深くへ進む" },
+    {
+      key: "bank",
+      label: "ここで区切って持ち帰る",
+      desc: "持ちものと仲間を持ち帰って、今回の探索を終える",
+    },
+    { key: "cancel", label: "やめる", desc: "階段の上にとどまる" },
+  ];
+}
+
+/**
+ * カーソル移動。上下どちらのキーでも端で折り返す(2択のときは
+ * どのキーでもトグルになり、従来の挙動と一致する)
+ */
+export function moveStairsCursor(cursor: number, code: string, length: number): number {
+  switch (code) {
+    case "ArrowUp":
+    case "ArrowLeft":
+    case "KeyW":
+    case "KeyA":
+      return (cursor + length - 1) % length;
+    case "ArrowDown":
+    case "ArrowRight":
+    case "KeyS":
+    case "KeyD":
+      return (cursor + 1) % length;
+    default:
+      return cursor;
+  }
+}
+
+export interface StairsConfirmOptions {
+  /** めざめの階段(チェックポイント階)なら3択になる */
+  checkpoint: boolean;
+  onDescend: () => void;
+  /** 「ここで区切って持ち帰る」。checkpoint=trueのときだけ使われる */
+  onBank: () => void;
+}
+
+const MOVE_CODES = new Set([
+  "ArrowUp",
+  "ArrowDown",
+  "ArrowLeft",
+  "ArrowRight",
+  "KeyW",
+  "KeyS",
+  "KeyA",
+  "KeyD",
+]);
+
 export class StairsConfirmModal {
   private open = false;
-  /** 誤操作防止を優先し、既定の選択は「やめる」寄りにする(計画書の未決事項への回答) */
-  private cursor: 0 | 1 = 1;
-  private onDescend: (() => void) | null = null;
+  private choices: StairsChoice[] = stairsChoices(false);
+  /** 誤操作防止を優先し、既定の選択は末尾の「やめる」にする(計画書の未決事項への回答) */
+  private cursor = this.choices.length - 1;
+  private opts: StairsConfirmOptions | null = null;
 
   constructor(private readonly root: HTMLElement) {
     this.root.style.display = "none";
@@ -18,9 +99,10 @@ export class StairsConfirmModal {
     return this.open;
   }
 
-  show(onDescend: () => void): void {
-    this.onDescend = onDescend;
-    this.cursor = 1;
+  show(opts: StairsConfirmOptions): void {
+    this.opts = opts;
+    this.choices = stairsChoices(opts.checkpoint);
+    this.cursor = this.choices.length - 1;
     this.open = true;
     this.root.style.display = "block";
     this.render();
@@ -35,30 +117,23 @@ export class StairsConfirmModal {
   handleKey(code: string): boolean {
     if (!this.open) return false;
 
-    switch (code) {
-      case "Escape":
-        this.hide();
-        return true;
-      case "ArrowUp":
-      case "ArrowDown":
-      case "ArrowLeft":
-      case "ArrowRight":
-      case "KeyW":
-      case "KeyS":
-      case "KeyA":
-      case "KeyD":
-        this.cursor = this.cursor === 0 ? 1 : 0;
-        this.render();
-        return true;
-      case "Enter":
-      case "NumpadEnter":
-      case "Space":
-        if (this.cursor === 0) this.onDescend?.();
-        this.hide();
-        return true;
-      default:
-        return true; // モーダル中は他のキーを盤面に通さない
+    if (code === "Escape") {
+      this.hide();
+      return true;
     }
+    if (MOVE_CODES.has(code)) {
+      this.cursor = moveStairsCursor(this.cursor, code, this.choices.length);
+      this.render();
+      return true;
+    }
+    if (code === "Enter" || code === "NumpadEnter" || code === "Space") {
+      const choice = this.choices[this.cursor];
+      this.hide();
+      if (choice.key === "descend") this.opts?.onDescend();
+      else if (choice.key === "bank") this.opts?.onBank();
+      return true;
+    }
+    return true; // モーダル中は他のキーを盤面に通さない
   }
 
   private render(): void {
@@ -71,15 +146,23 @@ export class StairsConfirmModal {
 
     const desc = document.createElement("div");
     desc.className = "menu-desc";
-    desc.textContent = "この先へ降りますか?";
+    desc.textContent = this.opts?.checkpoint
+      ? "めざめの階段だ。どうする?"
+      : "この先へ降りますか?";
     this.root.appendChild(desc);
 
     const list = document.createElement("ul");
     list.setAttribute("role", "list");
     list.className = "menu-list";
-    (["降りる", "やめる"] as const).forEach((label, index) => {
+    this.choices.forEach((choice, index) => {
       const li = document.createElement("li");
-      li.textContent = label;
+      li.textContent = choice.label;
+      if (choice.desc !== "") {
+        const note = document.createElement("div");
+        note.className = "choice-desc";
+        note.textContent = choice.desc;
+        li.appendChild(note);
+      }
       if (index === this.cursor) li.classList.add("selected");
       list.appendChild(li);
     });
