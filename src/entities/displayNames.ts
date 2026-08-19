@@ -11,6 +11,7 @@ export const ALLY_STANCE_NAMES: Record<AllyStance, string> = {
   guard: "そばにいろ",
   hold: "そこで待て",
   vanguard: "先陣を切れ",
+  dreamArtsCareful: "ゆめわざ控えめ",
 };
 
 export const BARREL_NAMES: Record<BarrelKind, string> = {

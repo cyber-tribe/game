@@ -23,7 +23,7 @@ import {
   roomOf,
   tileAt,
 } from "../core/types";
-import { bondBonus } from "../entities/companionBond";
+import { computeAllyStats } from "../entities/companionGrowth";
 import { shopPrice } from "../entities/shop";
 import { fullSkillSet } from "../entities/skills";
 import { speciesById, speciesForDepth } from "../entities/species";
@@ -110,26 +110,24 @@ export function createAllyFromStored(id: number, stored: StoredMonster, pos: Vec
   const species = speciesById(stored.speciesId);
   const actor = createAlly(id, species, pos);
   actor.level = stored.level;
-  const growth = Math.max(0, stored.level - 1) * 0.08;
-  actor.maxHp = Math.round(actor.maxHp * (1 + growth));
-  actor.hp = actor.maxHp;
-  actor.atk = Math.round(actor.atk * (1 + growth));
-  actor.def = Math.round(actor.def * (1 + growth));
+  // なじみ(plan/companion-bond-growth.md)込みのステータスを、種族基礎値から
+  // 計算し直す(companionGrowth.tsのcomputeAllyStatsが単一の情報源。
+  // ダイブ中のレベルアップ(game.ts)もこの式を共有する)
+  actor.bondSuccessCount = stored.bondSuccessCount;
+  const stats = computeAllyStats(species, stored.level, stored.bondSuccessCount);
+  actor.maxHp = stats.maxHp;
+  actor.hp = stats.maxHp;
+  actor.atk = stats.atk;
+  actor.def = stats.def;
   applySkills(actor, species, fullSkillSet(species.id, stored.skills));
   actor.nickname = stored.nickname;
-  // なじみ(plan/companion-bond-growth.md): 種族基礎値・レベル成長とは独立した
-  // 最後の一段として、既存ステータスにさらに掛ける
-  actor.bondSuccessCount = stored.bondSuccessCount;
-  const bond = bondBonus(stored.bondSuccessCount);
-  if (bond > 0) {
-    actor.maxHp = Math.round(actor.maxHp * (1 + bond));
-    actor.hp = actor.maxHp;
-    actor.atk = Math.round(actor.atk * (1 + bond));
-    actor.def = Math.round(actor.def * (1 + bond));
-  }
   // 成熟(plan/companion-evolution.md): ダイブ中は夢あわせを行えないため値自体は
   // 変化しないが、帰還時にactorToStoredMonsterへ引き継ぐために乗せておく
   actor.recentFusionMaterials = stored.recentFusionMaterials;
+  // 仲間の経験値・レベルアップ(plan/game/archive/companion-leveling-and-arts.md):
+  // 蓄積経験値と習得済みのゆめわざも持ち出す
+  actor.growthExp = stored.exp;
+  actor.dreamArts = [...stored.dreamArts];
   return actor;
 }
 

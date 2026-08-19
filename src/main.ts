@@ -208,6 +208,13 @@ class App {
   /** 記録の間(plan/records-hall.md)。このダイブ中に倒した・捕まえた数 */
   private diveDefeats = 0;
   private diveCaptures = 0;
+  /**
+   * 仲間のレベルアップ・ゆめわざ習得(plan/game/archive/companion-leveling-and-arts.md)。
+   * このコマンド1回のイベント再生で該当した仲間のidを集め、直後のhud.update()に
+   * 一度だけ渡してハイライトのCSSクラスを立てる。渡した後すぐ空にする
+   * (立てっぱなしにしない。表示の余韻自体はCSSのアニメーションに任せる)
+   */
+  private allyHighlightIds = new Set<number>();
   /** 依頼板(plan/quest-board.md)。このダイブ中の討伐・図鑑・到達の集計 */
   private diveHuntKills: Record<string, number> = {};
   private diveNewlySeenCount = 0;
@@ -1324,7 +1331,14 @@ class App {
       spawn: noop,
       status: noop,
       statusEnd: noop,
-      levelUp: noop,
+      // 仲間のレベルアップ(plan/game/archive/companion-leveling-and-arts.md)。
+      // ガルド自身のlevelUpは既存どおり何もしない(HUDのLv表示は毎回作り直すので十分)
+      levelUp: (event) => {
+        if (event.actorId !== this.game.player.id) this.allyHighlightIds.add(event.actorId);
+      },
+      dreamArtLearned: (event) => {
+        this.allyHighlightIds.add(event.actorId);
+      },
       pickup: noop,
       drop: noop,
       useItem: noop,
@@ -1437,7 +1451,9 @@ class App {
       this.game.depth,
       this.game.allyList,
       this.game.captureOutlook(),
+      this.allyHighlightIds,
     );
+    this.allyHighlightIds.clear();
     this.minimap.draw(this.game.floor, this.game.player);
     // 盤面が変わったので、影も1度は作り直す(以後は再生が終わるまで毎フレーム更新)
     this.renderer.requestShadowUpdate();

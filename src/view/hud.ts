@@ -137,6 +137,11 @@ export class Hud {
     depth: number,
     allies: readonly AllyActor[] = [],
     captureOutlook: CaptureOutlook | null = null,
+    /**
+     * 仲間のレベルアップ・ゆめわざ習得(plan/game/archive/companion-leveling-and-arts.md)。
+     * ここに含まれるidの行にだけ、一瞬光るCSSクラスを立てる
+     */
+    highlightAllyIds: ReadonlySet<number> = new Set(),
   ): void {
     this.depthEl.textContent = t("hud.depth", { depth });
     this.levelEl.textContent = t("hud.level", { level: player.level });
@@ -181,10 +186,10 @@ export class Hud {
       this.captureEl.style.display = "none";
     }
 
-    this.renderAllies(allies);
+    this.renderAllies(allies, highlightAllyIds);
   }
 
-  private renderAllies(allies: readonly AllyActor[]): void {
+  private renderAllies(allies: readonly AllyActor[], highlightAllyIds: ReadonlySet<number>): void {
     if (allies.length === 0) {
       this.alliesEl.style.display = "none";
       return;
@@ -228,6 +233,10 @@ export class Hud {
       // 中身がブロックのまま縦に積まれるので見た目は変わらない
       const box = document.createElement("div");
       box.className = "ally";
+      // 仲間のレベルアップ・ゆめわざ習得(plan/game/archive/companion-leveling-and-arts.md):
+      // 一瞬光らせる。DOMは毎回作り直すので、クラスを立てるだけでCSSの
+      // アニメーションが最初から再生される(JS側でタイマーを持つ必要が無い)
+      if (highlightAllyIds.has(ally.id)) box.classList.add("ally-flash");
       box.append(row, bar, stance);
 
       const allyStatuses = activeStatusLabels(ally);

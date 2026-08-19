@@ -17,6 +17,7 @@ function stored(overrides: Partial<StoredMonster> = {}): StoredMonster {
     skills: [],
     bondSuccessCount: 0,
     recentFusionMaterials: [],
+    dreamArts: [],
     ...overrides,
   };
 }

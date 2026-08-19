@@ -53,6 +53,7 @@ export const SPECIES: readonly Species[] = [
     minFloor: 3,
     weight: 6,
     fieldSkill: "leap",
+    dreamArts: [{ level: 5, id: "tsubuteNage" }],
   },
   {
     id: "madoromi",
@@ -66,6 +67,10 @@ export const SPECIES: readonly Species[] = [
     minFloor: 4,
     weight: 5,
     inflicts: { kind: "sleep", chance: 0.25, turns: 4 },
+    dreamArts: [
+      { level: 5, id: "nemuriUta" },
+      { level: 12, id: "wasuresase" },
+    ],
   },
   {
     id: "honegarami",
@@ -471,6 +476,7 @@ export const SPECIES: readonly Species[] = [
     minFloor: 7,
     weight: 5,
     inflicts: { kind: "confuse", chance: 0.2, turns: 3 },
+    dreamArts: [{ level: 5, id: "wasuresase" }],
   },
 
   // 第三地方: まどろみの茸林(13〜18階)
@@ -549,6 +555,7 @@ export const SPECIES: readonly Species[] = [
     weight: 4,
     swarmSize: [3, 4],
     fieldSkill: "leap",
+    dreamArts: [{ level: 5, id: "iyashiNoShizuku" }],
   },
   {
     // ふさぎ込んだ古い悲しみ。専用モデル(plan/models/archive/model-urumiguma.md)
@@ -564,6 +571,7 @@ export const SPECIES: readonly Species[] = [
     weight: 4,
     regenIfUnhit: true,
     fieldSkill: "break",
+    dreamArts: [{ level: 5, id: "nebaritsuki" }],
   },
 
   // 第六地方: こだまの尾根(31〜36階)
@@ -581,6 +589,10 @@ export const SPECIES: readonly Species[] = [
     minFloor: 31,
     weight: 4,
     alertsFloorOnSight: true,
+    dreamArts: [
+      { level: 5, id: "kodamaGaeshi" },
+      { level: 12, id: "chiisanaKaze" },
+    ],
   },
   {
     id: "kodamausagi",
@@ -751,6 +763,7 @@ export const SPECIES: readonly Species[] = [
     ai: "coward",
     minFloor: 9,
     weight: 4,
+    dreamArts: [{ level: 5, id: "wasuresase" }],
   },
 
   // 第三地方: まどろみの茸林(design/regions.md 13〜18階)。+4
@@ -798,6 +811,7 @@ export const SPECIES: readonly Species[] = [
     // NATIVE_SKILL_BY_SPECIES(entities/skills.ts)側で紐づける
     minFloor: 14,
     weight: 4,
+    dreamArts: [{ level: 5, id: "nemuriUta" }],
   },
   {
     // ツブテガエルの遠い親戚。専用モデル(plan/models/archive/model-nebosukegaeru.md)
@@ -830,6 +844,7 @@ export const SPECIES: readonly Species[] = [
     ai: "guard",
     minFloor: 19,
     weight: 4,
+    dreamArts: [{ level: 5, id: "honeTsuyoshi" }],
   },
   {
     // 誰のものかも忘れられた骨。honegaramiモデルを流用する
@@ -861,6 +876,7 @@ export const SPECIES: readonly Species[] = [
     ai: "thief",
     minFloor: 21,
     weight: 3,
+    dreamArts: [{ level: 5, id: "katayaburi" }],
   },
   {
     // ホネヅカのぬしに仕える小さな使い。専用モデル(plan/models/archive/model-honezukanotsukai.md)
@@ -895,6 +911,7 @@ export const SPECIES: readonly Species[] = [
     weight: 4,
     // 奔流タイルの近くで射程が伸びる(ai.ts effectiveRangedRange参照)
     rangeBonusNearTorrent: 2,
+    dreamArts: [{ level: 5, id: "chiisanaKaze" }],
   },
   {
     // 涙で色あせた花。purunモデルを流用する
@@ -945,6 +962,7 @@ export const SPECIES: readonly Species[] = [
     minFloor: 25,
     weight: 4,
     swarmSize: [3, 4],
+    dreamArts: [{ level: 5, id: "odoshiNaki" }],
   },
 
   // 第六地方: こだまの尾根(design/regions.md 31〜36階)。+4
@@ -1066,6 +1084,7 @@ export const SPECIES: readonly Species[] = [
     minFloor: 37,
     weight: 4,
     swarmSize: [3, 4],
+    dreamArts: [{ level: 5, id: "honokaNaAkari" }],
   },
 
   // 第八地方: めざめの前庭(design/regions.md 43〜48階)。+4。エリート個体
@@ -1085,6 +1104,10 @@ export const SPECIES: readonly Species[] = [
     weight: 3,
     inflicts: { kind: "sleep", chance: 0.12, turns: 2 },
     lowHpAtkBonusMax: 0.15,
+    dreamArts: [
+      { level: 5, id: "yumeNoKakebuton" },
+      { level: 12, id: "iyashiNoShizuku" },
+    ],
   },
   {
     // ガジリねずみといしずえねずみが混ざった姿。gajiriモデルを流用する

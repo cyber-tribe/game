@@ -20,6 +20,8 @@ export type GameEvent =
   | { type: "status"; actorId: number; kind: StatusKind; turns: number }
   | { type: "statusEnd"; actorId: number; kind: StatusKind }
   | { type: "levelUp"; actorId: number; level: number }
+  /** ゆめわざの習得(plan/game/archive/companion-leveling-and-arts.md) */
+  | { type: "dreamArtLearned"; actorId: number; id: string; level: number }
   | { type: "pickup"; actorId: number; itemUid: number; name: string }
   | { type: "drop"; actorId: number; itemUid: number; pos: Vec2 }
   | { type: "useItem"; actorId: number; itemUid: number; name: string }

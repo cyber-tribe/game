@@ -70,6 +70,18 @@ export const STATUS_POISON = "poison";
 export const STATUS_INVISIBLE = "invisible";
 /** おびえ。モンスターが戦わずに逃げ続ける */
 export const STATUS_FEAR = "fear";
+/**
+ * ゆめわざ「ねばりつき」(plan/game/archive/companion-leveling-and-arts.md)。
+ * 移動だけを封じる(隣接していれば攻撃はできる)。runActorsが行動決定の直後に
+ * moveアクションだけをwaitへ差し替えることで実現し、ai.ts側の分岐は増やさない
+ */
+export const STATUS_ROOT = "root";
+/**
+ * ゆめわざ「おどしなき」(plan/game/archive/companion-leveling-and-arts.md)。
+ * その1手を丸ごと奪う(移動も攻撃もできない)。runActorsが行動決定の直後に
+ * 何のアクションであれwaitへ差し替える
+ */
+export const STATUS_FLINCH = "flinch";
 export type StatusKind =
   | typeof STATUS_SLEEP
   | typeof STATUS_CONFUSE
@@ -77,7 +89,9 @@ export type StatusKind =
   | typeof STATUS_RECOVER
   | typeof STATUS_POISON
   | typeof STATUS_INVISIBLE
-  | typeof STATUS_FEAR;
+  | typeof STATUS_FEAR
+  | typeof STATUS_ROOT
+  | typeof STATUS_FLINCH;
 
 export interface Status {
   kind: StatusKind;
@@ -159,6 +173,26 @@ export type BossMoveId =
   | "summonEcho"
   | "summonMirror"
   | "groundSpikes";
+
+/**
+ * ゆめわざ(plan/game/archive/companion-leveling-and-arts.md)。仲間モンスターが
+ * レベルで習得する能動的な特技・魔法。既存のパッシブ特技(skills.ts)とは別枠で、
+ * 発動条件・実装は entities/dreamArts.ts(判定)と systems/dreamArtEffects.ts
+ * (実行)のレジストリに集約している(1種類=1エントリ)
+ */
+export type DreamArtId =
+  | "nemuriUta"
+  | "tsubuteNage"
+  | "katayaburi"
+  | "iyashiNoShizuku"
+  | "kodamaGaeshi"
+  | "chiisanaKaze"
+  | "honokaNaAkari"
+  | "odoshiNaki"
+  | "nebaritsuki"
+  | "yumeNoKakebuton"
+  | "honeTsuyoshi"
+  | "wasuresase";
 
 export interface Species {
   id: string;
@@ -273,6 +307,12 @@ export interface Species {
    * (Room.spored)にいる間、攻撃力に掛ける倍率の上乗せぶん(きのこおとこ)
    */
   atkMulInSporedRoom?: number;
+  /**
+   * ゆめわざの習得表(plan/game/archive/companion-leveling-and-arts.md)。
+   * 仲間として連れているとき、レベルがこの値に達すると習得する(最大2つ)。
+   * 敵として出現するときは効果を持たない(仲間限定の特権)
+   */
+  dreamArts?: readonly { level: number; id: DreamArtId }[];
 }
 
 /** あうんの呼吸(plan/ally-field-gimmicks.md)。障害物が要求する仲間の性質 */
@@ -394,6 +434,22 @@ export interface AllyActor extends CombatantActor {
    * 直後は未設定(ダイブ中は夢あわせを行えないため、この値自体は変化しない)
    */
   recentFusionMaterials?: string[];
+  /**
+   * 仲間自身の蓄積経験値(plan/game/archive/companion-leveling-and-arts.md)。
+   * `CombatantActor.exp`(倒したときに得られる経験値)とは別の値なので
+   * 名前を分けている。ねむり小屋との往復は`StoredMonster.exp`が担う
+   */
+  growthExp?: number;
+  /** 習得済みのゆめわざ。最大2つ。entities/dreamArts.tsのDREAM_ARTSが定義を持つ */
+  dreamArts?: DreamArtId[];
+  /** ゆめわざごとのクールダウン残りターン数。0または未設定なら発動可 */
+  dreamArtCooldowns?: Partial<Record<DreamArtId, number>>;
+  /** ゆめわざ「かたやぶり」。trueなら次の1撃だけ相手の防御力を無視する */
+  ignoreDefenseNextHit?: boolean;
+  /** ゆめわざ「こだまがえし」。trueなら次に受けた1撃の半分を相手へ返す */
+  reflectNextHit?: boolean;
+  /** ゆめわざ「ホネつよし」。0より大きい間、defに掛かる倍率が上がる */
+  defBuffTurns?: number;
 }
 
 /**
@@ -431,12 +487,15 @@ export function hasStatus(actor: Actor, kind: StatusKind): boolean {
 /**
  * 仲間の行動方針。plan/companion-orders.md 参照。
  *
- *  - free:     おまかせ(既定)。隣接する敵を攻撃、見えている敵を追い、いなければ主のそばへ
- *  - guard:    そばにいろ。自分からは追わず、主の隣接圏内(距離1以内)を保つ
- *  - hold:     そこで待て。指示した瞬間の座標に留まる
- *  - vanguard: 先陣を切れ。未探索タイルや階段へ自律的に進む
+ *  - free:             おまかせ(既定)。隣接する敵を攻撃、見えている敵を追い、いなければ主のそばへ
+ *  - guard:            そばにいろ。自分からは追わず、主の隣接圏内(距離1以内)を保つ
+ *  - hold:             そこで待て。指示した瞬間の座標に留まる
+ *  - vanguard:         先陣を切れ。未探索タイルや階段へ自律的に進む
+ *  - dreamArtsCareful: ゆめわざ控えめ(plan/game/archive/companion-leveling-and-arts.md)。
+ *                      移動・攻撃の判断はfreeと同じだが、ゆめわざの自動発動だけを止める
+ *                      (使わせたくない場面向けの間接制御)
  */
-export type AllyStance = "free" | "guard" | "hold" | "vanguard";
+export type AllyStance = "free" | "guard" | "hold" | "vanguard" | "dreamArtsCareful";
 
 /** 夢あわせ(plan/monster-fusion.md)で引き継げる特技。定義は entities/skills.ts */
 export type SkillId =

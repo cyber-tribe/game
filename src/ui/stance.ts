@@ -3,13 +3,14 @@ import { ALLY_STANCE_NAMES } from "../entities/displayNames";
 import type { AllyActor, AllyStance } from "../core/types";
 import { createMenuDesc, createMenuHint, createMenuList, createMenuTitle, wrap } from "./util";
 
-const STANCES: readonly AllyStance[] = ["free", "guard", "hold", "vanguard"];
+const STANCES: readonly AllyStance[] = ["free", "guard", "hold", "vanguard", "dreamArtsCareful"];
 
 const STANCE_DESCRIPTIONS: Record<AllyStance, string> = {
   free: "隣接する敵に反撃し、見えている敵を追う。いなければ主のそばへ。",
   guard: "自分からは追わず、主の隣接圏内で隣接した敵にだけ反撃する。",
   hold: "指示した場所を動かず、隣接した敵にだけ反撃する。",
   vanguard: "主より先に、まだ見ていない場所や階段へ自律的に進む。",
+  dreamArtsCareful: "動きはおまかせと同じ。ゆめわざの自動発動だけを控える。",
 };
 
 interface Target {

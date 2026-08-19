@@ -86,7 +86,8 @@ describe("save-compat: v2-difficulty-and-shops(難易度モード・所持金導
       const loaded = loadSave();
       expect(loaded.difficulty).toBe(v2.difficulty);
       expect(loaded.gold).toBe(v2.gold);
-      expect(loaded.hut).toEqual(v2.hut);
+      // dreamArts(plan/game/archive/companion-leveling-and-arts.md)はv2のフィクスチャより後に追加した新規フィールドなので、既定値[]で補う
+      expect(loaded.hut).toEqual(v2.hut.map((m) => ({ ...m, dreamArts: [] })));
       expect(loaded.compendium).toEqual(v2.compendium);
       expect(loaded.achievements).toEqual(v2.achievements);
     });
@@ -137,7 +138,8 @@ describe("save-compat: v4-multi-dungeon-and-village(複数のダンジョン・�
       expect(loaded.villageStage).toBe(v4.villageStage);
       expect(loaded.fontSize).toBe(v4.fontSize);
       expect(loaded.gold).toBe(v4.gold);
-      expect(loaded.hut).toEqual(v4.hut);
+      // dreamArts(plan/game/archive/companion-leveling-and-arts.md)はv4のフィクスチャより後に追加した新規フィールドなので、既定値[]で補う
+      expect(loaded.hut).toEqual(v4.hut.map((m) => ({ ...m, dreamArts: [] })));
     });
   });
 
@@ -160,7 +162,8 @@ describe("save-compat: v5-costumes(衣装導入後、腕試しの間導入以前
       expect(loaded.fontSize).toBe(v5.fontSize);
       expect(loaded.nightlyDreamBestDepth).toBe(v5.nightlyDreamBestDepth);
       expect(loaded.gold).toBe(v5.gold);
-      expect(loaded.hut).toEqual(v5.hut);
+      // dreamArts(plan/game/archive/companion-leveling-and-arts.md)はv5のフィクスチャより後に追加した新規フィールドなので、既定値[]で補う
+      expect(loaded.hut).toEqual(v5.hut.map((m) => ({ ...m, dreamArts: [] })));
       expect(loaded.compendium).toEqual(v5.compendium);
       expect(loaded.achievements).toEqual(v5.achievements);
     });
@@ -181,7 +184,8 @@ describe("save-compat: v6-hidden-dungeon(腕試しの間導入後、村の暮ら
       expect(loaded.arenaRecords).toEqual(v6.arenaRecords);
       expect(loaded.unlockedCostumes).toEqual(v6.unlockedCostumes);
       expect(loaded.villageStage).toBe(v6.villageStage);
-      expect(loaded.hut).toEqual(v6.hut);
+      // dreamArts(plan/game/archive/companion-leveling-and-arts.md)はv6のフィクスチャより後に追加した新規フィールドなので、既定値[]で補う
+      expect(loaded.hut).toEqual(v6.hut.map((m) => ({ ...m, dreamArts: [] })));
       expect(loaded.compendium).toEqual(v6.compendium);
       expect(loaded.achievements).toEqual(v6.achievements);
     });
@@ -207,7 +211,8 @@ describe("save-compat: v7-village-life(村の暮らし導入後、忘れ物蔵�
       expect(loaded.arenaRecords).toEqual(v7.arenaRecords);
       expect(loaded.unlockedCostumes).toEqual(v7.unlockedCostumes);
       expect(loaded.villageStage).toBe(v7.villageStage);
-      expect(loaded.hut).toEqual(v7.hut);
+      // dreamArts(plan/game/archive/companion-leveling-and-arts.md)はv7のフィクスチャより後に追加した新規フィールドなので、既定値[]で補う
+      expect(loaded.hut).toEqual(v7.hut.map((m) => ({ ...m, dreamArts: [] })));
       expect(loaded.compendium).toEqual(v7.compendium);
       expect(loaded.achievements).toEqual(v7.achievements);
     });
@@ -232,7 +237,8 @@ describe("save-compat: v8-lost-and-found-vault(忘れ物蔵導入後、現行の
       expect(loaded.arenaRecords).toEqual(v8.arenaRecords);
       expect(loaded.unlockedCostumes).toEqual(v8.unlockedCostumes);
       expect(loaded.villageStage).toBe(v8.villageStage);
-      expect(loaded.hut).toEqual(v8.hut);
+      // dreamArts(plan/game/archive/companion-leveling-and-arts.md)はv8のフィクスチャより後に追加した新規フィールドなので、既定値[]で補う
+      expect(loaded.hut).toEqual(v8.hut.map((m) => ({ ...m, dreamArts: [] })));
       expect(loaded.compendium).toEqual(v8.compendium);
       expect(loaded.achievements).toEqual(v8.achievements);
     });
