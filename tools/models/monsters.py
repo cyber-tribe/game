@@ -167,17 +167,26 @@ def build_akubitokage():
 
 
 def akubitokage_animations():
+    """
+    plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
+    attackにタメ→ツメ(LINEAR)→行き過ぎ→戻りの緩急、hit/dieの入りに
+    LINEARの鋭さ、idleにupperが2フレーム遅れて追従する二次揺れを足した。
+    coward種族なので振りは小さくフレーム間隔も詰めたまま(素早さは維持)。
+    """
     lower, upper = "base-mid", "mid-top"
     squash = {"scale": (1.28, 0.62, 1.28)}
     stretch = {"scale": (0.78, 1.36, 0.78)}
     neutral = {"scale": (1.0, 1.0, 1.0)}
     return [
-        # 影らしく、常にそわそわと落ち着かない
+        # 影らしく、常にそわそわと落ち着かない。上体は2フレーム遅れて傾く
         ("idle", [
             (1, {lower: neutral, upper: (0, 0, 0)}),
-            (10, {lower: {"scale": (1.08, 0.90, 1.08)}, upper: (6, 0, 0)}),
-            (20, {lower: neutral, upper: (-4, 0, 0)}),
-            (28, {lower: neutral, upper: (0, 0, 0)}),
+            (10, {lower: {"scale": (1.08, 0.90, 1.08)}}),
+            (12, {upper: (3, 0, 0)}, {"partial": True}),
+            (20, {lower: neutral}),
+            (22, {upper: (-3, 0, 0)}, {"partial": True}),
+            (28, {lower: neutral}),
+            (30, {upper: (0, 0, 0)}, {"partial": True}),
         ]),
         # ぷるんより素早く、跳ねるように逃げ足を刻む
         ("walk", [
@@ -187,23 +196,29 @@ def akubitokage_animations():
             (11, {lower: {"scale": (1.12, 0.82, 1.12)}, upper: (4, 0, 0)}),
             (15, {lower: neutral, upper: (0, 0, 0)}),
         ]),
+        # タメ(軽くsquash)→ツメ(LINEARで鋭く伸びる)→行き過ぎ→戻り
         ("attack", [
             (1, {lower: neutral, upper: (0, 0, 0)}),
-            (3, {lower: squash, upper: (12, 0, 0)}),
+            (4, {lower: {"scale": (1.18, 0.76, 1.18)}, upper: (12, 0, 0)}, {"interp": "LINEAR"}),
             (7, {lower: {"scale": (0.76, 1.4, 0.76)}, upper: (-22, 0, 0)}),
+            (9, {lower: {"scale": (0.84, 1.28, 0.84)}, upper: (-16, 0, 0)}),
             (14, {lower: neutral, upper: (0, 0, 0)}),
         ]),
-        # 触れられるとすぐ後ろへ跳び退く
+        # 触れられると鋭く(LINEAR)後ろへ跳び退き、ゆっくり戻る
         ("hit", [
-            (1, {lower: neutral, upper: (0, 0, 0)}),
+            (1, {lower: neutral, upper: (0, 0, 0)}, {"interp": "LINEAR"}),
             (3, {lower: {"scale": (1.3, 0.6, 1.3), "loc": (0, 0.08, 0)}, upper: (24, 0, 0)}),
             (11, {lower: neutral, upper: (0, 0, 0)}),
         ]),
-        # 影が薄れて土埃に紛れて消える
+        # 影が最初にびくっと縮み(LINEAR)、薄れて土埃に紛れて消える。
+        # 消え際にscaleがわずかに揺り戻る小さな跳ね返りを1回入れる
         ("die", [
-            (1, {lower: neutral, upper: (0, 0, 0)}),
+            (1, {lower: neutral, upper: (0, 0, 0)}, {"interp": "LINEAR"}),
+            (3, {lower: {"scale": (1.16, 0.80, 1.16)}, upper: (6, 0, 0)}),
             (9, {lower: {"scale": (1.3, 0.42, 1.3)}, upper: (10, 0, 0)}),
             (22, {lower: {"scale": (1.4, 0.04, 1.4)}, upper: (0, 0, 0)}),
+            (25, {lower: {"scale": (1.37, 0.08, 1.37)}, upper: (0, 0, 0)}),
+            (28, {lower: {"scale": (1.4, 0.04, 1.4)}, upper: (0, 0, 0)}),
         ]),
     ]
 
@@ -1275,16 +1290,25 @@ def build_ashiatodori():
 
 
 def ashiatodori_animations():
+    """
+    plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
+    attackの突きにLINEAR+行き過ぎ、hitの入りにLINEAR、idleのtailが
+    headより2フレーム遅れる二次揺れ、dieの初動LINEAR+着地の跳ね返りを
+    足した。swarm種族なので振り自体は現行のまま、緩急だけを付け足す。
+    """
     head = "body-head"
     tail = "body-tail"
     legL, legR = "body-leg.L", "body-leg.R"
     footL, footR = "leg.L-foot.L", "leg.R-foot.R"
     return [
-        # 群れの中で忙しなく足跡を探し、頭と尾を小刻みに振る
+        # 群れの中で忙しなく足跡を探し、頭と尾を小刻みに振る。
+        # tailはheadより2フレーム遅れて追従する(二次揺れ)
         ("idle", [
             (1, {head: (0, 0, 0), tail: (0, 0, 0)}),
-            (14, {head: (-8, 6, 0), tail: (10, 0, 0), legL: (3, 0, 0), legR: (-3, 0, 0)}),
-            (28, {head: (4, -6, 0), tail: (-10, 0, 0), legL: (-3, 0, 0), legR: (3, 0, 0)}),
+            (14, {head: (-8, 6, 0), legL: (3, 0, 0), legR: (-3, 0, 0)}),
+            (16, {tail: (10, 0, 0)}, {"partial": True}),
+            (28, {head: (4, -6, 0), legL: (-3, 0, 0), legR: (3, 0, 0)}),
+            (30, {tail: (-10, 0, 0)}, {"partial": True}),
             (38, {head: (0, 0, 0), tail: (0, 0, 0)}),
         ]),
         # 消えていく足跡を追う、せわしない小走り
@@ -1298,25 +1322,30 @@ def ashiatodori_animations():
             (13, {legL: (0, 0, 0), legR: (0, 0, 0), footL: (0, 0, 0), footR: (0, 0, 0),
                   head: (0, 0, 0), tail: (0, 0, 0)}),
         ]),
-        # くちばしで突くように、頭を引いてから素早く前へ突き出す
+        # 引く(タメ)→LINEARで鋭く突く→行き過ぎ→戻る、の4段
         ("attack", [
             (1, {head: (0, 0, 0)}),
-            (4, {head: (-20, 0, 0), tail: (14, 0, 0)}),
+            (4, {head: (-20, 0, 0), tail: (14, 0, 0)}, {"interp": "LINEAR"}),
             (8, {head: (26, 0, 0), tail: (-10, 0, 0)}),
+            (10, {head: (30, 0, 0), tail: (-12, 0, 0)}),
             (16, {head: (0, 0, 0), tail: (0, 0, 0)}),
         ]),
+        # 入り(1f→4f)にLINEARを足して鋭く怯む。短く収める既存方針は維持
         ("hit", [
             (1, {head: (0, 0, 0), tail: (0, 0, 0)}),
-            (4, {head: (20, 0, 0), tail: (-16, 0, 0), legL: (-10, 0, 0), legR: (-10, 0, 0)}),
+            (4, {head: (20, 0, 0), tail: (-16, 0, 0), legL: (-10, 0, 0), legR: (-10, 0, 0)},
+             {"interp": "LINEAR"}),
             (13, {head: (0, 0, 0), tail: (0, 0, 0), legL: (0, 0, 0), legR: (0, 0, 0)}),
         ]),
-        # 脚を折りたたみ、頭からうずくまるように小さくなって消える
+        # 初動(1f→9f)にLINEARを足して鋭い倒れ込みにし、
+        # 20f到達後に脚をわずかに戻す小さな跳ね返りを1回追加する
         ("die", [
-            (1, {head: (0, 0, 0)}),
+            (1, {head: (0, 0, 0)}, {"interp": "LINEAR"}),
             (9, {head: (30, 0, 0), tail: (20, 0, 0), legL: (-34, 0, 0), legR: (-34, 0, 0),
                  footL: (24, 0, 0), footR: (24, 0, 0)}),
             (20, {head: (54, 0, 0), tail: (34, 0, 0), legL: (-60, 0, 0), legR: (-60, 0, 0),
                   footL: (44, 0, 0), footR: (44, 0, 0)}),
+            (24, {legL: (-54, 0, 0), legR: (-54, 0, 0), footL: (40, 0, 0), footR: (40, 0, 0)}),
         ]),
     ]
 
@@ -3666,8 +3695,56 @@ def build_chouchinokuri():
 
 
 def chouchinokuri_animations():
-    """既存5クリップの構成をそのまま流用する(骨の名前がぷるんと同じため、そのまま使える)。"""
-    return purun_animations()
+    """
+    plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
+    purun_animations()の流用をやめ専用のキーフレームを書いた。purunの
+    重い潰し伸ばしとは違い、揺れの主体を上部(upper)の回転側に置いた
+    「軽く揺れる紙と灯り」の質感を狙う。振幅もpurunより控えめにする。
+    """
+    lower, upper = "base-mid", "mid-top"
+    squash = {"scale": (1.1, 0.9, 1.1)}
+    neutral = {"scale": (1.0, 1.0, 1.0)}
+    return [
+        # 灯りがゆらゆらと漂う。upperはlowerより2フレーム遅れて追従する
+        ("idle", [
+            (1, {lower: neutral, upper: (0, 0, 0)}),
+            (16, {lower: {"scale": (1.05, 0.94, 1.05)}}),
+            (18, {upper: (3, 0, 0)}, {"partial": True}),
+            (32, {lower: neutral}),
+            (34, {upper: (0, 0, 0)}, {"partial": True}),
+        ]),
+        # squash&stretchによる上下動が接地の軽さを表現する(現行方針を維持)
+        ("walk", [
+            (1, {lower: neutral}),
+            (4, {lower: squash}),
+            (9, {lower: {"scale": (0.92, 1.14, 0.92), "loc": (0, 0.06, 0)}}),
+            (14, {lower: {"scale": (1.05, 0.92, 1.05)}}),
+            (20, {lower: neutral}),
+        ]),
+        # タメ(upperを後ろへ傾ける)→ツメ(LINEARで大きく振り込む)→
+        # 行き過ぎ→戻り。灯りがゆらりと傾いてぶつかる動き
+        ("attack", [
+            (1, {lower: neutral, upper: (0, 0, 0)}),
+            (4, {lower: neutral, upper: (-8, 0, 0)}),
+            (7, {lower: squash, upper: (22, 0, 0)}, {"interp": "LINEAR"}),
+            (9, {lower: {"scale": (1.05, 0.95, 1.05)}, upper: (16, 0, 0)}),
+            (18, {lower: neutral, upper: (0, 0, 0)}),
+        ]),
+        # 灯りが吹き消されそうになって大きく揺らぐ。swarm下位個体らしく
+        # purunより早めに収める
+        ("hit", [
+            (1, {lower: neutral, upper: (0, 0, 0)}, {"interp": "LINEAR"}),
+            (3, {lower: {"scale": (1.15, 0.85, 1.15)}, upper: (24, 0, 0)}),
+            (14, {lower: neutral, upper: (0, 0, 0)}),
+        ]),
+        # 初動にLINEARを足してすっと萎むきっかけを作り、ゆっくり潰れて
+        # 消える。紙質感には合わないので着地後の跳ね返りは入れない
+        ("die", [
+            (1, {lower: neutral, upper: (0, 0, 0)}, {"interp": "LINEAR"}),
+            (10, {lower: {"scale": (1.2, 0.5, 1.2)}, upper: (8, 0, 0)}),
+            (24, {lower: {"scale": (1.3, 0.05, 1.3)}, upper: (0, 0, 0)}),
+        ]),
+    ]
 
 
 # =================================================================== わたあめのおばけ
@@ -4310,48 +4387,65 @@ def build_fuchiNoNushi():
 
 
 def fuchiNoNushi_animations():
+    """
+    plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
+    attackにツメのLINEAR+行き過ぎ段、hitの入りにLINEAR、idleでneckが
+    hipcより2フレーム遅れる二次揺れ、walkに接地沈み、dieの初動LINEAR+
+    着地の跳ね返りを足した。中堅ボスの重さを保ったまま緩急を付ける。
+    """
     hipc, neck = "hip-chest", "neck-head"
     armL, armR = "chest-shoulder.L", "chest-shoulder.R"
     foreL, foreR = "shoulder.L-elbow.L", "shoulder.R-elbow.R"
     legL, legR = "hip-thigh.L", "hip-thigh.R"
     shinL, shinR = "thigh.L-knee.L", "thigh.R-knee.R"
     return [
-        # 悲しみの重さでうつむいたまま、動じることなく淵の底に居座る
+        # 悲しみの重さでうつむいたまま、動じることなく淵の底に居座る。
+        # neckはhipcより2フレーム遅れて追従する(二次揺れ)
         ("idle", [
             (1, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
-            (36, {hipc: (2, 0, 1), neck: (2, 0, 0)}),
+            (36, {hipc: (2, 0, 1)}),
+            (38, {neck: (2, 0, 0)}, {"partial": True}),
             (72, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
         ]),
+        # 脚が正中に戻る瞬間、巨体が沈み込む重さを接地沈みで出す
         ("walk", [
             (1, {legL: (16, 0, 0), legR: (-16, 0, 0), shinL: (-7, 0, 0), shinR: (5, 0, 0),
                  armL: (-12, 0, 6), armR: (12, 0, -6)}),
-            (11, {legL: (0, 0, 0), legR: (0, 0, 0), armL: (0, 0, 6), armR: (0, 0, -6)}),
+            (11, {legL: (0, 0, 0), legR: (0, 0, 0), armL: (0, 0, 6), armR: (0, 0, -6),
+                  hipc: {"loc": (0, -0.010, 0)}}),
             (21, {legL: (-16, 0, 0), legR: (16, 0, 0), shinL: (5, 0, 0), shinR: (-7, 0, 0),
                   armL: (12, 0, 6), armR: (-12, 0, -6)}),
-            (31, {legL: (0, 0, 0), legR: (0, 0, 0), armL: (0, 0, 6), armR: (0, 0, -6)}),
+            (31, {legL: (0, 0, 0), legR: (0, 0, 0), armL: (0, 0, 6), armR: (0, 0, -6),
+                  hipc: {"loc": (0, -0.010, 0)}}),
         ]),
-        # 淵の水を巻き込むように、重々しく両腕を振り下ろす
+        # タメ(引く)→ツメ(LINEARで鋭く振り下ろす)→行き過ぎ→戻り。
+        # 淵の水を巻き込む重さを出すため、hipcの踏み込みもLINEARに揃える
         ("attack", [
             (1, {armR: (0, 0, -8), foreR: (0, 0, 0), armL: (0, 0, 8), foreL: (0, 0, 0),
                  hipc: (0, 0, 0)}),
             (8, {armR: (-120, 0, -22), foreR: (-32, 0, 0), armL: (-38, 0, 28), foreL: (-10, 0, 0),
                  hipc: (-10, 0, -14), neck: (-6, 0, 0)}),
             (14, {armR: (66, 0, 14), foreR: (10, 0, 0), armL: (26, 0, -4), foreL: (0, 0, 0),
-                  hipc: (16, 0, 14), neck: (-8, 0, 0)}),
+                  hipc: (16, 0, 14), neck: (-8, 0, 0)}, {"interp": "LINEAR"}),
+            (16, {armR: (70, 0, 16), foreR: (12, 0, 0), armL: (28, 0, -6), foreL: (0, 0, 0),
+                  hipc: (18, 0, 14), neck: (-8, 0, 0)}),
             (25, {armR: (0, 0, -8), foreR: (0, 0, 0), armL: (0, 0, 8), foreL: (0, 0, 0),
                   hipc: (0, 0, 0)}),
         ]),
+        # 入り(1f→5f)にLINEARを足す。振幅・戻り(16f)は現行どおり
         ("hit", [
-            (1, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+            (1, {hipc: (0, 0, 0), neck: (0, 0, 0)}, {"interp": "LINEAR"}),
             (5, {hipc: (-10, 0, 0), neck: (-10, 0, 0), armL: (-14, 0, 16), armR: (-14, 0, -16)}),
             (16, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
         ]),
-        # 溜め込んだ悲しみが崩れ落ちるように、水底へ沈み込む
+        # 初動にLINEARを足して鋭い頽れにし、28f到達後に小さな
+        # 跳ね返り(hipc/neckをわずかに揺り戻す)を1回追加する
         ("die", [
-            (1, {hipc: (0, 0, 0)}),
+            (1, {hipc: (0, 0, 0)}, {"interp": "LINEAR"}),
             (11, {hipc: (-12, 0, 5), neck: (-18, 0, 0), armL: (-30, 0, 30), armR: (-30, 0, -30)}),
             (28, {hipc: (-78, 0, 16), neck: (-34, 0, 0), legL: (46, 0, 0), legR: (40, 0, 0),
                   armL: (-68, 0, 46), armR: (-68, 0, -46)}),
+            (32, {hipc: (-72, 0, 15), neck: (-30, 0, 0)}),
         ]),
     ]
 
