@@ -2047,8 +2047,53 @@ def build_kodamagumo():
 
 
 def kodamagumo_animations():
-    """既存5クリップの構成をそのまま流用する(骨の名前がぷるんと同じため、そのまま使える)。"""
-    return purun_animations()
+    """
+    plan/game/archive/animation-quality-guidelines.mdの規約は
+    purun_animations()の流用ですでに満たしているが(骨の名前がぷるんと
+    同じため)、HP16という紙装甲・扁平で雲らしいもこもことしたシルエット
+    に合わせ、attack/hitだけpurunより控えめ・柔らかい質感に差別化する。
+    idle/walk/dieはpurunの構成をそのまま踏襲する。
+    """
+    lower, upper = "base-mid", "mid-top"
+    squash = {"scale": (1.22, 0.72, 1.22)}
+    stretch = {"scale": (0.86, 1.28, 0.86)}
+    neutral = {"scale": (1.0, 1.0, 1.0)}
+    return [
+        ("idle", [
+            (1, {lower: neutral}),
+            (16, {lower: {"scale": (1.06, 0.92, 1.06)}}),
+            (32, {lower: neutral}),
+        ]),
+        # 縮んでから跳ね上がり、着地でまた潰れる
+        ("walk", [
+            (1, {lower: neutral}),
+            (4, {lower: squash}),
+            (9, {lower: {**stretch, "loc": (0, 0.10, 0)}}),
+            (14, {lower: {"scale": (1.1, 0.85, 1.1)}}),
+            (20, {lower: neutral}),
+        ]),
+        # タメ→ツメ(LINEARで鋭く伸び上がる)→行き過ぎ→戻り。扁平な体型に
+        # 合わせ、purunよりツメの伸び量を控えめにして雲らしい穏やかさを出す
+        ("attack", [
+            (1, {lower: neutral}),
+            (5, {lower: squash}, {"interp": "LINEAR"}),
+            (8, {lower: {"scale": (0.84, 1.28, 0.84), "loc": (0, 0.06, 0)}, upper: (-18, 0, 0)}),
+            (10, {lower: {"scale": (0.90, 1.19, 0.90), "loc": (0, 0.05, 0)}, upper: (-14, 0, 0)}),
+            (18, {lower: neutral, upper: (0, 0, 0)}),
+        ]),
+        # 鋭く潰れて(LINEAR)、雲がふわっと大きく潰れて漂うように戻る。
+        # HP16はpurunよりさらに脆いため、潰れ幅を一段強めにし戻りもやや長めにする
+        ("hit", [
+            (1, {lower: neutral}, {"interp": "LINEAR"}),
+            (3, {lower: {"scale": (1.4, 0.55, 1.4)}, upper: (16, 0, 0)}),
+            (16, {lower: neutral, upper: (0, 0, 0)}),
+        ]),
+        ("die", [
+            (1, {lower: neutral}),
+            (10, {lower: {"scale": (1.35, 0.5, 1.35)}}),
+            (24, {lower: {"scale": (1.5, 0.06, 1.5)}}),
+        ]),
+    ]
 
 
 # =================================================================== ねぼすけがえる
