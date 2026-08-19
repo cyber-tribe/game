@@ -3145,11 +3145,24 @@ export class Game {
 
   /**
    * regenIfUnhit(うるみぐま)・特技「しずけさのいやし」(slowMend、
-   * plan/monster-compendium.md): このターン被弾しなかった対象を少しだけ回復する
+   * plan/monster-compendium.md): このターン被弾しなかった対象を少しだけ回復する。
+   * さらに仲間全員は、プレイヤーと同じ間隔・同じ量で自然回復する
+   * (plan/ally-natural-regen.md)。仲間には満腹度が無いので、プレイヤーの
+   * ような「空腹で回復停止」の条件は付けない。敵モンスターは従来どおり
+   * regenIfUnhit種のみ
    */
   private tickRegen(): void {
     for (const actor of this.floor.actors) {
       if (!actor.alive || actor.kind === "player" || actor.kind === "target") continue;
+      // 仲間の自然回復はプレイヤーの回復と同じ扱いなので、被弾した
+      // ターンでも止まらない(unhit条件が付くのは特性・特技の側だけ)
+      if (
+        actor.kind === "ally" &&
+        this.turnCount % REGEN_INTERVAL === 0 &&
+        actor.hp < actor.maxHp
+      ) {
+        actor.hp = Math.min(actor.maxHp, actor.hp + 1);
+      }
       if (this.hitThisTurn.has(actor.id)) continue;
       if (actor.hp >= actor.maxHp) continue;
       const nativeRegen = actor.speciesId !== undefined && speciesById(actor.speciesId).regenIfUnhit === true;
