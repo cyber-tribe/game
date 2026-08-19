@@ -316,6 +316,11 @@ export interface RunSnapshot {
 
 /** 満腹度がこのターン数ぶん減る。100 / 0.2 = 500ターンもつ */
 const SATIETY_PER_TURN = 0.2;
+/**
+ * 草を「使った」ときに満腹度も少し回復する(plan/herb-satiety-bonus.md)。
+ * 食料(45)の1/9程度に抑えて、草を食料の代替にはしない
+ */
+const HERB_SATIETY_BONUS = 5;
 /** 満腹度がある間、このターンごとにHPが1回復する */
 const REGEN_INTERVAL = 8;
 /** このターンごとにモンスターが1体湧く */
@@ -2598,6 +2603,17 @@ export class Game {
       def.power ?? 0,
       this.player.facing,
     );
+
+    // 草は葉っぱを食べている(plan/herb-satiety-bonus.md): 「使う」操作の
+    // ときだけ満腹度も少し回復する。敵への投げ当ては食べていないので
+    // 対象外(そちらはthrow系の経路で、ここを通らない)。満タン時は黙る
+    if (def.category === "herb") {
+      const satietyBefore = this.player.satiety;
+      this.player.satiety = Math.min(MAX_SATIETY, this.player.satiety + HERB_SATIETY_BONUS);
+      if (this.player.satiety > satietyBefore) {
+        events.push({ type: "message", text: "……少しだけおなかが満たされた。" });
+      }
+    }
 
     if (def.category === "staff") {
       if (worked) item.charges = (item.charges ?? 1) - 1;
