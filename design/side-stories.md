@@ -65,7 +65,10 @@
 
 ## 未決事項
 
-- 残りのNPC(肝いりのオトネ・物知りのおキヨ・ひよっこのポチ)への
-  サイドストーリー追加は今後の課題とする
-- 各段の具体的な絆閾値・必要素材
-- 専用アイテムの`flavorText`・会話文の実際の執筆
+- ~~残りのNPC(肝いりのオトネ・物知りのおキヨ・ひよっこのポチ)への
+  サイドストーリー追加~~ → `plan/game/archive/side-stories-part2.md`で
+  実装済み
+- ~~各段の具体的な絆閾値・必要素材~~ → 同上(実装時の判断で確定)
+- ~~会話文の実際の執筆~~ → 同上(`src/entities/sideStories.ts`)
+- 締めくくりの専用品5点の`flavorText`は`plan/game/side-story-item-
+  flavor-text.md`で確定
