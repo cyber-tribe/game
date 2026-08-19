@@ -77,6 +77,7 @@ import {
 import { displayActorName } from "./entities/naming";
 import { ALLY_STANCE_NAMES, BARREL_NAMES } from "./entities/displayNames";
 import {
+  isCheckpointFloor,
   CHAPTER3_COLLAPSE_DEPTH,
   type DungeonDef,
   MAIN_CAVE_ID,
@@ -802,6 +803,7 @@ export class Game {
           this.previousGimmick,
           GIMMICK_CHANCE_MULTIPLIER[this.difficulty] * (this.mood.floorGimmickRateMul ?? 1),
           this.dungeon.id === MAIN_CAVE_ID,
+          isCheckpointFloor(this.dungeon.id, depth),
         );
     this.previousGimmick = gimmick;
     this.floor = generateFloor(this.rng, {
@@ -847,6 +849,7 @@ export class Game {
       goldRewardMultiplier: GOLD_REWARD_MULTIPLIER[this.difficulty] * (this.mood.goldRateMul ?? 1),
       speciesDepthOffset: this.dungeon.floorOffset ?? 0,
       bossSpeciesId,
+      checkpointFloor: isCheckpointFloor(this.dungeon.id, depth),
       monsterCountMultiplier: this.dungeon.monsterCountMul ?? 1,
       // 夜ごとの夢のモンスター強化カーブ(plan/nightly-dream-scaling.md)
       statMultiplier: this.dungeon.id === NIGHTLY_DREAM_ID ? nightlyDreamStatMultiplier(depth) : 1,

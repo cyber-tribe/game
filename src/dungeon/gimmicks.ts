@@ -60,11 +60,23 @@ export function pickFloorGimmick(
   chanceMultiplier = 1,
   /** 表の寝穴かどうか(plan/region-darkness.md)。地方の概念を持つのは表の寝穴だけ */
   isMainCave = false,
+  /**
+   * めざめの階段の階か(plan/game/no-pitfall-on-checkpoint-floors.md)。
+   * 落とし穴で強制的に階を離れるとチェックポイントに触れる機会ごと失う
+   * 理不尽になるため、「おちあなの階」はこの階には割り当てない
+   * (罠の生成除外(populate.ts)と矛盾した予告だけ出るのを防ぐ)
+   */
+  checkpointFloor = false,
 ): FloorGimmickKind | undefined {
   if (depth <= 1) return undefined;
   if (!rng.chance(GIMMICK_CHANCE * chanceMultiplier)) return undefined;
   const excludeDarkness = isMainCave && depth <= DARKNESS_EARLY_REGION_END;
-  const options = ALL_GIMMICKS.filter((g) => g !== previous && (!excludeDarkness || g !== "darkness"));
+  const options = ALL_GIMMICKS.filter(
+    (g) =>
+      g !== previous &&
+      (!excludeDarkness || g !== "darkness") &&
+      (!checkpointFloor || g !== "pitfall"),
+  );
   if (options.length === 0) return undefined;
   const heavyDarkness = isMainCave && depth > DARKNESS_EARLY_REGION_END;
   if (!heavyDarkness) return rng.pick(options);
