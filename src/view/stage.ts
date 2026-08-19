@@ -301,6 +301,12 @@ export class Stage {
         this.audio.playSfx("levelUp");
         return 0;
       },
+      // 仲間のゆめわざ習得(plan/game/archive/companion-leveling-and-arts.md)。
+      // 専用のSFXは無いため、レベルアップと同じ「良いことが起きた」効果音を流用する
+      dreamArtLearned: () => {
+        this.audio.playSfx("levelUp");
+        return 0;
+      },
       pickup: noop,
       drop: noop,
       useItem: noop,

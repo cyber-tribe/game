@@ -14,9 +14,11 @@ import type { GameEvent } from "./core/events";
 import {
   STATUS_CONFUSE,
   STATUS_FEAR,
+  STATUS_FLINCH,
   STATUS_INVISIBLE,
   STATUS_POISON,
   STATUS_RECOVER,
+  STATUS_ROOT,
   STATUS_SEAL,
   STATUS_SLEEP,
   type Actor,
@@ -25,6 +27,7 @@ import {
   type Barrel,
   type BarrelKind,
   type CombatantActor,
+  type DreamArtId,
   type FieldSkillId,
   type FloorGimmickKind,
   type FloorState,
@@ -126,6 +129,15 @@ import {
 import { HAJIME_NO_YUME_ID, REGION_BOSS_FLOORS, REGION_BOSS_ORDER, speciesById } from "./entities/species";
 import { REGIONS, regionByIndex } from "./entities/regions";
 import { type BondStage, bondStage } from "./entities/companionBond";
+import { gainAllyExp } from "./entities/companionGrowth";
+import { dreamArtDef } from "./entities/dreamArts";
+import {
+  DREAM_ART_EFFECTS,
+  HONE_TSUYOSHI_MULTIPLIER,
+  HONOKA_NA_AKARI_VISION_EXTRA,
+  YUME_NO_KAKEBUTON_DAMAGE_REDUCTION,
+  type DreamArtContext,
+} from "./systems/dreamArtEffects";
 import { itemDef } from "./items/catalog";
 import { type EffectContext, addStatus, applyEffect } from "./items/effects";
 import {
@@ -163,6 +175,11 @@ const STATUS_END_MESSAGES: Record<StatusKind, string> = {
   [STATUS_POISON]: "毒が抜けた。",
   [STATUS_INVISIBLE]: "透明が解けた。",
   [STATUS_FEAR]: "おびえがおさまった。",
+  // ゆめわざ(plan/game/archive/companion-leveling-and-arts.md)。この2つは
+  // 常にモンスター側にしか乗らないため、実際に読まれることはない想定だが、
+  // Record<StatusKind, string>の網羅性のために埋めておく
+  [STATUS_ROOT]: "うごけるようになった。",
+  [STATUS_FLINCH]: "怯みがおさまった。",
 };
 
 /** attacker.inflicts で状態異常を付与したときのメッセージ */
@@ -554,6 +571,10 @@ export class Game {
   damageTakenThisRun = 0;
   /** 松明(plan/region-darkness.md)。残りターン数。0なら効果切れ */
   private torchTurnsLeft = 0;
+  /** ゆめわざ「ほのかなあかり」。残りターン数。0なら効果切れ */
+  private lanternGlowTurns = 0;
+  /** ゆめわざ「ゆめのかけぶとん」。残りターン数。0なら効果切れ */
+  private partyGuardTurns = 0;
   /** 実績帳「挑戦」カテゴリ(plan/challenge-achievements.md)。杖・巻物・食料等を使ったか */
   usedItemThisRun = false;
   /**
@@ -2051,11 +2072,16 @@ export class Game {
     events.push({ type: "message", text: "――部屋の奥で何かがひしめいている気配がする。" });
   }
 
-  /** 見晴らしのはちまき(plan/protagonist-equipment.md)・松明(plan/region-darkness.md)ぶんの視界拡張。単純に加算する */
+  /**
+   * 見晴らしのはちまき(plan/protagonist-equipment.md)・松明(plan/region-darkness.md)・
+   * ゆめわざ「ほのかなあかり」(plan/game/archive/companion-leveling-and-arts.md)ぶんの
+   * 視界拡張。単純に加算する
+   */
   private visionExtraRange(): number {
     const headband = hasEquipEffect(this.player.inventory, "lookout") ? 1 : 0;
     const torch = this.torchTurnsLeft > 0 ? TORCH_VISION_BONUS : 0;
-    return headband + torch;
+    const lantern = this.lanternGlowTurns > 0 ? HONOKA_NA_AKARI_VISION_EXTRA : 0;
+    return headband + torch + lantern;
   }
 
   // ------------------------------------------------------------ 戦闘
@@ -2159,7 +2185,18 @@ export class Game {
     const { forceCrit, ambushStrike } = this.resolveAttackModifiers(attacker, target, events);
     if (this.tryEvade(target, events)) return;
 
-    const defense = target.kind === "player" ? totalDefense(this.player) : target.def;
+    // ゆめわざ「かたやぶり」(plan/game/archive/companion-leveling-and-arts.md):
+    // 消費型の自己強化なので、使ったらここで1回だけ効かせて消す
+    const ignoresDefense = attacker.kind === "ally" && attacker.ignoreDefenseNextHit === true;
+    if (ignoresDefense) {
+      (attacker as AllyActor).ignoreDefenseNextHit = false;
+      events.push({ type: "message", text: "防御を破った!" });
+    }
+    const baseDefense = target.kind === "player" ? totalDefense(this.player) : target.def;
+    // ゆめわざ「ホネつよし」: defにだけ掛かる一時倍率
+    const defBuff =
+      target.kind === "ally" && (target.defBuffTurns ?? 0) > 0 ? HONE_TSUYOSHI_MULTIPLIER : 1;
+    const defense = ignoresDefense ? 0 : Math.round(baseDefense * defBuff);
     // 地方ごとの成熟系統(plan/companion-evolution-expansion.md): なみだぐまは
     // HPが減るほど攻撃力が上がる(HP満タンで+0%、HP0近くで最大値に近づく)
     const attackerSpeciesId = attacker.kind === "monster" || attacker.kind === "ally" ? attacker.speciesId : undefined;
@@ -2275,6 +2312,17 @@ export class Game {
       events.push({ type: "message", text: `${displayActorName(target)}が身を固めて${counter}のダメージを返した!` });
       this.damageActor(attacker, counter, false, events);
     }
+
+    // ゆめわざ「こだまがえし」(plan/game/archive/companion-leveling-and-arts.md):
+    // 消費型の自己強化。counterDamageRatioと同じ仕組みで、受けた1撃の半分を返す
+    if (target.kind === "ally" && target.reflectNextHit) {
+      target.reflectNextHit = false;
+      if (attacker.alive && finalDamage > 0) {
+        const reflected = Math.max(1, Math.round(finalDamage * 0.5));
+        events.push({ type: "message", text: `${displayActorName(target)}が『こだまがえし』で${reflected}のダメージを返した!` });
+        this.damageActor(attacker, reflected, false, events);
+      }
+    }
   }
 
   /** attackの後半: 命中した攻撃者側の特技による状態異常の追加付与を判定する */
@@ -2377,6 +2425,11 @@ export class Game {
       // 特技「みをまもる」: 確率5割で被弾ダメージを1割軽減する
       events.push({ type: "message", text: `${displayActorName(target)}は衝撃をやわらげた!` });
       return Math.max(1, Math.floor(damage * 0.9));
+    }
+    // ゆめわざ「ゆめのかけぶとん」(plan/game/archive/companion-leveling-and-arts.md):
+    // 仲間全員の被弾を1ターンだけ1割軽減する(誰が使ったかによらず一律)
+    if (target.kind === "ally" && this.partyGuardTurns > 0) {
+      return Math.max(1, Math.floor(damage * (1 - YUME_NO_KAKEBUTON_DAMAGE_REDUCTION)));
     }
     return damage;
   }
@@ -2503,6 +2556,10 @@ export class Game {
         events.push({ type: "message", text: t("msg.levelUp", { level: this.player.level }) });
       }
       if (levels > 0) events.push({ type: "tutorialTip", id: "levelUp" });
+      // 仲間の経験値・レベルアップ(plan/game/archive/companion-leveling-and-arts.md):
+      // ガルドが得る全量とは別に、生存して連れている仲間全員がそれぞれ50%を得る
+      // (頭割りにしない。複数連れのパーティが不利にならないように)
+      this.gainAllyExpFromKill(exp, events);
     }
 
     // 地方ボス(plan/region-boss-kodamanonushi.md): 本体が倒れたら、紐づく分身も
@@ -2514,6 +2571,33 @@ export class Game {
       echo.alive = false;
       echo.hp = 0;
       events.push({ type: "die", actorId: echo.id, kind: echo.kind, speciesId: echo.speciesId });
+    }
+  }
+
+  /**
+   * 仲間の経験値・レベルアップ(plan/game/archive/companion-leveling-and-arts.md)。
+   * killActorから、ガルドの経験値取得と同じタイミングで呼ばれる
+   */
+  private gainAllyExpFromKill(playerExp: number, events: GameEvent[]): void {
+    const allyExp = Math.round(playerExp * 0.5);
+    if (allyExp <= 0) return;
+    for (const actor of this.floor.actors) {
+      if (actor.kind !== "ally" || !actor.alive) continue;
+      const result = gainAllyExp(actor, allyExp);
+      if (result.levelsGained > 0) {
+        events.push({ type: "levelUp", actorId: actor.id, level: actor.level });
+        events.push({
+          type: "message",
+          text: t("msg.allyLevelUp", { name: displayActorName(actor), level: actor.level }),
+        });
+      }
+      for (const learned of result.learnedDreamArts) {
+        events.push({ type: "dreamArtLearned", actorId: actor.id, id: learned.id, level: learned.level });
+        events.push({
+          type: "message",
+          text: `${displayActorName(actor)}は『${dreamArtDef(learned.id).name}』をゆめみた!`,
+        });
+      }
     }
   }
 
@@ -2848,6 +2932,9 @@ export class Game {
     for (const actor of movers) {
       if (!actor.alive || this.status !== "playing") continue;
       if (hasStatus(actor, STATUS_SLEEP)) continue;
+      // ゆめわざ「おどしなき」(plan/game/archive/companion-leveling-and-arts.md):
+      // 1手を丸ごと奪う。眠りと同じく行動そのものを試みさせない
+      if (hasStatus(actor, STATUS_FLINCH)) continue;
 
       if (hasStatus(actor, STATUS_CONFUSE)) {
         const options = ALL_DIRS.filter((d) => canStep(this.floor, actor.pos, d));
@@ -2855,7 +2942,7 @@ export class Game {
         continue;
       }
 
-      const action =
+      let action =
         actor.kind === "ally"
           ? decideAllyAction(
               this.rng,
@@ -2873,6 +2960,9 @@ export class Game {
               towardsFriendly,
               this.mood.awareDistanceMul ?? 1,
             );
+      // ゆめわざ「ねばりつき」: 移動だけを封じる。攻撃・遠隔等の他の行動は
+      // そのまま通す(隣接していれば反撃できる)ため、moveのときだけ差し替える
+      if (hasStatus(actor, STATUS_ROOT) && action.type === "move") action = { type: "wait" };
 
       if (this.executeMonsterAction(actor, action, events)) return;
       this.tickQuagmireInvisibility(actor);
@@ -3005,6 +3095,15 @@ export class Game {
         events.push({ type: "teleport", actorId: actor.id, from, to: action.to });
         break;
       }
+      case "dreamArt": {
+        // ゆめわざ(plan/game/archive/companion-leveling-and-arts.md): 種類ごとの
+        // 実装は systems/dreamArtEffects.ts の DREAM_ART_EFFECTS レジストリにある
+        if (actor.kind !== "ally") break;
+        DREAM_ART_EFFECTS[action.id].execute(this.dreamArtContext(actor, events), action.targetId);
+        actor.dreamArtCooldowns ??= {};
+        actor.dreamArtCooldowns[action.id] = dreamArtDef(action.id).cooldownTurns;
+        break;
+      }
     }
     return false;
   }
@@ -3074,6 +3173,7 @@ export class Game {
     this.tickStatuses(events);
     this.tickHunger(events);
     this.tickArtCooldowns();
+    this.tickDreamArts(events);
     this.tickRegen();
     this.tickSporeRooms(events);
     this.tickSummonedTorrentTiles();
@@ -3100,6 +3200,30 @@ export class Game {
       if (this.player.artCooldowns[id] > 0) this.player.artCooldowns[id]--;
     }
     this.player.ukemiReady = false;
+  }
+
+  /**
+   * ゆめわざ(plan/game/archive/companion-leveling-and-arts.md)のクールダウン・
+   * 一時効果を1ターンぶん減らす。「ほのかなあかり」「ゆめのかけぶとん」は
+   * パーティ全体の効果なのでGame自身のフィールドを、「ホネつよし」は
+   * 発動した個体ごとの効果なのでAllyActor側のフィールドを減らす
+   */
+  private tickDreamArts(events: GameEvent[]): void {
+    if (this.lanternGlowTurns > 0) {
+      this.lanternGlowTurns--;
+      if (this.lanternGlowTurns === 0) events.push({ type: "message", text: "ほのかなあかりが消えた。" });
+    }
+    if (this.partyGuardTurns > 0) this.partyGuardTurns--;
+    for (const actor of this.floor.actors) {
+      if (actor.kind !== "ally") continue;
+      if (actor.dreamArtCooldowns) {
+        for (const id of Object.keys(actor.dreamArtCooldowns) as DreamArtId[]) {
+          const remaining = actor.dreamArtCooldowns[id] ?? 0;
+          if (remaining > 0) actor.dreamArtCooldowns[id] = remaining - 1;
+        }
+      }
+      if ((actor.defBuffTurns ?? 0) > 0) actor.defBuffTurns!--;
+    }
   }
 
   /** 松明(plan/region-darkness.md)。残りターンを減らし、切れた瞬間だけ知らせる */
@@ -3295,6 +3419,27 @@ export class Game {
       freeSpotNear: (center) => this.freeSpotNear(center),
       damageActor: (target, damage, critical, evts) => this.damageActor(target, damage, critical, evts),
       isGameOver: () => this.status !== "playing",
+    };
+  }
+
+  /** ゆめわざ(systems/dreamArtEffects.tsのDREAM_ART_EFFECTS)に渡す、narrowなGameアクセス */
+  private dreamArtContext(actor: AllyActor, events: GameEvent[]): DreamArtContext {
+    return {
+      actor,
+      floor: this.floor,
+      rng: this.rng,
+      leader: this.player,
+      events,
+      addStatus: (target, kind, turns, verb) => addStatus(this.effectContext(events), target, kind, turns, verb),
+      damageActor: (target, damage, critical, evts) => this.damageActor(target, damage, critical, evts),
+      mitigateIncomingDamage: (target, damage, evts) => this.mitigateIncomingDamage(target, damage, evts),
+      pushMonster: (dir, target, evts) => this.pushMonster(dir, target, evts),
+      extendLanternGlow: (turns) => {
+        this.lanternGlowTurns = Math.max(this.lanternGlowTurns, turns);
+      },
+      extendPartyGuard: (turns) => {
+        this.partyGuardTurns = Math.max(this.partyGuardTurns, turns);
+      },
     };
   }
 

@@ -1,5 +1,5 @@
 import { TUTORIAL_TIP_IDS, type TutorialTipId } from "./core/tutorial";
-import type { AllyActor, FloorState, Item, MarkId, SkillId, Tile } from "./core/types";
+import type { AllyActor, DreamArtId, FloorState, Item, MarkId, SkillId, Tile } from "./core/types";
 import { ACHIEVEMENTS, achievementDef } from "./entities/achievements";
 import { COSTUMES, DEFAULT_COSTUME_ID, type CostumeDef } from "./entities/costumes";
 import { DIFFICULTY_MODES, type DifficultyMode } from "./entities/difficulty";
@@ -12,6 +12,7 @@ import type { TrainingFocus } from "./entities/player";
 import { MESSAGE_SPEEDS, type MessageSpeed } from "./entities/settings";
 import { LOCALES, type LocaleId } from "./i18n";
 import { type BondStage, bondStage } from "./entities/companionBond";
+import { DREAM_ARTS, MAX_DREAM_ARTS } from "./entities/dreamArts";
 import {
   OTAMA_VISIT_STORY,
   type SideStoryDef,
@@ -925,8 +926,9 @@ export function actorToStoredMonster(uid: number, actor: AllyActor): StoredMonst
     uid,
     speciesId,
     level: actor.level,
-    // 仲間自身の経験値蓄積・レベルアップはまだ実装されていないため、常に0
-    exp: 0,
+    // 仲間の経験値・レベルアップ(plan/game/archive/companion-leveling-and-arts.md)
+    exp: actor.growthExp ?? 0,
+    dreamArts: actor.dreamArts ?? [],
     // native(種族由来)はfullSkillSetで暗黙に復元されるため、夢あわせで得た分だけ保存する
     skills: actor.skills ? actor.skills.filter((s) => s !== native) : [],
     nickname: actor.nickname,
@@ -1450,11 +1452,17 @@ function sanitizeHut(value: unknown): StoredMonster[] {
       ? m.skills.filter((s): s is SkillId => typeof s === "string" && VALID_SKILL_IDS.has(s))
       : [];
     seenUids.add(m.uid);
+    const dreamArts = Array.isArray(m.dreamArts)
+      ? m.dreamArts
+          .filter((id): id is DreamArtId => typeof id === "string" && id in DREAM_ARTS)
+          .slice(-MAX_DREAM_ARTS)
+      : [];
     const monster: StoredMonster = {
       uid: m.uid,
       speciesId: m.speciesId,
       level: m.level,
       exp: typeof m.exp === "number" && Number.isFinite(m.exp) ? m.exp : 0,
+      dreamArts,
       skills,
       nickname: typeof m.nickname === "string" ? m.nickname : undefined,
       bondSuccessCount:

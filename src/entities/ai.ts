@@ -9,6 +9,7 @@ import {
   type AllyStance,
   type BossMoveId,
   type CombatantActor,
+  type DreamArtId,
   type FloorState,
   type MonsterActor,
   actorAt,
@@ -20,6 +21,7 @@ import {
   walkableAt,
 } from "../core/types";
 import { canSee } from "../dungeon/visibility";
+import { DREAM_ARTS } from "./dreamArts";
 import { hasSkill } from "./skills";
 import { speciesById } from "./species";
 
@@ -48,7 +50,13 @@ export type MonsterAction =
    */
   | { type: "bossMove"; moveId: Exclude<BossMoveId, "targetedStrike"> }
   /** burrow(plan/monster-compendium.md)。潜伏から地上へ現れる。呼び出し側で位置を動かし、teleportイベントを出す */
-  | { type: "burrowSurface"; to: Vec2 };
+  | { type: "burrowSurface"; to: Vec2 }
+  /**
+   * ゆめわざ(plan/game/archive/companion-leveling-and-arts.md)。仲間モンスターだけが
+   * 選べる。種類ごとの実装は systems/dreamArtEffects.ts の DREAM_ART_EFFECTS
+   * レジストリにある(bossMoveと同じ構成)
+   */
+  | { type: "dreamArt"; id: DreamArtId; targetId?: number };
 
 /**
  * 指定した地点からの歩数を全マスぶん求めた距離場(いわゆるダイクストラマップ)。
@@ -395,6 +403,13 @@ export function decideAllyAction(
   leaderField: Int32Array,
 ): MonsterAction {
   const adjacent = adjacentFoe(floor, ally);
+
+  // ゆめわざ(plan/game/archive/companion-leveling-and-arts.md): 条件を満たした
+  // ターンに、通常行動(隣接反撃・構え別の移動)の代わりに使う。「ゆめわざ控えめ」
+  // (dreamArtsCareful)のときはここを丸ごと飛ばす
+  const dreamArt = decideDreamArt(rng, floor, ally, leader, adjacent);
+  if (dreamArt) return dreamArt;
+
   if (adjacent) return { type: "attack", targetId: adjacent.id };
 
   const stance: AllyStance = ally.stance ?? "free";
@@ -406,8 +421,36 @@ export function decideAllyAction(
     case "vanguard":
       return vanguardAction(rng, floor, ally, foeField);
     case "free":
+    case "dreamArtsCareful":
       return freeAction(rng, floor, ally, leader, foeField, leaderField);
   }
+}
+
+/**
+ * ゆめわざを撃つかどうかを決める。習得順に見て、クールダウンが空いていて
+ * 条件(DREAM_ARTS[id].trigger)を満たす最初の1つだけを、さらに発動確率
+ * (activationChance)で抽選する。複数条件を同時に満たしても1ターンに1つまで
+ */
+function decideDreamArt(
+  rng: Rng,
+  floor: FloorState,
+  ally: AllyActor,
+  leader: Actor,
+  adjacent: Actor | null,
+): MonsterAction | null {
+  if (ally.stance === "dreamArtsCareful") return null;
+  const known = ally.dreamArts ?? [];
+  if (known.length === 0) return null;
+  for (const id of known) {
+    const cooldown = ally.dreamArtCooldowns?.[id] ?? 0;
+    if (cooldown > 0) continue;
+    const def = DREAM_ARTS[id];
+    const result = def.trigger({ floor, ally, leader, adjacentFoe: adjacent });
+    if (!result) continue;
+    if (!rng.chance(def.activationChance)) continue;
+    return { type: "dreamArt", id, targetId: result.targetId };
+  }
+  return null;
 }
 
 /** おまかせ(既定)。敵が見えていれば向かっていき、いなければ主についてくる */

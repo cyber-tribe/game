@@ -304,6 +304,13 @@
       .ally-bar > i[data-level="danger"] { background: linear-gradient(90deg, #e05f6b, #f38b93); }
       .ally-stance { font-size: 10.5px; color: #7fd6ff; margin-top: 2px; }
       .ally-status { font-size: 10.5px; color: #f2d27a; margin-top: 2px; }
+      /* 仲間のレベルアップ・ゆめわざ習得(plan/game/archive/companion-leveling-and-arts.md)。
+         DOMは毎回作り直すので、クラスを立てるだけでアニメーションが最初から再生される */
+      .ally-flash { animation: ally-flash-glow 1.1s ease-out; border-radius: 6px; }
+      @keyframes ally-flash-glow {
+        0% { background: rgba(255, 224, 130, 0.5); box-shadow: 0 0 0 1px rgba(255, 224, 130, 0.6); }
+        100% { background: transparent; box-shadow: 0 0 0 1px transparent; }
+      }
 
       /* ------------------------------------------------ ミニマップ */
       /* ゾーン: 右上。触UIの≡メニューボタン(#touch側)も同じ右上ゾーンに

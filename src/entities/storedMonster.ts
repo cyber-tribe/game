@@ -1,4 +1,4 @@
-import type { SkillId } from "../core/types";
+import type { DreamArtId, SkillId } from "../core/types";
 
 /**
  * ねむり小屋(plan/monster-fusion.md、アーカイブ済み)に預けてある仲間。
@@ -10,7 +10,10 @@ export interface StoredMonster {
   uid: number;
   speciesId: string;
   level: number;
+  /** 仲間の蓄積経験値(plan/game/archive/companion-leveling-and-arts.md) */
   exp: number;
+  /** 習得済みのゆめわざ。最大2つ。entities/dreamArts.tsのDREAM_ARTSが定義を持つ */
+  dreamArts: DreamArtId[];
   /** 夢あわせで引き継いだ特技(種族由来のnativeは含まない)。最大 MAX_SKILLS-1 個 */
   skills: SkillId[];
   /** プレイヤーがつけた名前。任意 */

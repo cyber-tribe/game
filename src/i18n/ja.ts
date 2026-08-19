@@ -62,6 +62,8 @@ export const ja: Record<string, string> = {
   "msg.checkpointReached": "地下{depth}階のめざめの階段で区切って持ち帰った!",
   "msg.expGained": "経験値を{exp}かくとく。",
   "msg.levelUp": "レベルが{level}に上がった!",
+  // 仲間のレベルアップ(plan/game/archive/companion-leveling-and-arts.md)
+  "msg.allyLevelUp": "{name}はレベル{level}になった!",
   "msg.recruit": "{name}が仲間になった!",
   "msg.captureSuccess": "{name}をタルに吸い込んだ!",
   // 捕獲失敗(plan/game/barrel-capture-clarity.md)。タルが落ちて拾い直せることまで伝える。
