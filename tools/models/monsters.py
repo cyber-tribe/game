@@ -922,19 +922,25 @@ def build_kirimizuchi():
 
 
 def kirimizuchi_animations():
+    """
+    plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
+    タメ・ツメ(LINEAR補間)・触手の遅れ追従(二次揺れ)を足してある。
+    """
     head = "chest-head"
     trunk = "chest-hip"
     armL, armR = "chest-armF.L", "chest-armF.R"
     foreL, foreR = "armF.L-handF.L", "armF.R-handF.R"
     legL, legR = "hip-kneeB.L", "hip-kneeB.R"
     return [
-        # 霧がゆっくり渦を巻くように、頭と触手が漂う
+        # 霧がゆっくり渦を巻くように、頭と触手が漂う。触手の先(foreL,R)が
+        # 腕(armL,R)より2フレーム遅れて追従する(二次揺れ)
         ("idle", [
-            (1, {head: (0, 0, 0), armL: (0, 0, 0), armR: (0, 0, 0)}),
-            (22, {head: (-4, 3, 0), armL: (6, 0, 4), armR: (6, 0, -4),
-                  foreL: (8, 0, 0), foreR: (8, 0, 0)}),
-            (44, {head: (3, -3, 0), armL: (-4, 0, -3), armR: (-4, 0, 3),
-                  foreL: (-4, 0, 0), foreR: (-4, 0, 0)}),
+            (1, {head: (0, 0, 0), armL: (0, 0, 0), armR: (0, 0, 0),
+                 foreL: (0, 0, 0), foreR: (0, 0, 0)}),
+            (22, {head: (-4, 3, 0), armL: (6, 0, 4), armR: (6, 0, -4)}),
+            (24, {foreL: (8, 0, 0), foreR: (8, 0, 0)}, {"partial": True}),
+            (44, {head: (3, -3, 0), armL: (-4, 0, -3), armR: (-4, 0, 3)}),
+            (46, {foreL: (-4, 0, 0), foreR: (-4, 0, 0)}, {"partial": True}),
             (60, {head: (0, 0, 0), armL: (0, 0, 0), armR: (0, 0, 0),
                   foreL: (0, 0, 0), foreR: (0, 0, 0)}),
         ]),
@@ -947,29 +953,36 @@ def kirimizuchi_animations():
                   armL: (10, 0, -6), armR: (-10, 0, 6)}),
             (24, {legL: (0, 0, 0), legR: (0, 0, 0), trunk: (0, 0, 0), head: (0, 0, 0)}),
         ]),
-        # 頭を引いてため、注ぎ口を突き出すように水弾を放つ
+        # 頭を引いてため、LINEARで鋭く注ぎ口を突き出して水弾を放ち、
+        # 反動でわずかに引いてからゆっくり中立へ戻る
         ("attack", [
             (1, {head: (0, 0, 0), armL: (0, 0, 0), armR: (0, 0, 0),
                  foreL: (0, 0, 0), foreR: (0, 0, 0)}),
             (5, {head: (-10, 0, 0), armL: (-18, 0, 10), armR: (-18, 0, -10),
-                 foreL: (-14, 0, 0), foreR: (-14, 0, 0)}),
-            (10, {head: (14, 0, 0), armL: (22, 0, -8), armR: (22, 0, 8),
-                  foreL: (20, 0, 0), foreR: (20, 0, 0)}),
+                 foreL: (-14, 0, 0), foreR: (-14, 0, 0)}, {"interp": "LINEAR"}),
+            (8, {head: (18, 0, 0), armL: (26, 0, -8), armR: (26, 0, 8),
+                 foreL: (24, 0, 0), foreR: (24, 0, 0)}),
+            (10, {head: (14, 0, 0), armL: (20, 0, -8), armR: (20, 0, 8),
+                  foreL: (18, 0, 0), foreR: (18, 0, 0)}),
             (20, {head: (0, 0, 0), armL: (0, 0, 0), armR: (0, 0, 0),
                   foreL: (0, 0, 0), foreR: (0, 0, 0)}),
         ]),
+        # 入りだけLINEARで鋭くする。ranged種族なので振幅・戻り時間は
+        # 現行どおり中程度に保つ
         ("hit", [
-            (1, {head: (0, 0, 0), trunk: (0, 0, 0)}),
+            (1, {head: (0, 0, 0), trunk: (0, 0, 0)}, {"interp": "LINEAR"}),
             (4, {head: (16, 0, 0), trunk: (-10, 0, 0), armL: (-14, 0, 14), armR: (-14, 0, -14)}),
             (14, {head: (0, 0, 0), trunk: (0, 0, 0)}),
         ]),
-        # 実体を失って霧に紛れるように、前へ崩れ落ちる
+        # 実体を失って霧に紛れるように、前へ崩れ落ちる。初動をLINEARで
+        # 鋭くする。26f到達後、頭と腕がほんの少しだけ戻るわずかな跳ね返りを追加
         ("die", [
-            (1, {trunk: (0, 0, 0), head: (0, 0, 0)}),
+            (1, {trunk: (0, 0, 0), head: (0, 0, 0)}, {"interp": "LINEAR"}),
             (12, {trunk: (-30, 0, 0), head: (20, 0, 0), armL: (-30, 0, 20), armR: (-30, 0, -20),
                   legL: (-20, 0, 0), legR: (-20, 0, 0)}),
             (26, {trunk: (-70, 0, 0), head: (40, 0, 0), armL: (-60, 0, 40), armR: (-60, 0, -40),
                   legL: (-40, 0, 0), legR: (-40, 0, 0)}),
+            (30, {head: (34, 0, 0), armL: (-51, 0, 34), armR: (-51, 0, -34)}, {"partial": True}),
         ]),
     ]
 
