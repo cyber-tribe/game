@@ -223,15 +223,21 @@ export class Hud {
       stance.textContent = t("hud.stance", { name: ALLY_STANCE_NAMES[ally.stance ?? "free"] });
 
       row.append(name, hp);
-      this.alliesEl.append(row, bar, stance);
+      // 1体ぶんを入れ物で包む(issue #552)。タッチ端末のCSSがこの入れ物を
+      // flex行にして「名前+小さなHPバー」の1行へ圧縮する。デスクトップは
+      // 中身がブロックのまま縦に積まれるので見た目は変わらない
+      const box = document.createElement("div");
+      box.className = "ally";
+      box.append(row, bar, stance);
 
       const allyStatuses = activeStatusLabels(ally);
       if (allyStatuses.length > 0) {
         const status = document.createElement("div");
         status.className = "ally-status";
         status.textContent = allyStatuses.join(" / ");
-        this.alliesEl.append(status);
+        box.append(status);
       }
+      this.alliesEl.append(box);
     }
   }
 

@@ -556,7 +556,30 @@
           left: calc(8px + var(--safe-left));
           max-height: 38vh;
           overflow-y: auto;
+          width: auto;
+          max-width: 200px;
+          padding: 5px 9px;
         }
+        /*
+         * なかまを1体=1行に圧縮する(issue #552)。フルサイズの
+         * 名前+HP数値+バー+構え(1体あたり約50px)を縦に積むと、2〜3体で
+         * メッセージ帯と合わさって画面左半分が塞がっていた。
+         * 見出し・構え・HP数値は省き、「名前+小さなHPバー」だけの細い行にする
+         * (構えの詳細は「≡」→仲間へ指示で見られる。HPの割合と危険域は
+         * バーの長さと色で読める)。状態異常は戦闘判断に直結するので残す
+         */
+        #allies .allies-title { display: none; }
+        #allies .ally { display: flex; align-items: center; gap: 7px; }
+        #allies .ally + .ally { margin-top: 4px; }
+        #allies .ally-row { margin: 0; flex: 1 1 auto; min-width: 0; }
+        #allies .ally-name {
+          display: block; font-size: 11px;
+          overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        #allies .ally-hp { display: none; }
+        #allies .ally-bar { flex: 0 0 56px; margin: 0; }
+        #allies .ally-stance { display: none; }
+        #allies .ally-status { font-size: 9.5px; margin: 0; flex: 0 0 auto; }
 
         /* ------------------------------------------------ ミニマップ(タッチ専用の縮小・透過強化) */
         /* 目安: 短辺(横持ちなのでvh)の1/4以下。aspect-ratioでcanvasの縦横比
