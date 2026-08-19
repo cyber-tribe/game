@@ -175,5 +175,13 @@ export class InventoryMenu {
     }
 
     this.root.appendChild(createMenuHint(t("menu.hint")));
+
+    // 所持数が多いとリストが内側スクロールになる(issue #553)。カーソルの
+    // 移動先が見える位置まで運ぶ(拠点画面の列と同じ手法)。サブメニューを
+    // 開いているあいだはそちらのカーソルを優先する
+    const selectedRow = this.submenu
+      ? this.root.querySelector(".menu-sub li.selected")
+      : this.root.querySelector(".menu-list li.selected");
+    selectedRow?.scrollIntoView({ block: "nearest" });
   }
 }
