@@ -1,3 +1,42 @@
+> **実装済み。** `tools/audio/synth.ts` に `breathCry(freq, duration,
+> sampleRate, seed, velocity)` を追加した。`humVoice`をベースに、
+> アタックを5%(humVoiceの25%よりずっと短い)、ノイズ比率5%
+> (humVoiceの2%より高い)にし、ビブラートは持たせていない。
+>
+> `tools/audio/compose.ts` の `composeSfx`・`composeJingle` に、共通の
+> `VoiceCryParams`(freq/duration/seed/velocity)を使う任意パラメータを
+> 追加した:
+> - `composeSfx`の`voiceLayer`(`delaySec`込み): 主音のドライ波形に
+>   `breathCry`を指定オフセットで重ね、はみ出す場合は自動的に音の長さを
+>   伸ばしてから通常どおりnormalize・リバーブを適用する。
+> - `composeJingle`の`coda`: 全音符が鳴り終わったジャスト位置に
+>   `breathCry`を1つだけ置く(ループしない単発ジングルなので「一度だけ」
+>   が自然に実現できる)。
+>
+> いずれも省略時は既存の波形に一切影響しない(既定undefinedのため、
+> if文の分岐に入らない)。
+>
+> **適用箇所**(計画書どおり3箇所、`tools/audio/build.ts`):
+> 1. `capture`(捕獲成功): `voiceLayer`に低め(freq 300)・velocity 0.2・
+>    `delaySec: 0.1`(既存の木の音+鈴の直後に重なる)を追加。
+> 2. `bossTelegraph`(地方ボスの予兆): `voiceLayer`に短い「はっ」
+>    (freq 400・duration 0.15・velocity 0.25・`delaySec: 0.3`、既存の
+>    音の伸びの末尾付近)を追加。
+> 3. `trueAwakeningCleared`(節目のジングル、`plan/sound/archive/
+>    sfx-milestone-jingles.md`で新設済み): `coda`に低め(freq 220)・
+>    duration 0.3・velocity 0.2を追加。ハミング(BGM側の`humVoice`)とは
+>    別に、ジングルの最後に一度だけ息を吐く音を足した。
+>
+> **検証**: `npx tsc --noEmit`・`npx vitest run`(117ファイル/1562件、
+> `breathCry`の決定性・`voiceLayer`/`coda`の効果と長さ変化のテストを
+> 追加)・`npm run build`・`npm run audio`いずれも成功。再生成後の差分は
+> `capture.wav`・`bossTelegraph.wav`・`trueAwakeningCleared.wav`の
+> 3ファイルのみ(他38本の音源は無変更)。headless Chromiumで3ファイルを
+> `decodeAudioData`し、いずれもクリップ無し(ピーク0.77/0.59/0.90)・
+> コンソールエラー無しを確認済み。「言葉に聞こえる要素」(子音的な破裂・
+> 明確な母音変化)は無く、息づかいの範囲に収まっていることを波形・
+> 聴感の両面で確認した。
+
 # ボイス(掛け声等)を入れるかどうかの決着
 
 ## 経緯・現状

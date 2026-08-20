@@ -10,7 +10,14 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { composeJingle, composeSfx, composeTrack, type InstrumentWeights, type JingleNote } from "./compose.ts";
+import {
+  composeJingle,
+  composeSfx,
+  composeTrack,
+  type InstrumentWeights,
+  type JingleNote,
+  type VoiceCryParams,
+} from "./compose.ts";
 import type { ReverbParams } from "./effects.ts";
 import { SAMPLE_RATE, encodeWav } from "./wav.ts";
 
@@ -260,15 +267,35 @@ interface SfxSpec {
   freq: number;
   duration: number;
   seed: number;
+  /** 意味を持たない短い発声を重ねる。省略時は無し(plan/sound/archive/voice-and-cries.md) */
+  voiceLayer?: VoiceCryParams & { delaySec?: number };
 }
 
 const SFX_SPECS: readonly SfxSpec[] = [
-  { id: "capture", kind: "mallet", freq: 660, duration: 0.35, seed: 101 },
+  // 捕獲成功。既存の「やわらかい木の音+鈴」の直後に、相手が眠りに落ちる
+  // ような力の抜けた「んー…」を小さく重ねる(voice-and-cries.md)
+  {
+    id: "capture",
+    kind: "mallet",
+    freq: 660,
+    duration: 0.35,
+    seed: 101,
+    voiceLayer: { freq: 300, duration: 0.25, seed: 201, velocity: 0.2, delaySec: 0.1 },
+  },
   { id: "levelUp", kind: "mallet", freq: 880, duration: 0.5, seed: 102 },
   { id: "hungerWarning", kind: "drum", freq: 140, duration: 0.3, seed: 103 },
   { id: "checkpoint", kind: "mallet", freq: 523, duration: 0.4, seed: 104 },
   { id: "explosion", kind: "drum", freq: 70, duration: 0.5, seed: 105 },
-  { id: "bossTelegraph", kind: "drum", freq: 110, duration: 0.45, seed: 106 },
+  // ボスの予兆。息を吸うような音の伸びの末尾に、ごく短い息の「はっ」を
+  // 重ねて主体の気配を足す(voice-and-cries.md)
+  {
+    id: "bossTelegraph",
+    kind: "drum",
+    freq: 110,
+    duration: 0.45,
+    seed: 106,
+    voiceLayer: { freq: 400, duration: 0.15, seed: 202, velocity: 0.25, delaySec: 0.3 },
+  },
   // 武器を振ったとき(design/protagonist-weapons.mdの「なた」「大槌」等、
   // 打ち振る道具が中心なので、フィルタしたノイズ主体の短い「シュッ」に
   // 軽い一撃の芯を足す)
@@ -304,6 +331,8 @@ interface JingleSpec {
   tempoBpm: number;
   /** 省略時はリバーブ無し */
   reverb?: ReverbParams;
+  /** 意味を持たない短い発声を最後の音のあとに置く。省略時は無し(plan/sound/archive/voice-and-cries.md) */
+  coda?: VoiceCryParams;
 }
 
 // 節目のジングル(plan/sound/archive/sfx-milestone-jingles.md)。単発SFXでは
@@ -369,6 +398,8 @@ const JINGLE_SPECS: readonly JingleSpec[] = [
     ],
     tempoBpm: 65,
     reverb: { wet: 0.4, roomSize: 0.7, damping: 0.15 },
+    // ハミングが鳴り止んだあと、ごく短く一度だけ息を吐く。「誰かがそこにいた」余韻を締める
+    coda: { freq: 220, duration: 0.3, seed: 203, velocity: 0.2 },
   },
   // 全滅。沈んでいく静けさ
   {
@@ -417,6 +448,7 @@ function main(): void {
       sampleRate: SAMPLE_RATE,
       seed: spec.seed,
       reverb: SFX_REVERB,
+      voiceLayer: spec.voiceLayer,
     });
     const path = resolve(AUDIO_ROOT, "sfx", `${spec.id}.wav`);
     writeFileSync(path, encodeWav([samples], SAMPLE_RATE));
@@ -429,6 +461,7 @@ function main(): void {
       tempoBpm: spec.tempoBpm,
       sampleRate: SAMPLE_RATE,
       reverb: spec.reverb,
+      coda: spec.coda,
     });
     const path = resolve(AUDIO_ROOT, "sfx", `${spec.id}.wav`);
     writeFileSync(path, encodeWav([samples], SAMPLE_RATE));
