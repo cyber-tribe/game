@@ -354,8 +354,22 @@ if (front) {
     await settle();
   }
 
-  await page.keyboard.press("KeyG");
-  await settle();
+  // 空のタルは捕獲判定に進む相手のHPを1未満にはしない(barrel-capture-clarity.md)が、
+  // captureChanceは瀕死でも最大0.85までしか上がらない(仕様どおりの確率)ため、
+  // 1回の投げつけで必ず入るとは限らない。ログに成功メッセージが出るまで、
+  // 生きている限り再度タルを持たせて投げ直す(投げるたびにHPは1へ寄っていく
+  // だけで、倒すことはない)。debugMonsterInFront()はモンスターのHPを
+  // 400へ戻してしまうため、判定の再取得には使わない。固定シードが無いため、
+  // これをやらないと数十回に一度は「弱らせたのに捕獲だけ失敗する」flakeになっていた
+  const captured = (log) => log.some((line) => line?.includes(`${front.name}をタルに吸い込んだ`));
+  for (let attempt = 0; attempt < 5; attempt++) {
+    await page.keyboard.press("KeyG");
+    await settle();
+    const stats = await page.evaluate(() => globalThis.__app.debugStats());
+    if (captured(stats.log) || stats.monsters === 0) break;
+    await page.evaluate(() => globalThis.__app.debugGiveBarrel("empty"));
+    await settle();
+  }
 }
 
 // 中身入りのタルを抱えて投げ、仲間にする。
