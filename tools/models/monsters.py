@@ -8952,16 +8952,25 @@ def build_yumemirupurun():
 
 
 def yumemirupurun_animations():
+    """
+    plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
+    idleの二次揺れ明示化、attackのタメ・ツメ(LINEAR補間)・行き過ぎ、
+    hitのLINEAR補間、dieの跳ね返りを足してある。purunファミリー共通の
+    squash&stretch方針は変えず、footfall-dipも(purunファミリー共通の
+    方針どおり)追加していない。
+    """
     lower, upper = "base-mid", "mid-top"
     squash = {"scale": (1.22, 0.72, 1.22)}
     stretch = {"scale": (0.86, 1.28, 0.86)}
     neutral = {"scale": (1.0, 1.0, 1.0)}
     return [
         # 立ったまま船を漕ぐように舟をこぐ。深く傾いてまどろんでは、
-        # はっと我に返って起き直る、を繰り返す
+        # はっと我に返って起き直る、を繰り返す。upperがlowerよりわずかに
+        # 遅れて追従するよう、frame18→20を分離して二次揺れを明示化した
         ("idle", [
             (1, {lower: neutral, upper: neutral}),
-            (18, {lower: {"scale": (1.02, 0.98, 1.02)}, upper: {"rot": (13, 0, 0), "scale": (0.96, 1.05, 0.96)}}),
+            (18, {lower: {"scale": (1.02, 0.98, 1.02)}}),
+            (20, {upper: {"rot": (13, 0, 0), "scale": (0.96, 1.05, 0.96)}}, {"partial": True}),
             (30, {lower: {"scale": (1.04, 0.96, 1.04)}, upper: {"rot": (22, 0, 0), "scale": (0.91, 1.10, 0.91)}}),
             (34, {lower: neutral, upper: {"rot": (-9, 0, 0), "scale": (1.05, 0.93, 1.05)}}),
             (44, {lower: neutral, upper: neutral}),
@@ -8975,23 +8984,32 @@ def yumemirupurun_animations():
             (20, {lower: neutral, upper: neutral}),
         ]),
         # 眠りを乗せる一撃。がっしりした体格を活かし、大きく沈んでから
-        # 正面に体当たりするように叩きつける
+        # 正面に体当たりするように叩きつける。タメ(1→6、squashのまま、
+        # 眠りを誘う一撃らしくwindupはやや長めに保つ)→LINEARで鋭く
+        # 伸ばすツメ(6→9、元のピーク値まで)→行き過ぎ(9→12、stretch
+        # 程度に弱めた余韻)→戻り(12→21)の4段に分ける
         ("attack", [
             (1, {lower: neutral, upper: neutral}),
             (6, {lower: squash, upper: stretch}),
-            (11, {lower: {"scale": (0.80, 1.34, 0.80), "loc": (0, 0.09, 0)}, upper: {"scale": (1.22, 0.78, 1.22)}}),
+            (9, {lower: {"scale": (0.80, 1.34, 0.80), "loc": (0, 0.09, 0)}, upper: {"scale": (1.22, 0.78, 1.22)}},
+             {"interp": "LINEAR"}),
+            (12, {lower: {"scale": (0.86, 1.22, 0.86)}, upper: squash}),
             (21, {lower: neutral, upper: neutral}),
         ]),
+        # 入りをLINEARで鋭くする。振幅はmeleeが標準のため現行維持
         ("hit", [
-            (1, {lower: neutral, upper: neutral}),
+            (1, {lower: neutral, upper: neutral}, {"interp": "LINEAR"}),
             (4, {lower: {"scale": (1.28, 0.68, 1.28)}, upper: {"scale": (0.90, 1.14, 0.90)}}),
             (14, {lower: neutral, upper: neutral}),
         ]),
-        # そのまま深いまどろみに沈み込むように、ゆっくりと崩れて潰れる
+        # そのまま深いまどろみに沈み込むように、ゆっくりと崩れて潰れる。
+        # 沈み込みの初動をLINEARで鋭くし、潰れきった後にふっと浮き
+        # 上がるような小さな跳ね返りを追加
         ("die", [
-            (1, {lower: neutral, upper: neutral}),
+            (1, {lower: neutral, upper: neutral}, {"interp": "LINEAR"}),
             (12, {lower: {"scale": (1.36, 0.48, 1.36)}, upper: {"scale": (1.26, 0.55, 1.26)}}),
             (28, {lower: {"scale": (1.5, 0.06, 1.5)}, upper: {"scale": (1.4, 0.08, 1.4)}}),
+            (32, {lower: {"scale": (1.44, 0.10, 1.44)}, upper: {"scale": (1.34, 0.12, 1.34)}}, {"partial": True}),
         ]),
     ]
 
