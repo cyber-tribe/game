@@ -7579,13 +7579,20 @@ def build_mouhitotsunokage():
 
 
 def mouhitotsunokage_animations():
+    """
+    plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
+    タメ・ツメ(LINEAR補間)・箱の蓋の遅れ追従(二次揺れ)を足してある。
+    """
     lower, mid, upper = "root-stem", "stem-capbase", "capbase-captop"
     return [
-        # 道具のふりをして、ほとんど動かずじっと潜む
+        # 道具のふりをして、ほとんど動かずじっと潜む。箱の蓋(upper)が
+        # 本体(mid)へ3フレーム遅れて揺れる、控えめな二次揺れを追加
         ("idle", [
-            (1, {mid: (0, 0, 0)}),
+            (1, {mid: (0, 0, 0), upper: (0, 0, 0)}),
             (48, {mid: (1.2, 0, 1)}),
+            (51, {upper: (1, 0, 0.8)}, {"partial": True}),
             (96, {mid: (0, 0, 0)}),
+            (99, {upper: (0, 0, 0)}, {"partial": True}),
         ]),
         # 道具らしからぬ、正体を現したときのぎこちない足取り
         ("walk", [
@@ -7594,22 +7601,28 @@ def mouhitotsunokage_animations():
             (14, {lower: (-9, 0, -5), mid: (7, 0, 4)}),
             (21, {lower: (0, 0, 0), mid: (0, 0, 0)}),
         ]),
+        # タメ→LINEARで鋭く振る打撃→行き過ぎ→ゆっくり中立へ
         ("attack", [
             (1, {upper: (0, 0, 0), mid: (0, 0, 0)}),
-            (6, {upper: (-22, 0, 0), mid: (-15, 0, 0)}),
+            (6, {upper: (-22, 0, 0), mid: (-15, 0, 0)}, {"interp": "LINEAR"}),
+            (9, {upper: (-28, 0, 0), mid: (-20, 0, 0)}),
             (11, {upper: (13, 0, 0), mid: (9, 0, 0)}),
             (20, {upper: (0, 0, 0), mid: (0, 0, 0)}),
         ]),
+        # 入りだけLINEARで鋭くする。振幅・戻り時間は現行どおり中程度に保つ
         ("hit", [
-            (1, {mid: (0, 0, 0)}),
+            (1, {mid: (0, 0, 0)}, {"interp": "LINEAR"}),
             (4, {mid: (11, 0, 0), upper: (7, 0, 0)}),
             (14, {mid: (0, 0, 0), upper: (0, 0, 0)}),
         ]),
-        # 影がほどけるように、輪郭を保てず崩れて消える
+        # 影がほどけるように、輪郭を保てず崩れて消える。初動をLINEARで
+        # 鋭くする。22f到達後は跳ね返りではなく、影らしく完全に薄れて
+        # 消えるようlower/mid/upperをさらにわずかに広げる1キーへ差し替える
         ("die", [
-            (1, {lower: (0, 0, 0), mid: (0, 0, 0)}),
+            (1, {lower: (0, 0, 0), mid: (0, 0, 0)}, {"interp": "LINEAR"}),
             (10, {lower: (15, 0, 9), mid: (11, 0, 7), upper: (9, 0, 5)}),
             (22, {lower: (36, 0, 20), mid: (26, 0, 15), upper: (20, 0, 12)}),
+            (26, {lower: (40, 0, 22), mid: (29, 0, 17), upper: (22, 0, 13)}, {"partial": True}),
         ]),
     ]
 
