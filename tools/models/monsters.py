@@ -7443,36 +7443,50 @@ def build_mazarinezumi():
 
 
 def mazarinezumi_animations():
+    """
+    plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
+    タメ・ツメ(LINEAR補間)・鼻先の二次揺れを足してある。guard AIらしく
+    gajiriよりやや落ち着いたテンポを保つ。
+    """
     neck, snout = "chest-neck", "neck-snout"
     hipF_L, hipF_R = "chest-hipF.L", "chest-hipF.R"
     hipB_L, hipB_R = "hip-hipB.L", "hip-hipB.R"
     return [
-        # 臆病さと不動の構えが同居し、落ち着かずわずかに揺れる
+        # 臆病さと不動の構えが同居し、落ち着かずわずかに揺れる。鼻先(snout)
+        # が首より2フレーム遅れて追従する(二次揺れ)
         ("idle", [
-            (1, {neck: (0, 0, 0)}),
+            (1, {neck: (0, 0, 0), snout: (0, 0, 0)}),
             (20, {neck: (3, 0, 2)}),
+            (22, {snout: (2, 0, 1)}, {"partial": True}),
             (40, {neck: (0, 0, 0)}),
+            (42, {snout: (0, 0, 0)}, {"partial": True}),
         ]),
         ("walk", [
             (1, {hipF_L: (16, 0, 0), hipF_R: (-16, 0, 0), hipB_L: (-14, 0, 0), hipB_R: (14, 0, 0)}),
             (9, {hipF_L: (-16, 0, 0), hipF_R: (16, 0, 0), hipB_L: (14, 0, 0), hipB_R: (-14, 0, 0)}),
             (18, {hipF_L: (16, 0, 0), hipF_R: (-16, 0, 0), hipB_L: (-14, 0, 0), hipB_R: (14, 0, 0)}),
         ]),
+        # タメ→LINEARで鋭い噛みつき→戻りかける→ゆっくり中立へ
         ("attack", [
             (1, {neck: (0, 0, 0), snout: (0, 0, 0)}),
-            (5, {neck: (-14, 0, 0), snout: (-8, 0, 0)}),
-            (10, {neck: (20, 0, 0), snout: (12, 0, 0)}),
+            (5, {neck: (-14, 0, 0), snout: (-8, 0, 0)}, {"interp": "LINEAR"}),
+            (8, {neck: (26, 0, 0), snout: (16, 0, 0)}),
+            (10, {neck: (14, 0, 0), snout: (8, 0, 0)}),
             (20, {neck: (0, 0, 0), snout: (0, 0, 0)}),
         ]),
+        # 入りをLINEARで鋭くする。guard種族なので戻り時間も少し詰める
         ("hit", [
-            (1, {neck: (0, 0, 0)}),
+            (1, {neck: (0, 0, 0)}, {"interp": "LINEAR"}),
             (4, {neck: (-14, 0, 0)}),
-            (14, {neck: (0, 0, 0)}),
+            (12, {neck: (0, 0, 0)}),
         ]),
+        # 初動をLINEARで鋭くする。24f到達後にneckがほんの少し戻る
+        # わずかな跳ね返りを追加
         ("die", [
-            (1, {neck: (0, 0, 0)}),
+            (1, {neck: (0, 0, 0)}, {"interp": "LINEAR"}),
             (10, {neck: (12, 0, 0), hipF_L: (18, 0, 0), hipF_R: (18, 0, 0)}),
             (24, {neck: (26, 0, 0), hipF_L: (40, 0, 0), hipF_R: (40, 0, 0)}),
+            (28, {neck: (23, 0, 0)}, {"partial": True}),
         ]),
     ]
 # ===================================================================== もうひとつのかげ
