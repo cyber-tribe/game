@@ -102,7 +102,7 @@ export const VILLAGE_BUILDINGS: readonly VillageBuilding[] = [
   { id: "development", label: "村の発展の受付", columns: [13], role: "村の発展", x: -3, z: -6, radius: 0.9, shape: "hut", color: 0x4a8a6a },
   { id: "cave", label: "洞窟の入口", columns: [0, 1, 3, 4, 10, 12], role: "出発の支度", x: 3, z: -6, radius: 1.1, shape: "cave", color: 0x2a2a30, model: "cave_gate" },
   // 新設: ねむり小屋(仲間の世話。夢あわせ・改名・逃がすはcolumn4のUIをそのまま共用する)
-  { id: "sleepHut", label: "ねむり小屋", columns: [4], role: "仲間の世話", x: 8, z: 1, radius: 0.9, shape: "hut", color: 0x5a4a7a },
+  { id: "sleepHut", label: "ねむり小屋", columns: [4], role: "仲間の世話", x: 8, z: 1, radius: 0.9, shape: "hut", color: 0x5a4a7a, model: "house_hut" },
   // 新設: 記録の間(記録・実績)
   { id: "recordsHall", label: "記録の間", columns: [6, 8], role: "記録・実績", x: 8, z: -3, radius: 0.9, shape: "hut", color: 0x7a6a3a },
   // 新設: ガルドの家(衣装の着替え)

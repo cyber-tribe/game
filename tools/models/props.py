@@ -624,6 +624,66 @@ def build_house_workshop():
     return [C.join(objs, "house_workshop")]
 
 
+HUT_CLOTH = (0.34, 0.40, 0.52)
+HUT_BELL = (0.62, 0.55, 0.30)
+
+
+def build_house_hut():
+    """
+    ねむり小屋(design/village-buildings.md「ねむり小屋(フク)」)。共通の
+    造形言語の上に、村で一番深い丸屋根(かまくら形)、入口の掛け布の
+    のれん、軒先に下がる小さな風鈴で個性を出す。風鈴の揺れはdocの
+    アニメーション方針(頂点アニメ/回転ループ)どおりだが、この小屋も
+    含め村の建物は静止した造形で作る運用(工房の煙と同じくThree.js側で
+    動きを持たせる余地は残すが、本PRでは静止した造形のみを対象とする)。
+    """
+    wall_mat = C.make_material("hut_wall", HOUSE_WOOD, roughness=0.85)
+    roof_mat = C.make_material("hut_roof", HOUSE_WOOD_DARK, roughness=0.9)
+    ring_mat = C.make_material("hut_ring", (0.20, 0.14, 0.09), roughness=0.9)
+    cloth_mat = C.make_material("hut_cloth", HUT_CLOTH, roughness=0.75)
+    cord_mat = C.make_material("hut_cord", (0.22, 0.18, 0.12), roughness=0.8)
+    bell_mat = C.make_material("hut_bell", HUT_BELL, roughness=0.35, metallic=0.75)
+
+    objs = []
+
+    wall = C.box("hut_wall", (0.0, 0.0, 0.50), (1.50, 1.50, 1.00), bevel=0.05,
+                bevel_segments=1)
+    C.assign_material(wall, wall_mat)
+    objs.append(wall)
+
+    # 村で一番深い丸屋根。かまくら形にするため、半球をほぼそのまま乗せる
+    dome = C.uv_sphere("hut_dome", (0.0, 0.0, 1.05), 1.05, segments=16, rings=10)
+    C.assign_material(dome, roof_mat)
+    objs.append(dome)
+
+    # 屋根の帯。タルの側板を思わせる横筋を2段
+    for i, z in enumerate((1.35, 1.75)):
+        ring_radius = math.sqrt(max(1.05 ** 2 - (z - 1.05) ** 2, 0.05))
+        ring = C.cylinder(f"hut_ring{i}", (0.0, 0.0, z), ring_radius + 0.01, 0.05, segments=16)
+        C.assign_material(ring, ring_mat)
+        objs.append(ring)
+
+    # 入口の掛け布ののれん。細い布を5枚垂らす
+    for i in range(5):
+        x = -0.32 + i * 0.16
+        curtain = C.box(f"hut_curtain{i}", (x, 0.755, 0.42), (0.13, 0.02, 0.70), bevel=0.01)
+        C.assign_material(curtain, cloth_mat)
+        objs.append(curtain)
+
+    # 軒先に下がる小さな風鈴。紐+小さな鈴
+    cord = C.cylinder("hut_chime_cord", (0.62, 0.50, 1.42), 0.012, 0.22, segments=6)
+    C.assign_material(cord, cord_mat)
+    objs.append(cord)
+    bell = C.cone("hut_chime_bell", (0.62, 0.50, 1.27), 0.055, 0.025, 0.10, segments=10)
+    C.assign_material(bell, bell_mat)
+    objs.append(bell)
+    clapper = C.uv_sphere("hut_chime_clapper", (0.62, 0.50, 1.195), 0.016, segments=8, rings=6)
+    C.assign_material(clapper, bell_mat)
+    objs.append(clapper)
+
+    return [C.join(objs, "house_hut")]
+
+
 # --------------------------------------------------------------------------- 一覧
 
 PROPS = {
@@ -646,6 +706,7 @@ PROPS = {
     "cave_gate": build_cave_gate,
     "bonfire": build_bonfire,
     "house_workshop": build_house_workshop,
+    "house_hut": build_house_hut,
 }
 
 
