@@ -1,3 +1,20 @@
+> **実装済み。** `tools/audio/build.ts` の `SFX_SPECS` に計画書どおりの
+> 値(`pickup`: mallet/990Hz/0.12s、`drop`: drum/160Hz/0.12s、
+> `useItem`: mallet/740Hz/0.2s、`equip`: mallet/440Hz/0.15s、
+> `trap`: drum/260Hz/0.2s、`crackWarning`: drum/55Hz/0.6s、
+> `warp`: mallet/1200Hz/0.25s)で7エントリを追加し、
+> `public/audio/sfx/`へ生成した。新しい合成機能は不要だった。
+>
+> `src/view/stage.ts`の`buildEventHandlers`を編集: `pickup`・`drop`・
+> `useItem`・`equip`・`trap`・`crackWarning`の6つの`noop`をそれぞれ
+> `this.audio.playSfx(id)`を呼ぶハンドラに置き換えた。`teleport`・
+> `swap`は既存の見た目処理(`setPosition`)の直後に`this.audio.playSfx("warp")`
+> を1行ずつ追加し、計画書どおり2イベントで`warp`を共用している。
+>
+> **検証**: `npx tsc --noEmit`・`npx vitest run`(112ファイル/1447件)・
+> `npm run build`・`npm run audio`いずれも成功。再生成後の差分は
+> 7ファイル新規のみ(既存音源は無変更)。
+
 # 道具の扱い・罠と予兆の音
 
 ## 経緯

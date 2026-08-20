@@ -310,14 +310,30 @@ export class Stage {
       // レベルアップ時のスキル選択(plan/game/archive/run-build-skills.md):
       // モーダルの開閉自体はmain.ts側で処理する。盤面演出は特に無い
       skillChoiceOffered: noop,
-      pickup: noop,
-      drop: noop,
-      useItem: noop,
+      pickup: () => {
+        this.audio.playSfx("pickup");
+        return 0;
+      },
+      drop: () => {
+        this.audio.playSfx("drop");
+        return 0;
+      },
+      useItem: () => {
+        this.audio.playSfx("useItem");
+        return 0;
+      },
       throwItem: () => 0.24 * scale,
-      equip: noop,
-      trap: noop,
+      equip: () => {
+        this.audio.playSfx("equip");
+        return 0;
+      },
+      trap: () => {
+        this.audio.playSfx("trap");
+        return 0;
+      },
       teleport: (event) => {
         this.views.get(event.actorId)?.setPosition(event.to);
+        this.audio.playSfx("warp");
         return 0.2;
       },
       swap: (event) => {
@@ -325,6 +341,7 @@ export class Stage {
         const b = floor.actors.find((x) => x.id === event.bId);
         if (a) this.views.get(event.aId)?.setPosition(a.pos);
         if (b) this.views.get(event.bId)?.setPosition(b.pos);
+        this.audio.playSfx("warp");
         return 0.2;
       },
       // ---- タル ----
@@ -397,7 +414,10 @@ export class Stage {
       tutorialTip: noop,
       monsterSighted: noop,
       secretPassageFound: noop,
-      crackWarning: noop,
+      crackWarning: () => {
+        this.audio.playSfx("crackWarning");
+        return 0;
+      },
       mountainCoreCleared: noop,
       trueAwakeningCleared: noop,
       tarukurabeFinished: noop,
