@@ -5457,14 +5457,22 @@ def build_namidaguma():
 
 
 def namidaguma_animations():
+    """
+    plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
+    タメ・ツメ(LINEAR補間)・腕の遅れ追従(二次揺れ)を足してある。
+    """
     head = "chest-head"
     armL, armR = "chest-armF.L", "chest-armF.R"
     legL, legR = "hip-kneeB.L", "hip-kneeB.R"
     return [
+        # 大柄でどっしりした体格を反映し、腕(armL,R)が頭より3フレーム
+        # 遅れて追従する(gajiriと同程度の遅れ幅で鈍重さを強調する二次揺れ)
         ("idle", [
-            (1, {head: (0, 0, 0)}),
-            (30, {head: (2, 0, 1), armL: (0, 0, 2), armR: (0, 0, -2)}),
-            (60, {head: (0, 0, 0), armL: (0, 0, 0), armR: (0, 0, 0)}),
+            (1, {head: (0, 0, 0), armL: (0, 0, 0), armR: (0, 0, 0)}),
+            (30, {head: (2, 0, 1)}),
+            (33, {armL: (0, 0, 2), armR: (0, 0, -2)}, {"partial": True}),
+            (60, {head: (0, 0, 0)}),
+            (63, {armL: (0, 0, 0), armR: (0, 0, 0)}, {"partial": True}),
         ]),
         # 重い体を踏みしめるように歩く
         ("walk", [
@@ -5472,22 +5480,28 @@ def namidaguma_animations():
             (9, {legL: (0, 0, -16), legR: (0, 0, 16), armL: (0, 0, 10), armR: (0, 0, -10)}),
             (18, {legL: (0, 0, 16), legR: (0, 0, -16), armL: (0, 0, -10), armR: (0, 0, 10)}),
         ]),
-        # 底力を振り絞り、正面から力強く叩きつける
+        # 底力を振り絞り、LINEARで鋭く正面から叩きつけ、わずかに
+        # 行き過ぎてから戻る
         ("attack", [
             (1, {head: (0, 0, 0), armL: (0, 0, 0), armR: (0, 0, 0)}),
-            (5, {head: (-14, 0, 0), armL: (-30, 0, 16), armR: (-30, 0, -16)}),
+            (5, {head: (-14, 0, 0), armL: (-30, 0, 16), armR: (-30, 0, -16)}, {"interp": "LINEAR"}),
             (10, {head: (20, 0, 0), armL: (36, 0, -10), armR: (36, 0, 10)}),
+            (13, {head: (20, 0, 0), armL: (42, 0, -10), armR: (42, 0, 10)}),
             (20, {head: (0, 0, 0), armL: (0, 0, 0), armR: (0, 0, 0)}),
         ]),
+        # 入りだけLINEARで鋭くする。振幅・戻り時間とも現行のまま維持する
         ("hit", [
-            (1, {head: (0, 0, 0)}),
+            (1, {head: (0, 0, 0)}, {"interp": "LINEAR"}),
             (4, {head: (16, 0, 0), armL: (-12, 0, 10), armR: (-12, 0, -10)}),
             (14, {head: (0, 0, 0), armL: (0, 0, 0), armR: (0, 0, 0)}),
         ]),
+        # 初動をLINEARで鋭くする。24f到達後、脚がごくわずかに戻る
+        # 揺り戻し(着地後の小さな跳ね返り)を追加
         ("die", [
-            (1, {head: (0, 0, 0)}),
+            (1, {head: (0, 0, 0)}, {"interp": "LINEAR"}),
             (10, {head: (0, 0, 10), legL: (0, 0, -20), legR: (0, 0, 20)}),
             (24, {head: (0, 0, 22), legL: (0, 0, -46), legR: (0, 0, 46)}),
+            (28, {legL: (0, 0, -41), legR: (0, 0, 41)}, {"partial": True}),
         ]),
     ]
 
