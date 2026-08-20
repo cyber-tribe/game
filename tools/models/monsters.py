@@ -5755,14 +5755,22 @@ def build_nushigaeru():
 
 
 def nushigaeru_animations():
+    """
+    plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
+    タメ・ツメ(LINEAR補間)・腕の遅れ追従(二次揺れ)を足してある。
+    bossなのでhitは振幅を小さく、のけぞりを短く鋭くする。
+    """
     head = "chest-head"
     armL, armR = "chest-armF.L", "chest-armF.R"
     legL, legR = "hip-kneeB.L", "hip-kneeB.R"
     return [
+        # 腕(armL,R)が頭より3フレーム遅れて追従する(gajiriの尻尾遅延と同じ考え方)
         ("idle", [
-            (1, {head: (0, 0, 0)}),
+            (1, {head: (0, 0, 0), armL: (0, 0, 0), armR: (0, 0, 0)}),
             (36, {head: (2, 0, 1)}),
+            (39, {armL: (2, 0, 0), armR: (-2, 0, 0)}, {"partial": True}),
             (72, {head: (0, 0, 0)}),
+            (75, {armL: (0, 0, 0), armR: (0, 0, 0)}, {"partial": True}),
         ]),
         # 重い図体を踏みしめて進む
         ("walk", [
@@ -5770,22 +5778,27 @@ def nushigaeru_animations():
             (10, {legL: (0, 0, -16), legR: (0, 0, 16), armL: (0, 0, 10), armR: (0, 0, -10)}),
             (20, {legL: (0, 0, 16), legR: (0, 0, -16), armL: (0, 0, -10), armR: (0, 0, 10)}),
         ]),
-        # 喉袋を大きく膨らませてから、石つぶてを吐き出す
+        # 喉袋を大きく膨らませてから、LINEARで鋭く石つぶてを吐き出す
         ("attack", [
             (1, {head: (0, 0, 0)}),
-            (6, {head: (-18, 0, 0)}),
-            (12, {head: (26, 0, 0)}),
+            (6, {head: (-20, 0, 0)}, {"interp": "LINEAR"}),
+            (9, {head: (34, 0, 0)}),
+            (11, {head: (38, 0, 0)}),
             (22, {head: (0, 0, 0)}),
         ]),
+        # bossらしく振幅を小さく、のけぞりを短く鋭くする
         ("hit", [
-            (1, {head: (0, 0, 0)}),
-            (4, {head: (16, 0, 0), armL: (-14, 0, 12), armR: (-14, 0, -12)}),
-            (14, {head: (0, 0, 0), armL: (0, 0, 0), armR: (0, 0, 0)}),
+            (1, {head: (0, 0, 0)}, {"interp": "LINEAR"}),
+            (3, {head: (11, 0, 0), armL: (-9, 0, 8), armR: (-9, 0, -8)}),
+            (12, {head: (0, 0, 0), armL: (0, 0, 0), armR: (0, 0, 0)}),
         ]),
+        # 初動をLINEARで鋭くする。24f付近の主たる崩れの後、28f付近に
+        # 一度だけ小さく浮き上がって沈み直す跳ね返りを追加
         ("die", [
-            (1, {head: (0, 0, 0)}),
+            (1, {head: (0, 0, 0)}, {"interp": "LINEAR"}),
             (10, {head: (0, 8, 0), legL: (0, 0, -20), legR: (0, 0, 20)}),
             (24, {head: (0, 16, 0), legL: (0, 0, -46), legR: (0, 0, 46)}),
+            (28, {head: (0, 13, 0), legL: (0, 0, -42), legR: (0, 0, 42)}, {"partial": True}),
         ]),
     ]
 
