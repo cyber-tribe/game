@@ -44,6 +44,13 @@ export class DungeonView {
   private floorState = new Uint8Array(0);
 
   private readonly stairsGroup = new THREE.Group();
+  /**
+   * ボスの間の扉(plan/game/dungeon-boss-rooms.md)。専用モデルはまだ無く、
+   * 既存の壁モデルを開くまでの塞ぎ物として流用する(通路タイル自体は
+   * TILE_CORRIDORで歩けるが、開けるまではこのグループが壁のように覆う)。
+   * 開いたら非表示にして、下の通路床が見えるようにする
+   */
+  private readonly doorGroup = new THREE.Group();
   private readonly itemGroup = new THREE.Group();
   private readonly trapGroup = new THREE.Group();
   private readonly barrelGroup = new THREE.Group();
@@ -57,7 +64,7 @@ export class DungeonView {
     private readonly scene: THREE.Scene,
     private readonly assets: Assets,
   ) {
-    this.group.add(this.stairsGroup, this.itemGroup, this.trapGroup, this.barrelGroup);
+    this.group.add(this.stairsGroup, this.doorGroup, this.itemGroup, this.trapGroup, this.barrelGroup);
     this.scene.add(this.group);
   }
 
@@ -92,6 +99,12 @@ export class DungeonView {
     stairs.position.copy(toWorld(floor.stairs));
     this.stairsGroup.add(stairs);
 
+    if (floor.door) {
+      const door = this.assets.instantiate("wall").root;
+      door.position.copy(toWorld(floor.door.pos));
+      this.doorGroup.add(door);
+    }
+
     this.refresh(floor);
   }
 
@@ -102,6 +115,13 @@ export class DungeonView {
 
     const stairsTile = tileAt(floor, floor.stairs);
     this.stairsGroup.visible = stairsTile?.explored ?? false;
+
+    if (floor.door) {
+      const doorTile = tileAt(floor, floor.door.pos);
+      this.doorGroup.visible = !floor.door.open && (doorTile?.explored ?? false);
+    } else {
+      this.doorGroup.visible = false;
+    }
 
     this.syncItems(floor);
     this.syncTraps(floor);
@@ -325,6 +345,7 @@ export class DungeonView {
     this.walls = null;
     this.floors = null;
     this.stairsGroup.clear();
+    this.doorGroup.clear();
     this.itemGroup.clear();
     this.trapGroup.clear();
     this.barrelGroup.clear();

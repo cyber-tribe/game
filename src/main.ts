@@ -24,6 +24,7 @@ import { InventoryMenu } from "./ui/menu";
 import { NamingDialog } from "./ui/naming-dialog";
 import { OrientationGuard } from "./ui/orientation-guard";
 import { StairsConfirmModal } from "./ui/stairs-confirm";
+import { DoorConfirmModal } from "./ui/door-confirm";
 import { SkillChoiceModal } from "./ui/skill-choice";
 import { StanceMenu } from "./ui/stance";
 import { TouchControls } from "./ui/touch-controls";
@@ -153,6 +154,8 @@ class App {
   private readonly artsMenu: ArtsMenu;
   /** 階段を降りる前の確認モーダル(plan/stairs-confirm-modal.md) */
   private readonly stairsConfirm: StairsConfirmModal;
+  /** ボスの間の扉を開ける前の確認モーダル(plan/game/dungeon-boss-rooms.md) */
+  private readonly doorConfirm: DoorConfirmModal;
   /** レベルアップ時のスキル選択(plan/game/archive/run-build-skills.md) */
   private readonly skillChoice: SkillChoiceModal;
   /** エンドロール(plan/ending-sequence.md) */
@@ -251,6 +254,7 @@ class App {
     this.stanceMenu = new StanceMenu(document.querySelector<HTMLElement>("#stance")!);
     this.artsMenu = new ArtsMenu(document.querySelector<HTMLElement>("#arts")!);
     this.stairsConfirm = new StairsConfirmModal(document.querySelector<HTMLElement>("#stairsConfirm")!);
+    this.doorConfirm = new DoorConfirmModal(document.querySelector<HTMLElement>("#doorConfirm")!);
     this.skillChoice = new SkillChoiceModal(document.querySelector<HTMLElement>("#skillChoice")!);
     this.endingScreen = new EndingScreen(document.querySelector<HTMLElement>("#ending")!);
     // タッチ操作(plan/touch-controls.md): Inputへ直接press/releaseするだけの
@@ -287,6 +291,7 @@ class App {
       this.stanceMenu.handleKey(code) ||
       this.artsMenu.handleKey(code) ||
       this.stairsConfirm.handleKey(code) ||
+      this.doorConfirm.handleKey(code) ||
       this.skillChoice.handleKey(code) ||
       this.endingScreen.handleKey(code);
 
@@ -727,8 +732,11 @@ class App {
   private bgmForDive(dungeonId: string, depth: number): string | undefined {
     if (dungeonId === TRUE_AWAKENING_ID) return "true-awakening";
     if (dungeonId === MAIN_CAVE_ID) {
-      if (REGION_BOSS_FLOORS[depth]) return "boss";
       const regionIndex = Math.floor((depth - 1) / REGION_SIZE);
+      // ボスの間(plan/game/dungeon-boss-rooms.md): 扉を開けるまでは前室にいる
+      // だけなので、地方の通常曲のまま。開けた瞬間(doorOpenedイベント)に
+      // このメソッドが呼び直され、ここでboss曲へ切り替わる
+      if (REGION_BOSS_FLOORS[depth]) return this.game.floor.door?.open ? "boss" : `region${regionIndex + 1}`;
       return `region${regionIndex + 1}`;
     }
     // 近道屋の裏穴(plan/sound/archive/bgm-shortcut-back-hole.md)。5階通しで1曲
@@ -1025,13 +1033,14 @@ class App {
     requestAnimationFrame(this.loop);
   };
 
-  /** menu.ts/stance.ts/arts.ts/stairsConfirm/skillChoice/town.ts/naming-dialog.tsのいずれかのモーダルが開いているか */
+  /** menu.ts/stance.ts/arts.ts/stairsConfirm/doorConfirm/skillChoice/town.ts/naming-dialog.tsのいずれかのモーダルが開いているか */
   private anyModalOpen(): boolean {
     return (
       this.menu.isOpen ||
       this.stanceMenu.isOpen ||
       this.artsMenu.isOpen ||
       this.stairsConfirm.isOpen ||
+      this.doorConfirm.isOpen ||
       this.skillChoice.isOpen ||
       this.town.isOpen ||
       this.namingDialog.isOpen
@@ -1315,6 +1324,17 @@ class App {
               onBank: () => this.submit({ type: "bank" }),
             });
           }
+        } else if (
+          this.game.floor.door &&
+          !this.game.floor.door.open &&
+          chebyshev(this.game.player.pos, this.game.floor.door.pos) <= 1
+        ) {
+          // ボスの間の扉(plan/game/dungeon-boss-rooms.md): 扉のすぐ前で確定すると確認モーダルを出す
+          const door = this.game.floor.door;
+          this.doorConfirm.show({
+            bossName: speciesById(door.bossSpeciesId).name,
+            onOpen: () => this.submit({ type: "openDoor" }),
+          });
         } else {
           this.submit({ type: "pickup" });
         }
@@ -1398,6 +1418,11 @@ class App {
       // めざめの階段は、ダイブの結果によらず足を踏み入れた瞬間に記録する
       checkpoint: (event) => {
         this.diveReachedDepths.push(event.depth);
+      },
+      // ボスの間の扉(plan/game/dungeon-boss-rooms.md): 開けた瞬間にボスBGMへ
+      // 切り替える(既存のフロア入場時の切り替えから、扉開放トリガーへ移した)
+      doorOpened: () => {
+        this.updateDiveBgm();
       },
       hungerWarning: noop,
       gameOver: noop,
