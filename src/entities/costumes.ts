@@ -20,6 +20,8 @@ export interface CostumeDef {
   id: string;
   name: string;
   description: string;
+  /** 既存のdescriptionとは別行で、着替え画面の詳細表示に追加する */
+  flavorText?: string;
   /** マテリアルの色に掛けるRGB倍率。既定は[1,1,1](色替えなし) */
   tint?: readonly [number, number, number];
   unlock: CostumeUnlock;
@@ -54,6 +56,7 @@ export const COSTUMES: readonly CostumeDef[] = [
     id: "pochiHandMeDownHappi",
     name: "ポチのおさがり半纏",
     description: "物語を歩んだ末、見習いになったポチから譲り受けた、少し丈の合わない半纏。",
+    flavorText: "袖はまだ少し長い。けれど、いつか着こなせる日が来ることを、ポチ自身が一番わかっている。",
     tint: [1.4, 1.1, 0.4],
     unlock: { kind: "npcSideStory" },
   },

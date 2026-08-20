@@ -357,6 +357,7 @@ export const ITEMS: readonly ItemDef[] = [
     minFloor: Number.POSITIVE_INFINITY,
     weight: 0,
     description: "attack+4。隣接1マスを攻撃する。モグラ婆が若い頃に使っていたという、なたの形見。",
+    flavorText: "柄が手に馴染むほど使い込まれている。もう振るう手は要らない、とモグラ婆は笑っていた。",
   },
   {
     id: "gendoPhantomBillhook",
@@ -368,6 +369,7 @@ export const ITEMS: readonly ItemDef[] = [
     minFloor: Number.POSITIVE_INFINITY,
     weight: 0,
     description: "attack+3。向いている方向を中心に正面と斜め前2方向、計3マスを攻撃する。ゲンドが語っていた会心の一振りを再現したもの。",
+    flavorText: "ゲンドが若い頃に一度だけ打てたという、あの一振りそのものの重さと輝き。",
   },
 
   // ---- 盾 ----
@@ -685,6 +687,7 @@ export const ITEMS: readonly ItemDef[] = [
     minFloor: Number.POSITIVE_INFINITY,
     weight: 0,
     description: "はぐれた仲間を、その場に強制的に呼び寄せる。オトネが村の者たちを見守ってきた覚え帳。",
+    flavorText: "村の誰と誰が、いつ何をしたか。何十年ぶんもの気づかいが、細かな字でぎっしり詰まっている。",
   },
   {
     id: "okiyoSketchMap",
@@ -694,6 +697,7 @@ export const ITEMS: readonly ItemDef[] = [
     minFloor: Number.POSITIVE_INFINITY,
     weight: 0,
     description: "視界内のモンスター入りのタルの中身を見分ける。おキヨが各地を巡って描き溜めた見取り図。",
+    flavorText: "名前のない生き物のための余白が、いちばん最初のページに残されたままになっている。",
   },
 ];
 

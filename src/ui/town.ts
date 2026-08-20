@@ -1654,6 +1654,18 @@ export class TownScreen {
       }
     }
 
+    // サイドストーリー専用衣装のflavorText(plan/game/archive/side-story-item-flavor-text.md)。
+    // アイテムと同じ「機能説明とは別の行」の見せ方をそろえる
+    if (this.column === 15) {
+      const flavorText = COSTUMES[this.costumeCursor]?.flavorText;
+      if (flavorText) {
+        const flavor = document.createElement("p");
+        flavor.className = "town-flavor";
+        flavor.textContent = flavorText;
+        box.appendChild(flavor);
+      }
+    }
+
     const hint = document.createElement("p");
     hint.className = "town-hint";
     if (this.column === 4) {
