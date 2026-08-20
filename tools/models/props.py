@@ -1056,6 +1056,44 @@ def build_prop_quest_board():
     return [C.join(objs, "prop_quest_board")]
 
 
+def build_prop_signpost():
+    """
+    旅の看板(design/village-buildings.md「旅の看板」)。村の出入り口の
+    古い立て札。タルの側板の再利用らしい、湾曲した板で作る。
+    """
+    post_mat = C.make_material("signpost_post", HOUSE_LOG, roughness=0.82)
+    board_mat = C.make_material("signpost_board", BARREL_WOOD_DARK, roughness=0.85)
+    nail_mat = C.make_material("signpost_nail", BARREL_IRON, roughness=0.5, metallic=0.6)
+
+    objs = []
+
+    post = C.cylinder("signpost_post", (0.0, 0.0, 0.62), 0.05, 1.24, segments=10)
+    C.assign_material(post, post_mat)
+    objs.append(post)
+
+    # タルの側板を再利用した板。腹をふくらませて湾曲を出す
+    board = C.box("signpost_board", (0.0, 0.0, 0.0), (0.62, 0.045, 0.42), bevel=0.02)
+    for vert in board.data.vertices:
+        t = vert.co.x / 0.31  # -1(左端) 〜 1(右端)
+        bulge = 1.0 - 0.35 * (t * t)
+        if vert.co.y > 0:
+            vert.co.y += 0.022 * bulge
+    board.location = Vector((0.0, 0.0, 1.10))
+    C.assign_material(board, board_mat)
+    objs.append(board)
+
+    # 板を留める鋲
+    for x in (-0.24, 0.24):
+        for z in (1.24, 0.96):
+            nail = C.uv_sphere(f"signpost_nail{x}_{z}", (0.0, 0.0, 0.0), 0.014, segments=8,
+                               rings=6)
+            nail.location = Vector((x, 0.045, z))
+            C.assign_material(nail, nail_mat)
+            objs.append(nail)
+
+    return [C.join(objs, "prop_signpost")]
+
+
 # --------------------------------------------------------------------------- 一覧
 
 PROPS = {
@@ -1085,6 +1123,7 @@ PROPS = {
     "house_records": build_house_records,
     "house_development": build_house_development,
     "prop_quest_board": build_prop_quest_board,
+    "prop_signpost": build_prop_signpost,
 }
 
 
