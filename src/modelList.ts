@@ -66,6 +66,9 @@ export const VILLAGE_STRUCTURE_MODELS = [
   "house_development",
   "prop_quest_board",
   "prop_signpost",
+  "prop_hokoragi_a",
+  "prop_hokoragi_b",
+  "prop_hokoragi_stump",
 ] as const;
 
 /**

@@ -63,6 +63,20 @@ export interface VillageBounds {
   maxZ: number;
 }
 
+/**
+ * 祠木や切り株など、建物ではない背景の景観小道具
+ * (`plan/models/archive/model-village-structures.md`のpropHokoragi)。
+ * 当たり判定・近接メニューは持たない(村人と同じ「通り抜けられて困らない
+ * 背景」の扱い。`VILLAGE_BUILDINGS`とは別の一覧にしてあるのはそのため)
+ */
+export interface VillageScenery {
+  id: string;
+  model: string;
+  x: number;
+  z: number;
+  rotationY?: number;
+}
+
 /** プレイヤーの当たり判定半径 */
 export const VILLAGE_PLAYER_RADIUS = 0.35;
 /** 建物の当たり判定の外側、この距離まで近づけば確定キーで入れる */
@@ -107,6 +121,20 @@ export const VILLAGE_BUILDINGS: readonly VillageBuilding[] = [
   { id: "recordsHall", label: "記録の間", columns: [6, 8], role: "記録・実績", x: 8, z: -3, radius: 0.9, shape: "hut", color: 0x7a6a3a, model: "house_records" },
   // 新設: ガルドの家(衣装の着替え)
   { id: "garudoHouse", label: "ガルドの家", columns: [15], role: "衣装", x: -8, z: -3, radius: 0.9, shape: "hut", color: 0x3a6a7a, model: "house_garudo" },
+];
+
+/**
+ * 祠木の疎らな林(design/village-buildings.md「村の全体像」)。建物の
+ * 隙間、村の縁に散らして「祠木を伐り拓いた跡地に建った村」を背景で語る。
+ * ゲンドの工房のそばには伐った切り株を1つだけ置く。
+ */
+export const VILLAGE_SCENERY: readonly VillageScenery[] = [
+  { id: "hokoragiA1", model: "prop_hokoragi_a", x: -7.5, z: 5.5, rotationY: 0.4 },
+  { id: "hokoragiB1", model: "prop_hokoragi_b", x: 7.3, z: 5.8, rotationY: 2.1 },
+  { id: "hokoragiA2", model: "prop_hokoragi_a", x: -6.5, z: -7.5, rotationY: 1.2 },
+  { id: "hokoragiB2", model: "prop_hokoragi_b", x: 2.5, z: 8.3, rotationY: 3.4 },
+  { id: "hokoragiA3", model: "prop_hokoragi_a", x: 8.3, z: -7.5, rotationY: 5.0 },
+  { id: "hokoragiStump1", model: "prop_hokoragi_stump", x: 6.6, z: 2.8, rotationY: 0.8 },
 ];
 
 /**
@@ -358,6 +386,13 @@ export class VillageView {
   private readonly buildingGroups = new Map<string, THREE.Group>();
   /** すでに正式モデルへ差し替え済みの建物id。二重に差し替えない */
   private readonly builtBuildingModels = new Set<string>();
+  /**
+   * 祠木などの景観小道具(`VILLAGE_SCENERY`)。建物と違い当たり判定も
+   * 仮組みのプリミティブも持たないので、モデルが届くまでは何も置かず、
+   * 届いた回に1度だけ生やす(`ensureScenery`)
+   */
+  private readonly sceneryGroups = new Map<string, THREE.Group>();
+  private readonly builtScenery = new Set<string>();
 
   constructor(private readonly assets: Assets) {
     this.scene.background = new THREE.Color(0x0c1420);
@@ -381,6 +416,14 @@ export class VillageView {
     for (const building of VILLAGE_BUILDINGS) {
       const { group, primitive } = buildStructure(building);
       this.buildingGroups.set(building.id, primitive);
+      this.scene.add(group);
+    }
+
+    for (const scenery of VILLAGE_SCENERY) {
+      const group = new THREE.Group();
+      group.position.set(scenery.x, 0, scenery.z);
+      if (scenery.rotationY) group.rotation.y = scenery.rotationY;
+      this.sceneryGroups.set(scenery.id, group);
       this.scene.add(group);
     }
 
@@ -483,6 +526,25 @@ export class VillageView {
     }
   }
 
+  /**
+   * 祠木などの景観小道具のうち、まだ生やしていないもののモデルが届いて
+   * いれば生やす。`ensureBuildingModels`と同じ考え方だが、差し替える
+   * 仮組みが無いので、届く前は何も置かない
+   */
+  private ensureScenery(): void {
+    for (const scenery of VILLAGE_SCENERY) {
+      if (this.builtScenery.has(scenery.id)) continue;
+      if (!this.assets.has(scenery.model)) {
+        this.assets.loadInBackground([scenery.model]);
+        continue;
+      }
+      const group = this.sceneryGroups.get(scenery.id);
+      if (!group) continue;
+      group.add(this.assets.instantiate(scenery.model).root);
+      this.builtScenery.add(scenery.id);
+    }
+  }
+
   get playerPos(): VillagePos {
     return this.pos;
   }
@@ -495,6 +557,7 @@ export class VillageView {
     this.updateCamera();
 
     this.ensureBuildingModels();
+    this.ensureScenery();
     this.ensureVillagers(dt);
     this.ensurePlayerView();
     const view = this.playerView;

@@ -1094,6 +1094,132 @@ def build_prop_signpost():
     return [C.join(objs, "prop_signpost")]
 
 
+HOKORAGI_BARK = (0.42, 0.30, 0.19)
+HOKORAGI_GRAIN = (0.22, 0.16, 0.10)
+HOKORAGI_LEAF = (0.44, 0.48, 0.28)
+
+
+def _hokoragi_roots(objs, bark_mat, count: int, root_len: float) -> None:
+    """ひげ根が地表に張る根本。design/yorishiro-and-barrels.mdの
+    「祠木はヨリシロのひげの根から生えた木」を反映し、地表を這う根で表す。"""
+    for i in range(count):
+        az = math.radians(i * (360.0 / count) + (7.0 if i % 2 else -5.0))
+        root = C.cone(f"hokoragi_root{i}", (0.0, 0.0, 0.0), 0.055, 0.008, root_len, segments=6)
+        root.rotation_euler = (math.radians(80.0), 0.0, az)
+        root.location = Vector((math.cos(az) * 0.10, math.sin(az) * 0.10, 0.05))
+        C.assign_material(root, bark_mat)
+        objs.append(root)
+
+
+def _hokoragi_grain_swirl(objs, grain_mat, trunk_r0: float, trunk_r1: float,
+                          trunk_h: float, turns: int) -> None:
+    """幹の木目が渦を巻く、というdesignの記述を、幹を螺旋状に登る木目の
+    節でそれらしく見せる(design/yorishiro-and-barrels.mdの「年輪が渦を巻く」)。"""
+    for i in range(turns):
+        t = i / (turns - 1)
+        z = 0.30 + t * (trunk_h - 0.55)
+        r = trunk_r0 + (trunk_r1 - trunk_r0) * (z / trunk_h) + 0.01
+        az = math.radians(i * 78.0)
+        mark = C.box(f"hokoragi_grain{i}", (0.0, 0.0, 0.0), (0.16, 0.03, 0.028), bevel=0.008)
+        mark.rotation_euler = (0.0, 0.0, az + math.radians(90.0))
+        mark.location = Vector((math.cos(az) * r, math.sin(az) * r, z))
+        C.assign_material(mark, grain_mat)
+        objs.append(mark)
+
+
+def build_prop_hokoragi_a():
+    """
+    祠木バリエーション1(design/models/model-village-structures.mdの
+    propHokoragi)。ひげ根が地表に張り、幹の木目が渦を巻く低ポリ樹木。
+    """
+    bark_mat = C.make_material("hokoragi_a_bark", HOKORAGI_BARK, roughness=0.88)
+    grain_mat = C.make_material("hokoragi_a_grain", HOKORAGI_GRAIN, roughness=0.9)
+    leaf_mat = C.make_material("hokoragi_a_leaf", HOKORAGI_LEAF, roughness=0.85)
+
+    objs = []
+    trunk_h = 2.20
+    trunk_r0, trunk_r1 = 0.22, 0.10
+    _hokoragi_roots(objs, bark_mat, 6, 0.55)
+
+    trunk = C.cone("hokoragi_a_trunk", (0.0, 0.0, trunk_h / 2), trunk_r0, trunk_r1, trunk_h,
+                   segments=10)
+    C.assign_material(trunk, bark_mat)
+    objs.append(trunk)
+
+    _hokoragi_grain_swirl(objs, grain_mat, trunk_r0, trunk_r1, trunk_h, 5)
+
+    # 低ポリの樹冠。大きさの違う塊を3つ寄せて葉叢を表す
+    for i, (x, y, z, r) in enumerate(((0.0, 0.0, 2.55, 0.55), (0.30, 0.12, 2.75, 0.38),
+                                      (-0.28, -0.15, 2.68, 0.40))):
+        canopy = C.uv_sphere(f"hokoragi_a_canopy{i}", (x, y, z), r, segments=8, rings=6,
+                             scale=(1.0, 1.0, 0.85))
+        C.assign_material(canopy, leaf_mat)
+        objs.append(canopy)
+
+    return [C.join(objs, "prop_hokoragi_a")]
+
+
+def build_prop_hokoragi_b():
+    """
+    祠木バリエーション2。バリエーション1より背が高く樹冠が細く、
+    シルエットで見分けがつくようにする。
+    """
+    bark_mat = C.make_material("hokoragi_b_bark", HOKORAGI_BARK, roughness=0.88)
+    grain_mat = C.make_material("hokoragi_b_grain", HOKORAGI_GRAIN, roughness=0.9)
+    leaf_mat = C.make_material("hokoragi_b_leaf", HOKORAGI_LEAF, roughness=0.85)
+
+    objs = []
+    trunk_h = 2.75
+    trunk_r0, trunk_r1 = 0.18, 0.07
+    _hokoragi_roots(objs, bark_mat, 5, 0.42)
+
+    trunk = C.cone("hokoragi_b_trunk", (0.0, 0.0, trunk_h / 2), trunk_r0, trunk_r1, trunk_h,
+                   segments=10)
+    C.assign_material(trunk, bark_mat)
+    objs.append(trunk)
+
+    _hokoragi_grain_swirl(objs, grain_mat, trunk_r0, trunk_r1, trunk_h, 6)
+
+    for i, (x, y, z, r) in enumerate(((0.0, 0.0, 3.05, 0.34), (0.18, -0.10, 3.30, 0.24),
+                                      (-0.16, 0.14, 3.42, 0.22))):
+        canopy = C.uv_sphere(f"hokoragi_b_canopy{i}", (x, y, z), r, segments=8, rings=6,
+                             scale=(1.0, 1.0, 0.9))
+        C.assign_material(canopy, leaf_mat)
+        objs.append(canopy)
+
+    return [C.join(objs, "prop_hokoragi_b")]
+
+
+def build_prop_hokoragi_stump():
+    """
+    渦の切り株。design/village-buildings.mdの祠木の伐採(ゲンドの工房)を
+    裏付ける残り株で、切り口に渦を巻く年輪を刻む。
+    """
+    bark_mat = C.make_material("hokoragi_stump_bark", HOKORAGI_BARK, roughness=0.88)
+    grain_mat = C.make_material("hokoragi_stump_grain", HOKORAGI_GRAIN, roughness=0.9)
+    ring_mat = C.make_material("hokoragi_stump_ring", (0.30, 0.21, 0.13), roughness=0.8)
+
+    objs = []
+    stump_h = 0.46
+    r0, r1 = 0.26, 0.24
+    _hokoragi_roots(objs, bark_mat, 5, 0.40)
+
+    stump = C.cone("hokoragi_stump_trunk", (0.0, 0.0, stump_h / 2), r0, r1, stump_h, segments=12)
+    C.assign_material(stump, bark_mat)
+    objs.append(stump)
+
+    _hokoragi_grain_swirl(objs, grain_mat, r0, r1, stump_h, 3)
+
+    # 切り口の渦を巻く年輪。半径の違う薄い輪を重ねて同心円状に見せる
+    for i, r in enumerate((0.20, 0.14, 0.08)):
+        ring = C.cylinder(f"hokoragi_stump_ring{i}", (0.0, 0.0, stump_h + 0.006 * i), r, 0.012,
+                          segments=16)
+        C.assign_material(ring, ring_mat)
+        objs.append(ring)
+
+    return [C.join(objs, "prop_hokoragi_stump")]
+
+
 # --------------------------------------------------------------------------- 一覧
 
 PROPS = {
@@ -1124,6 +1250,9 @@ PROPS = {
     "house_development": build_house_development,
     "prop_quest_board": build_prop_quest_board,
     "prop_signpost": build_prop_signpost,
+    "prop_hokoragi_a": build_prop_hokoragi_a,
+    "prop_hokoragi_b": build_prop_hokoragi_b,
+    "prop_hokoragi_stump": build_prop_hokoragi_stump,
 }
 
 
