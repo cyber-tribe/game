@@ -253,8 +253,12 @@ describe("tools/audio/compose.ts(plan/sound/archive/bgm-quality-upgrade.md)", ()
     expect(withVoice.length).toBeGreaterThan(without.length);
   });
 
+  // durationSecは本番(20秒)より小さい2秒にする。441,000要素どうしの
+  // toEqual比較はCIの遅いランナーだと既定の5秒タイムアウトを超えることが
+  // あったため(実際に生成にかかる時間ではなく比較コストが支配的)、
+  // 決定性という性質の検証には短いループで十分という判断
   it("composeAmbientLoopは指定した長さの有限な値の配列を、同じシードから決定的に返す(plan/sound/archive/village-soundscape.md)", () => {
-    const durationSec = 20;
+    const durationSec = 2;
     const sampleRate = 22050;
     const a = composeAmbientLoop({ durationSec, sampleRate, seed: 1 });
     const b = composeAmbientLoop({ durationSec, sampleRate, seed: 1 });
@@ -264,13 +268,13 @@ describe("tools/audio/compose.ts(plan/sound/archive/bgm-quality-upgrade.md)", ()
   });
 
   it("composeAmbientLoopは異なるシードで異なる波形を返す", () => {
-    const params = { durationSec: 20, sampleRate: 22050 };
+    const params = { durationSec: 2, sampleRate: 22050 };
     const a = composeAmbientLoop({ ...params, seed: 1 });
     const b = composeAmbientLoop({ ...params, seed: 2 });
     expect(Array.from(a)).not.toEqual(Array.from(b));
   });
 
-  it("composeAmbientLoopはBGMの下に薄く敷く前提の控えめな音量に収まる(ピークが0.35を超えない)", () => {
+  it("composeAmbientLoopはBGMの下に薄く敷く前提の控えめな音量に収まる(ピークが0.35を超えない、本番相当の20秒で確認)", () => {
     const out = composeAmbientLoop({ durationSec: 20, sampleRate: 22050, seed: 3 });
     const peak = out.reduce((max, v) => Math.max(max, Math.abs(v)), 0);
     expect(peak).toBeLessThanOrEqual(0.35);
