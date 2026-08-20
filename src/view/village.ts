@@ -138,6 +138,16 @@ export const VILLAGE_SCENERY: readonly VillageScenery[] = [
 ];
 
 /**
+ * 窓の明かりを漏らす、壁を持つ家屋の建物id
+ * (plan/game/village-scene-redesign.mdの「各建物の窓・入口から暖色の
+ * 明かりを漏らす」)。東屋(development)や壁の無い小道具(board・
+ * questBoard)、広場(npcSquare)・洞窟(cave)は含めない
+ */
+const WINDOW_GLOW_BUILDINGS = new Set([
+  "storage", "workshop", "gallery", "sleepHut", "recordsHall", "garudoHouse",
+]);
+
+/**
  * 屋外に立っている村人(plan/game/village-interiors.md)。屋内系の建物は
  * それぞれの内装(`src/view/villageInterior.ts`)に住人が立つが、屋外系
  * (依頼板・広場)には建物の中が無いので、村マップへ直接立たせて村の
@@ -341,6 +351,28 @@ function buildStructure(building: VillageBuilding): BuiltStructure {
       primitive.add(mouth, left, right);
       break;
     }
+  }
+
+  // 窓・入口から漏れる暖色の明かり(plan/game/village-scene-redesign.md
+  // 「各建物の窓・入口から暖色の明かりを漏らす(生活の気配)」)。壁を持つ
+  // 家屋だけに付ける(東屋の村の発展の受付、壁の無い依頼板・看板・広場・
+  // 洞窟には付けない)。`primitive`ではなく`group`に足すのは、焚き火の
+  // 炎・光源と同じく、正式モデルへ差し替わったあとも残したいため
+  if (WINDOW_GLOW_BUILDINGS.has(building.id)) {
+    const glowColor = 0xffb862;
+    const glow = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.32, 0.32),
+      new THREE.MeshStandardMaterial({
+        color: glowColor,
+        emissive: glowColor,
+        emissiveIntensity: 1.3,
+        side: THREE.DoubleSide,
+      }),
+    );
+    // 建物は入口が山側(+Y=画面奥)を向く考証どおり、+Y面に明かりを置く
+    glow.position.set(0, 0.75, 0.79);
+    group.add(glow);
+    group.add(new THREE.PointLight(glowColor, 2.2, 3.5, 1.8).translateY(0.75).translateZ(0.7));
   }
 
   group.position.set(building.x, 0, building.z);
