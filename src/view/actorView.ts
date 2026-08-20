@@ -255,9 +255,16 @@ export class ActorView {
   /**
    * このインスタンス専用のマテリアルを用意する(初回の被弾時だけ)。
    * 一度も殴られないものは共有のままなので、余計な複製は増えない。
+   *
+   * 頭上に抱えているタル(this.carried)は root の子だが、痛がる主体では
+   * ないので走査から外す(#684: タルを持ったまま被弾すると、キャラ本体
+   * と一緒にタルのマテリアルまで複製・赤発光してしまっていた)。走査の
+   * あいだだけ root から一時的に外し、終わったら元の位置に戻す
    */
   private ensureOwnMaterials(): void {
     if (this.ownMaterials.length > 0) return;
+    const carried = this.carried;
+    if (carried) carried.removeFromParent();
     this.root.traverse((obj) => {
       const mesh = obj as THREE.Mesh;
       if (!mesh.isMesh) return;
@@ -272,6 +279,7 @@ export class ActorView {
       });
       mesh.material = Array.isArray(mesh.material) ? replaced : replaced[0]!;
     });
+    if (carried) this.root.add(carried);
   }
 
   /**
