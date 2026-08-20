@@ -875,6 +875,70 @@ def build_house_compendium():
     return [C.join(objs, "house_compendium")]
 
 
+def build_house_records():
+    """
+    記録の間(design/village-buildings.md「記録の間(イト)」)。共通の
+    造形言語(飴色の木肌)の上に、丸屋根の村で唯一の切妻の直線的な
+    屋根と、入口に掛けた巻物の看板で個性を出す。
+    """
+    wall_mat = C.make_material("records_wall", HOUSE_WOOD, roughness=0.85)
+    roof_mat = C.make_material("records_roof", HOUSE_WOOD_DARK, roughness=0.88)
+    fascia_mat = C.make_material("records_fascia", (0.18, 0.12, 0.08), roughness=0.9)
+    scroll_rod_mat = C.make_material("records_scroll_rod", BARREL_IRON, roughness=0.5,
+                                     metallic=0.6)
+    scroll_paper_mat = C.make_material("records_scroll_paper", (0.78, 0.70, 0.52), roughness=0.7)
+
+    objs = []
+
+    wall = C.box("records_wall", (0.0, 0.0, 0.50), (1.50, 1.50, 1.00), bevel=0.05,
+                bevel_segments=1)
+    C.assign_material(wall, wall_mat)
+    objs.append(wall)
+
+    # 丸屋根の村で唯一の、几帳面な切妻屋根。2枚の板を稜線で合わせる
+    slope_deg = 28.0
+    rad = math.radians(slope_deg)
+    half_run = 0.95
+    slope_len = half_run / math.cos(rad)
+    ridge_z = 1.00 + half_run * math.tan(rad)
+    for i, side in enumerate((-1.0, 1.0)):
+        panel = C.box(f"records_roofpanel{i}", (0.0, 0.0, 0.0), (1.70, slope_len, 0.05))
+        panel.rotation_euler = (-side * rad, 0.0, 0.0)
+        panel.location = Vector((0.0, side * (half_run / 2), 1.00 + (half_run / 2) * math.tan(rad)))
+        C.assign_material(panel, roof_mat)
+        objs.append(panel)
+
+    ridge = C.box("records_ridge", (0.0, 0.0, ridge_z), (1.72, 0.10, 0.06), bevel=0.01)
+    C.assign_material(ridge, fascia_mat)
+    objs.append(ridge)
+
+    # 軒先の水平な破風板。直線シルエットを際立たせる
+    for side in (-1.0, 1.0):
+        fascia = C.box(f"records_fascia{side}", (0.0, side * (half_run + 0.05), 1.00 - 0.02),
+                       (1.72, 0.03, 0.10), bevel=0.005)
+        C.assign_material(fascia, fascia_mat)
+        objs.append(fascia)
+
+    # 入口の巻物の看板。軸(鉄)+垂らした巻紙
+    scroll_rod = C.cylinder("records_scroll_rod", (0.0, 0.0, 0.0), 0.028, 0.62, segments=10,
+                            axis="X")
+    scroll_rod.location = Vector((0.0, 0.79, 0.92))
+    C.assign_material(scroll_rod, scroll_rod_mat)
+    objs.append(scroll_rod)
+    for side in (-1.0, 1.0):
+        knob = C.uv_sphere(f"records_scroll_knob{side}", (0.0, 0.0, 0.0), 0.042, segments=10,
+                           rings=8)
+        knob.location = Vector((side * 0.31, 0.79, 0.92))
+        C.assign_material(knob, scroll_rod_mat)
+        objs.append(knob)
+    scroll_paper = C.box("records_scroll_paper", (0.0, 0.775, 0.60), (0.50, 0.015, 0.62),
+                         bevel=0.005)
+    C.assign_material(scroll_paper, scroll_paper_mat)
+    objs.append(scroll_paper)
+
+    return [C.join(objs, "house_records")]
+
+
 # --------------------------------------------------------------------------- 一覧
 
 PROPS = {
@@ -901,6 +965,7 @@ PROPS = {
     "house_storage": build_house_storage,
     "house_garudo": build_house_garudo,
     "house_compendium": build_house_compendium,
+    "house_records": build_house_records,
 }
 
 
