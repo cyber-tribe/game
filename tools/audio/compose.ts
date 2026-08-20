@@ -29,6 +29,14 @@ const CHORD_SKELETON = [0, 3, 4, 2, 1, 3, 4, 0] as const;
 // 常にルートを弾かず、小節ごとに転回して単調さを避ける
 const VOICING_OFFSETS = [0, 2, 4] as const;
 
+/**
+ * ゲーム全体のライトモチーフ(村の子守唄)。ペンタトニック上の度数列、コード度数
+ * からの相対値(motif/quoteMotifと同じ扱い)。村BGMの主旋律そのものであり、他の
+ * 曲・SFXがこのモチーフを引用したいときは常にこの配列を直接参照する(曲ごとに
+ * 音程列をコピーしない)(plan/sound/archive/village-soundscape.md)
+ */
+export const LEITMOTIF_DEGREES = [0, 2, 4, 2] as const;
+
 function degreeToFreq(degree: number): number {
   const idx = ((degree % SCALE_LEN) + SCALE_LEN) % SCALE_LEN;
   const octave = Math.floor(degree / SCALE_LEN);
@@ -95,6 +103,12 @@ export interface TrackParams {
   motif?: readonly number[];
   /** motifの1音があたる拍数。既定1 */
   motifNoteBeats?: number;
+  /**
+   * 曲の終わり付近に弱く重ねる、他の曲(通常はLEITMOTIF_DEGREES)のモチーフの
+   * 断片。この曲自身のmotifとは独立して重ねられる。未指定なら従来どおり何も
+   * 重ねない(plan/sound/archive/village-soundscape.md)
+   */
+  quoteMotif?: { degrees: readonly number[]; noteBeats?: number; velocity?: number };
 }
 
 /**
@@ -227,6 +241,26 @@ export function composeTrack(params: TrackParams): StereoTrack {
       placeMotifRun(secondHalfStart, 2, motifNoteBeats, 1); // 変奏: 1オクターブ上げる
     } else {
       placeMotifRun(secondHalfStart, 1, motifNoteBeats / 2, 2); // 変奏: 音価を半分にして2回繰り返す
+    }
+  }
+
+  // 他の曲のモチーフの断片を、曲の終わり付近に弱く重ねる(既定なしで従来曲には
+  // 影響なし)。夢の中でも子守唄がかすかに届いている、という考証
+  // (plan/sound/archive/village-soundscape.md)
+  if (params.quoteMotif) {
+    const { degrees, noteBeats: quoteNoteBeats = 1, velocity: quoteVelocity = 0.18 } = params.quoteMotif;
+    const totalQuoteBeats = degrees.length * quoteNoteBeats;
+    const startBeat = bars * beatsPerBar - totalQuoteBeats;
+    let beatsElapsed = 0;
+    for (const quoteDegree of degrees) {
+      const curBeat = startBeat + beatsElapsed;
+      const curBar = Math.floor(curBeat / beatsPerBar);
+      const chordDegree = CHORD_SKELETON[((curBar % CHORD_SKELETON.length) + CHORD_SKELETON.length) % CHORD_SKELETON.length]!;
+      const freq = degreeToFreq(chordDegree + quoteDegree + SCALE_LEN);
+      const dur = quoteNoteBeats * beatSec * 0.95;
+      const offset = Math.floor(curBeat * beatSec * sampleRate);
+      mixIn(malletMono, malletNote(freq, dur, sampleRate, quoteVelocity), offset);
+      beatsElapsed += quoteNoteBeats;
     }
   }
 

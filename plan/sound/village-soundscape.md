@@ -12,6 +12,29 @@
 
 ## 1. 村BGMの改訂 ― 子守唄のモチーフ
 
+> **実装済み。** `tools/audio/compose.ts` に `LEITMOTIF_DEGREES = [0, 2, 4, 2]`
+> をエクスポートし、村BGM(`village`)の`motif`をこれに差し替えて
+> `beatsPerBar: 3`(3拍子)・`bars: 9`にした(ゆりかごの揺れ)。
+> 加えて`composeTrack`に`quoteMotif`パラメータを新設し、曲の終わり付近
+> (ループ末尾から`degrees.length`拍ぶん)にモチーフの断片を木琴・弱い
+> ベロシティ(既定0.18)で重ねられるようにした。第一〜第八地方
+> (`region1`〜`region8`)の`BGM_SPECS`に`quoteMotif: { degrees:
+> LEITMOTIF_DEGREES }`を追加し、各曲の終わりに子守唄の断片が弱く届く形
+> にした。ねむり小屋の鈴レイヤー(本ファイル section 3)・
+> タイトル・エンドロールの変奏は、それぞれ`plan/game/village-interiors.md`
+> 相当の実装セッション側の作業/専用BGM再生の仕組み自体が現状存在しない
+> ため、このPRの対象外(前者はsection 3側で`LEITMOTIF_DEGREES`を再利用
+> する形で実装予定。後者はタイトル・エンドロール画面にBGM再生の仕組みが
+> 無いため実装不可 ― 将来別途検討)。
+>
+> **検証**: `npx tsc --noEmit`・`npx vitest run`(117ファイル/1562件)・
+> `npm run build`・`npm run audio`いずれも成功。再生成後の差分は
+> `village.wav`・`region1.wav`〜`region8.wav`の9ファイルのみ(他のBGM・
+> SFX・ジングルは無変更)。デコードしてピーク/RMSレベルを確認し、
+> クリッピングや異常値が無いことも確認済み。
+>
+> 本ファイルのsection 2〜4は未実装(別PRで進める)。
+
 - 考証の核「村はヨリシロの眠りを世話する村」を音にする:
   **村BGMの主旋律を、ゆっくりした子守唄の形(ゆりかごのように
   揺れる3拍子系)にする**。
