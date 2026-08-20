@@ -95,7 +95,7 @@ export const VILLAGE_PLAYER_START: VillagePos = { x: 0, z: 7 };
 export const VILLAGE_BUILDINGS: readonly VillageBuilding[] = [
   { id: "board", label: "旅の看板", columns: [], role: "旅の掲示", x: 0, z: 3, radius: 0.7, shape: "post", color: 0x8a6b4a },
   { id: "storage", label: "モグラ婆の倉庫", columns: [0, 1], role: "倉庫", x: -5, z: 1, radius: 0.9, shape: "hut", color: 0x6b7a4a },
-  { id: "workshop", label: "ゲンドの工房", columns: [5], role: "強化・合成", x: 5, z: 1, radius: 0.9, shape: "hut", color: 0xa0562f },
+  { id: "workshop", label: "ゲンドの工房", columns: [5], role: "強化・合成", x: 5, z: 1, radius: 0.9, shape: "hut", color: 0xa0562f, model: "house_workshop" },
   { id: "questBoard", label: "オトネの依頼板", columns: [11], role: "依頼", x: -5, z: -3, radius: 0.9, shape: "hut", color: 0x4a6a8a },
   { id: "gallery", label: "おキヨの図鑑小屋", columns: [7, 9], role: "図鑑", x: 5, z: -3, radius: 0.9, shape: "hut", color: 0x7a4a8a },
   { id: "npcSquare", label: "村の広場", columns: [16, 17], role: "交流", x: 0, z: -1, radius: 0.6, shape: "camp", color: 0xd68a3a, model: "bonfire" },
@@ -240,6 +240,28 @@ function buildStructure(building: VillageBuilding): BuiltStructure {
       roof.rotation.y = Math.PI / 4;
       roof.position.y = 1.75;
       primitive.add(wall, roof);
+      // ゲンドの工房だけが持つ、村で唯一の煙突の煙。plan/models/archive/
+      // model-village-structures.mdの方針どおりThree.js側のビルボード相当
+      // (半透明の球を重ねた静止した煙)のままにし、正式モデル(house_workshop)
+      // が届いても`primitive`の外なので消えずに残る
+      if (building.id === "workshop") {
+        const smokeMat = new THREE.MeshStandardMaterial({
+          color: 0xb8bcc4,
+          transparent: true,
+          opacity: 0.55,
+          roughness: 1,
+        });
+        const puffs = [
+          [0.55, 3.35, 0, 0.11],
+          [0.62, 3.6, 0.03, 0.15],
+          [0.5, 3.85, -0.04, 0.19],
+        ] as const;
+        for (const [x, y, z, r] of puffs) {
+          const puff = new THREE.Mesh(new THREE.SphereGeometry(r, 8, 6), smokeMat);
+          puff.position.set(x, y, z);
+          group.add(puff);
+        }
+      }
       break;
     }
     case "post": {
