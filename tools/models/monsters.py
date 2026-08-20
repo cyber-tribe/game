@@ -4691,48 +4691,73 @@ def build_yorishironozankyo():
 
 
 def yorishironozankyo_animations():
+    """
+    plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
+    honegarami/yamabikooniの打ち直し内容(タメ・ツメ・行き過ぎ・二次揺れ・
+    footfall-dip・die跳ね返り)を移植した。「物語終盤にふさわしい、
+    これまでで最も大きく力強い」設定と、既存hit振幅の「静かな重厚さ」を
+    壊さないよう、フレーム間隔はyamabikooniよりやや長めに保っている。
+    """
     hipc, neck = "hip-chest", "neck-head"
     armL, armR = "chest-shoulder.L", "chest-shoulder.R"
     foreL, foreR = "shoulder.L-elbow.L", "shoulder.R-elbow.R"
     legL, legR = "hip-thigh.L", "hip-thigh.R"
     shinL, shinR = "thigh.L-knee.L", "thigh.R-knee.R"
     return [
-        # 記憶そのものとして、静かに、しかし途方もない存在感で佇む
+        # 記憶そのものとして、静かに、しかし途方もない存在感で佇む。頭
+        # (neck)が胴(hipc)より3フレーム遅れて追従する二次揺れを追加
+        # (体格が大きい分、honegaramiの2フレームよりわずかに長く)
         ("idle", [
             (1, {hipc: (0, 0, 0), armL: (0, 0, 10), armR: (0, 0, -10)}),
-            (30, {hipc: (2, 0, 2), neck: (-3, 0, 0), armL: (-5, 0, 13), armR: (-5, 0, -13)}),
+            (30, {hipc: (2, 0, 2), armL: (-5, 0, 13), armR: (-5, 0, -13)}),
+            (33, {neck: (-3, 0, 0)}, {"partial": True}),
             (60, {hipc: (0, 0, 0), armL: (0, 0, 10), armR: (0, 0, -10)}),
+            (63, {neck: (0, 0, 0)}, {"partial": True}),
         ]),
+        # 接地の瞬間に胴をわずかに沈める。「静かに佇む」性格づけを尊重し、
+        # yamabikooniより深く沈めすぎない控えめな値に留める
         ("walk", [
             (1, {legL: (18, 0, 0), legR: (-18, 0, 0), shinL: (-8, 0, 0), shinR: (6, 0, 0),
                  armL: (-14, 0, 8), armR: (14, 0, -8)}),
-            (10, {legL: (0, 0, 0), legR: (0, 0, 0), armL: (0, 0, 8), armR: (0, 0, -8)}),
+            (10, {legL: (0, 0, 0), legR: (0, 0, 0), armL: (0, 0, 8), armR: (0, 0, -8),
+                  hipc: {"loc": (0, -0.010, 0)}}),
             (19, {legL: (-18, 0, 0), legR: (18, 0, 0), shinL: (6, 0, 0), shinR: (-8, 0, 0),
                   armL: (14, 0, 8), armR: (-14, 0, -8)}),
-            (28, {legL: (0, 0, 0), legR: (0, 0, 0), armL: (0, 0, 8), armR: (0, 0, -8)}),
+            (28, {legL: (0, 0, 0), legR: (0, 0, 0), armL: (0, 0, 8), armR: (0, 0, -8),
+                  hipc: {"loc": (0, -0.010, 0)}}),
         ]),
-        # 物語終盤にふさわしい、両腕を大きく振りかぶる圧倒的な一撃
+        # 物語終盤にふさわしい、両腕を大きく振りかぶる圧倒的な一撃。タメ
+        # (1→8)→LINEARで鋭いツメ(8→15、honegaramiより1フレーム長く取り
+        # 体格差を出す)→行き過ぎ(15→18、弱めて収まる)→戻り(18→30、
+        # ゆったりと)の4段に分ける
         ("attack", [
             (1, {armR: (0, 0, -10), foreR: (0, 0, 0), armL: (0, 0, 10), foreL: (0, 0, 0),
                  hipc: (0, 0, 0)}),
             (8, {armR: (-145, 0, -28), foreR: (-38, 0, 0), armL: (-46, 0, 36), foreL: (-13, 0, 0),
-                 hipc: (-13, 0, -17), neck: (-6, 0, 0)}),
-            (14, {armR: (80, 0, 19), foreR: (13, 0, 0), armL: (34, 0, -7), foreL: (0, 0, 0),
-                  hipc: (21, 0, 19), neck: (-11, 0, 0)}),
-            (26, {armR: (0, 0, -10), foreR: (0, 0, 0), armL: (0, 0, 10), foreL: (0, 0, 0),
+                 hipc: (-13, 0, -17), neck: (-6, 0, 0)}, {"interp": "LINEAR"}),
+            (15, {armR: (88, 0, 21), foreR: (14, 0, 0), armL: (37, 0, -8), foreL: (0, 0, 0),
+                  hipc: (23, 0, 21), neck: (-12, 0, 0)}),
+            (18, {armR: (76, 0, 18), foreR: (12, 0, 0), armL: (32, 0, -7), foreL: (0, 0, 0),
+                  hipc: (20, 0, 18), neck: (-10, 0, 0)}),
+            (30, {armR: (0, 0, -10), foreR: (0, 0, 0), armL: (0, 0, 10), foreL: (0, 0, 0),
                   hipc: (0, 0, 0)}),
         ]),
+        # 入りをLINEARで鋭くする。振幅はこのゲーム内で最も抑えた現行の
+        # ままで、意図通りの「静かな重厚さ」を保つ
         ("hit", [
-            (1, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
+            (1, {hipc: (0, 0, 0), neck: (0, 0, 0)}, {"interp": "LINEAR"}),
             (5, {hipc: (-11, 0, 0), neck: (-11, 0, 0), armL: (-15, 0, 17), armR: (-15, 0, -17)}),
             (18, {hipc: (0, 0, 0), neck: (0, 0, 0)}),
         ]),
-        # 記憶が薄れるように、大きく傾いて崩れ落ちる
+        # 記憶が薄れるように、大きく傾いて崩れ落ちる。初動をLINEARで
+        # 鋭くし、崩れ落ちた後に一度だけ小さく跳ね返る
         ("die", [
-            (1, {hipc: (0, 0, 0)}),
+            (1, {hipc: (0, 0, 0)}, {"interp": "LINEAR"}),
             (13, {hipc: (-15, 0, 6), neck: (-21, 0, 0), armL: (-35, 0, 35), armR: (-35, 0, -35)}),
             (32, {hipc: (-88, 0, 19), neck: (-40, 0, 0), legL: (54, 0, 0), legR: (48, 0, 0),
                   armL: (-78, 0, 54), armR: (-78, 0, -54)}),
+            (36, {hipc: (-82, 0, 18), neck: (-36, 0, 0), legL: (50, 0, 0), legR: (44, 0, 0),
+                  armL: (-72, 0, 49), armR: (-72, 0, -49)}),
         ]),
     ]
 
