@@ -637,12 +637,20 @@ def build_madoromi():
 
 
 def madoromi_animations():
+    """
+    plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
+    タメ・ツメ(LINEAR補間)・傘の遅れ追従(二次揺れ)を足してある。
+    """
     stem, cap = "root-stem", "stem-capbase"
+    captop = "capbase-captop"
     return [
+        # 傘(cap)が根元(stem)より2フレーム遅れて追従する(二次揺れ)
         ("idle", [
-            (1, {stem: (0, 0, 0)}),
-            (24, {stem: (3, 0, 2), cap: (-3, 0, 0)}),
+            (1, {stem: (0, 0, 0), cap: (0, 0, 0)}),
+            (24, {stem: (3, 0, 2)}),
+            (26, {cap: (-3, 0, 0)}, {"partial": True}),
             (48, {stem: (0, 0, 0)}),
+            (50, {cap: (0, 0, 0)}, {"partial": True}),
         ]),
         # 根元をひねりながら、傘を左右に揺らして歩く
         ("walk", [
@@ -652,21 +660,27 @@ def madoromi_animations():
             (27, {stem: (6, 0, 0), cap: (-5, 0, 0)}),
             (36, {stem: (0, 0, -9), cap: (0, 0, 6)}),
         ]),
+        # タメ→LINEARで鋭く傘を振る打撃→行き過ぎ→ゆっくり戻る
         ("attack", [
-            (1, {stem: (0, 0, 0), cap: (0, 0, 0)}),
-            (5, {stem: (-14, 0, 0), cap: (-16, 0, 0)}),
-            (10, {stem: (24, 0, 0), cap: (26, 0, 0), "capbase-captop": (18, 0, 0)}),
-            (20, {stem: (0, 0, 0), cap: (0, 0, 0)}),
+            (1, {stem: (0, 0, 0), cap: (0, 0, 0), captop: (0, 0, 0)}),
+            (5, {stem: (-14, 0, 0), cap: (-16, 0, 0)}, {"interp": "LINEAR"}),
+            (8, {stem: (30, 0, 0), cap: (32, 0, 0), captop: (23, 0, 0)}),
+            (10, {stem: (16, 0, 0), cap: (18, 0, 0), captop: (12, 0, 0)}),
+            (20, {stem: (0, 0, 0), cap: (0, 0, 0), captop: (0, 0, 0)}),
         ]),
+        # 入りだけLINEARで鋭くする。振幅・戻り時間は現行どおり中程度に保つ
         ("hit", [
-            (1, {stem: (0, 0, 0)}),
+            (1, {stem: (0, 0, 0)}, {"interp": "LINEAR"}),
             (4, {stem: (-20, 0, 0), cap: (-18, 0, 0)}),
             (14, {stem: (0, 0, 0), cap: (0, 0, 0)}),
         ]),
+        # 初動をLINEARで鋭くする。24f到達後、大きく倒れた姿勢からわずかな
+        # 跳ね返りを1回追加する
         ("die", [
-            (1, {stem: (0, 0, 0)}),
+            (1, {stem: (0, 0, 0)}, {"interp": "LINEAR"}),
             (10, {stem: (-34, 0, 10), cap: (-20, 0, 0)}),
             (24, {stem: (-86, 0, 22), cap: (-34, 0, 0)}),
+            (28, {stem: (-77, 0, 20), cap: (-31, 0, 0)}, {"partial": True}),
         ]),
     ]
 
