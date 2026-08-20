@@ -1160,6 +1160,10 @@ def build_nukarumigani():
 
 
 def nukarumigani_animations():
+    """
+    plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
+    タメ・ツメ(LINEAR補間)・ハサミの先の遅れ追従(二次揺れ)を足してある。
+    """
     spine = "hip-neck"
     headb = "neck-head"
     armL, armR = "hip-shoulder.L", "hip-shoulder.R"
@@ -1168,13 +1172,16 @@ def nukarumigani_animations():
     legL, legR = "hip-thigh.L", "hip-thigh.R"
     shinL, shinR = "thigh.L-knee.L", "thigh.R-knee.R"
     return [
-        # 動きが鈍い分、腰(spine)は据わったまま、ハサミだけがゆっくり開閉する
+        # 動きが鈍い分、腰(spine)は据わったまま、ハサミだけがゆっくり開閉する。
+        # ハサミの先(handL,R)が腕(armL,R)より2フレーム遅れて追従する(二次揺れ)
         ("idle", [
-            (1, {spine: (0, 0, 0), armL: (0, 0, 10), armR: (0, 0, -10)}),
+            (1, {spine: (0, 0, 0), armL: (0, 0, 10), armR: (0, 0, -10),
+                 handL: (0, 0, 0), handR: (0, 0, 0)}),
             (26, {spine: (2, 0, 0), headb: (2, 0, 0),
-                  armL: (0, 0, 18), armR: (0, 0, -18),
-                  handL: (0, 0, -8), handR: (0, 0, 8)}),
+                  armL: (0, 0, 18), armR: (0, 0, -18)}),
+            (28, {handL: (0, 0, -8), handR: (0, 0, 8)}, {"partial": True}),
             (52, {spine: (0, 0, 0), armL: (0, 0, 10), armR: (0, 0, -10)}),
+            (54, {handL: (0, 0, 0), handR: (0, 0, 0)}, {"partial": True}),
         ]),
         # がに股のまま、左右の脚を交互に踏みしめて重く進む
         ("walk", [
@@ -1190,28 +1197,32 @@ def nukarumigani_animations():
                   armL: (0, 0, 6), armR: (0, 0, -6)}),
         ]),
         # 両方のハサミを大きく開いてから、力比べで挟み潰すように閉じる
+        # 両方のハサミを大きく開いてから、LINEARで力比べで挟み潰すように閉じる
         ("attack", [
             (1, {armL: (0, 0, 10), armR: (0, 0, -10), handL: (0, 0, 0), handR: (0, 0, 0)}),
             (7, {armL: (-14, 0, 40), armR: (-14, 0, -40),
-                 handL: (0, 0, -34), handR: (0, 0, 34), spine: (-6, 0, 0)}),
+                 handL: (0, 0, -34), handR: (0, 0, 34), spine: (-6, 0, 0)}, {"interp": "LINEAR"}),
             (13, {armL: (18, 0, -6), armR: (18, 0, 6),
                   handL: (0, 0, 30), handR: (0, 0, -30), spine: (8, 0, 0)}),
             (24, {armL: (0, 0, 10), armR: (0, 0, -10), handL: (0, 0, 0), handR: (0, 0, 0)}),
         ]),
+        # 入りだけLINEARで鋭くする。振幅・戻り時間は現行どおり中程度に保つ
         ("hit", [
-            (1, {spine: (0, 0, 0), headb: (0, 0, 0)}),
+            (1, {spine: (0, 0, 0), headb: (0, 0, 0)}, {"interp": "LINEAR"}),
             (5, {spine: (-10, 0, 0), headb: (-14, 0, 0),
                  armL: (-8, 0, 20), armR: (-8, 0, -20)}),
             (16, {spine: (0, 0, 0), headb: (0, 0, 0)}),
         ]),
-        # 力尽きて、がに股の脚から順にぬかるみへ沈み込むように崩れる
+        # 力尽きて、がに股の脚から順にLINEARで鋭くぬかるみへ沈み込むように
+        # 崩れる。26f到達後、腰がほんの少し戻るわずかな跳ね返りを追加
         ("die", [
-            (1, {spine: (0, 0, 0)}),
+            (1, {spine: (0, 0, 0)}, {"interp": "LINEAR"}),
             (10, {spine: (-14, 0, 4), legL: (-30, 0, 0), legR: (-30, 0, 0),
                   armL: (-20, 0, 30), armR: (-20, 0, -30)}),
             (26, {spine: (-40, 0, 10), legL: (-64, 0, 0), legR: (-64, 0, 0),
                   shinL: (-50, 0, 0), shinR: (-50, 0, 0),
                   armL: (-46, 0, 55), armR: (-46, 0, -55)}),
+            (30, {spine: (-35, 0, 9)}, {"partial": True}),
         ]),
     ]
 
