@@ -4160,15 +4160,23 @@ def build_wataamenoobake():
 
 
 def wataamenoobake_animations():
+    """
+    plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
+    タメ・打撃(LINEAR補間)・行き過ぎ・二次揺れ・die跳ね返りを足してある。
+    骨2本(lower/upper)のみのため、追加ボーンの二次揺れは組めず、
+    upperをlowerより2フレーム遅らせる形で漂いの二次揺れを表現した。
+    """
     lower, upper = "base-mid", "mid-top"
     squash = {"scale": (1.24, 0.66, 1.24)}
     stretch = {"scale": (0.80, 1.32, 0.80)}
     neutral = {"scale": (1.0, 1.0, 1.0)}
     return [
-        # ふわふわと軽く漂う、地に足の付かない待機
+        # ふわふわと軽く漂う、地に足の付かない待機。upper(頭側)がlowerより
+        # 2フレーム遅れて追従する漂いの二次揺れを追加
         ("idle", [
             (1, {lower: neutral, upper: neutral}),
-            (16, {lower: {"scale": (1.05, 0.94, 1.05)}, upper: {"scale": (0.96, 1.06, 0.96)}}),
+            (16, {lower: {"scale": (1.05, 0.94, 1.05)}}),
+            (18, {upper: {"scale": (0.96, 1.06, 0.96)}}, {"partial": True}),
             (32, {lower: neutral, upper: neutral}),
         ]),
         # coward AIらしく、素早く逃げるように弾む
@@ -4179,22 +4187,34 @@ def wataamenoobake_animations():
             (11, {lower: {"scale": (1.1, 0.85, 1.1)}, upper: neutral}),
             (15, {lower: neutral, upper: neutral}),
         ]),
+        # タメ(1→4、現行のまま)→LINEARで鋭く伸ばす打撃(4→7、元のピークを
+        # 増幅・前倒し)→行き過ぎ(7→9、元のピーク値へ戻りかける)→戻り
+        # (9→18)の4段に整理。coward種族らしく振り自体はやや小さめのまま
         ("attack", [
             (1, {lower: neutral, upper: neutral}),
             (4, {lower: squash, upper: stretch}),
+            (7, {lower: {"scale": (0.76, 1.38, 0.76)}, upper: {"scale": (1.18, 0.74, 1.18)}},
+             {"interp": "LINEAR"}),
             (9, {lower: {"scale": (0.82, 1.3, 0.82)}, upper: {"scale": (1.14, 0.8, 1.14)}}),
             (18, {lower: neutral, upper: neutral}),
         ]),
+        # 入りをLINEARで鋭くする。cowardらしく振幅・戻りは現行どおり
+        # 大きめ・ゆっくりのまま
         ("hit", [
             (1, {lower: neutral, upper: neutral}),
-            (4, {lower: {"scale": (1.28, 0.68, 1.28)}, upper: {"scale": (0.85, 1.2, 0.85)}}),
+            (4, {lower: {"scale": (1.28, 0.68, 1.28)}, upper: {"scale": (0.85, 1.2, 0.85)}},
+             {"interp": "LINEAR"}),
             (14, {lower: neutral, upper: neutral}),
         ]),
-        # 触れるとほどけて散る綿あめのように、輪郭を崩しながら薄れ消える
+        # 触れるとほどけて散る綿あめのように、輪郭を崩しながら薄れ消える。
+        # 初動をLINEARで鋭くし、崩れきったあとにわずかな揺り戻しを追加
         ("die", [
             (1, {lower: neutral, upper: neutral}),
-            (10, {lower: {"scale": (1.4, 0.4, 1.4)}, upper: {"scale": (1.3, 0.5, 1.3)}}),
+            (10, {lower: {"scale": (1.4, 0.4, 1.4)}, upper: {"scale": (1.3, 0.5, 1.3)}},
+             {"interp": "LINEAR"}),
             (24, {lower: {"scale": (1.6, 0.05, 1.6)}, upper: {"scale": (1.5, 0.06, 1.5)}}),
+            (28, {lower: {"scale": (1.5, 0.10, 1.5)}, upper: {"scale": (1.4, 0.12, 1.4)}},
+             {"partial": True}),
         ]),
     ]
 
