@@ -813,6 +813,68 @@ def build_house_garudo():
     return [C.join(objs, "house_garudo")]
 
 
+def build_house_compendium():
+    """
+    おキヨの図鑑小屋(design/village-buildings.md「おキヨの図鑑小屋」)。
+    共通の造形言語の上に、屋根の天窓と、壁の外に鈴なりに掛かる木札
+    (design記述の「記録はタルの側板に焼き付けた木札に書く」を反映)で
+    個性を出す。
+    """
+    wall_mat = C.make_material("compendium_wall", HOUSE_WOOD, roughness=0.85)
+    roof_mat = C.make_material("compendium_roof", HOUSE_WOOD_DARK, roughness=0.88)
+    plank_mat = C.make_material("compendium_plank", (0.18, 0.12, 0.08), roughness=0.9)
+    skylight_frame_mat = C.make_material("compendium_skylight_frame", HOUSE_LOG, roughness=0.8)
+    skylight_glass_mat = C.make_material("compendium_skylight_glass", (0.72, 0.80, 0.82),
+                                         roughness=0.15, emission=0.15)
+    tag_mat = C.make_material("compendium_tag", HOUSE_WOOD, roughness=0.8)
+    cord_mat = C.make_material("compendium_cord", (0.22, 0.18, 0.12), roughness=0.85)
+
+    objs = []
+
+    wall = C.box("compendium_wall", (0.0, 0.0, 0.50), (1.50, 1.50, 1.00), bevel=0.05,
+                bevel_segments=1)
+    C.assign_material(wall, wall_mat)
+    objs.append(wall)
+
+    roof = C.cylinder("compendium_roof", (0.0, 0.0, 1.35), 0.85, 1.75, segments=16, axis="X")
+    C.assign_material(roof, roof_mat)
+    objs.append(roof)
+
+    for i, deg in enumerate((-48, -20, 20, 48)):
+        rad = math.radians(deg)
+        plank = C.box(f"compendium_plank{i}", (0.0, 0.0, 0.0), (1.74, 0.04, 0.02))
+        plank.rotation_euler = (rad, 0.0, 0.0)
+        plank.location = Vector((0.0, math.sin(rad) * 0.86, 1.35 + math.cos(rad) * 0.86))
+        C.assign_material(plank, plank_mat)
+        objs.append(plank)
+
+    # 屋根の天窓。稜線に開けた小さな明かり取り
+    skylight_frame = C.box("compendium_skylight_frame", (0.0, 0.0, 2.19), (0.34, 0.30, 0.08),
+                           bevel=0.01)
+    C.assign_material(skylight_frame, skylight_frame_mat)
+    objs.append(skylight_frame)
+    skylight_glass = C.box("compendium_skylight_glass", (0.0, 0.0, 2.235), (0.26, 0.22, 0.02))
+    C.assign_material(skylight_glass, skylight_glass_mat)
+    objs.append(skylight_glass)
+
+    # 壁の外に鈴なりに掛かる木札。長さの違う紐で高さをばらけさせる
+    tag_offsets = ((-0.55, 0.30), (-0.38, 0.42), (-0.20, 0.24), (-0.02, 0.46),
+                   (0.16, 0.28), (0.34, 0.40), (0.52, 0.26))
+    for i, (x, cord_len) in enumerate(tag_offsets):
+        cord_top_z = 1.02
+        cord = C.cylinder(f"compendium_tagcord{i}", (0.0, 0.0, 0.0), 0.008, cord_len,
+                          segments=6)
+        cord.location = Vector((x, 0.775, cord_top_z - cord_len / 2))
+        C.assign_material(cord, cord_mat)
+        objs.append(cord)
+        tag = C.box(f"compendium_tag{i}", (x, 0.79, cord_top_z - cord_len - 0.045),
+                    (0.10, 0.015, 0.09), bevel=0.005)
+        C.assign_material(tag, tag_mat)
+        objs.append(tag)
+
+    return [C.join(objs, "house_compendium")]
+
+
 # --------------------------------------------------------------------------- 一覧
 
 PROPS = {
@@ -838,6 +900,7 @@ PROPS = {
     "house_hut": build_house_hut,
     "house_storage": build_house_storage,
     "house_garudo": build_house_garudo,
+    "house_compendium": build_house_compendium,
 }
 
 
