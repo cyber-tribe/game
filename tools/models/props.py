@@ -752,6 +752,67 @@ def build_house_storage():
     return [C.join(objs, "house_storage")]
 
 
+def build_house_garudo():
+    """
+    ガルドの家(design/village-buildings.md「ガルドの家」)。共通の造形言語の
+    上に、村で一番小さい建物寸法、戸口から見える土間の支度タル、壁に
+    残る歴代樽守りの手形の跡で個性を出す。
+    """
+    wall_mat = C.make_material("garudo_wall", HOUSE_WOOD, roughness=0.85)
+    roof_mat = C.make_material("garudo_roof", HOUSE_WOOD_DARK, roughness=0.88)
+    plank_mat = C.make_material("garudo_plank", (0.18, 0.12, 0.08), roughness=0.9)
+    door_mat = C.make_material("garudo_door", (0.10, 0.08, 0.07), roughness=0.95)
+    handprint_mat = C.make_material("garudo_handprint", (0.66, 0.50, 0.32), roughness=0.8)
+
+    objs = []
+
+    # 村で一番小さい建物寸法
+    wall = C.box("garudo_wall", (0.0, 0.0, 0.425), (1.20, 1.20, 0.85), bevel=0.05,
+                bevel_segments=1)
+    C.assign_material(wall, wall_mat)
+    objs.append(wall)
+
+    roof = C.cylinder("garudo_roof", (0.0, 0.0, 1.22), 0.62, 1.35, segments=16, axis="X")
+    C.assign_material(roof, roof_mat)
+    objs.append(roof)
+
+    for i, deg in enumerate((-40, 0, 40)):
+        rad = math.radians(deg)
+        plank = C.box(f"garudo_plank{i}", (0.0, 0.0, 0.0), (1.34, 0.035, 0.018))
+        plank.rotation_euler = (rad, 0.0, 0.0)
+        plank.location = Vector((0.0, math.sin(rad) * 0.63, 1.22 + math.cos(rad) * 0.63))
+        C.assign_material(plank, plank_mat)
+        objs.append(plank)
+
+    # 戸口。土間の支度タルが外から見えるよう、扉は作らず暗い開口だけにする
+    doorway = C.box("garudo_doorway", (0.0, 0.595, 0.32), (0.38, 0.03, 0.62), bevel=0.01)
+    C.assign_material(doorway, door_mat)
+    objs.append(doorway)
+
+    # 戸口の奥にちらりと見える、支度用の小さなタル
+    prep_barrel_objs = _barrel_body("garudo_prepbarrel", BARREL_WOOD, BARREL_IRON,
+                                    height=0.34, radius=0.16)
+    for piece in prep_barrel_objs:
+        piece.location = Vector((0.0, 0.50, 0.0))
+    objs.extend(prep_barrel_objs)
+
+    # 壁に残る歴代樽守りの手形の跡(側面。手のひら1つ+指5本)
+    palm = C.cylinder("garudo_palm", (0.0, 0.0, 0.0), 0.05, 0.012, segments=10, axis="X")
+    palm.location = Vector((0.605, -0.28, 0.55))
+    C.assign_material(palm, handprint_mat)
+    objs.append(palm)
+    for i, (fx, fz) in enumerate((
+        (-0.045, 0.075), (-0.018, 0.09), (0.012, 0.09), (0.040, 0.078), (0.062, 0.045),
+    )):
+        finger = C.cylinder(f"garudo_finger{i}", (0.0, 0.0, 0.0), 0.017, 0.010, segments=8,
+                            axis="X")
+        finger.location = Vector((0.605, -0.28 + fx, 0.55 + fz))
+        C.assign_material(finger, handprint_mat)
+        objs.append(finger)
+
+    return [C.join(objs, "house_garudo")]
+
+
 # --------------------------------------------------------------------------- 一覧
 
 PROPS = {
@@ -776,6 +837,7 @@ PROPS = {
     "house_workshop": build_house_workshop,
     "house_hut": build_house_hut,
     "house_storage": build_house_storage,
+    "house_garudo": build_house_garudo,
 }
 
 
