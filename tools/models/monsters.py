@@ -5157,15 +5157,23 @@ def build_shioresakura():
 
 
 def shioresakura_animations():
+    """
+    plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
+    タメ・ツメ(LINEAR補間)・花びらの遅れ追従(二次揺れ)を足してある。
+    lowHpAtkBonusMax(瀕死になるほど攻撃力が上がる)性質を動きにも反映する。
+    """
     lower, upper = "base-mid", "mid-top"
     squash = {"scale": (1.22, 0.72, 1.22)}
     stretch = {"scale": (0.86, 1.28, 0.86)}
     neutral = {"scale": (1.0, 1.0, 1.0)}
     return [
+        # 花びら側(upper)がlowerより2フレーム遅れて揺れる(二次揺れ)
         ("idle", [
             (1, {lower: neutral, upper: neutral}),
-            (18, {lower: {"scale": (1.04, 0.95, 1.04)}, upper: {"scale": (0.97, 1.05, 0.97)}}),
-            (36, {lower: neutral, upper: neutral}),
+            (18, {lower: {"scale": (1.04, 0.95, 1.04)}}),
+            (20, {upper: {"scale": (0.97, 1.05, 0.97)}}, {"partial": True}),
+            (36, {lower: neutral}),
+            (38, {upper: neutral}, {"partial": True}),
         ]),
         ("walk", [
             (1, {lower: neutral, upper: neutral}),
@@ -5174,23 +5182,29 @@ def shioresakura_animations():
             (14, {lower: {"scale": (1.1, 0.85, 1.1)}, upper: neutral}),
             (20, {lower: neutral, upper: neutral}),
         ]),
-        # 瀕死になるほど攻撃力が増す性質どおり、散り際に大きく身を反らせる
+        # 瀕死になるほど攻撃力が増す性質どおり、タメの後にLINEARで鋭く
+        # 大きく身を反らせ、反りをわずかに残しながら戻る
         ("attack", [
             (1, {lower: neutral, upper: neutral}),
             (4, {lower: squash, upper: stretch}),
+            (7, {lower: squash, upper: stretch}, {"interp": "LINEAR"}),
             (9, {lower: {"scale": (0.8, 1.35, 0.8), "loc": (0, 0.06, 0)}, upper: {"scale": (1.18, 0.78, 1.18)}}),
+            (11, {lower: {"scale": (0.9, 1.20, 0.9), "loc": (0, 0.03, 0)}, upper: {"scale": (1.08, 0.90, 1.08)}}),
             (18, {lower: neutral, upper: neutral}),
         ]),
+        # 入りだけLINEARで鋭くする。振幅は現行どおり中程度、戻りはゆっくりのまま
         ("hit", [
-            (1, {lower: neutral, upper: neutral}),
+            (1, {lower: neutral, upper: neutral}, {"interp": "LINEAR"}),
             (4, {lower: {"scale": (1.3, 0.66, 1.3)}, upper: {"scale": (0.88, 1.16, 0.88)}}),
             (14, {lower: neutral, upper: neutral}),
         ]),
-        # 散る花びらのように、輪郭を潰しながら崩れ落ちる
+        # 散る花びらのように、LINEARで鋭く輪郭を潰しながら崩れ落ちる。
+        # 24f到達後、わずかに揺り戻る跳ね返りを追加
         ("die", [
-            (1, {lower: neutral, upper: neutral}),
+            (1, {lower: neutral, upper: neutral}, {"interp": "LINEAR"}),
             (10, {lower: {"scale": (1.35, 0.5, 1.35)}, upper: {"scale": (1.25, 0.55, 1.25)}}),
             (24, {lower: {"scale": (1.5, 0.06, 1.5)}, upper: {"scale": (1.4, 0.08, 1.4)}}),
+            (28, {lower: {"scale": (1.42, 0.12, 1.42)}, upper: {"scale": (1.32, 0.14, 1.32)}}, {"partial": True}),
         ]),
     ]
 
