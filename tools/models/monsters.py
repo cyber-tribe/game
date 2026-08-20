@@ -5620,15 +5620,22 @@ def build_nemurimogura():
 
 
 def nemurimogura_animations():
+    """
+    plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
+    タメ・ツメ(LINEAR補間)・前足の遅れ追従(二次揺れ)を足してある。
+    """
     neck = "chest-neck"
     hipF_L, hipF_R = "chest-hipF.L", "chest-hipF.R"
     hipB_L, hipB_R = "hip-hipB.L", "hip-hipB.R"
     return [
-        # 眠たげに、ゆっくりと体を揺らす
+        # 眠たげに、ゆっくりと体を揺らす。前足(hipF_L,R)が首より2フレーム
+        # 遅れて追従する(眠りに沈んだ体の重みを感じさせる二次揺れ)
         ("idle", [
-            (1, {neck: (0, 0, 0)}),
+            (1, {neck: (0, 0, 0), hipF_L: (0, 0, 0), hipF_R: (0, 0, 0)}),
             (36, {neck: (3, 0, 2)}),
+            (38, {hipF_L: (1, 0, 0), hipF_R: (-1, 0, 0)}, {"partial": True}),
             (72, {neck: (0, 0, 0)}),
+            (74, {hipF_L: (0, 0, 0), hipF_R: (0, 0, 0)}, {"partial": True}),
         ]),
         # 土を掻くように、前足を大きく使って進む
         ("walk", [
@@ -5636,23 +5643,28 @@ def nemurimogura_animations():
             (8, {hipF_L: (-16, 0, 0), hipF_R: (16, 0, 0), hipB_L: (14, 0, 0), hipB_R: (-14, 0, 0)}),
             (16, {hipF_L: (16, 0, 0), hipF_R: (-16, 0, 0), hipB_L: (-14, 0, 0), hipB_R: (14, 0, 0)}),
         ]),
-        # 前足を大きく掻き出し、眠りをまとわりつかせる
+        # タメ→LINEARで鋭く前足を掻き出す→戻りかける→ゆっくり中立へ
         ("attack", [
             (1, {neck: (0, 0, 0), hipF_L: (0, 0, 0), hipF_R: (0, 0, 0)}),
-            (5, {neck: (-10, 0, 0), hipF_L: (-24, 0, 14), hipF_R: (-24, 0, -14)}),
+            (5, {neck: (-10, 0, 0), hipF_L: (-24, 0, 14), hipF_R: (-24, 0, -14)}, {"interp": "LINEAR"}),
+            (8, {neck: (17, 0, 0), hipF_L: (34, 0, -12), hipF_R: (34, 0, 12)}),
             (10, {neck: (14, 0, 0), hipF_L: (28, 0, -10), hipF_R: (28, 0, 10)}),
             (18, {neck: (0, 0, 0), hipF_L: (0, 0, 0), hipF_R: (0, 0, 0)}),
         ]),
+        # 入りだけLINEARで鋭くする。成熟個体らしい高HP・高防御を反映し、
+        # 振幅は控えめのまま、戻り時間も現行どおりに保つ
         ("hit", [
-            (1, {neck: (0, 0, 0)}),
+            (1, {neck: (0, 0, 0)}, {"interp": "LINEAR"}),
             (4, {neck: (14, 0, 0), hipF_L: (-10, 0, 8), hipF_R: (-10, 0, -8)}),
             (14, {neck: (0, 0, 0), hipF_L: (0, 0, 0), hipF_R: (0, 0, 0)}),
         ]),
-        # 眠りに沈むように、体を丸めて消える
+        # 眠りに沈むように、体を丸めて消える。初動をLINEARで鋭くする。
+        # 24f到達後、首がほんの少し戻るわずかな跳ね返りを追加
         ("die", [
-            (1, {neck: (0, 0, 0)}),
+            (1, {neck: (0, 0, 0)}, {"interp": "LINEAR"}),
             (10, {neck: (10, 0, 0), hipF_L: (16, 0, 0), hipF_R: (16, 0, 0)}),
             (24, {neck: (24, 0, 0), hipF_L: (36, 0, 0), hipF_R: (36, 0, 0)}),
+            (28, {neck: (20, 0, 0)}, {"partial": True}),
         ]),
     ]
 
