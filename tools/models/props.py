@@ -684,6 +684,74 @@ def build_house_hut():
     return [C.join(objs, "house_hut")]
 
 
+def build_house_storage():
+    """
+    モグラ婆の倉庫(design/village-buildings.md)。共通の造形言語の上に、
+    横に長い平屋、壁沿いに伏せた古タルの列(倉庫の棚はすべて伏せたタルを
+    転用したもの、という考証)、入口脇の手押し車で個性を出す。
+    """
+    wall_mat = C.make_material("storage_wall", HOUSE_WOOD, roughness=0.85)
+    roof_mat = C.make_material("storage_roof", HOUSE_WOOD_DARK, roughness=0.88)
+    plank_mat = C.make_material("storage_plank", (0.18, 0.12, 0.08), roughness=0.9)
+    cart_wood_mat = C.make_material("storage_cart_wood", HOUSE_LOG, roughness=0.82)
+    cart_iron_mat = C.make_material("storage_cart_iron", BARREL_IRON, roughness=0.45,
+                                    metallic=0.65)
+
+    objs = []
+
+    # 横に長い平屋
+    wall = C.box("storage_wall", (0.0, 0.0, 0.50), (2.40, 1.50, 1.00), bevel=0.05,
+                bevel_segments=1)
+    C.assign_material(wall, wall_mat)
+    objs.append(wall)
+
+    roof = C.cylinder("storage_roof", (0.0, 0.0, 1.35), 0.85, 2.75, segments=16, axis="X")
+    C.assign_material(roof, roof_mat)
+    objs.append(roof)
+
+    for i, deg in enumerate((-45, -18, 10, 38)):
+        rad = math.radians(deg)
+        plank = C.box(f"storage_plank{i}", (0.0, 0.0, 0.0), (2.74, 0.04, 0.02))
+        plank.rotation_euler = (rad, 0.0, 0.0)
+        plank.location = Vector((0.0, math.sin(rad) * 0.86, 1.35 + math.cos(rad) * 0.86))
+        C.assign_material(plank, plank_mat)
+        objs.append(plank)
+
+    # 壁沿いに伏せた古タルの列。倉庫の棚はすべて伏せたタルを転用したもの
+    for i in range(4):
+        x = -1.05 + i * 0.70
+        barrel_objs = _barrel_body(f"storage_oldbarrel{i}", BARREL_WOOD_DARK, BARREL_IRON,
+                                   height=0.50, radius=0.235)
+        for piece in barrel_objs:
+            piece.rotation_euler = (0.0, math.radians(90.0), 0.0)
+            piece.location = Vector((x, -0.62, 0.30))
+        objs.extend(barrel_objs)
+
+    # 入口脇の手押し車。2輪+荷台+柄
+    bed = C.box("storage_cart_bed", (1.15, 0.85, 0.30), (0.42, 0.30, 0.05), bevel=0.01)
+    C.assign_material(bed, cart_wood_mat)
+    objs.append(bed)
+    for side in (-1.0, 1.0):
+        rail = C.box(f"storage_cart_rail{side}", (1.15, 0.85 + side * 0.155, 0.36),
+                     (0.42, 0.025, 0.09))
+        C.assign_material(rail, cart_wood_mat)
+        objs.append(rail)
+    wheel = C.cylinder("storage_cart_wheel", (0.0, 0.0, 0.0), 0.13, 0.045, segments=14,
+                       axis="Y")
+    wheel.location = Vector((1.15, 0.85, 0.14))
+    C.assign_material(wheel, cart_iron_mat)
+    objs.append(wheel)
+    for side in (-1.0, 1.0):
+        handle = C.cylinder(f"storage_cart_handle{side}", (0.0, 0.0, 0.0), 0.018, 0.55,
+                            segments=8)
+        handle.rotation_euler = (math.radians(60.0), 0.0, 0.0)
+        handle.location = Vector((1.15 + side * 0.16, 1.20, 0.42))
+        C.assign_material(handle, cart_wood_mat)
+        objs.append(handle)
+
+    return [C.join(objs, "house_storage")]
+
+
 # --------------------------------------------------------------------------- 一覧
 
 PROPS = {
@@ -707,6 +775,7 @@ PROPS = {
     "bonfire": build_bonfire,
     "house_workshop": build_house_workshop,
     "house_hut": build_house_hut,
+    "house_storage": build_house_storage,
 }
 
 
