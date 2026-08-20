@@ -542,6 +542,88 @@ def build_bonfire():
     return [C.join(objs, "bonfire")]
 
 
+HOUSE_WOOD = (0.56, 0.38, 0.21)
+HOUSE_WOOD_DARK = (0.30, 0.20, 0.12)
+HOUSE_LOG = (0.42, 0.30, 0.19)
+
+
+def build_house_workshop():
+    """
+    ゲンドの工房(design/village-buildings.md)。共通の造形言語(タルと
+    同じ飴色の木肌、伏せたタルを思わせる丸屋根)の上に、村で唯一の
+    煙突(煙そのものはThree.js側のビルボード/シェーダーに委ねる、doc
+    のアニメーション方針どおり)、軒下に寝かせた祠木の材、入口横の
+    金床を足して個性を出す。
+    """
+    wall_mat = C.make_material("workshop_wall", HOUSE_WOOD, roughness=0.85)
+    roof_mat = C.make_material("workshop_roof", HOUSE_WOOD_DARK, roughness=0.88)
+    plank_mat = C.make_material("workshop_plank", (0.18, 0.12, 0.08), roughness=0.9)
+    chimney_mat = C.make_material("workshop_chimney", STONE_DARK, roughness=0.9)
+    log_mat = C.make_material("workshop_log", HOUSE_LOG, roughness=0.85)
+    anvil_mat = C.make_material("workshop_anvil", (0.16, 0.16, 0.18), roughness=0.4, metallic=0.6)
+    door_mat = C.make_material("workshop_door", HOUSE_WOOD_DARK, roughness=0.8)
+
+    objs = []
+
+    wall = C.box("workshop_wall", (0.0, 0.0, 0.65), (1.70, 1.60, 1.30), bevel=0.05,
+                bevel_segments=1)
+    C.assign_material(wall, wall_mat)
+    objs.append(wall)
+
+    door = C.box("workshop_door", (0.35, 0.805, 0.42), (0.46, 0.03, 0.72), bevel=0.02)
+    C.assign_material(door, door_mat)
+    objs.append(door)
+
+    # 伏せたタルを思わせる丸屋根。下半分を壁に埋め込み、上半分だけを見せる
+    roof = C.cylinder("workshop_roof", (0.0, 0.0, 1.72), 1.02, 2.05, segments=16, axis="X")
+    C.assign_material(roof, roof_mat)
+    objs.append(roof)
+
+    # 板張りの筋。タルの側板を連想させる、屋根の弧に沿った細い帯
+    for i, deg in enumerate((-55, -27, 0, 27, 55)):
+        rad = math.radians(deg)
+        plank = C.box(f"workshop_plank{i}", (0.0, 0.0, 0.0), (2.04, 0.045, 0.022))
+        plank.rotation_euler = (rad, 0.0, 0.0)
+        plank.location = Vector((0.0, math.sin(rad) * 1.03, 1.72 + math.cos(rad) * 1.03))
+        C.assign_material(plank, plank_mat)
+        objs.append(plank)
+
+    # 煙突。村で唯一。屋根の稜線寄りに立てる
+    chimney = C.box("workshop_chimney", (0.55, 0.0, 2.95), (0.22, 0.22, 0.55), bevel=0.02)
+    C.assign_material(chimney, chimney_mat)
+    objs.append(chimney)
+    chimney_cap = C.box("workshop_chimney_cap", (0.55, 0.0, 3.25), (0.30, 0.30, 0.07),
+                        bevel=0.015)
+    C.assign_material(chimney_cap, chimney_mat)
+    objs.append(chimney_cap)
+
+    # 軒下に寝かせて乾かしてある、材の祠木。2段に積む
+    for row in range(2):
+        for col in range(3):
+            log = C.cylinder(f"workshop_log{row}_{col}", (0.0, 0.0, 0.0), 0.085, 1.30,
+                             segments=8, axis="X")
+            log.location = Vector((-0.05, -0.86, 0.13 + row * 0.16 + col * 0.002))
+            C.assign_material(log, log_mat)
+            objs.append(log)
+
+    # 入口横の金床
+    anvil_base = C.box("workshop_anvil_base", (0.95, 0.72, 0.11), (0.20, 0.14, 0.22),
+                       bevel=0.02)
+    C.assign_material(anvil_base, anvil_mat)
+    objs.append(anvil_base)
+    anvil_top = C.box("workshop_anvil_top", (0.95, 0.72, 0.245), (0.30, 0.20, 0.05),
+                      bevel=0.015)
+    C.assign_material(anvil_top, anvil_mat)
+    objs.append(anvil_top)
+    anvil_horn = C.cone("workshop_anvil_horn", (0.0, 0.0, 0.0), 0.055, 0.008, 0.22, segments=10)
+    anvil_horn.rotation_euler = (0.0, math.radians(90.0), 0.0)
+    anvil_horn.location = Vector((1.20, 0.72, 0.245))
+    C.assign_material(anvil_horn, anvil_mat)
+    objs.append(anvil_horn)
+
+    return [C.join(objs, "house_workshop")]
+
+
 # --------------------------------------------------------------------------- 一覧
 
 PROPS = {
@@ -563,6 +645,7 @@ PROPS = {
     "shield": build_shield_item,
     "cave_gate": build_cave_gate,
     "bonfire": build_bonfire,
+    "house_workshop": build_house_workshop,
 }
 
 
