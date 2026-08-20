@@ -7694,15 +7694,22 @@ def build_moyautsubo():
 
 
 def moyautsubo_animations():
+    """
+    plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
+    タメ・ツメ(LINEAR補間)・前脚の極小な二次揺れを足してある。
+    """
     head = "chest-head"
     armL, armR = "chest-armF.L", "chest-armF.R"
     legL, legR = "hip-kneeB.L", "hip-kneeB.R"
     return [
-        # 気配を消して、ほとんど動かず潜む
+        # 気配を消して、ほとんど動かず潜む。前脚(armL,R)が頭より2フレーム
+        # 遅れて極小(±1°)だけ追従する(「霧の房がわずかに遅れてなびく」二次揺れ)
         ("idle", [
-            (1, {head: (0, 0, 0)}),
+            (1, {head: (0, 0, 0), armL: (0, 0, 0), armR: (0, 0, 0)}),
             (40, {head: (2, 0, 1)}),
+            (42, {armL: (1, 0, 0), armR: (1, 0, 0)}, {"partial": True}),
             (80, {head: (0, 0, 0)}),
+            (82, {armL: (0, 0, 0), armR: (0, 0, 0)}, {"partial": True}),
         ]),
         ("walk", [
             (1, {legL: (0, 0, 10), legR: (0, 0, -10), armL: (0, 0, 7), armR: (0, 0, -7),
@@ -7712,22 +7719,29 @@ def moyautsubo_animations():
             (18, {legL: (0, 0, 10), legR: (0, 0, -10), armL: (0, 0, 7), armR: (0, 0, -7),
                   head: (0, 4, 0)}),
         ]),
-        # 油断したところへ、初撃を強く叩き込む
+        # 油断したところへ、LINEARで鋭く初撃を叩き込み、わずかに行き過ぎて
+        # から気配を消した構えに戻る
         ("attack", [
             (1, {head: (0, 0, 0)}),
-            (4, {head: (-18, 0, 0)}),
+            (4, {head: (-18, 0, 0)}, {"interp": "LINEAR"}),
             (7, {head: (28, 0, 0)}),
+            (9, {head: (34, 0, 0)}),
             (16, {head: (0, 0, 0)}),
         ]),
+        # 入りだけLINEARで鋭くする。ambush AIなので振幅・戻り時間は
+        # 現行のまま維持する
         ("hit", [
-            (1, {head: (0, 0, 0)}),
+            (1, {head: (0, 0, 0)}, {"interp": "LINEAR"}),
             (4, {head: (14, 0, 0), armL: (-10, 0, 8), armR: (-10, 0, -8)}),
             (12, {head: (0, 0, 0), armL: (0, 0, 0), armR: (0, 0, 0)}),
         ]),
+        # 初動をLINEARで鋭くする。20f到達後、脚が一度わずかに戻る
+        # 揺り戻し(着地後の小さな跳ね返り)を追加
         ("die", [
-            (1, {head: (0, 0, 0)}),
+            (1, {head: (0, 0, 0)}, {"interp": "LINEAR"}),
             (9, {head: (0, 10, 0), legL: (0, 0, -20), legR: (0, 0, 20)}),
             (20, {head: (0, 20, 0), legL: (0, 0, -44), legR: (0, 0, 44)}),
+            (24, {legL: (0, 0, -40), legR: (0, 0, 40)}, {"partial": True}),
         ]),
     ]
 
