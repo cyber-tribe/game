@@ -4838,16 +4838,24 @@ def build_shizukuuo():
 
 
 def shizukuuo_animations():
+    """
+    plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
+    タメ・ツメ(LINEAR補間)・尾びれの先端の遅れ追従(二次揺れ)を足してある。
+    """
     head = "chest-head"
     finL, finR = "chest-armF.L", "chest-armF.R"
     tailL, tailR = "hip-kneeB.L", "hip-kneeB.R"
     shinL, shinR = "kneeB.L-ankleB.L", "kneeB.R-ankleB.R"
     return [
-        # 水中を漂うように、ゆっくり揺れる
+        # 水中を漂うように、ゆっくり揺れる。尾びれの先端(shinL,R)が
+        # 尾びれの根元(tailL,R)より2フレーム遅れて追従する(二次揺れ)
         ("idle", [
-            (1, {head: (0, 0, 0), tailL: (0, 0, 6), tailR: (0, 0, -6)}),
+            (1, {head: (0, 0, 0), tailL: (0, 0, 6), tailR: (0, 0, -6),
+                 shinL: (0, 0, 6), shinR: (0, 0, -6)}),
             (24, {head: (3, 0, 0), tailL: (0, 0, -6), tailR: (0, 0, 6)}),
+            (26, {shinL: (0, 0, -6), shinR: (0, 0, 6)}, {"partial": True}),
             (48, {head: (0, 0, 0), tailL: (0, 0, 6), tailR: (0, 0, -6)}),
+            (50, {shinL: (0, 0, 6), shinR: (0, 0, -6)}, {"partial": True}),
         ]),
         # 尾びれを大きくくねらせて泳ぐ
         ("walk", [
@@ -4858,22 +4866,28 @@ def shizukuuo_animations():
             (12, {tailL: (0, 0, 20), tailR: (0, 0, -20), shinL: (0, 0, 14), shinR: (0, 0, -14),
                   finL: (0, 0, 10), finR: (0, 0, -10), head: (0, 0, 6)}),
         ]),
+        # タメ→LINEARで鋭く突進→水を弾いた反動で戻りかける→ゆっくり中立へ
         ("attack", [
             (1, {head: (0, 0, 0)}),
-            (4, {head: (-20, 0, 0), tailL: (0, 0, 24), tailR: (0, 0, -24)}),
+            (4, {head: (-20, 0, 0), tailL: (0, 0, 24), tailR: (0, 0, -24)}, {"interp": "LINEAR"}),
+            (6, {head: (-26, 0, 0), tailL: (0, 0, 30), tailR: (0, 0, -30)}),
             (9, {head: (14, 0, 0), tailL: (0, 0, -18), tailR: (0, 0, 18)}),
             (16, {head: (0, 0, 0), tailL: (0, 0, 6), tailR: (0, 0, -6)}),
         ]),
+        # 入りだけLINEARで鋭くする。swarm個体らしく振幅は現行どおり
+        # 中程度、戻りはゆっくりのまま
         ("hit", [
-            (1, {head: (0, 0, 0)}),
+            (1, {head: (0, 0, 0)}, {"interp": "LINEAR"}),
             (4, {head: (16, 0, 0), finL: (-14, 0, 10), finR: (-14, 0, -10)}),
             (12, {head: (0, 0, 0)}),
         ]),
-        # しずくが弾けるように、輪郭を丸く潰しながら消える
+        # しずくが弾けるように、LINEARで鋭く輪郭を丸く潰しながら消える。
+        # 18f到達後、尾びれがほんの少し戻るわずかな跳ね返りを追加
         ("die", [
-            (1, {head: (0, 0, 0)}),
+            (1, {head: (0, 0, 0)}, {"interp": "LINEAR"}),
             (8, {head: (0, 0, 0), tailL: (0, 0, -30), tailR: (0, 0, 30)}),
             (18, {head: (0, 0, 0), tailL: (0, 0, -60), tailR: (0, 0, 60)}),
+            (22, {tailL: (0, 0, -54), tailR: (0, 0, 54)}, {"partial": True}),
         ]),
     ]
 
