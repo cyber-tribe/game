@@ -939,6 +939,80 @@ def build_house_records():
     return [C.join(objs, "house_records")]
 
 
+def build_house_development():
+    """
+    村の発展の受付(design/village-buildings.md、plan/game/village-scene-redesign.md)。
+    他の棟と違い壁を持たない、柱4本+陣幕の屋根なし東屋。中央の村の
+    模型台(小さな模型小屋を並べた台)で個性を出す。
+    """
+    post_mat = C.make_material("development_post", HOUSE_LOG, roughness=0.82)
+    curtain_light = C.make_material("development_curtain_light", (0.80, 0.78, 0.70),
+                                    roughness=0.7)
+    curtain_dark = C.make_material("development_curtain_dark", (0.30, 0.24, 0.42),
+                                   roughness=0.7)
+    stand_mat = C.make_material("development_stand", HOUSE_WOOD, roughness=0.85)
+    model_wall_mat = C.make_material("development_model_wall", HOUSE_WOOD_DARK, roughness=0.85)
+    model_roof_mat = C.make_material("development_model_roof", (0.20, 0.14, 0.09), roughness=0.9)
+
+    objs = []
+
+    # 柱4本(屋根はない、東屋)
+    post_positions = ((-0.75, -0.75), (0.75, -0.75), (-0.75, 0.75), (0.75, 0.75))
+    for i, (x, y) in enumerate(post_positions):
+        post = C.cylinder(f"development_post{i}", (x, y, 0.75), 0.06, 1.50, segments=10)
+        C.assign_material(post, post_mat)
+        objs.append(post)
+
+    # 柱の頭をつなぐ横木。屋根板は張らない
+    for i, (dx, dy) in enumerate(((1, 0), (0, 1))):
+        for side in (-1.0, 1.0):
+            size = (1.62, 0.05, 0.05) if dx else (0.05, 1.62, 0.05)
+            rail = C.box(f"development_rail{i}_{side}", (0.0, 0.0, 0.0), size)
+            rail.location = Vector((0.0 if dx else side * 0.75, side * 0.75 if dx else 0.0, 1.48))
+            C.assign_material(rail, post_mat)
+            objs.append(rail)
+
+    # 陣幕。奥側2面に張った縦縞の幕(前面と手前側面は開けたまま出入りできる)
+    stripe_w = 0.185
+    for wi in range(8):
+        x = -0.70 + wi * stripe_w
+        mat = curtain_light if wi % 2 == 0 else curtain_dark
+        stripe = C.box(f"development_curtain_back{wi}", (x + stripe_w / 2, -0.78, 0.85),
+                       (stripe_w, 0.02, 1.10))
+        C.assign_material(stripe, mat)
+        objs.append(stripe)
+    for wi in range(8):
+        y = -0.70 + wi * stripe_w
+        mat = curtain_light if wi % 2 == 0 else curtain_dark
+        stripe = C.box(f"development_curtain_side{wi}", (-0.78, y + stripe_w / 2, 0.85),
+                       (0.02, stripe_w, 1.10))
+        C.assign_material(stripe, mat)
+        objs.append(stripe)
+
+    # 中央の村の模型台。台+小さな模型小屋を数棟並べる
+    stand = C.cylinder("development_stand", (0.0, 0.0, 0.22), 0.55, 0.44, segments=16)
+    C.assign_material(stand, stand_mat)
+    objs.append(stand)
+
+    mini_huts = ((-0.20, -0.12, 0.028), (0.15, -0.05, 0.024), (-0.05, 0.20, 0.030),
+                 (0.22, 0.15, 0.022))
+    for i, (x, y, scale) in enumerate(mini_huts):
+        s = scale / 0.028
+        wall = C.box(f"development_minihut_wall{i}", (0.0, 0.0, 0.0),
+                    (0.09 * s, 0.09 * s, 0.055 * s))
+        wall.location = Vector((x, y, 0.44 + 0.0275 * s))
+        C.assign_material(wall, model_wall_mat)
+        objs.append(wall)
+        roof = C.cone(f"development_minihut_roof{i}", (0.0, 0.0, 0.0), 0.075 * s, 0.0,
+                     0.05 * s, segments=4)
+        roof.rotation_euler = (0.0, 0.0, math.radians(45.0))
+        roof.location = Vector((x, y, 0.44 + 0.055 * s + 0.025 * s))
+        C.assign_material(roof, model_roof_mat)
+        objs.append(roof)
+
+    return [C.join(objs, "house_development")]
+
+
 # --------------------------------------------------------------------------- 一覧
 
 PROPS = {
@@ -966,6 +1040,7 @@ PROPS = {
     "house_garudo": build_house_garudo,
     "house_compendium": build_house_compendium,
     "house_records": build_house_records,
+    "house_development": build_house_development,
 }
 
 
