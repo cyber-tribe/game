@@ -8271,16 +8271,26 @@ def build_tokoshiepurun():
 
 
 def tokoshiepurun_animations():
+    """
+    plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
+    タメ・ツメ(LINEAR補間)・行き過ぎ・二次揺れ・die跳ね返りを足してある。
+    骨2本(lower/upper)のみのため、akubitokageと同じくupperの遅延で
+    二次揺れを表現した。「ゆるがぬからだ」という性格づけどおり、purunの
+    攻撃よりタメを心持ち長く取り、伸びの最大値もわずかに抑えている。
+    """
     lower, upper = "base-mid", "mid-top"
     squash = {"scale": (1.22, 0.72, 1.22)}
     stretch = {"scale": (0.86, 1.28, 0.86)}
     neutral = {"scale": (1.0, 1.0, 1.0)}
     return [
-        # 揺るぎなさそのものとして、ほとんど動かず静かに佇む
+        # 揺るぎなさそのものとして、ほとんど動かず静かに佇む。upperが
+        # lowerより2フレーム遅れて追従する二次揺れを追加
         ("idle", [
             (1, {lower: neutral, upper: neutral}),
-            (36, {lower: {"scale": (1.02, 0.98, 1.02)}, upper: {"scale": (0.98, 1.02, 0.98)}}),
-            (72, {lower: neutral, upper: neutral}),
+            (36, {lower: {"scale": (1.02, 0.98, 1.02)}}),
+            (38, {upper: {"scale": (0.98, 1.02, 0.98)}}, {"partial": True}),
+            (72, {lower: neutral}),
+            (74, {upper: neutral}, {"partial": True}),
         ]),
         ("walk", [
             (1, {lower: neutral, upper: neutral}),
@@ -8289,22 +8299,31 @@ def tokoshiepurun_animations():
             (14, {lower: {"scale": (1.1, 0.85, 1.1)}, upper: neutral}),
             (20, {lower: neutral, upper: neutral}),
         ]),
+        # タメ(1→6、lowerを軽くsquash)→LINEARで鋭く伸ばすツメ(6→10、
+        # 現行のピーク値まで)→行き過ぎ(10→13、現行のピークよりわずかに
+        # 弱めて戻し始める)→戻り(13→22)の4段に再構成
         ("attack", [
             (1, {lower: neutral, upper: neutral}),
-            (5, {lower: squash, upper: stretch}),
-            (10, {lower: {"scale": (0.85, 1.28, 0.85), "loc": (0, 0.08, 0)}, upper: {"scale": (1.20, 0.80, 1.20)}}),
-            (20, {lower: neutral, upper: neutral}),
+            (6, {lower: squash, upper: stretch}),
+            (10, {lower: {"scale": (0.85, 1.28, 0.85), "loc": (0, 0.08, 0)}, upper: {"scale": (1.20, 0.80, 1.20)}},
+             {"interp": "LINEAR"}),
+            (13, {lower: {"scale": (0.90, 1.18, 0.90), "loc": (0, 0.05, 0)}, upper: {"scale": (1.12, 0.88, 1.12)}}),
+            (22, {lower: neutral, upper: neutral}),
         ]),
-        # みをまもるが常時発動する性質どおり、被弾してもほとんど揺るがない
+        # みをまもるが常時発動する性質どおり、被弾してもほとんど揺るがない。
+        # 入りをLINEARで鋭くする。振幅はguard相当の小ささのまま変更しない
         ("hit", [
-            (1, {lower: neutral, upper: neutral}),
+            (1, {lower: neutral, upper: neutral}, {"interp": "LINEAR"}),
             (4, {lower: {"scale": (1.12, 0.88, 1.12)}, upper: {"scale": (0.94, 1.08, 0.94)}}),
             (14, {lower: neutral, upper: neutral}),
         ]),
+        # 初動をLINEARで鋭くする。24fで潰れきったあとに、着地後の小さな
+        # 跳ね返りを1回追加する
         ("die", [
-            (1, {lower: neutral, upper: neutral}),
+            (1, {lower: neutral, upper: neutral}, {"interp": "LINEAR"}),
             (10, {lower: {"scale": (1.4, 0.45, 1.4)}, upper: {"scale": (1.3, 0.5, 1.3)}}),
             (24, {lower: {"scale": (1.55, 0.05, 1.55)}, upper: {"scale": (1.45, 0.07, 1.45)}}),
+            (28, {lower: {"scale": (1.5, 0.09, 1.5)}, upper: {"scale": (1.4, 0.11, 1.4)}}, {"partial": True}),
         ]),
     ]
 
