@@ -5,7 +5,7 @@
  * 使わせる」考え方を音楽にも当てはめる。音階・楽器群は全曲共通の定数として
  * 固定し、地方ごとにシード・楽器の重み・テンポ・拍子・リバーブの深さを変える。
  */
-import { drumHit, fluteNote, humVoice, malletNote, mixIn, mulberry32, normalize, pluckedString } from "./synth.ts";
+import { breathCry, drumHit, fluteNote, humVoice, malletNote, mixIn, mulberry32, normalize, pluckedString } from "./synth.ts";
 import {
   mixStereoIn,
   normalizeStereo,
@@ -286,12 +286,25 @@ export interface JingleNote {
   instrument?: "mallet" | "flute" | "string";
 }
 
+/** 意味を持たない短い発声を重ねるパラメータ(plan/sound/archive/voice-and-cries.md) */
+export interface VoiceCryParams {
+  freq: number;
+  duration: number;
+  seed: number;
+  velocity: number;
+}
+
 export interface JingleParams {
   notes: readonly JingleNote[];
   tempoBpm: number;
   sampleRate: number;
   /** 省略時はリバーブ無し */
   reverb?: ReverbParams;
+  /**
+   * 最後の音が鳴り終わったあとに置く、意味を持たない短い発声。省略時は無し
+   * (plan/sound/archive/voice-and-cries.md)
+   */
+  coda?: VoiceCryParams;
 }
 
 /**
@@ -301,10 +314,11 @@ export interface JingleParams {
  * 持たない(単発のジングルなので不要)。SFXと同じくモノラルのまま
  */
 export function composeJingle(params: JingleParams): Float32Array {
-  const { notes, tempoBpm, sampleRate, reverb } = params;
+  const { notes, tempoBpm, sampleRate, reverb, coda } = params;
   const beatSec = 60 / tempoBpm;
   const totalBeats = notes.reduce((sum, note) => sum + note.beats, 0);
-  const totalSamples = Math.max(1, Math.floor(totalBeats * beatSec * sampleRate));
+  const notesEndSec = totalBeats * beatSec;
+  const totalSamples = Math.max(1, Math.floor((notesEndSec + (coda?.duration ?? 0)) * sampleRate));
   const out = new Float32Array(totalSamples);
 
   let elapsedBeats = 0;
@@ -324,6 +338,12 @@ export function composeJingle(params: JingleParams): Float32Array {
     elapsedBeats += note.beats;
   });
 
+  // 最後の音が鳴り終わったあとに置く、意味を持たない短い発声(既定なしで従来どおり)
+  if (coda) {
+    const cry = breathCry(coda.freq, coda.duration, sampleRate, coda.seed, coda.velocity);
+    mixIn(out, cry, Math.floor(notesEndSec * sampleRate));
+  }
+
   normalize(out);
   if (!reverb) return out;
   const wet = reverbOneShot(out, sampleRate, reverb);
@@ -339,6 +359,12 @@ export interface SfxParams {
   seed: number;
   /** BGMより薄いウェット率のリバーブ。省略時はリバーブ無し */
   reverb?: ReverbParams;
+  /**
+   * 意味を持たない短い発声を重ねる。`delaySec`は主音の開始位置からのずれ
+   * (省略時0、主音の直後に重ねたい場合はここに音価を渡す)。省略時は無し
+   * (plan/sound/archive/voice-and-cries.md)
+   */
+  voiceLayer?: VoiceCryParams & { delaySec?: number };
 }
 
 /**
@@ -346,8 +372,19 @@ export interface SfxParams {
  * SFXは再生時に中央定位で足りるためモノラルのまま(ファイルサイズを抑える)。
  */
 export function composeSfx(params: SfxParams): Float32Array {
-  const { kind, freq, duration, sampleRate, seed, reverb } = params;
-  const dry = kind === "mallet" ? malletNote(freq, duration, sampleRate, 0.8) : drumHit(duration, sampleRate, seed, freq, 0.8);
+  const { kind, freq, duration, sampleRate, seed, reverb, voiceLayer } = params;
+  let dry = kind === "mallet" ? malletNote(freq, duration, sampleRate, 0.8) : drumHit(duration, sampleRate, seed, freq, 0.8);
+
+  if (voiceLayer) {
+    const delaySec = voiceLayer.delaySec ?? 0;
+    const cry = breathCry(voiceLayer.freq, voiceLayer.duration, sampleRate, voiceLayer.seed, voiceLayer.velocity);
+    const delaySamples = Math.floor(delaySec * sampleRate);
+    const combined = new Float32Array(Math.max(dry.length, delaySamples + cry.length));
+    mixIn(combined, dry, 0);
+    mixIn(combined, cry, delaySamples);
+    dry = combined;
+  }
+
   normalize(dry);
   if (!reverb) return dry;
   const wet = reverbOneShot(dry, sampleRate, reverb);

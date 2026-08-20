@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { composeJingle, composeSfx, composeTrack } from "../tools/audio/compose.ts";
-import { drumHit, fluteNote, humVoice, malletNote, mixIn, mulberry32, normalize, pluckedString } from "../tools/audio/synth.ts";
+import { breathCry, drumHit, fluteNote, humVoice, malletNote, mixIn, mulberry32, normalize, pluckedString } from "../tools/audio/synth.ts";
 import { encodeWav } from "../tools/audio/wav.ts";
 
 const NO_REVERB = { wet: 0, roomSize: 0.3 };
@@ -111,6 +111,17 @@ describe("tools/audio/synth.ts(plan/sound/archive/audio-synthesis.md)", () => {
     const c = humVoice(220, 0.5, 22050, 4);
     expect(Array.from(a)).not.toEqual(Array.from(c));
   });
+
+  it("breathCryは指定した長さの有限な値の配列を、同じシードから決定的に返す(plan/sound/archive/voice-and-cries.md)", () => {
+    const a = breathCry(300, 0.25, 22050, 5, 0.2);
+    const b = breathCry(300, 0.25, 22050, 5, 0.2);
+    expect(a.length).toBe(Math.floor(0.25 * 22050));
+    expect(Array.from(a)).toEqual(Array.from(b));
+    for (const v of a) expect(Number.isFinite(v)).toBe(true);
+
+    const c = breathCry(300, 0.25, 22050, 6, 0.2);
+    expect(Array.from(a)).not.toEqual(Array.from(c));
+  });
 });
 
 describe("tools/audio/compose.ts(plan/sound/archive/bgm-quality-upgrade.md)", () => {
@@ -215,6 +226,20 @@ describe("tools/audio/compose.ts(plan/sound/archive/bgm-quality-upgrade.md)", ()
     expect(wet.length).toBeGreaterThan(dry.length);
     for (const v of wet) expect(Number.isFinite(v)).toBe(true);
   });
+
+  it("composeSfxはvoiceLayerを指定すると波形が変わり、未指定の曲には影響しない(plan/sound/archive/voice-and-cries.md)", () => {
+    const base = { kind: "mallet" as const, freq: 660, duration: 0.35, sampleRate: 22050, seed: 1 };
+    const without = composeSfx(base);
+    const withVoice = composeSfx({ ...base, voiceLayer: { freq: 300, duration: 0.25, seed: 201, velocity: 0.2, delaySec: 0.1 } });
+    expect(Array.from(withVoice)).not.toEqual(Array.from(without));
+  });
+
+  it("composeSfxのvoiceLayerはdelaySecぶん音を伸ばせる(主音より後ろへはみ出す場合)", () => {
+    const base = { kind: "drum" as const, freq: 110, duration: 0.2, sampleRate: 22050, seed: 106 };
+    const without = composeSfx(base);
+    const withVoice = composeSfx({ ...base, voiceLayer: { freq: 400, duration: 0.15, seed: 202, velocity: 0.25, delaySec: 0.15 } });
+    expect(withVoice.length).toBeGreaterThan(without.length);
+  });
 });
 
 describe("tools/audio/compose.ts composeJingle(plan/sound/archive/sfx-milestone-jingles.md)", () => {
@@ -267,5 +292,13 @@ describe("tools/audio/compose.ts composeJingle(plan/sound/archive/sfx-milestone-
     const wet = composeJingle({ notes, tempoBpm: 120, sampleRate: 22050, reverb: { wet: 0.3, roomSize: 0.5 } });
     expect(wet.length).toBeGreaterThan(dry.length);
     for (const v of wet) expect(Number.isFinite(v)).toBe(true);
+  });
+
+  it("codaを指定すると最後の音のあとに音が伸び、未指定の場合と波形が変わる(plan/sound/archive/voice-and-cries.md)", () => {
+    const without = composeJingle({ notes, tempoBpm: 120, sampleRate: 22050 });
+    const withCoda = composeJingle({ notes, tempoBpm: 120, sampleRate: 22050, coda: { freq: 220, duration: 0.3, seed: 203, velocity: 0.2 } });
+    expect(withCoda.length).toBeGreaterThan(without.length);
+    expect(withCoda.length - without.length).toBe(Math.floor(0.3 * 22050));
+    for (const v of withCoda) expect(Number.isFinite(v)).toBe(true);
   });
 });

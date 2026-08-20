@@ -114,6 +114,33 @@ export function humVoice(freq: number, duration: number, sampleRate: number, see
   return out;
 }
 
+/**
+ * 意味を持たない短い発声(息づかい・唸り・吐息)。humVoiceを元に、
+ * アタックを鋭く・音価を短く・息の存在感(ノイズ比率)を上げ、
+ * 歌わせず一声で終える(ビブラートは無し)
+ * (plan/sound/archive/voice-and-cries.md)
+ */
+export function breathCry(freq: number, duration: number, sampleRate: number, seed: number, velocity = 1): Float32Array {
+  const n = Math.max(1, Math.floor(duration * sampleRate));
+  const out = new Float32Array(n);
+  const attack = duration * 0.05;
+  const release = duration * 0.3;
+  const rng = mulberry32(seed);
+  for (let i = 0; i < n; i++) {
+    const t = i / sampleRate;
+    let env: number;
+    if (t < attack) env = t / attack;
+    else if (t > duration - release) env = Math.max(0, (duration - t) / release);
+    else env = 1;
+    const fund = Math.sin(2 * Math.PI * freq * t);
+    const h2 = 0.2 * Math.sin(2 * Math.PI * freq * 2 * t);
+    const h3 = 0.05 * Math.sin(2 * Math.PI * freq * 3 * t);
+    const breath = (rng() * 2 - 1) * 0.05;
+    out[i] = velocity * env * (fund + h2 + h3 + breath);
+  }
+  return out;
+}
+
 /** noteをoffset位置から加算合成する(重ね録りと同じ) */
 export function mixIn(dest: Float32Array, note: Float32Array, offset: number): void {
   const end = Math.min(dest.length, offset + note.length);
