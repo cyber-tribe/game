@@ -98,7 +98,7 @@ export const VILLAGE_BUILDINGS: readonly VillageBuilding[] = [
   { id: "workshop", label: "ゲンドの工房", columns: [5], role: "強化・合成", x: 5, z: 1, radius: 0.9, shape: "hut", color: 0xa0562f },
   { id: "questBoard", label: "オトネの依頼板", columns: [11], role: "依頼", x: -5, z: -3, radius: 0.9, shape: "hut", color: 0x4a6a8a },
   { id: "gallery", label: "おキヨの図鑑小屋", columns: [7, 9], role: "図鑑", x: 5, z: -3, radius: 0.9, shape: "hut", color: 0x7a4a8a },
-  { id: "npcSquare", label: "村の広場", columns: [16, 17], role: "交流", x: 0, z: -1, radius: 0.6, shape: "camp", color: 0xd68a3a },
+  { id: "npcSquare", label: "村の広場", columns: [16, 17], role: "交流", x: 0, z: -1, radius: 0.6, shape: "camp", color: 0xd68a3a, model: "bonfire" },
   { id: "development", label: "村の発展の受付", columns: [13], role: "村の発展", x: -3, z: -6, radius: 0.9, shape: "hut", color: 0x4a8a6a },
   { id: "cave", label: "洞窟の入口", columns: [0, 1, 3, 4, 10, 12], role: "出発の支度", x: 3, z: -6, radius: 1.1, shape: "cave", color: 0x2a2a30, model: "cave_gate" },
   // 新設: ねむり小屋(仲間の世話。夢あわせ・改名・逃がすはcolumn4のUIをそのまま共用する)
@@ -214,8 +214,21 @@ export function nearestVillageBuilding(
   return best;
 }
 
-function buildStructure(building: VillageBuilding): THREE.Group {
+/**
+ * `buildStructure`の戻り値。`group`がシーンに置く実体で、`primitive`は
+ * そのうち正式モデルへ差し替えられる部分(`VillageView.ensureBuildingModels`)。
+ * 焚き火の炎・点光源のように、モデルが届いた後もThree.js側に残す表現は
+ * `primitive`の外、`group`に直接持たせる
+ */
+interface BuiltStructure {
+  group: THREE.Group;
+  primitive: THREE.Group;
+}
+
+function buildStructure(building: VillageBuilding): BuiltStructure {
   const group = new THREE.Group();
+  const primitive = new THREE.Group();
+  group.add(primitive);
   const wallMat = new THREE.MeshStandardMaterial({ color: building.color, roughness: 0.9 });
   const roofMat = new THREE.MeshStandardMaterial({ color: 0x2a2018, roughness: 0.95 });
 
@@ -226,7 +239,7 @@ function buildStructure(building: VillageBuilding): THREE.Group {
       const roof = new THREE.Mesh(new THREE.ConeGeometry(1.35, 0.9, 4), roofMat);
       roof.rotation.y = Math.PI / 4;
       roof.position.y = 1.75;
-      group.add(wall, roof);
+      primitive.add(wall, roof);
       break;
     }
     case "post": {
@@ -237,7 +250,7 @@ function buildStructure(building: VillageBuilding): THREE.Group {
       pole.position.y = 0.9;
       const plank = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.5, 0.08), roofMat);
       plank.position.y = 1.3;
-      group.add(pole, plank);
+      primitive.add(pole, plank);
       break;
     }
     case "camp": {
@@ -247,8 +260,11 @@ function buildStructure(building: VillageBuilding): THREE.Group {
         log.rotation.z = Math.PI / 2;
         log.rotation.y = (Math.PI / 3) * i;
         log.position.y = 0.12;
-        group.add(log);
+        primitive.add(log);
       }
+      // 火(炎のメッシュ・点光源)はplan/models/archive/model-village-structures.md
+      // の方針どおりビルボード/シェーダー相当のThree.js表現のままにし、正式
+      // モデルが届いても(石組み・薪・タルの腰掛けだけを差し替えて)残す
       const flame = new THREE.Mesh(
         new THREE.ConeGeometry(0.22, 0.5, 6),
         new THREE.MeshStandardMaterial({
@@ -272,13 +288,13 @@ function buildStructure(building: VillageBuilding): THREE.Group {
       left.position.set(-1.1, 0.8, 0);
       const right = left.clone();
       right.position.x = 1.1;
-      group.add(mouth, left, right);
+      primitive.add(mouth, left, right);
       break;
     }
   }
 
   group.position.set(building.x, 0, building.z);
-  return group;
+  return { group, primitive };
 }
 
 /**
@@ -314,8 +330,8 @@ export class VillageView {
   /** 章立て(plan/game/archive/story-chapters.md)。おたまの出現条件に使う */
   private chapter: StoryChapter = 0;
   /**
-   * 建物ごとのグループ。`model`指定がある建物を、正式モデルが届き次第
-   * 差し替えるために覚えておく(`ensureBuildingModels`)
+   * 建物ごとの、正式モデルへ差し替えられる部分。`model`指定がある建物を、
+   * 正式モデルが届き次第差し替えるために覚えておく(`ensureBuildingModels`)
    */
   private readonly buildingGroups = new Map<string, THREE.Group>();
   /** すでに正式モデルへ差し替え済みの建物id。二重に差し替えない */
@@ -341,8 +357,8 @@ export class VillageView {
     this.scene.add(ground);
 
     for (const building of VILLAGE_BUILDINGS) {
-      const group = buildStructure(building);
-      this.buildingGroups.set(building.id, group);
+      const { group, primitive } = buildStructure(building);
+      this.buildingGroups.set(building.id, primitive);
       this.scene.add(group);
     }
 

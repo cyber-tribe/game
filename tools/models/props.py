@@ -474,6 +474,74 @@ def build_cave_gate():
     return [C.join(objs, "cave_gate")]
 
 
+BONFIRE_LOG = (0.35, 0.27, 0.20)
+
+
+def build_bonfire():
+    """
+    広場の囲炉裏火(design/village-buildings.md「村の広場」)。石組み+
+    薪+タルの腰掛け3つで構成する。火そのものはビルボード/シェーダーで
+    足す前提のため(docの対象外方針どおり)、ここでは炉と座る場所だけを
+    造形する。
+    """
+    stone_mat = C.make_material("bonfire_stone", STONE_LIGHT, roughness=0.9)
+    log_mat = C.make_material("bonfire_log", BONFIRE_LOG, roughness=0.88)
+    iron_mat = C.make_material("bonfire_iron", BARREL_IRON, roughness=0.45, metallic=0.7)
+
+    objs = []
+
+    # 炉を囲む石組み。同じ石をリング状に並べ、1つずつ大きさをずらす。
+    # ローカル原点で作ってから向きと位置を与える(cave_gateの縄と同じ手法。
+    # 焼き込み済みの中心を持つオブジェクトを直接rotation_eulerで回すと
+    # 世界原点を軸に公転してしまうため)
+    for i in range(10):
+        angle = (2 * math.pi / 10) * i
+        wobble = ((i * 2654435761) % 1000) / 1000.0
+        r = 0.42 + wobble * 0.04
+        size = 0.11 + wobble * 0.05
+        stone = C.box(f"bonfire_stone{i}", (0.0, 0.0, 0.0),
+                     (size, size * 0.9, size), bevel=size * 0.35, bevel_segments=1)
+        stone.rotation_euler = (0.0, 0.0, angle + wobble)
+        stone.location = Vector((math.cos(angle) * r, math.sin(angle) * r, size * 0.5))
+        C.assign_material(stone, stone_mat)
+        objs.append(stone)
+
+    # 組んだ薪。3本を井桁に重ねる
+    for i in range(3):
+        angle = (math.pi / 3) * i
+        log = C.cylinder(f"bonfire_log{i}", (0.0, 0.0, 0.0), 0.045, 0.62, segments=8, axis="X")
+        log.rotation_euler = (0.0, 0.0, angle)
+        log.location = Vector((0.0, 0.0, 0.11))
+        C.assign_material(log, log_mat)
+        objs.append(log)
+
+    # タルの腰掛け。空のタルよりずっと低く切った胴に鉄輪を1本だけ巻く
+    # (_barrel_bodyの3本輪をそのまま流用すると、この高さでは輪同士が
+    # 近すぎて木部がほとんど隠れてしまうため、専用の低い形にする)
+    wood_mat = C.make_material("bonfire_wood", BARREL_WOOD, roughness=0.85)
+    for i in range(3):
+        angle = (2 * math.pi / 3) * i + math.radians(20)
+        stool_objs = []
+        body = C.cylinder(f"bonfire_stool{i}_body", (0.0, 0.0, 0.11), 0.22, 0.22,
+                          segments=12, smooth=False)
+        C.assign_material(body, wood_mat)
+        stool_objs.append(body)
+        hoop = C.cylinder(f"bonfire_stool{i}_hoop", (0.0, 0.0, 0.10), 0.232, 0.040,
+                          segments=12)
+        C.assign_material(hoop, iron_mat)
+        stool_objs.append(hoop)
+        seat = C.cylinder(f"bonfire_stool{i}_seat", (0.0, 0.0, 0.222), 0.232, 0.032,
+                          segments=12, smooth=False)
+        C.assign_material(seat, iron_mat)
+        stool_objs.append(seat)
+        offset = Vector((math.cos(angle) * 0.85, math.sin(angle) * 0.85, 0.0))
+        for piece in stool_objs:
+            piece.location = offset
+        objs.extend(stool_objs)
+
+    return [C.join(objs, "bonfire")]
+
+
 # --------------------------------------------------------------------------- 一覧
 
 PROPS = {
@@ -494,6 +562,7 @@ PROPS = {
     "hatchet": build_hatchet_item,
     "shield": build_shield_item,
     "cave_gate": build_cave_gate,
+    "bonfire": build_bonfire,
 }
 
 
