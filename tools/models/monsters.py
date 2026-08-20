@@ -2275,16 +2275,24 @@ def build_nebosukegaeru():
 
 
 def nebosukegaeru_animations():
+    """
+    plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
+    タメ・ツメ(LINEAR補間)・腕の遅れ追従(二次揺れ)を足してある。
+    """
     head = "chest-head"
     armL, armR = "chest-armF.L", "chest-armF.R"
     legL, legR = "hip-kneeB.L", "hip-kneeB.R"
     return [
         # ふだんは動かず深く眠っている。tsubuteの活発な首振りと違い、
-        # ごく僅かな寝息だけのほとんど静止したモーションにする
+        # ごく僅かな寝息だけのほとんど静止したモーションにする。
+        # 腕(armL,R)が頭より4フレーム遅れて追従する(眠りに落ちた体の
+        # 重みを感じさせる二次揺れ)
         ("idle", [
-            (1, {head: (2, 0, 0)}),
+            (1, {head: (2, 0, 0), armL: (0, 0, 0), armR: (0, 0, 0)}),
             (48, {head: (5, 0, 0)}),
+            (52, {armL: (2, 0, 0), armR: (-2, 0, 0)}, {"partial": True}),
             (96, {head: (2, 0, 0)}),
+            (100, {armL: (0, 0, 0), armR: (0, 0, 0)}, {"partial": True}),
         ]),
         # 眠ったまま、それでも逃げ足の速さを感じさせる小刻みな跳びはね
         ("walk", [
@@ -2296,11 +2304,13 @@ def nebosukegaeru_animations():
         ]),
         # 起こされて跳ねて反撃する。石は投げず、深くしゃがんでから
         # 全身で相手に飛びかかる大きな一跳ね
+        # 起こされて跳ねて反撃する。石は投げず、深くしゃがんでから
+        # LINEARで鋭く全身で相手に飛びかかる大きな一跳ね
         ("attack", [
             (1, {legL: (0, 0, 0), legR: (0, 0, 0), head: (0, 0, 0),
                  armL: (0, 0, 0), armR: (0, 0, 0)}),
             (4, {legL: (52, 0, 0), legR: (52, 0, 0), head: (18, 0, 0),
-                 armL: (30, 0, 0), armR: (30, 0, 0)}),
+                 armL: (30, 0, 0), armR: (30, 0, 0)}, {"interp": "LINEAR"}),
             (8, {legL: (-64, 0, 0), legR: (-64, 0, 0), head: (-26, 0, 0),
                  armL: (-58, 0, 0), armR: (-58, 0, 0)}),
             (14, {legL: (10, 0, 0), legR: (10, 0, 0), head: (6, 0, 0),
@@ -2308,16 +2318,21 @@ def nebosukegaeru_animations():
             (20, {legL: (0, 0, 0), legR: (0, 0, 0), head: (0, 0, 0),
                   armL: (0, 0, 0), armR: (0, 0, 0)}),
         ]),
+        # 入りだけLINEARで鋭くする。cowardらしく振幅は現行どおり大きめに保ち、
+        # 戻りはゆっくりのまま
         ("hit", [
-            (1, {head: (0, 0, 0)}),
+            (1, {head: (0, 0, 0)}, {"interp": "LINEAR"}),
             (4, {head: (20, 0, 0), armL: (-24, 0, 18), armR: (-24, 0, -18)}),
             (14, {head: (0, 0, 0)}),
         ]),
+        # 初動をLINEARで鋭くする。24f到達後、頭がほんの少し戻る
+        # わずかな跳ね返りを追加
         ("die", [
-            (1, {head: (0, 0, 0)}),
+            (1, {head: (0, 0, 0)}, {"interp": "LINEAR"}),
             (10, {head: (24, 0, 0), legL: (-36, 0, 0), legR: (-36, 0, 0)}),
             (24, {head: (36, 0, 0), legL: (-72, 0, 0), legR: (-72, 0, 0),
                   armL: (-64, 0, 26), armR: (-64, 0, -26)}),
+            (28, {head: (31, 0, 0)}, {"partial": True}),
         ]),
     ]
 
