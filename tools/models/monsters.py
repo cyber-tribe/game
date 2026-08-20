@@ -6208,15 +6208,25 @@ def build_subetenopurun():
 
 
 def subetenopurun_animations():
+    """
+    plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
+    タメ・ツメ(LINEAR補間)・upperの遅れ追従(二次揺れ)を足してある。
+    全地方の記憶が混ざり合った集大成という設定を汲み、パイロットの
+    purun/shioresakuraよりわずかに力強く・重みのある緩急にする。
+    """
     lower, upper = "base-mid", "mid-top"
     squash = {"scale": (1.22, 0.72, 1.22)}
     stretch = {"scale": (0.86, 1.28, 0.86)}
     neutral = {"scale": (1.0, 1.0, 1.0)}
     return [
+        # 継ぎ接ぎ模様の体表が波打つように、upperがlowerより2フレーム
+        # 遅れて揺れる(二次揺れ)
         ("idle", [
             (1, {lower: neutral, upper: neutral}),
-            (24, {lower: {"scale": (1.03, 0.96, 1.03)}, upper: {"scale": (0.97, 1.04, 0.97)}}),
-            (48, {lower: neutral, upper: neutral}),
+            (24, {lower: {"scale": (1.03, 0.96, 1.03)}}),
+            (26, {upper: {"scale": (0.97, 1.04, 0.97)}}, {"partial": True}),
+            (48, {lower: neutral}),
+            (50, {upper: neutral}, {"partial": True}),
         ]),
         ("walk", [
             (1, {lower: neutral, upper: neutral}),
@@ -6225,22 +6235,29 @@ def subetenopurun_animations():
             (14, {lower: {"scale": (1.1, 0.85, 1.1)}, upper: neutral}),
             (20, {lower: neutral, upper: neutral}),
         ]),
-        # 瀕死になるほど攻撃力が増す性質も併せ持つため、力強く踏み込んで叩きつける
+        # 瀕死になるほど攻撃力が増す性質も併せ持つため、タメの後にLINEARで
+        # 鋭く力強く踏み込んで叩きつけ、わずかに行き過ぎてから戻る
         ("attack", [
             (1, {lower: neutral, upper: neutral}),
-            (5, {lower: squash, upper: stretch}),
+            (5, {lower: squash, upper: stretch}, {"interp": "LINEAR"}),
             (10, {lower: {"scale": (0.82, 1.32, 0.82), "loc": (0, 0.08, 0)}, upper: {"scale": (1.20, 0.80, 1.20)}}),
+            (13, {lower: {"scale": (0.82, 1.32, 0.82), "loc": (0, 0.08, 0)}, upper: {"scale": (1.26, 0.74, 1.26)}}),
             (20, {lower: neutral, upper: neutral}),
         ]),
+        # 入りだけLINEARで鋭くする。エリート個体として振幅・戻り時間は
+        # 現行のまま維持する(小さく速いbossほどは絞らない)
         ("hit", [
-            (1, {lower: neutral, upper: neutral}),
+            (1, {lower: neutral, upper: neutral}, {"interp": "LINEAR"}),
             (4, {lower: {"scale": (1.3, 0.66, 1.3)}, upper: {"scale": (0.88, 1.16, 0.88)}}),
             (14, {lower: neutral, upper: neutral}),
         ]),
+        # 初動をLINEARで鋭くし「体がびくっと縮む」瞬間を加える。24f到達後、
+        # わずかに揺り戻る跳ね返りを追加
         ("die", [
-            (1, {lower: neutral, upper: neutral}),
+            (1, {lower: neutral, upper: neutral}, {"interp": "LINEAR"}),
             (10, {lower: {"scale": (1.4, 0.45, 1.4)}, upper: {"scale": (1.3, 0.5, 1.3)}}),
             (24, {lower: {"scale": (1.55, 0.05, 1.55)}, upper: {"scale": (1.45, 0.07, 1.45)}}),
+            (28, {lower: {"scale": (1.48, 0.10, 1.48)}, upper: {"scale": (1.38, 0.12, 1.38)}}, {"partial": True}),
         ]),
     ]
 
