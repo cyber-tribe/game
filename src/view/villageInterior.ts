@@ -379,12 +379,23 @@ function buildProps(def: VillageInteriorDef, assets: Assets): THREE.Group {
       break;
     }
     case "gallery": {
-      // 本棚
+      // 本棚。図鑑の実体は本ではなく、タルの側板に焼き付けた木札の束
+      // (design/village-buildings.mdの「記録はタルの側板に焼き付けた
+      // 木札に書く。図鑑=木札の束」を反映)
       group.add(shelf(2.4, 4, -0.4, -2.5, 0, darkWood));
-      const bookColors = [0xb5544a, 0x4a7bb5, 0xd0b060, 0x6aa46a];
-      for (let i = 0; i < 15; i++) {
-        const h = 0.22 + (i % 4) * 0.04;
-        group.add(box(0.1, h, 0.24, -1.5 + i * 0.15, 0.42 * (1 + (i % 3)) + h / 2 + 0.03, -2.5, mat(bookColors[i % 4]!, 0.8)));
+      const tagWoods = [wood, darkWood];
+      const cordMat = mat(0x2a2018, 0.85);
+      for (let level = 0; level < 3; level++) {
+        for (let bundle = 0; bundle < 3; bundle++) {
+          const bundleGroup = new THREE.Group();
+          for (let t = 0; t < 5; t++) {
+            const h = 0.18 + (t % 3) * 0.02;
+            bundleGroup.add(box(0.045, h, 0.22, t * 0.05, h / 2, 0, tagWoods[t % 2]!));
+          }
+          bundleGroup.add(box(0.32, 0.02, 0.03, 0.10, 0.12, 0, cordMat));
+          bundleGroup.position.set(-1.55 + bundle * 0.75, 0.42 * (level + 1) + 0.14, -2.5);
+          group.add(bundleGroup);
+        }
       }
       // 標本瓶の棚
       group.add(shelf(1.9, 3, 2.1, -2.5, 0, darkWood));
