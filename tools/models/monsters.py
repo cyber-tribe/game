@@ -6272,36 +6272,56 @@ def build_oonebosuke():
 
 
 def oonebosuke_animations():
+    """
+    plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
+    タメ・ツメ(LINEAR補間)・行き過ぎ・二次揺れ・die跳ね返りを足してある。
+    骨2本(lower/upper)のみのため、追加ボーンの二次揺れは組めず、upperを
+    lowerより2フレーム遅らせる形で眠たげな二次揺れを表現した。
+    """
     lower, upper = "base-mid", "mid-top"
+    neutral = {"scale": (1.0, 1.0, 1.0)}
     return [
-        # ほとんど動かず、寝息だけのわずかな上下
+        # ほとんど動かず、寝息だけのわずかな上下。upper(上半身)がlower
+        # より2フレーム遅れて追従する眠たげな二次揺れを追加
         ("idle", [
-            (1, {lower: {"scale": (1.0, 1.0, 1.0)}, upper: {"scale": (1.0, 1.0, 1.0)}}),
-            (36, {lower: {"scale": (1.03, 0.97, 1.03)}, upper: {"scale": (0.98, 1.03, 0.98)}}),
-            (72, {lower: {"scale": (1.0, 1.0, 1.0)}, upper: {"scale": (1.0, 1.0, 1.0)}}),
+            (1, {lower: neutral, upper: neutral}),
+            (36, {lower: {"scale": (1.03, 0.97, 1.03)}}),
+            (38, {upper: {"scale": (0.98, 1.03, 0.98)}}, {"partial": True}),
+            (72, {lower: neutral, upper: neutral}),
         ]),
         # 重い図体を引きずるように、のっそりと進む
         ("walk", [
-            (1, {lower: {"scale": (1.0, 1.0, 1.0)}, upper: {"scale": (1.0, 1.0, 1.0)}}),
+            (1, {lower: neutral, upper: neutral}),
             (10, {lower: {"scale": (1.16, 0.82, 1.16)}, upper: {"scale": (0.90, 1.14, 0.90)}}),
-            (20, {lower: {"scale": (1.0, 1.0, 1.0)}, upper: {"scale": (1.0, 1.0, 1.0)}}),
+            (20, {lower: neutral, upper: neutral}),
         ]),
-        # 眠気を振り払うように、がっしりした体格から正面へ叩きつける
+        # 眠気を振り払うように、がっしりした体格から正面へ叩きつける。
+        # タメ(1→7、lowerのsquash量をさらに強めてボスらしい重さを出す)→
+        # 緩やかな加速(7→10)→LINEARで鋭い打ち込み(10→14)→行き過ぎ
+        # (14→16、upperのlocをわずかに残す)→戻り(16→24)に整理
         ("attack", [
-            (1, {lower: {"scale": (1.0, 1.0, 1.0)}, upper: {"scale": (1.0, 1.0, 1.0)}}),
-            (7, {lower: {"scale": (1.22, 0.72, 1.22)}, upper: {"scale": (0.82, 1.24, 0.82), "loc": (0, -0.05, 0)}}),
+            (1, {lower: neutral, upper: neutral}),
+            (7, {lower: {"scale": (1.28, 0.66, 1.28)}, upper: {"scale": (0.82, 1.24, 0.82), "loc": (0, -0.05, 0)}}),
+            (10, {lower: {"scale": (1.065, 0.97, 1.065)}, upper: {"scale": (1.03, 1.01, 1.03), "loc": (0, 0.035, 0)}},
+             {"interp": "LINEAR"}),
             (14, {lower: {"scale": (0.85, 1.28, 0.85)}, upper: {"scale": (1.24, 0.78, 1.24), "loc": (0, 0.12, 0)}}),
-            (24, {lower: {"scale": (1.0, 1.0, 1.0)}, upper: {"scale": (1.0, 1.0, 1.0)}}),
+            (16, {upper: {"loc": (0, 0.16, 0)}}, {"partial": True}),
+            (24, {lower: neutral, upper: neutral}),
         ]),
+        # 入りをLINEARで鋭くする。ボスなので振幅は現行どおり中程度に保ち、
+        # 戻り(4f→14f)はゆっくりのまま
         ("hit", [
-            (1, {lower: {"scale": (1.0, 1.0, 1.0)}, upper: {"scale": (1.0, 1.0, 1.0)}}),
+            (1, {lower: neutral, upper: neutral}, {"interp": "LINEAR"}),
             (4, {lower: {"scale": (1.28, 0.68, 1.28)}, upper: {"scale": (0.84, 1.20, 0.84)}}),
-            (14, {lower: {"scale": (1.0, 1.0, 1.0)}, upper: {"scale": (1.0, 1.0, 1.0)}}),
+            (14, {lower: neutral, upper: neutral}),
         ]),
+        # 初動をLINEARで鋭くし、「眠気が抜ける」崩れ始めを表現。24fで
+        # 潰れきったあとにわずかな揺り戻しを追加
         ("die", [
-            (1, {lower: {"scale": (1.0, 1.0, 1.0)}, upper: {"scale": (1.0, 1.0, 1.0)}}),
+            (1, {lower: neutral, upper: neutral}, {"interp": "LINEAR"}),
             (10, {lower: {"scale": (1.4, 0.45, 1.4)}, upper: {"scale": (1.3, 0.5, 1.3)}}),
             (24, {lower: {"scale": (1.55, 0.05, 1.55)}, upper: {"scale": (1.45, 0.07, 1.45)}}),
+            (28, {lower: {"scale": (1.48, 0.10, 1.48)}, upper: {"scale": (1.38, 0.12, 1.38)}}, {"partial": True}),
         ]),
     ]
 
