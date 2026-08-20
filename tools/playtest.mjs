@@ -212,6 +212,13 @@ await page.keyboard.press("Space");
 await settle();
 await page.screenshot({ path: `${OUT}/01-start.png` });
 
+// #646: 固定シードが無いため、このあとの「あちこち歩き回る」「足踏み20回」の
+// ような単なる時間経過のステップでも、モンスターの攻撃で偶然全滅することが
+// あった。倒れると以降のタル/仲間の検証までまるごと巻き添えで失敗するため、
+// ここで一度だけHPを底上げしておく(debugFightNearest()が殴り合いの直前に
+// 同じ底上げをしていたのと同じ考え方を、それ以外の場面にも広げた)
+await page.evaluate(() => globalThis.__app.debugBoostHp());
+
 const readHud = () =>
   page.evaluate(() => ({
     depth: document.querySelector("#hud-depth")?.textContent,
