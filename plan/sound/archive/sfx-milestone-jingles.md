@@ -1,3 +1,33 @@
+> **実装済み。** `tools/audio/compose.ts` に `composeJingle`(`JingleNote`・
+> `JingleParams`)を新設した。各音を`degreeToFreq`(モジュール内の既存関数)
+> で周波数に変換し、`instrument`(既定mallet)ごとに`malletNote`/
+> `fluteNote`/`pluckedString`を順に鳴らして1本のモノラルバッファへ
+> `mixIn`する。音ごとの`pluckedString`用シードはノート配列のindexから
+> 導出し(`index + 1`)、追加のseedパラメータなしで完全に決定的にした。
+> `normalize`・`reverbOneShot`は`composeSfx`と同じ手順を踏襲。
+>
+> `build.ts`に`JINGLE_SPECS`(`SFX_SPECS`とは別の配列)を新設し、計画書
+> どおりの度数列・楽器・テンポ・残響で6エントリを追加。`main()`に
+> `SFX_SPECS`ループの直後に`JINGLE_SPECS`ループを足し、同じ
+> `public/audio/sfx/*.wav`へ書き出す(SFXと出力先を分けていない)。
+>
+> `src/view/stage.ts`の`buildEventHandlers`で、6つの`noop`
+> (`recruit`・`secretPassageFound`・`mountainCoreCleared`・
+> `trueAwakeningCleared`・`tarukurabeFinished`・`gameOver`)を
+> `this.audio.playSfx(id)`を呼ぶハンドラに置き換えた。見た目の演出は
+> 計画書どおり今回追加していない。
+>
+> **検証**: `npx tsc --noEmit`・`npx vitest run`(117ファイル/1558件、
+> `composeJingle`の長さ・決定性・有限値・音列差分・楽器差分・リバーブの
+> 6項目のテストを追加)・`npm run build`・`npm run audio`いずれも成功。
+> 再生成後の差分は6ファイル新規のみ(既存音源は無変更)。ジングルの
+> 長さは`recruit.wav`約2.15秒〜`trueAwakeningCleared.wav`/
+> `gameOver.wav`約7.32秒で、いずれもファイルサイズは数百KB程度に収まる。
+>
+> **未決事項どおり**、`gameOver`時にBGMをフェードアウトさせる対応は
+> 見送った(`AudioPlayer`側の対応が別途必要なため、本文書のスコープ外
+> のまま)。
+
 # 節目のジングル(仲間・発見・クリア・全滅)
 
 ## 経緯

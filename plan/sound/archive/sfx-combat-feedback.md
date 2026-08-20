@@ -77,7 +77,7 @@
 - クリティカルヒット時の専用音(既存のダメージ数値表示の演出で足りている
   という判断。将来別途検討してよい)
 - プレイヤーが倒れた(ロスト)ときの専用の重い演出音(`gameOver`側の
-  ジングルで扱う。`plan/sound/sfx-milestone-jingles.md`参照)
+  ジングルで扱う。`plan/sound/archive/sfx-milestone-jingles.md`参照)
 
 ## 未決事項
 

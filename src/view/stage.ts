@@ -396,7 +396,10 @@ export class Stage {
         view.play("hit", 0.3 * scale);
         return 0.26 * scale;
       },
-      recruit: noop,
+      recruit: () => {
+        this.audio.playSfx("recruit");
+        return 0;
+      },
       descend: noop,
       checkpoint: () => {
         this.audio.playSfx("checkpoint");
@@ -406,21 +409,36 @@ export class Stage {
         if (event.level === "empty") this.audio.playSfx("hungerWarning");
         return 0;
       },
-      gameOver: noop,
+      gameOver: () => {
+        this.audio.playSfx("gameOver");
+        return 0;
+      },
       message: (event) => {
         if (event.text.endsWith(BOSS_TELEGRAPH_MESSAGE_SUFFIX)) this.audio.playSfx("bossTelegraph");
         return 0;
       },
       tutorialTip: noop,
       monsterSighted: noop,
-      secretPassageFound: noop,
+      secretPassageFound: () => {
+        this.audio.playSfx("secretPassageFound");
+        return 0;
+      },
       crackWarning: () => {
         this.audio.playSfx("crackWarning");
         return 0;
       },
-      mountainCoreCleared: noop,
-      trueAwakeningCleared: noop,
-      tarukurabeFinished: noop,
+      mountainCoreCleared: () => {
+        this.audio.playSfx("mountainCoreCleared");
+        return 0;
+      },
+      trueAwakeningCleared: () => {
+        this.audio.playSfx("trueAwakeningCleared");
+        return 0;
+      },
+      tarukurabeFinished: () => {
+        this.audio.playSfx("tarukurabeFinished");
+        return 0;
+      },
     };
   }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { composeSfx, composeTrack } from "../tools/audio/compose.ts";
+import { composeJingle, composeSfx, composeTrack } from "../tools/audio/compose.ts";
 import { drumHit, fluteNote, humVoice, malletNote, mixIn, mulberry32, normalize, pluckedString } from "../tools/audio/synth.ts";
 import { encodeWav } from "../tools/audio/wav.ts";
 
@@ -212,6 +212,59 @@ describe("tools/audio/compose.ts(plan/sound/archive/bgm-quality-upgrade.md)", ()
   it("composeSfxはリバーブを指定すると音が伸びる(尾を切り捨てない)", () => {
     const dry = composeSfx({ kind: "drum", freq: 140, duration: 0.3, sampleRate: 22050, seed: 2 });
     const wet = composeSfx({ kind: "drum", freq: 140, duration: 0.3, sampleRate: 22050, seed: 2, reverb: { wet: 0.2, roomSize: 0.4 } });
+    expect(wet.length).toBeGreaterThan(dry.length);
+    for (const v of wet) expect(Number.isFinite(v)).toBe(true);
+  });
+});
+
+describe("tools/audio/compose.ts composeJingle(plan/sound/archive/sfx-milestone-jingles.md)", () => {
+  const notes = [
+    { degree: 0, beats: 1 },
+    { degree: 2, beats: 1 },
+    { degree: 4, beats: 1.5 },
+  ];
+
+  it("音価の合計どおりの長さを返す", () => {
+    const tempoBpm = 120;
+    const out = composeJingle({ notes, tempoBpm, sampleRate: 22050 });
+    const totalBeats = notes.reduce((sum, n) => sum + n.beats, 0);
+    expect(out.length).toBe(Math.floor(totalBeats * (60 / tempoBpm) * 22050));
+  });
+
+  it("同じ入力から決定的に同じ波形を返す", () => {
+    const a = composeJingle({ notes, tempoBpm: 120, sampleRate: 22050 });
+    const b = composeJingle({ notes, tempoBpm: 120, sampleRate: 22050 });
+    expect(Array.from(a)).toEqual(Array.from(b));
+  });
+
+  it("有限な値を返し、無音のままではない(実際に音が鳴っている)", () => {
+    const out = composeJingle({ notes, tempoBpm: 120, sampleRate: 22050 });
+    let peak = 0;
+    for (const v of out) {
+      expect(Number.isFinite(v)).toBe(true);
+      peak = Math.max(peak, Math.abs(v));
+    }
+    expect(peak).toBeGreaterThan(0);
+  });
+
+  it("音列が違えば波形も変わる", () => {
+    const a = composeJingle({ notes, tempoBpm: 120, sampleRate: 22050 });
+    const differentDegrees = notes.map((n) => ({ ...n, degree: n.degree + 1 }));
+    const b = composeJingle({ notes: differentDegrees, tempoBpm: 120, sampleRate: 22050 });
+    expect(Array.from(a)).not.toEqual(Array.from(b));
+  });
+
+  it("instrumentを指定すると波形が変わる(mallet/flute/stringを聴き分けられる)", () => {
+    const mallet = composeJingle({ notes: [{ degree: 0, beats: 1, instrument: "mallet" }], tempoBpm: 120, sampleRate: 22050 });
+    const flute = composeJingle({ notes: [{ degree: 0, beats: 1, instrument: "flute" }], tempoBpm: 120, sampleRate: 22050 });
+    const string = composeJingle({ notes: [{ degree: 0, beats: 1, instrument: "string" }], tempoBpm: 120, sampleRate: 22050 });
+    expect(Array.from(mallet)).not.toEqual(Array.from(flute));
+    expect(Array.from(mallet)).not.toEqual(Array.from(string));
+  });
+
+  it("リバーブを指定すると音が伸びる(composeSfxと同じ手順)", () => {
+    const dry = composeJingle({ notes, tempoBpm: 120, sampleRate: 22050 });
+    const wet = composeJingle({ notes, tempoBpm: 120, sampleRate: 22050, reverb: { wet: 0.3, roomSize: 0.5 } });
     expect(wet.length).toBeGreaterThan(dry.length);
     for (const v of wet) expect(Number.isFinite(v)).toBe(true);
   });

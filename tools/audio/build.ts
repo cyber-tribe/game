@@ -10,7 +10,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { composeSfx, composeTrack, type InstrumentWeights } from "./compose.ts";
+import { composeJingle, composeSfx, composeTrack, type InstrumentWeights, type JingleNote } from "./compose.ts";
 import type { ReverbParams } from "./effects.ts";
 import { SAMPLE_RATE, encodeWav } from "./wav.ts";
 
@@ -298,6 +298,92 @@ const SFX_SPECS: readonly SfxSpec[] = [
   { id: "warp", kind: "mallet", freq: 1200, duration: 0.25, seed: 122 },
 ];
 
+interface JingleSpec {
+  id: string;
+  notes: readonly JingleNote[];
+  tempoBpm: number;
+  /** 省略時はリバーブ無し */
+  reverb?: ReverbParams;
+}
+
+// 節目のジングル(plan/sound/archive/sfx-milestone-jingles.md)。単発SFXでは
+// 軽すぎる、頻度は低いが意味の重い場面向けの短い音列。対応するBGM
+// (mountain-core.wav等)と楽器・テンポ・残響の系統を揃える
+const JINGLE_SPECS: readonly JingleSpec[] = [
+  // 仲間が増える、あたたかい歓迎
+  {
+    id: "recruit",
+    notes: [
+      { degree: 0, beats: 1 },
+      { degree: 2, beats: 1 },
+      { degree: 4, beats: 1.5 },
+    ],
+    tempoBpm: 120,
+    reverb: TOWN_REVERB,
+  },
+  // 忘れ物蔵の隠し通路発見。発見の高揚、きらめき
+  {
+    id: "secretPassageFound",
+    notes: [
+      { degree: 0, beats: 0.5 },
+      { degree: 2, beats: 0.5 },
+      { degree: 4, beats: 0.5 },
+      { degree: 7, beats: 1 },
+    ],
+    tempoBpm: 160,
+    reverb: { wet: 0.3, roomSize: 0.5, damping: 0.2 },
+  },
+  // 樽比べ終了。祭りの遊びの締め、軽い達成感(tarukurabe.wavと同テンポ・浅い残響)
+  {
+    id: "tarukurabeFinished",
+    notes: [
+      { degree: 0, beats: 0.5 },
+      { degree: 2, beats: 0.5 },
+      { degree: 0, beats: 0.5 },
+      { degree: 4, beats: 1 },
+    ],
+    tempoBpm: 108,
+    reverb: { wet: 0.15, roomSize: 0.3, damping: 0.2 },
+  },
+  // 山の芯クリア。決着の重み、力強い解決(mountain-core.wavと同程度の深い残響)
+  {
+    id: "mountainCoreCleared",
+    notes: [
+      { degree: 0, beats: 1 },
+      { degree: 4, beats: 1 },
+      { degree: 7, beats: 1 },
+      { degree: 4, beats: 1 },
+      { degree: 0, beats: 2, instrument: "string" },
+    ],
+    tempoBpm: 90,
+    reverb: { wet: 0.38, roomSize: 0.7, damping: 0.15 },
+  },
+  // 真の目覚めクリア。物語の締めくくり、静かな安堵(true-awakening.wavと同テンポ・最深の残響)
+  {
+    id: "trueAwakeningCleared",
+    notes: [
+      { degree: 7, beats: 1.5, instrument: "flute" },
+      { degree: 4, beats: 1.5, instrument: "flute" },
+      { degree: 2, beats: 1.5, instrument: "string" },
+      { degree: 0, beats: 3, instrument: "string" },
+    ],
+    tempoBpm: 65,
+    reverb: { wet: 0.4, roomSize: 0.7, damping: 0.15 },
+  },
+  // 全滅。沈んでいく静けさ
+  {
+    id: "gameOver",
+    notes: [
+      { degree: 4, beats: 1.5, instrument: "string" },
+      { degree: 2, beats: 1.5, instrument: "string" },
+      { degree: 0, beats: 1.5, instrument: "string" },
+      { degree: -3, beats: 3, instrument: "string" },
+    ],
+    tempoBpm: 65,
+    reverb: { wet: 0.35, roomSize: 0.6, damping: 0.2 },
+  },
+];
+
 function main(): void {
   mkdirSync(resolve(AUDIO_ROOT, "bgm"), { recursive: true });
   mkdirSync(resolve(AUDIO_ROOT, "sfx"), { recursive: true });
@@ -335,6 +421,18 @@ function main(): void {
     const path = resolve(AUDIO_ROOT, "sfx", `${spec.id}.wav`);
     writeFileSync(path, encodeWav([samples], SAMPLE_RATE));
     console.log(`sfx/${spec.id}.wav (${(samples.length / SAMPLE_RATE).toFixed(2)}s)`);
+  }
+
+  for (const spec of JINGLE_SPECS) {
+    const samples = composeJingle({
+      notes: spec.notes,
+      tempoBpm: spec.tempoBpm,
+      sampleRate: SAMPLE_RATE,
+      reverb: spec.reverb,
+    });
+    const path = resolve(AUDIO_ROOT, "sfx", `${spec.id}.wav`);
+    writeFileSync(path, encodeWav([samples], SAMPLE_RATE));
+    console.log(`sfx/${spec.id}.wav (${(samples.length / SAMPLE_RATE).toFixed(2)}s, jingle)`);
   }
 }
 
