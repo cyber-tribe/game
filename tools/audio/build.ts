@@ -14,6 +14,7 @@ import {
   composeJingle,
   composeSfx,
   composeTrack,
+  LEITMOTIF_DEGREES,
   type InstrumentWeights,
   type JingleNote,
   type VoiceCryParams,
@@ -49,6 +50,8 @@ interface BgmSpec {
   motif?: readonly number[];
   /** motifの1音があたる拍数。省略時1 */
   motifNoteBeats?: number;
+  /** 曲の終わり付近に弱く重ねる、他の曲のモチーフの断片。省略時は無し */
+  quoteMotif?: { degrees: readonly number[]; noteBeats?: number; velocity?: number };
 }
 
 // design/regions.mdの各地方の雰囲気を、木琴/太鼓/笛/弦の重みづけ・テンポ・拍子・
@@ -56,19 +59,24 @@ interface BgmSpec {
 // 質感になることをねらった相対値(具体値の決定はplan/sound/archive/bgm-quality-upgrade.mdの
 // 未決事項どおり音楽セッションの裁量)
 const BGM_SPECS: readonly BgmSpec[] = [
-  // 村(拠点)のテーマ。主旋律1本(design/audio-direction.md)。地方のような
-  // 冒険の起伏ではなく、穏やかに上って落ち着く「おかえり」の形のモチーフにする
+  // 村(拠点)のテーマ。主旋律1本(design/audio-direction.md)。「村はヨリシロの
+  // 眠りを世話する村」という考証を踏まえ、ゆりかごのように揺れる3拍子の子守唄の
+  // 形にする。主旋律そのものがLEITMOTIF_DEGREES(ゲーム全体のライトモチーフ)
+  // (plan/sound/archive/village-soundscape.md)
   {
     id: "village",
     seed: 1000,
     weights: { mallet: 0.5, drum: 0.15, flute: 0.2, string: 0.3 },
     tempoBpm: 90,
-    bars: 8,
+    beatsPerBar: 3,
+    bars: 9,
     reverb: TOWN_REVERB,
-    motif: [0, 2, 4, 2],
+    motif: LEITMOTIF_DEGREES,
   },
   // 第一地方: うたたねの参道。素朴でチュートリアルを兼ねる地方 → 木琴主体、軽快なテンポ。
-  // モチーフ(plan/sound/archive/bgm-main-cave.md): 素直に上って戻る、歩き出しの歌
+  // モチーフ(plan/sound/archive/bgm-main-cave.md): 素直に上って戻る、歩き出しの歌。
+  // 終わり付近に村の子守唄(ライトモチーフ)の断片を弱く重ねる
+  // (plan/sound/archive/village-soundscape.md、以下region2〜8も同様)
   {
     id: "region1",
     seed: 1,
@@ -77,6 +85,7 @@ const BGM_SPECS: readonly BgmSpec[] = [
     bars: 9,
     reverb: { wet: 0.3, roomSize: 0.5, damping: 0.2 },
     motif: [0, 1, 2, 1],
+    quoteMotif: { degrees: LEITMOTIF_DEGREES },
   },
   // 第二地方: 忘れ潮の湿地。霧の中を歩く湿地 → 笛主体、重めのテンポ。
   // モチーフ: 長く伸びて半歩沈む、霧の中の遠い声
@@ -88,6 +97,7 @@ const BGM_SPECS: readonly BgmSpec[] = [
     bars: 8,
     reverb: { wet: 0.34, roomSize: 0.55, damping: 0.25 },
     motif: [2, 2, 1, -1],
+    quoteMotif: { degrees: LEITMOTIF_DEGREES },
   },
   // 第三地方: まどろみの茸林。眠気に満ちた森 → 弦主体、遅めの3拍子でまどろみを出す。
   // モチーフ: 3拍子に乗ってゆっくり降りる、まぶたが落ちる形
@@ -100,6 +110,7 @@ const BGM_SPECS: readonly BgmSpec[] = [
     bars: 9,
     reverb: { wet: 0.32, roomSize: 0.5, damping: 0.35 },
     motif: [4, 2, 0],
+    quoteMotif: { degrees: LEITMOTIF_DEGREES },
   },
   // 第四地方: 骨積みの回廊。狭く入り組んだ回廊 → 太鼓主体、乾いた刻み(残響は控えめ)。
   // モチーフ: 同音の連打から跳ねる、乾いた足音
@@ -111,6 +122,7 @@ const BGM_SPECS: readonly BgmSpec[] = [
     bars: 9,
     reverb: { wet: 0.22, roomSize: 0.4, damping: 0.15 },
     motif: [0, 0, 3, 0],
+    quoteMotif: { degrees: LEITMOTIF_DEGREES },
   },
   // 第五地方: なみだの滝つぼ。悲しみが形を取った地方 → 笛+弦、ゆったり・水音を思わせる豊かな残響。
   // モチーフ: 高い所から続けて落ちる、滝の形をなぞる
@@ -122,6 +134,7 @@ const BGM_SPECS: readonly BgmSpec[] = [
     bars: 8,
     reverb: { wet: 0.36, roomSize: 0.6, damping: 0.2 },
     motif: [5, 4, 2, 1],
+    quoteMotif: { degrees: LEITMOTIF_DEGREES },
   },
   // 第六地方: こだまの尾根。物音がよく響く尾根 → 木琴+太鼓、最も深い残響で「よく響く」感触を出す。
   // モチーフ: 呼びかけ2音+同じ形の反復(こだま)
@@ -133,6 +146,7 @@ const BGM_SPECS: readonly BgmSpec[] = [
     bars: 8,
     reverb: { wet: 0.38, roomSize: 0.65, damping: 0.15 },
     motif: [3, 0, 3, 0],
+    quoteMotif: { degrees: LEITMOTIF_DEGREES },
   },
   // 第七地方: わすれられた祭りの跡。宵祭りの影のような反映 → 木琴+太鼓、軽快な2拍子の囃子。
   // モチーフ: 囃子の掛け合い、跳ねて戻る
@@ -145,6 +159,7 @@ const BGM_SPECS: readonly BgmSpec[] = [
     bars: 16,
     reverb: { wet: 0.28, roomSize: 0.45, damping: 0.2 },
     motif: [0, 2, 0, 3],
+    quoteMotif: { degrees: LEITMOTIF_DEGREES },
   },
   // 第八地方: めざめの前庭。全地方の記憶が入り乱れる → 4種を均等に、遅く荘厳なテンポ。
   // モチーフ: 第一地方のモチーフを2倍の音価に引き延ばした形
@@ -158,6 +173,7 @@ const BGM_SPECS: readonly BgmSpec[] = [
     motif: [0, 1, 2, 1],
     motifNoteBeats: 2,
     reverb: { wet: 0.34, roomSize: 0.55, damping: 0.2 },
+    quoteMotif: { degrees: LEITMOTIF_DEGREES },
   },
   // 地方ボス戦共通テーマ。太鼓を厚めにして緊張感を出す。各地方の目安+15前後の速いテンポで、
   // 残響はやや控えめにして音の輪郭を保つ(緊張感優先)
@@ -433,6 +449,7 @@ function main(): void {
       humLayer: spec.humLayer,
       motif: spec.motif,
       motifNoteBeats: spec.motifNoteBeats,
+      quoteMotif: spec.quoteMotif,
     });
     const path = resolve(AUDIO_ROOT, "bgm", `${spec.id}.wav`);
     writeFileSync(path, encodeWav([track.left, track.right], SAMPLE_RATE));
