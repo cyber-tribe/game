@@ -106,7 +106,7 @@ export const VILLAGE_BUILDINGS: readonly VillageBuilding[] = [
   // 新設: 記録の間(記録・実績)
   { id: "recordsHall", label: "記録の間", columns: [6, 8], role: "記録・実績", x: 8, z: -3, radius: 0.9, shape: "hut", color: 0x7a6a3a },
   // 新設: ガルドの家(衣装の着替え)
-  { id: "garudoHouse", label: "ガルドの家", columns: [15], role: "衣装", x: -8, z: -3, radius: 0.9, shape: "hut", color: 0x3a6a7a },
+  { id: "garudoHouse", label: "ガルドの家", columns: [15], role: "衣装", x: -8, z: -3, radius: 0.9, shape: "hut", color: 0x3a6a7a, model: "house_garudo" },
 ];
 
 /**
