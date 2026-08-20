@@ -227,6 +227,25 @@ function desk(
   return group;
 }
 
+/**
+ * はしご。側木2本と横木数本(design/village-buildings.mdの「ガルドの
+ * 育ての親の家でもあり、ガルドはこの倉庫の屋根裏で育った」を反映し、
+ * モグラ婆の倉庫の屋根裏へ続くはしごとして使う)
+ */
+function ladder(x: number, z: number, height: number, rotY: number, material: THREE.Material): THREE.Group {
+  const group = new THREE.Group();
+  for (const side of [-1, 1]) {
+    group.add(box(0.05, height, 0.05, side * 0.22, height / 2, 0, material));
+  }
+  const rungCount = Math.floor(height / 0.32);
+  for (let i = 1; i <= rungCount; i++) {
+    group.add(box(0.40, 0.04, 0.04, 0, (height / (rungCount + 1)) * i, 0, material));
+  }
+  group.position.set(x, 0, z);
+  group.rotation.y = rotY;
+  return group;
+}
+
 /** 吊りランプ。ひもと球、そして小さな点光源 */
 function hangingLamp(x: number, z: number, color: number, cordMaterial: THREE.Material): THREE.Group {
   const group = new THREE.Group();
@@ -312,6 +331,9 @@ function buildProps(def: VillageInteriorDef, assets: Assets): THREE.Group {
       group.add(barrel(assets, 1.9, 0, -1.5));
       group.add(box(0.7, 0.55, 0.7, 1.75, 0.28, 1.3, darkWood, 0.3));
       group.add(box(0.6, 0.5, 0.6, 1.7, 0.8, 1.25, darkWood, -0.2));
+      // 屋根裏へ続くはしご(design/village-buildings.mdの「ガルドはこの
+      // 倉庫の屋根裏で育った」を反映)
+      group.add(ladder(-2.55, -1.9, 2.3, Math.PI / 2, darkWood));
       // 吊りランプ
       group.add(hangingLamp(0.6, 0.7, 0xffcf82, darkWood));
       break;
@@ -428,6 +450,25 @@ function buildProps(def: VillageInteriorDef, assets: Assets): THREE.Group {
     case "garudoHouse": {
       // 寝床
       group.add(bedding(assets, -0.5, 0.4, mat(0x3f5a68)));
+      // 土間の支度タル(design/village-buildings.mdの「土間に支度用の
+      // タルが一つ」を反映)
+      group.add(barrel(assets, 0.3, 0, 1.9));
+      // 壁の歴代樽守りの手形(design記述の「壁に歴代の樽守りの手形が
+      // 押してある(身支度=衣装替えの場)」を反映)
+      const handprintMat = mat(0x8a6b4a, 0.8);
+      const fingerOffsets = [
+        [-0.045, 0.075], [-0.018, 0.09], [0.012, 0.09], [0.040, 0.078], [0.062, 0.045],
+      ] as const;
+      for (const [hx, hy] of [[-2.3, 1.0], [-2.3, 1.85]] as const) {
+        const palm = new THREE.Mesh(new THREE.CircleGeometry(0.05, 10), handprintMat);
+        palm.position.set(hx, hy, -2.79);
+        group.add(palm);
+        for (const [fx, fy] of fingerOffsets) {
+          const finger = new THREE.Mesh(new THREE.CircleGeometry(0.017, 8), handprintMat);
+          finger.position.set(hx + fx, hy + fy, -2.79);
+          group.add(finger);
+        }
+      }
       // 衣装掛け(横木に何着か掛かっている)
       group.add(box(0.08, 1.7, 0.08, 0.75, 0.85, -2.2, darkWood));
       group.add(box(0.08, 1.7, 0.08, 2.5, 0.85, -2.2, darkWood));

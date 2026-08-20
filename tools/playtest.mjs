@@ -340,6 +340,12 @@ if (front) {
   await page.evaluate(() => globalThis.__app.debugGiveBarrel("empty"));
   await settle();
 
+  // #646/#716と同じ考え方をここにも広げる。固定シードが無いフロアで
+  // たまたまモンスターが多い(8〜9体)ときに、このあとの6連続攻撃で
+  // 囲まれた反撃を受けて偶然力尽きることがあったため、露出する直前に
+  // もう一度底上げしておく
+  await page.evaluate(() => globalThis.__app.debugBoostHp());
+
   // HP満タンだと吸い込みにくいので、まず殴って弱らせる。debugMonsterInFront()が
   // 既にモンスターの方を向かせてあるので、移動キー(押し出しになってしまう)
   // ではなく攻撃専用キー(front.key、plan/attack-button.md)をtapで繰り返す
