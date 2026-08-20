@@ -5862,14 +5862,21 @@ def build_oitekeboshi():
 
 
 def oitekeboshi_animations():
+    """
+    plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
+    タメ・ツメ(LINEAR補間)・傘の先端の遅れ追従(二次揺れ)を足してある。
+    """
     lower, upper = "root-stem", "stem-capbase"
     top = "capbase-captop"
     return [
-        # 未練が漂うように、絶えずゆらゆらと揺れる
+        # 未練が漂うように、絶えずゆらゆらと揺れる。傘の先端(top)が
+        # upperより2フレーム遅れて追従する(二次揺れ)
         ("idle", [
-            (1, {lower: (0, 0, 0), upper: (0, 0, 0)}),
-            (24, {lower: (3, 0, 2), upper: (-3, 0, 0), top: (2, 0, 0)}),
-            (48, {lower: (0, 0, 0), upper: (0, 0, 0), top: (0, 0, 0)}),
+            (1, {lower: (0, 0, 0), upper: (0, 0, 0), top: (0, 0, 0)}),
+            (24, {lower: (3, 0, 2), upper: (-3, 0, 0)}),
+            (26, {top: (2, 0, 0)}, {"partial": True}),
+            (48, {lower: (0, 0, 0), upper: (0, 0, 0)}),
+            (50, {top: (0, 0, 0)}, {"partial": True}),
         ]),
         ("walk", [
             (1, {lower: (0, 0, -8), upper: (0, 0, 6)}),
@@ -5878,23 +5885,30 @@ def oitekeboshi_animations():
             (27, {lower: (5, 0, 0), upper: (-4, 0, 0)}),
             (36, {lower: (0, 0, -8), upper: (0, 0, 6)}),
         ]),
-        # 大きく口を開け、満腹度を吸い取るように吐き出す
+        # 大きく口を開け、LINEARで鋭く満腹度を吸い取るように吐き出し、
+        # わずかに行き過ぎてから戻る
         ("attack", [
             (1, {upper: (0, 0, 0), top: (0, 0, 0)}),
-            (5, {upper: (-14, 0, 0), top: (-10, 0, 0)}),
+            (5, {upper: (-14, 0, 0), top: (-10, 0, 0)}, {"interp": "LINEAR"}),
             (10, {upper: (20, 0, 0), top: (16, 0, 0)}),
+            (13, {upper: (24, 0, 0), top: (19, 0, 0)}),
             (20, {upper: (0, 0, 0), top: (0, 0, 0)}),
         ]),
+        # 入りだけLINEARで鋭くする。防御6・HP30という中堅相応の振幅・
+        # 戻り時間は現行のまま維持する
         ("hit", [
-            (1, {lower: (0, 0, 0)}),
+            (1, {lower: (0, 0, 0)}, {"interp": "LINEAR"}),
             (4, {lower: (-16, 0, 0), upper: (-14, 0, 0)}),
             (14, {lower: (0, 0, 0), upper: (0, 0, 0)}),
         ]),
-        # 置き去りの未練が、輪郭をほどいて消える
+        # 置き去りの未練が、LINEARで鋭く輪郭をほどいて消える。24f到達後、
+        # 消える直前にlowerがわずかに戻る小さな跳ね返りを追加
+        # (honezukanotsukaiの「ほどけた骨が一度弾んでから崩れ落ちる」のと同じ考え方)
         ("die", [
-            (1, {lower: (0, 0, 0)}),
+            (1, {lower: (0, 0, 0)}, {"interp": "LINEAR"}),
             (10, {lower: (-30, 0, 10), upper: (-18, 0, 0)}),
             (24, {lower: (-78, 0, 22), upper: (-32, 0, 0)}),
+            (28, {lower: (-70, 0, 20)}, {"partial": True}),
         ]),
     ]
 
