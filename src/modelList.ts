@@ -54,7 +54,7 @@ export const VILLAGER_MODELS = ["mogurabaa", "gendo", "fuku", "pochi", "otama", 
  * `tools/models/props.py`)。`src/view/village.ts`の`VillageBuilding.model`から
  * 参照される。1棟・1小道具ずつここへ足していく(村人と同じ運用)。
  */
-export const VILLAGE_STRUCTURE_MODELS = ["cave_gate", "bonfire", "house_workshop"] as const;
+export const VILLAGE_STRUCTURE_MODELS = ["cave_gate", "bonfire", "house_workshop", "house_hut"] as const;
 
 /**
  * 村人が備えているべきクリップ。村人は戦わないので、モンスターの5本
