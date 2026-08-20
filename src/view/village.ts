@@ -99,7 +99,7 @@ export const VILLAGE_BUILDINGS: readonly VillageBuilding[] = [
   { id: "questBoard", label: "オトネの依頼板", columns: [11], role: "依頼", x: -5, z: -3, radius: 0.9, shape: "hut", color: 0x4a6a8a },
   { id: "gallery", label: "おキヨの図鑑小屋", columns: [7, 9], role: "図鑑", x: 5, z: -3, radius: 0.9, shape: "hut", color: 0x7a4a8a, model: "house_compendium" },
   { id: "npcSquare", label: "村の広場", columns: [16, 17], role: "交流", x: 0, z: -1, radius: 0.6, shape: "camp", color: 0xd68a3a, model: "bonfire" },
-  { id: "development", label: "村の発展の受付", columns: [13], role: "村の発展", x: -3, z: -6, radius: 0.9, shape: "hut", color: 0x4a8a6a },
+  { id: "development", label: "村の発展の受付", columns: [13], role: "村の発展", x: -3, z: -6, radius: 0.9, shape: "hut", color: 0x4a8a6a, model: "house_development" },
   { id: "cave", label: "洞窟の入口", columns: [0, 1, 3, 4, 10, 12], role: "出発の支度", x: 3, z: -6, radius: 1.1, shape: "cave", color: 0x2a2a30, model: "cave_gate" },
   // 新設: ねむり小屋(仲間の世話。夢あわせ・改名・逃がすはcolumn4のUIをそのまま共用する)
   { id: "sleepHut", label: "ねむり小屋", columns: [4], role: "仲間の世話", x: 8, z: 1, radius: 0.9, shape: "hut", color: 0x5a4a7a, model: "house_hut" },
