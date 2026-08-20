@@ -11,6 +11,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  composeAmbientLoop,
   composeJingle,
   composeSfx,
   composeTrack,
@@ -431,8 +432,21 @@ const JINGLE_SPECS: readonly JingleSpec[] = [
   },
 ];
 
+interface MoodSpec {
+  id: string;
+  durationSec: number;
+  seed: number;
+}
+
+// ヨリシロの気分レイヤー(design/yorishiro-moods.md)と同じ重ね方
+// (`AudioPlayer.setMoodLayer`)で流す、村の屋外アンビエント
+// (plan/sound/archive/village-soundscape.md)。10秒周期の寝息のうねりが
+// 継ぎ目なくループするよう、durationSecは10の倍数にする
+const MOOD_SPECS: readonly MoodSpec[] = [{ id: "village-ambient", durationSec: 20, seed: 10000 }];
+
 function main(): void {
   mkdirSync(resolve(AUDIO_ROOT, "bgm"), { recursive: true });
+  mkdirSync(resolve(AUDIO_ROOT, "bgm/mood"), { recursive: true });
   mkdirSync(resolve(AUDIO_ROOT, "sfx"), { recursive: true });
 
   for (const spec of BGM_SPECS) {
@@ -455,6 +469,17 @@ function main(): void {
     writeFileSync(path, encodeWav([track.left, track.right], SAMPLE_RATE));
     const seconds = track.left.length / SAMPLE_RATE;
     console.log(`bgm/${spec.id}.wav (${seconds.toFixed(1)}s, ${spec.tempoBpm}bpm, ${spec.bars}bars)`);
+  }
+
+  for (const spec of MOOD_SPECS) {
+    const samples = composeAmbientLoop({
+      durationSec: spec.durationSec,
+      sampleRate: SAMPLE_RATE,
+      seed: spec.seed,
+    });
+    const path = resolve(AUDIO_ROOT, "bgm/mood", `${spec.id}.wav`);
+    writeFileSync(path, encodeWav([samples], SAMPLE_RATE));
+    console.log(`bgm/mood/${spec.id}.wav (${(samples.length / SAMPLE_RATE).toFixed(1)}s, mood loop)`);
   }
 
   for (const spec of SFX_SPECS) {

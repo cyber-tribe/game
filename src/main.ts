@@ -359,6 +359,9 @@ class App {
   private showTown(): void {
     this.hud.hideOverlay();
     this.audio.setBgm("village");
+    // 村の環境音(火・葉ずれ・遠い寝息)。BGMとは別の薄いループレイヤーとして重ねる
+    // (plan/sound/archive/village-soundscape.md)
+    this.audio.setMoodLayer("village-ambient", true);
     // 気分の視覚演出(plan/mood-visual-effects.md): design/world.mdの
     // 「麓は現実側」という方針どおり、拠点では常に既定の見た目に戻す
     // (拠点の裏に見えている洞窟がダンジョン中の気分の色調を引きずらないように)
@@ -703,6 +706,9 @@ class App {
       this.game.captureOutlook(),
     );
     this.minimap.draw(this.game.floor, this.game.player);
+    // 村の環境音は拠点(屋外)専用のレイヤーなので、ダイブ開始時は必ず止める
+    // (plan/sound/archive/village-soundscape.md)
+    this.audio.setMoodLayer("village-ambient", false);
     this.updateDiveBgm();
     // 気分の視覚演出(plan/mood-visual-effects.md): ダイブ中に気分が変わることは
     // ないので、ダイブ開始・オートセーブ復帰のこの1回だけで確定させる

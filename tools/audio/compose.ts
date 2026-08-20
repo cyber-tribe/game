@@ -385,6 +385,73 @@ export function composeJingle(params: JingleParams): Float32Array {
   return wet;
 }
 
+export interface AmbientLoopParams {
+  durationSec: number;
+  sampleRate: number;
+  seed: number;
+}
+
+/**
+ * 村の屋外アンビエント(火のはぜる音・祠木の葉ずれ・遠い山の寝息)を1本の
+ * モノラルループにミックスする。BGMとは独立して`AudioPlayer.setMoodLayer`で
+ * 重ねる薄いレイヤー(plan/sound/archive/village-soundscape.md)
+ */
+export function composeAmbientLoop(params: AmbientLoopParams): Float32Array {
+  const { durationSec, sampleRate, seed } = params;
+  const n = Math.max(1, Math.floor(durationSec * sampleRate));
+  const out = new Float32Array(n);
+  const rng = mulberry32(seed);
+
+  // 火のはぜる音: 低域寄りのフィルタしたノイズの床(常時)+時折の小さな「パチッ」
+  let fireFloorLp = 0;
+  for (let i = 0; i < n; i++) {
+    const noise = rng() * 2 - 1;
+    fireFloorLp += (noise - fireFloorLp) * 0.05;
+    out[i]! += fireFloorLp * 0.06;
+  }
+  const popCount = Math.round(durationSec * 1.5); // 1秒あたり1.5回程度のはぜる音
+  for (let p = 0; p < popCount; p++) {
+    const offset = Math.floor(rng() * durationSec * sampleRate);
+    const popN = Math.max(1, Math.floor((0.03 + rng() * 0.03) * sampleRate));
+    let popLp = 0;
+    for (let i = 0; i < popN && offset + i < n; i++) {
+      const env = Math.exp(-(i / popN) * 6);
+      const noise = rng() * 2 - 1;
+      popLp += (noise - popLp) * 0.4;
+      out[offset + i]! += popLp * env * 0.15;
+    }
+  }
+
+  // 祠木の葉ずれ: 疎らに、高域寄りのノイズバーストを置く(風が通るたび)
+  const rustleCount = Math.round(durationSec * 0.4); // 数秒に1回程度
+  for (let r = 0; r < rustleCount; r++) {
+    const offset = Math.floor(rng() * durationSec * sampleRate);
+    const rustleN = Math.max(1, Math.floor((0.4 + rng() * 0.5) * sampleRate));
+    let rustleLp = 0;
+    for (let i = 0; i < rustleN && offset + i < n; i++) {
+      const env = Math.sin(Math.PI * (i / rustleN)) * 0.5; // なだらかな山
+      const noise = rng() * 2 - 1;
+      rustleLp += (noise - rustleLp) * 0.5;
+      const highpassed = noise - rustleLp; // 低域を差し引き、高域寄りの質感にする
+      out[offset + i]! += highpassed * env * 0.05;
+    }
+  }
+
+  // 遠い山の寝息: 可聴域ぎりぎりの超低音が、10秒周期でうねる
+  // (聞こえないスピーカーがあっても害は無い想定。plan/sound/archive/village-soundscape.md 未決事項)
+  const breathPeriodSec = 10;
+  const breathFreq = 35;
+  for (let i = 0; i < n; i++) {
+    const t = i / sampleRate;
+    const swell = Math.max(0, Math.sin((2 * Math.PI * t) / breathPeriodSec)) ** 2;
+    out[i]! += Math.sin(2 * Math.PI * breathFreq * t) * swell * 0.035;
+  }
+
+  // 3つのノイズ・低音源が重なっても暴れないよう、上限だけ抑える(押し上げはしない)
+  normalize(out, 0.35);
+  return out;
+}
+
 export interface SfxParams {
   kind: "mallet" | "drum";
   freq: number;
