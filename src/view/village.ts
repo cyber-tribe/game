@@ -348,6 +348,43 @@ function buildStructure(building: VillageBuilding): BuiltStructure {
 }
 
 /**
+ * ヨリシロの稜線を模した遠景の山影(plan/game/village-scene-redesign.md
+ * 「山を背景に置く」)。村の奥(北=-Z側)に、霧がかった大きな山影を
+ * 常に見せる。低ポリの四角錐を3層に重ね、奥ほど色を薄く・霧がかって
+ * 見せることで遠近を表す。`material.fog = false`にしてあるのは、
+ * シーンの`Fog`(近14・遠30)だと山の位置によっては完全に埋もれて
+ * 見えなくなってしまうため、代わりに層ごとの不透明度で「霧をまとった
+ * 遠景」を表現している。
+ */
+function buildMountainBackdrop(): THREE.Group {
+  const group = new THREE.Group();
+  const layers: ReadonlyArray<{ z: number; color: number; opacity: number }> = [
+    { z: -34, color: 0x2a3450, opacity: 0.5 },
+    { z: -26, color: 0x323f5e, opacity: 0.7 },
+    { z: -19, color: 0x3b4a6c, opacity: 0.92 },
+  ];
+  for (const layer of layers) {
+    const material = new THREE.MeshBasicMaterial({
+      color: layer.color,
+      transparent: true,
+      opacity: layer.opacity,
+      fog: false,
+    });
+    const peakCount = 6;
+    for (let i = 0; i < peakCount; i++) {
+      const x = -32 + (i / (peakCount - 1)) * 64 + (i % 2 === 0 ? -3 : 3);
+      const height = 10 + (i % 3) * 3.5;
+      const width = 14 + (i % 2) * 5;
+      const peak = new THREE.Mesh(new THREE.ConeGeometry(width / 2, height, 4), material);
+      peak.rotation.y = Math.PI / 4;
+      peak.position.set(x, height / 2 - 1, layer.z);
+      group.add(peak);
+    }
+  }
+  return group;
+}
+
+/**
  * 村なか歩き(plan/town-3d-exploration.md)の見た目。
  *
  * ダンジョンの`Stage`/`Renderer`は`FloorState`前提で作られており、戦闘も
@@ -412,6 +449,8 @@ export class VillageView {
     );
     ground.rotation.x = -Math.PI / 2;
     this.scene.add(ground);
+
+    this.scene.add(buildMountainBackdrop());
 
     for (const building of VILLAGE_BUILDINGS) {
       const { group, primitive } = buildStructure(building);
