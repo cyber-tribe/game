@@ -54,6 +54,11 @@ export type GameEvent =
   | { type: "descend"; depth: number }
   /** めざめの階段(チェックポイント)に足を踏み入れた */
   | { type: "checkpoint"; depth: number }
+  /**
+   * ボスの間の扉を開けた(plan/game/dungeon-boss-rooms.md)。BGMをボス曲へ
+   * 切り替えるトリガーに使う(main.tsのupdateDiveBgm再呼び出し)
+   */
+  | { type: "doorOpened"; bossSpeciesId: string }
   | { type: "hungerWarning"; level: "low" | "empty" }
   | { type: "gameOver"; reason: string }
   | { type: "message"; text: string }

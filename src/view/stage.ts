@@ -405,6 +405,9 @@ export class Stage {
         this.audio.playSfx("checkpoint");
         return 0;
       },
+      // ボスの間の扉(plan/game/dungeon-boss-rooms.md)。専用SFX(「扉のきしみ」)は
+      // plan/sound/側の別作業で追加する想定のため、いまは見た目・音の演出なし
+      doorOpened: noop,
       hungerWarning: (event) => {
         if (event.level === "empty") this.audio.playSfx("hungerWarning");
         return 0;

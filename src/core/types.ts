@@ -835,6 +835,19 @@ export interface FloorState {
    * 次の階へは進まず、幻だったと判明して消える
    */
   decoyStairsPositions?: Vec2[];
+  /**
+   * ボスの間の扉(plan/game/dungeon-boss-rooms.md)。前室とボスの間を仕切る、
+   * 開けるまでは壁と同じく通れない1マス。地方ボスの階(表の寝穴の6階ごと)
+   * にだけ立つ。一度開けたら閉じない(open=trueのまま)
+   */
+  door?: FloorDoor;
+}
+
+export interface FloorDoor {
+  pos: Vec2;
+  open: boolean;
+  /** 扉の向こうで待つボスの種族id。開けたときの一言・BGM切り替えに使う */
+  bossSpeciesId: string;
 }
 
 export function tileAt(floor: FloorState, p: Vec2): Tile | undefined {
@@ -844,7 +857,12 @@ export function tileAt(floor: FloorState, p: Vec2): Tile | undefined {
 
 export function walkableAt(floor: FloorState, p: Vec2): boolean {
   const t = tileAt(floor, p);
-  return t !== undefined && isWalkable(t.kind);
+  if (t === undefined || !isWalkable(t.kind)) return false;
+  // 閉じたボスの間の扉は、開けるまで壁と同じく通れない
+  if (floor.door && !floor.door.open && floor.door.pos.x === p.x && floor.door.pos.y === p.y) {
+    return false;
+  }
+  return true;
 }
 
 /**

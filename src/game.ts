@@ -251,6 +251,8 @@ export type Command =
   | { type: "setStance"; allyId: number | "all"; stance: AllyStance }
   /** めざめの階段を使って、ここで区切ってダイブを成功させる */
   | { type: "bank" }
+  /** ボスの間の扉を開ける(plan/game/dungeon-boss-rooms.md)。ターンは消費しない */
+  | { type: "openDoor" }
   /** 樽守りの技(plan/protagonist-arts.md)を繰り出す */
   | { type: "useArt"; id: ArtId }
   /**
@@ -887,12 +889,6 @@ export class Game {
       this.enterTarukurabeFloor();
       return;
     }
-    // 第八地方(めざめの前庭)固有ギミック(plan/dream-garden-mosaic.md): 43〜48階は、
-    // 第二〜第七地方の固有ギミックのうち1〜2種類をランダムに選んで、そのフロアだけに適用する
-    this.mosaicRegions =
-      this.dungeon.id === MAIN_CAVE_ID && depth >= 43 && depth <= 48
-        ? this.rng.shuffled(MOSAIC_CANDIDATE_REGIONS).slice(0, this.rng.int(1, 2))
-        : [];
     // 地方ボス(plan/region-bosses.md): 表の寝穴のボス階には、通常の野生モンスターも
     // フロアギミックも乗せない(ボス以外の変数を減らす、本文どおりの方針)。
     // 腕試しの間(plan/hidden-dungeon.md)は、全階がボス階の再戦だけで構成される
@@ -905,6 +901,22 @@ export class Game {
             this.dungeon.id === TRUE_AWAKENING_ID && depth === this.maxDepth
             ? HAJIME_NO_YUME_ID
             : undefined;
+
+    // ボスの間(plan/game/dungeon-boss-rooms.md): 表の寝穴の地方ボス階だけ、通常の
+    // フロア生成(generateFloor)を経由せず、前室→扉→ボスの間の固定構造を組む。
+    // 腕試しの間・真の目覚めは対象外(docの対象外どおり。それぞれ既存の
+    // generateFloor経由の挙動のまま)
+    if (this.dungeon.id === MAIN_CAVE_ID && bossSpeciesId) {
+      this.enterBossFloor(depth, bossSpeciesId);
+      return;
+    }
+
+    // 第八地方(めざめの前庭)固有ギミック(plan/dream-garden-mosaic.md): 43〜48階は、
+    // 第二〜第七地方の固有ギミックのうち1〜2種類をランダムに選んで、そのフロアだけに適用する
+    this.mosaicRegions =
+      this.dungeon.id === MAIN_CAVE_ID && depth >= 43 && depth <= 48
+        ? this.rng.shuffled(MOSAIC_CANDIDATE_REGIONS).slice(0, this.rng.int(1, 2))
+        : [];
     const gimmick = bossSpeciesId
       ? undefined
       : pickFloorGimmick(
@@ -1081,6 +1093,97 @@ export class Game {
     this.tarukurabeBarrelsLeft = TARUKURABE_BARREL_COUNT;
     this.tarukurabeScoredLanes.clear();
     this.spawnTarukurabeBarrel();
+
+    updateVisibility(this.floor, this.player.pos, this.visionExtraRange());
+  }
+
+  /**
+   * ボスの間(plan/game/dungeon-boss-rooms.md)。手作りの固定Floorを直接
+   * 組み立てる(enterTarukurabeFloorと同じ考え方)。「前室(安全地帯)
+   * ─通路─扉─ボスの間(大部屋)」の一本道にし、ボス以外の湧きモンスター・
+   * 地形ギミックは乗せない。ボス自体の配置はpopulateFloorの既存の
+   * bossSpeciesId分岐(部屋タイル・プレイヤーから距離6以上)にそのまま
+   * 委ねる――ボスAI・強さの計算式を一切変えずに済ませるため
+   */
+  private enterBossFloor(depth: number, bossSpeciesId: string): void {
+    const ante = { x: 1, y: 3, w: 5, h: 5 };
+    const boss = { x: 14, y: 1, w: 13, h: 9 };
+    const corridorY = ante.y + Math.floor(ante.h / 2);
+    const corridorStartX = ante.x + ante.w;
+    const doorX = corridorStartX + Math.floor((boss.x - corridorStartX) / 2);
+    const width = boss.x + boss.w + 1;
+    const height = Math.max(ante.y + ante.h, boss.y + boss.h) + 1;
+
+    const tiles: Tile[] = [];
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        tiles.push({ kind: TILE_WALL, roomId: -1, explored: false, visible: false });
+      }
+    }
+    const carve = (x: number, y: number, kind: typeof TILE_ROOM | typeof TILE_CORRIDOR, roomId: number) => {
+      tiles[y * width + x] = { kind, roomId, explored: false, visible: false };
+    };
+    for (let y = ante.y; y < ante.y + ante.h; y++) {
+      for (let x = ante.x; x < ante.x + ante.w; x++) carve(x, y, TILE_ROOM, 0);
+    }
+    for (let y = boss.y; y < boss.y + boss.h; y++) {
+      for (let x = boss.x; x < boss.x + boss.w; x++) carve(x, y, TILE_ROOM, 1);
+    }
+    for (let x = corridorStartX; x < boss.x; x++) {
+      carve(x, corridorY, TILE_CORRIDOR, -1);
+    }
+
+    const start: Vec2 = { x: ante.x + Math.floor(ante.w / 2), y: corridorY };
+    this.floor = {
+      depth,
+      width,
+      height,
+      tiles,
+      rooms: [
+        { id: 0, x: ante.x, y: ante.y, w: ante.w, h: ante.h },
+        { id: 1, x: boss.x, y: boss.y, w: boss.w, h: boss.h },
+      ],
+      // MVP: 撃破後に現れる演出はまだ無く、最初からボスの間の奥に置いてある
+      // (plan/game/dungeon-boss-rooms.mdの「撃破後に踏破の階段が現れる」は
+      // 別PRで詰める。受け入れ基準の核である前室・扉・固定ボスの間は満たす)
+      stairs: { x: boss.x + boss.w - 2, y: boss.y + boss.h - 2 },
+      door: { pos: { x: doorX, y: corridorY }, open: false, bossSpeciesId },
+      actors: [],
+      items: [],
+      traps: [],
+      barrels: [],
+      goldPiles: [],
+      fieldObstacles: [],
+      secretPassages: [],
+    };
+
+    this.player.pos = start;
+    this.floor.actors.push(this.player);
+
+    populateFloor(this.rng, this.floor, this.ids, start, {
+      bossSpeciesId,
+      monsterAtkMultiplier: MONSTER_ATK_MULTIPLIER[this.difficulty] * (this.mood.monsterAtkMulAfterAware ?? 1),
+      goldRewardMultiplier: GOLD_REWARD_MULTIPLIER[this.difficulty] * (this.mood.goldRateMul ?? 1),
+      speciesDepthOffset: this.dungeon.floorOffset ?? 0,
+      itemCountMultiplier: this.mood.dropRateMul ?? 1,
+      thiefWeightMultiplier: this.mood.thiefRateMul ?? 1,
+    });
+
+    // 第三章「仲間探し」の崩落イベント(plan/chapter3-collapse-event.md):
+    // 骨積みの回廊(第四地方)最終階=24階は、ボスの間でもある。ボスの間の
+    // 固定構造に置き換えても、この階固有の物語イベントは消さない
+    // (通常のenterFloorと同じ条件のまま、ボスの間側でも呼ぶ)
+    if (depth === CHAPTER3_COLLAPSE_DEPTH && storyChapter(this.deepestAtStart, false) >= 3) {
+      placeChapter3CollapseObstacle(this.floor);
+    }
+
+    for (const ally of this.allies) {
+      const spot = this.freeSpotNear(start);
+      if (!spot) continue;
+      ally.pos = spot;
+      ally.aware = true;
+      this.floor.actors.push(ally);
+    }
 
     updateVisibility(this.floor, this.player.pos, this.visionExtraRange());
   }
@@ -1307,6 +1410,27 @@ export class Game {
     return true;
   }
 
+  /**
+   * ボスの間の扉を開ける(plan/game/dungeon-boss-rooms.md)。扉のすぐ前
+   * (8方向いずれかの隣接マス)に立っていなければ弾く。開けるとその場で
+   * ボスの気配を告げるメッセージを出し、doorOpenedイベントでBGM切り替えを
+   * main.ts側に伝える。開閉そのものはターンを消費しない(仕度を挟める、
+   * というdocの意図どおり)
+   */
+  private openDoor(events: GameEvent[]): boolean {
+    const door = this.floor.door;
+    if (!door || chebyshev(this.player.pos, door.pos) > 1) {
+      events.push({ type: "message", text: "ここに扉はない。" });
+      return false;
+    }
+    if (door.open) return false;
+    door.open = true;
+    const bossName = speciesById(door.bossSpeciesId).name;
+    events.push({ type: "message", text: `扉を開けた。${bossName}の気配が強まる――` });
+    events.push({ type: "doorOpened", bossSpeciesId: door.bossSpeciesId });
+    return false;
+  }
+
   // ------------------------------------------------------------ コマンド処理
 
   command(cmd: Command): GameEvent[] {
@@ -1451,6 +1575,9 @@ export class Game {
 
       case "bank":
         return this.bankRun(events);
+
+      case "openDoor":
+        return this.openDoor(events);
 
       case "use":
         return this.useItem(cmd.uid, events);

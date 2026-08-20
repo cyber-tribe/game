@@ -399,7 +399,10 @@ export function populateFloor(
   placeBarrels(rng, floor, ids, playerStart);
   populateMonsterHouse(rng, floor, ids, shiningChanceMultiplier, monsterAtkMultiplier, speciesDepthOffset);
   populateShop(rng, floor, ids, shopWary, speciesDepthOffset);
-  populateFieldObstacle(rng, floor, playerStart);
+  // ボスの間(plan/game/dungeon-boss-rooms.md)では、ボス以外の変数を減らす
+  // 既存方針(地方ボス自体の湧きと同じ理由)により、任意のあうんの呼吸の
+  // 障害物も置かない
+  if (!bossSpeciesId) populateFieldObstacle(rng, floor, playerStart);
 }
 
 /** あうんの呼吸(plan/ally-field-gimmicks.md)。任意のショートカット・ボーナスとして出す確率 */
