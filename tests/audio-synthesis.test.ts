@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { composeAmbientLoop, composeJingle, composeSfx, composeTrack } from "../tools/audio/compose.ts";
+import {
+  composeAmbientLoop,
+  composeForgeHum,
+  composeGalleryAmbient,
+  composeJingle,
+  composeSfx,
+  composeSleepHutAmbient,
+  composeSmallFireAmbient,
+  composeTrack,
+} from "../tools/audio/compose.ts";
 import { breathCry, drumHit, fluteNote, humVoice, malletNote, mixIn, mulberry32, normalize, pluckedString } from "../tools/audio/synth.ts";
 import { encodeWav } from "../tools/audio/wav.ts";
 
@@ -278,6 +287,38 @@ describe("tools/audio/compose.ts(plan/sound/archive/bgm-quality-upgrade.md)", ()
     const out = composeAmbientLoop({ durationSec: 20, sampleRate: 22050, seed: 3 });
     const peak = out.reduce((max, v) => Math.max(max, Math.abs(v)), 0);
     expect(peak).toBeLessThanOrEqual(0.35);
+  });
+
+  // 建物の室内環境音(plan/sound/archive/village-soundscape.md)。
+  // composeAmbientLoopと同じ理由でdurationSecは短く(2秒)して検証する
+  describe.each([
+    ["composeForgeHum", composeForgeHum],
+    ["composeSleepHutAmbient", composeSleepHutAmbient],
+    ["composeGalleryAmbient", composeGalleryAmbient],
+    ["composeSmallFireAmbient", composeSmallFireAmbient],
+  ] as const)("%s", (_name, compose) => {
+    it("指定した長さの有限な値の配列を、同じシードから決定的に返す", () => {
+      const durationSec = 2;
+      const sampleRate = 22050;
+      const a = compose({ durationSec, sampleRate, seed: 1 });
+      const b = compose({ durationSec, sampleRate, seed: 1 });
+      expect(a.length).toBe(Math.floor(durationSec * sampleRate));
+      expect(Array.from(a)).toEqual(Array.from(b));
+      for (const v of a) expect(Number.isFinite(v)).toBe(true);
+    });
+
+    it("異なるシードで異なる波形を返す", () => {
+      const params = { durationSec: 2, sampleRate: 22050 };
+      const a = compose({ ...params, seed: 1 });
+      const b = compose({ ...params, seed: 2 });
+      expect(Array.from(a)).not.toEqual(Array.from(b));
+    });
+
+    it("屋外アンビエントと同じく控えめな音量に収まる(ピークが0.35を超えない、本番相当の20秒で確認)", () => {
+      const out = compose({ durationSec: 20, sampleRate: 22050, seed: 3 });
+      const peak = out.reduce((max, v) => Math.max(max, Math.abs(v)), 0);
+      expect(peak).toBeLessThanOrEqual(0.35);
+    });
   });
 });
 

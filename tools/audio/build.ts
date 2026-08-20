@@ -12,10 +12,15 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   composeAmbientLoop,
+  composeForgeHum,
+  composeGalleryAmbient,
   composeJingle,
   composeSfx,
+  composeSleepHutAmbient,
+  composeSmallFireAmbient,
   composeTrack,
   LEITMOTIF_DEGREES,
+  type AmbientLoopParams,
   type InstrumentWeights,
   type JingleNote,
   type VoiceCryParams,
@@ -340,6 +345,13 @@ const SFX_SPECS: readonly SfxSpec[] = [
   { id: "trap", kind: "drum", freq: 260, duration: 0.2, seed: 120 },
   { id: "crackWarning", kind: "drum", freq: 55, duration: 0.6, seed: 121 },
   { id: "warp", kind: "mallet", freq: 1200, duration: 0.25, seed: 122 },
+  // 建物ごとの入店音(plan/sound/archive/village-soundscape.md)
+  { id: "enterStorage", kind: "drum", freq: 200, duration: 0.35, seed: 123 }, // 木の扉のきしみ
+  { id: "enterWorkshop", kind: "mallet", freq: 1400, duration: 0.18, seed: 124 }, // 金床を打つ一打
+  { id: "enterSleepHut", kind: "mallet", freq: 1700, duration: 0.4, seed: 125 }, // 風鈴ひと鳴り
+  { id: "enterGallery", kind: "mallet", freq: 900, duration: 0.15, seed: 126 }, // 木札同士が触れる音
+  { id: "enterRecordsHall", kind: "drum", freq: 200, duration: 0.08, seed: 127 }, // 筆を置く音
+  { id: "enterGarudoHouse", kind: "drum", freq: 220, duration: 0.3, seed: 128 }, // 戸の開閉
 ];
 
 interface JingleSpec {
@@ -436,13 +448,20 @@ interface MoodSpec {
   id: string;
   durationSec: number;
   seed: number;
+  generate: (params: AmbientLoopParams) => Float32Array;
 }
 
 // ヨリシロの気分レイヤー(design/yorishiro-moods.md)と同じ重ね方
-// (`AudioPlayer.setMoodLayer`)で流す、村の屋外アンビエント
+// (`AudioPlayer.setMoodLayer`)で流す、村の屋外・室内アンビエント
 // (plan/sound/archive/village-soundscape.md)。10秒周期の寝息のうねりが
 // 継ぎ目なくループするよう、durationSecは10の倍数にする
-const MOOD_SPECS: readonly MoodSpec[] = [{ id: "village-ambient", durationSec: 20, seed: 10000 }];
+const MOOD_SPECS: readonly MoodSpec[] = [
+  { id: "village-ambient", durationSec: 20, seed: 10000, generate: composeAmbientLoop },
+  { id: "workshop-ambient", durationSec: 20, seed: 10001, generate: composeForgeHum },
+  { id: "sleep-hut-ambient", durationSec: 20, seed: 10002, generate: composeSleepHutAmbient },
+  { id: "gallery-ambient", durationSec: 20, seed: 10003, generate: composeGalleryAmbient },
+  { id: "garudo-house-ambient", durationSec: 20, seed: 10004, generate: composeSmallFireAmbient },
+];
 
 function main(): void {
   mkdirSync(resolve(AUDIO_ROOT, "bgm"), { recursive: true });
@@ -472,7 +491,7 @@ function main(): void {
   }
 
   for (const spec of MOOD_SPECS) {
-    const samples = composeAmbientLoop({
+    const samples = spec.generate({
       durationSec: spec.durationSec,
       sampleRate: SAMPLE_RATE,
       seed: spec.seed,

@@ -90,6 +90,44 @@ describe("view/villageInterior.ts: 建物 → 内装 → 住人の対応", () =>
   });
 });
 
+/** plan/sound/archive/village-soundscape.md の表(建物 → 入店SFX・室内環境音)をそのまま写したもの */
+const EXPECTED_SOUND: Readonly<Record<string, { enterSfx: string; ambientMoodId?: string }>> = {
+  storage: { enterSfx: "enterStorage" },
+  workshop: { enterSfx: "enterWorkshop", ambientMoodId: "workshop-ambient" },
+  sleepHut: { enterSfx: "enterSleepHut", ambientMoodId: "sleep-hut-ambient" },
+  gallery: { enterSfx: "enterGallery", ambientMoodId: "gallery-ambient" },
+  recordsHall: { enterSfx: "enterRecordsHall" },
+  garudoHouse: { enterSfx: "enterGarudoHouse", ambientMoodId: "garudo-house-ambient" },
+};
+
+describe("view/villageInterior.ts: 建物ごとの音(plan/sound/archive/village-soundscape.md)", () => {
+  it("village-soundscape.mdの表に載っている6件は、そのとおりの入店SFX・室内環境音を持つ", () => {
+    for (const [buildingId, expected] of Object.entries(EXPECTED_SOUND)) {
+      const def = interiorForBuilding(buildingId);
+      expect(def?.enterSfx).toBe(expected.enterSfx);
+      expect(def?.ambientMoodId).toBe(expected.ambientMoodId);
+    }
+  });
+
+  it("表に載っていないdevelopmentには、入店SFX・室内環境音のどちらも割り当てない", () => {
+    const def = interiorForBuilding("development");
+    expect(def?.enterSfx).toBeUndefined();
+    expect(def?.ambientMoodId).toBeUndefined();
+  });
+
+  it("室内環境音を持たない(静けさの)建物はstorage・recordsHallの2件だけ", () => {
+    const silent = VILLAGE_INTERIORS.filter((def) => def.ambientMoodId === undefined && def.enterSfx !== undefined);
+    expect(silent.map((def) => def.buildingId).sort()).toEqual(["recordsHall", "storage"]);
+  });
+
+  it("入店SFX・室内環境音のidに重複が無い(同じ音を取り違えて2つの建物に割り当てていない)", () => {
+    const sfxIds = VILLAGE_INTERIORS.map((def) => def.enterSfx).filter((id) => id !== undefined);
+    expect(new Set(sfxIds).size).toBe(sfxIds.length);
+    const moodIds = VILLAGE_INTERIORS.map((def) => def.ambientMoodId).filter((id) => id !== undefined);
+    expect(new Set(moodIds).size).toBe(moodIds.length);
+  });
+});
+
 describe("view/villageInterior.ts: メニューパネルを避ける画角", () => {
   /** 内装の中心(原点)が、実際に画面のどのあたり(NDC)へ来るかを測る */
   function ndcXOfOrigin(fov: number, aspect: number, shift: number): number {
