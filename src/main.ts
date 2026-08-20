@@ -1594,17 +1594,28 @@ class App {
   }
 
   /**
+   * プレイヤーのHPを底上げして、事故死を防ぐ。ヘッドレスでの通し確認専用
+   * (#646: 固定シードが無いため、「足踏み20回」のような単なる時間経過の
+   * ステップでもモンスターの攻撃で偶然全滅することがあり、そうなると
+   * 以降のタル/仲間の検証までまるごと巻き添えで失敗していた)
+   */
+  debugBoostHp(): void {
+    const player = this.game.player;
+    player.maxHp = Math.max(player.maxHp, 999);
+    player.hp = player.maxHp;
+  }
+
+  /**
    * 一番近いモンスターの隣に立ち、向かせたうえで、殴りかかるべきキー
    * (攻撃専用キー。plan/attack-button.md)を返す。移動キーでは「押し出し」に
    * なってしまい殴り合いにならないため、あらかじめfaceで向きだけ合わせておく
    */
   debugFightNearest(): { key: string; name: string } | { key: null; name: string } {
-    const player = this.game.player;
     // 「殴り合いの流れを見せる」だけのテストで運悪く力尽きると、後続のタル/仲間の
     // 検証まで巻き添えで失敗する。ここは倒す側を見せたいので、プレイヤー側だけ
     // 底上げしておく(モンスター側はそのまま — 撃破までの流れは変えない)。
-    player.maxHp = Math.max(player.maxHp, 999);
-    player.hp = player.maxHp;
+    this.debugBoostHp();
+    const player = this.game.player;
     const floor = this.game.floor;
     const monsters = floor.actors.filter((a) => a.kind === "monster" && a.alive);
     if (monsters.length === 0) return { key: null, name: "モンスターがいない" };
