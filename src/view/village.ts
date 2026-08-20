@@ -47,6 +47,13 @@ export interface VillageBuilding {
   radius: number;
   shape: VillageBuildingShape;
   color: number;
+  /**
+   * 差し替え用の正式モデル(`plan/models/archive/model-village-structures.md`)。
+   * 指定があれば、届き次第プリミティブの仮組みと差し替える
+   * (`VillageView.ensureBuildingModels`)。未指定の建物は従来どおり
+   * プリミティブのまま(段階的な置き換え)
+   */
+  model?: string;
 }
 
 export interface VillageBounds {
@@ -93,7 +100,7 @@ export const VILLAGE_BUILDINGS: readonly VillageBuilding[] = [
   { id: "gallery", label: "おキヨの図鑑小屋", columns: [7, 9], role: "図鑑", x: 5, z: -3, radius: 0.9, shape: "hut", color: 0x7a4a8a },
   { id: "npcSquare", label: "村の広場", columns: [16, 17], role: "交流", x: 0, z: -1, radius: 0.6, shape: "camp", color: 0xd68a3a },
   { id: "development", label: "村の発展の受付", columns: [13], role: "村の発展", x: -3, z: -6, radius: 0.9, shape: "hut", color: 0x4a8a6a },
-  { id: "cave", label: "洞窟の入口", columns: [0, 1, 3, 4, 10, 12], role: "出発の支度", x: 3, z: -6, radius: 1.1, shape: "cave", color: 0x2a2a30 },
+  { id: "cave", label: "洞窟の入口", columns: [0, 1, 3, 4, 10, 12], role: "出発の支度", x: 3, z: -6, radius: 1.1, shape: "cave", color: 0x2a2a30, model: "cave_gate" },
   // 新設: ねむり小屋(仲間の世話。夢あわせ・改名・逃がすはcolumn4のUIをそのまま共用する)
   { id: "sleepHut", label: "ねむり小屋", columns: [4], role: "仲間の世話", x: 8, z: 1, radius: 0.9, shape: "hut", color: 0x5a4a7a },
   // 新設: 記録の間(記録・実績)
@@ -207,7 +214,7 @@ export function nearestVillageBuilding(
   return best;
 }
 
-function buildStructure(building: VillageBuilding): THREE.Object3D {
+function buildStructure(building: VillageBuilding): THREE.Group {
   const group = new THREE.Group();
   const wallMat = new THREE.MeshStandardMaterial({ color: building.color, roughness: 0.9 });
   const roofMat = new THREE.MeshStandardMaterial({ color: 0x2a2018, roughness: 0.95 });
@@ -306,6 +313,13 @@ export class VillageView {
   private readonly villagerViews = new Map<VillageNpcId, ActorView>();
   /** 章立て(plan/game/archive/story-chapters.md)。おたまの出現条件に使う */
   private chapter: StoryChapter = 0;
+  /**
+   * 建物ごとのグループ。`model`指定がある建物を、正式モデルが届き次第
+   * 差し替えるために覚えておく(`ensureBuildingModels`)
+   */
+  private readonly buildingGroups = new Map<string, THREE.Group>();
+  /** すでに正式モデルへ差し替え済みの建物id。二重に差し替えない */
+  private readonly builtBuildingModels = new Set<string>();
 
   constructor(private readonly assets: Assets) {
     this.scene.background = new THREE.Color(0x0c1420);
@@ -327,7 +341,9 @@ export class VillageView {
     this.scene.add(ground);
 
     for (const building of VILLAGE_BUILDINGS) {
-      this.scene.add(buildStructure(building));
+      const group = buildStructure(building);
+      this.buildingGroups.set(building.id, group);
+      this.scene.add(group);
     }
 
     this.playerMesh = new THREE.Mesh(
@@ -409,6 +425,26 @@ export class VillageView {
     }
   }
 
+  /**
+   * `model`指定のある建物のうち、まだプリミティブの仮組みのままのものを
+   * 見て回り、モデルが届いていれば正式モデルへ差し替える。`ensureVillagers`
+   * と同じ考え方(毎フレーム様子を見て、届いた回に1度だけ差し替える)
+   */
+  private ensureBuildingModels(): void {
+    for (const building of VILLAGE_BUILDINGS) {
+      if (!building.model || this.builtBuildingModels.has(building.id)) continue;
+      if (!this.assets.has(building.model)) {
+        this.assets.loadInBackground([building.model]);
+        continue;
+      }
+      const group = this.buildingGroups.get(building.id);
+      if (!group) continue;
+      group.clear();
+      group.add(this.assets.instantiate(building.model).root);
+      this.builtBuildingModels.add(building.id);
+    }
+  }
+
   get playerPos(): VillagePos {
     return this.pos;
   }
@@ -420,6 +456,7 @@ export class VillageView {
     this.playerMesh.position.set(this.pos.x, 0.75, this.pos.z);
     this.updateCamera();
 
+    this.ensureBuildingModels();
     this.ensureVillagers(dt);
     this.ensurePlayerView();
     const view = this.playerView;

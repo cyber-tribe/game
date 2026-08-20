@@ -372,6 +372,108 @@ def build_shield_item():
     return [C.join(pieces, "shield")]
 
 
+# --------------------------------------------------------------------------- 村の建物・小道具
+#
+# plan/models/archive/model-village-structures.md。村なか歩きの建物・小道具は
+# これまでThree.jsのプリミティブ(色つきの箱)で仮置きされていた
+# (src/view/village.ts の buildStructure)。「タルと同じ木でできた村」という
+# 考証(design/village-buildings.md)を反映し、Blenderパイプラインの正式な
+# モデルに1棟ずつ置き換えていく。
+
+CAVEGATE_ROCK = (0.30, 0.31, 0.36)
+CAVEGATE_WOOD = (0.40, 0.28, 0.18)
+CAVEGATE_ROPE = (0.46, 0.39, 0.25)
+
+
+def _rope_segment(name: str, p0, p1, radius: float, mat) -> bpy.types.Object:
+    """
+    2点(x, y, z)を結ぶ、たわんだ縄の1区間。円柱をローカル原点で作ってから
+    向きと位置を与える(join()でオブジェクト変換が焼き込まれる、
+    parts.build_hatchetと同じ手法)。y成分は共通の値を想定する。
+    """
+    dx = p1[0] - p0[0]
+    dz = p1[2] - p0[2]
+    length = math.hypot(dx, dz)
+    seg = C.cylinder(name, (0.0, 0.0, 0.0), radius, length, segments=8)
+    seg.rotation_euler = (0.0, math.atan2(dx, dz), 0.0)
+    seg.location = Vector(((p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2, (p0[2] + p1[2]) / 2))
+    C.assign_material(seg, mat)
+    return seg
+
+
+def build_cave_gate():
+    """
+    洞窟の入口。村最大のランドマーク(design/village-buildings.md「洞窟の
+    入口(山の口)」)。岩肌に穿たれた穴の両脇に、門柱のように立つ一対の
+    古い祠木と、タルのたが(箍)を結んだ縄を渡す。
+    """
+    rock_mat = C.make_material("cavegate_rock", CAVEGATE_ROCK, roughness=0.94)
+    mouth_mat = C.make_material("cavegate_mouth", (0.03, 0.03, 0.04), roughness=1.0)
+    wood_mat = C.make_material("cavegate_wood", CAVEGATE_WOOD, roughness=0.82)
+    rope_mat = C.make_material("cavegate_rope", CAVEGATE_ROPE, roughness=0.9)
+    iron_mat = C.make_material("cavegate_iron", (0.34, 0.35, 0.38), roughness=0.45, metallic=0.7)
+
+    objs = []
+
+    # 岩肌。開口部の両脇の塊と、上をまたぐ迫石を別マテリアルなしで一体に積む
+    rock_pieces = []
+    for side in (-1.0, 1.0):
+        pillar = C.box(f"cavegate_rockpillar{side}", (0.85 * side, 0.05, 0.70),
+                       (0.55, 0.60, 1.40), bevel=0.10, bevel_segments=2)
+        rock_pieces.append(pillar)
+    arch = C.box("cavegate_arch", (0.0, 0.05, 1.42), (1.90, 0.60, 0.35), bevel=0.09,
+                bevel_segments=2)
+    rock_pieces.append(arch)
+    rock = C.join(rock_pieces, "cavegate_rock_mass")
+    # 手彫りの粗さ(build_wallと同じ、決め打ちの擬似乱数)
+    for index, vert in enumerate(rock.data.vertices):
+        jitter = ((index * 2654435761) % 1000) / 1000.0 - 0.5
+        vert.co.x += jitter * 0.035
+        vert.co.y += (((index * 40503) % 1000) / 1000.0 - 0.5) * 0.035
+        vert.co.z += (((index * 69069) % 1000) / 1000.0 - 0.5) * 0.025
+    C.assign_material(rock, rock_mat)
+    objs.append(rock)
+
+    # 穴。奥へ抜ける暗がりとして、岩の内側に食い込ませる
+    mouth = C.cylinder("cavegate_mouth", (0.0, 0.30, 0.62), 0.55, 0.50, segments=16, axis="Y")
+    C.assign_material(mouth, mouth_mat)
+    objs.append(mouth)
+
+    # 祠木の門柱。上に向けてわずかに細くする
+    for side in (-1.0, 1.0):
+        post = C.cylinder(f"cavegate_post{side}", (1.15 * side, 0.05, 0.75), 0.11, 1.50,
+                          segments=10)
+        for vert in post.data.vertices:
+            t = vert.co.z / 1.50
+            taper = 1.0 - 0.18 * t
+            vert.co.x = (vert.co.x - 1.15 * side) * taper + 1.15 * side
+            vert.co.y *= taper
+        C.assign_material(post, wood_mat)
+        objs.append(post)
+
+    # たが縄。門柱の頂点どうしを、中央がわずかにたわむ2区間でつなぐ
+    top_l = (-1.15, 0.05, 1.42)
+    top_r = (1.15, 0.05, 1.42)
+    sag = (0.0, 0.05, 1.27)
+    objs.append(_rope_segment("cavegate_rope0", top_l, sag, 0.035, rope_mat))
+    objs.append(_rope_segment("cavegate_rope1", sag, top_r, 0.035, rope_mat))
+
+    # タルのたがを模した鉄輪を2つ、縄に通す。輪の平らな面が縄の向きと
+    # 垂直になるよう、乗る区間の傾きに合わせて向きを揃える
+    for t, seg_from, seg_to in ((0.35, top_l, sag), (0.65, sag, top_r)):
+        px = seg_from[0] + (seg_to[0] - seg_from[0]) * 0.5
+        pz = seg_from[2] + (seg_to[2] - seg_from[2]) * 0.5
+        theta = math.atan2(seg_to[0] - seg_from[0], seg_to[2] - seg_from[2])
+        hoop = C.cylinder(f"cavegate_hoop{t}", (0.0, 0.0, 0.0), 0.075, 0.032, segments=12,
+                          smooth=False)
+        hoop.rotation_euler = (0.0, theta, 0.0)
+        hoop.location = Vector((px, 0.05, pz))
+        C.assign_material(hoop, iron_mat)
+        objs.append(hoop)
+
+    return [C.join(objs, "cave_gate")]
+
+
 # --------------------------------------------------------------------------- 一覧
 
 PROPS = {
@@ -391,6 +493,7 @@ PROPS = {
     "bread": build_bread,
     "hatchet": build_hatchet_item,
     "shield": build_shield_item,
+    "cave_gate": build_cave_gate,
 }
 
 

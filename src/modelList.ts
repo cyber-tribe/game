@@ -50,6 +50,13 @@ export const BARREL_MODELS = {
 export const VILLAGER_MODELS = ["mogurabaa", "gendo", "fuku", "pochi", "otama", "okiyo", "otone", "ito"] as const;
 
 /**
+ * 村の建物・小道具の正式モデル(`plan/models/archive/model-village-structures.md`、
+ * `tools/models/props.py`)。`src/view/village.ts`の`VillageBuilding.model`から
+ * 参照される。1棟・1小道具ずつここへ足していく(村人と同じ運用)。
+ */
+export const VILLAGE_STRUCTURE_MODELS = ["cave_gate"] as const;
+
+/**
  * 村人が備えているべきクリップ。村人は戦わないので、モンスターの5本
  * (`REQUIRED_CLIPS`)ではなく待機と会話の2本だけに揃える
  * (`tools/models/villagers.py` の `CLIPS` と対になっている)。
@@ -70,6 +77,7 @@ export function modelNames(): string[] {
   for (const model of Object.values(TRAP_MODELS)) names.add(model);
   for (const model of Object.values(BARREL_MODELS)) names.add(model);
   for (const model of VILLAGER_MODELS) names.add(model);
+  for (const model of VILLAGE_STRUCTURE_MODELS) names.add(model);
   return [...names];
 }
 
