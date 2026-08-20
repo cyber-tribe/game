@@ -7986,16 +7986,27 @@ def build_surigarasu():
 
 
 def surigarasu_animations():
+    """
+    plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
+    タメ・ツメ(LINEAR補間)・尻尾の遅れ追従(二次揺れ)を足してある。
+    thiefらしく間合いを詰めるフレーム数自体はtsubuteより詰めたまま
+    (俊敏さを維持)。防御1というごく薄い装甲のためhitの振幅は大きめに保つ。
+    """
     neck, snout = "chest-neck", "neck-snout"
     hipF_L, hipF_R = "chest-hipF.L", "chest-hipF.R"
     hipB_L, hipB_R = "hip-hipB.L", "hip-hipB.R"
+    tail1 = "hip-tail1"
     return [
-        # きょろきょろと、光るものを探して落ち着かない
+        # きょろきょろと、光るものを探して落ち着かない。尻尾(tail1)が
+        # 首より3フレーム遅れて追従する(gajiriと同じ手法の二次揺れ)
         ("idle", [
-            (1, {neck: (0, 0, 0)}),
+            (1, {neck: (0, 0, 0), tail1: (0, 0, 0)}),
             (14, {neck: (3, 12, 0)}),
+            (17, {tail1: (0, 0, 12)}, {"partial": True}),
             (28, {neck: (0, 0, 0)}),
+            (31, {tail1: (0, 0, 0)}, {"partial": True}),
             (42, {neck: (-3, -12, 0)}),
+            (45, {tail1: (0, 0, -12)}, {"partial": True}),
         ]),
         # 飛び去るように、羽ばたきながら跳ねて進む
         ("walk", [
@@ -8003,22 +8014,28 @@ def surigarasu_animations():
             (7, {hipF_L: (0, 0, -16), hipF_R: (0, 0, 16), hipB_L: (-14, 0, 0), hipB_R: (14, 0, 0)}),
             (14, {hipF_L: (0, 0, 16), hipF_R: (0, 0, -16), hipB_L: (14, 0, 0), hipB_R: (-14, 0, 0)}),
         ]),
-        # 素早く近づいて掠め取り、すぐ飛び去る
+        # タメ→LINEARで鋭く掠め取るツメ→行き過ぎ→飛び去る構えに戻る
         ("attack", [
             (1, {neck: (0, 0, 0), hipF_L: (0, 0, 0), hipF_R: (0, 0, 0)}),
-            (4, {neck: (-10, 0, 0), hipF_L: (0, 0, 30), hipF_R: (0, 0, -30)}),
-            (8, {neck: (14, 0, 0), hipF_L: (0, 0, -22), hipF_R: (0, 0, 22)}),
+            (4, {neck: (-12, 0, 0), hipF_L: (0, 0, 30), hipF_R: (0, 0, -30)}, {"interp": "LINEAR"}),
+            (7, {neck: (18, 0, 0), hipF_L: (0, 0, -36), hipF_R: (0, 0, 36)}),
+            (9, {neck: (18, 0, 0), hipF_L: (0, 0, -40), hipF_R: (0, 0, 40)}),
             (16, {neck: (0, 0, 0), hipF_L: (0, 0, 0), hipF_R: (0, 0, 0)}),
         ]),
+        # 入りをLINEARで鋭くし、紙装甲らしく振幅を大きくする一方、
+        # thiefらしくすぐ逃げに転じるため戻りは伸ばさず速く戻す
         ("hit", [
-            (1, {neck: (0, 0, 0)}),
-            (4, {neck: (12, 0, 0), hipF_L: (0, 0, -14), hipF_R: (0, 0, 14)}),
+            (1, {neck: (0, 0, 0)}, {"interp": "LINEAR"}),
+            (4, {neck: (18, 0, 0), hipF_L: (0, 0, -20), hipF_R: (0, 0, 20)}),
             (12, {neck: (0, 0, 0), hipF_L: (0, 0, 0), hipF_R: (0, 0, 0)}),
         ]),
+        # 初動をLINEARで鋭くする。18f到達後、消える直前に首がわずかに
+        # 戻る小さな跳ね返りを追加
         ("die", [
-            (1, {neck: (0, 0, 0)}),
+            (1, {neck: (0, 0, 0)}, {"interp": "LINEAR"}),
             (8, {neck: (10, 0, 0), hipF_L: (0, 0, 20), hipF_R: (0, 0, -20)}),
             (18, {neck: (24, 0, 0), hipF_L: (0, 0, 44), hipF_R: (0, 0, -44)}),
+            (22, {neck: (20, 0, 0)}, {"partial": True}),
         ]),
     ]
 
