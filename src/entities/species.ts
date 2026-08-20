@@ -53,6 +53,7 @@ export const SPECIES: readonly Species[] = [
     minFloor: 3,
     weight: 6,
     fieldSkill: "leap",
+    dreamArts: [{ level: 5, id: "tsubuteNage" }],
   },
   {
     id: "madoromi",
@@ -66,6 +67,10 @@ export const SPECIES: readonly Species[] = [
     minFloor: 4,
     weight: 5,
     inflicts: { kind: "sleep", chance: 0.25, turns: 4 },
+    dreamArts: [
+      { level: 5, id: "nemuriUta" },
+      { level: 12, id: "wasuresase" },
+    ],
   },
   {
     id: "honegarami",
@@ -272,6 +277,7 @@ export const SPECIES: readonly Species[] = [
     isRegionBoss: true,
     bossTelegraph: { message: "大きく身をかがめた", multiplier: 2, cooldownTurns: 3 },
     bossGuaranteedDrop: "oonebosukeDust",
+    dreamArts: [{ level: 15, id: "jibikiNoNegaeri" }],
   },
   {
     // 第二地方: 忘れ潮の湿地(design/regions.md 7〜12階)。巨大なツブテガエル。
@@ -297,6 +303,7 @@ export const SPECIES: readonly Species[] = [
     },
     bossGuaranteedDrop: "nushigaeruUroko",
     hidesInQuagmire: true,
+    dreamArts: [{ level: 15, id: "oomarunomi" }],
   },
   {
     // 第三地方: まどろみの茸林(design/regions.md 13〜18階)。巨大なマドロミダケ。
@@ -320,6 +327,7 @@ export const SPECIES: readonly Species[] = [
       effect: "aoeSleep",
     },
     bossGuaranteedDrop: "oomadoromiHoushi",
+    dreamArts: [{ level: 15, id: "fukaiMadoromi" }],
   },
   {
     // 第四地方: 骨積みの回廊(design/regions.md 19〜24階)。無数のホネガラミが
@@ -343,6 +351,7 @@ export const SPECIES: readonly Species[] = [
       effect: "aoeSeal",
     },
     bossGuaranteedDrop: "honezukaKotsuban",
+    dreamArts: [{ level: 15, id: "honeNoToride" }],
   },
   {
     // 第五地方: なみだの滝つぼ(design/regions.md 25〜30階)。滝つぼの底に
@@ -366,6 +375,7 @@ export const SPECIES: readonly Species[] = [
       effect: "summonTorrent",
     },
     bossGuaranteedDrop: "fuchiNoNushiNoUroko",
+    dreamArts: [{ level: 15, id: "uzuNoSasoi" }],
   },
   {
     // 第六地方: こだまの尾根(design/regions.md 31〜36階)。物音がよく響く
@@ -389,6 +399,7 @@ export const SPECIES: readonly Species[] = [
       effect: "summonEcho",
     },
     bossGuaranteedDrop: "kodamaNoKakera",
+    dreamArts: [{ level: 15, id: "kodamaNoOtakebi" }],
   },
   {
     // 第七地方: わすれられた祭りの跡(design/regions.md 37〜42階)。かつての
@@ -413,6 +424,7 @@ export const SPECIES: readonly Species[] = [
       effect: "summonMirror",
     },
     bossGuaranteedDrop: "misemonoNoOmen",
+    dreamArts: [{ level: 15, id: "maboroshiNoKoujou" }],
   },
   {
     // 第八地方: めざめの前庭(design/regions.md 43〜48階)。近道屋が打ち込んだ
@@ -438,6 +450,7 @@ export const SPECIES: readonly Species[] = [
       effect: "groundSpikes",
     },
     bossGuaranteedDrop: "horikuiNoKuiSaki",
+    dreamArts: [{ level: 15, id: "tsuranukiBori" }],
   },
 
   // ---- plan/monster-compendium.md: 地方別の新種 ----
@@ -471,6 +484,7 @@ export const SPECIES: readonly Species[] = [
     minFloor: 7,
     weight: 5,
     inflicts: { kind: "confuse", chance: 0.2, turns: 3 },
+    dreamArts: [{ level: 5, id: "wasuresase" }],
   },
 
   // 第三地方: まどろみの茸林(13〜18階)
@@ -549,6 +563,7 @@ export const SPECIES: readonly Species[] = [
     weight: 4,
     swarmSize: [3, 4],
     fieldSkill: "leap",
+    dreamArts: [{ level: 5, id: "iyashiNoShizuku" }],
   },
   {
     // ふさぎ込んだ古い悲しみ。専用モデル(plan/models/archive/model-urumiguma.md)
@@ -564,6 +579,7 @@ export const SPECIES: readonly Species[] = [
     weight: 4,
     regenIfUnhit: true,
     fieldSkill: "break",
+    dreamArts: [{ level: 5, id: "nebaritsuki" }],
   },
 
   // 第六地方: こだまの尾根(31〜36階)
@@ -581,6 +597,10 @@ export const SPECIES: readonly Species[] = [
     minFloor: 31,
     weight: 4,
     alertsFloorOnSight: true,
+    dreamArts: [
+      { level: 5, id: "kodamaGaeshi" },
+      { level: 12, id: "chiisanaKaze" },
+    ],
   },
   {
     id: "kodamausagi",
@@ -708,6 +728,7 @@ export const SPECIES: readonly Species[] = [
     weight: 5,
     // 深みタイルの上にいると射程が伸びる(ai.ts effectiveRangedRange参照)
     rangeBonusOnQuagmire: 2,
+    dreamArts: [{ level: 10, id: "waterBarrelArt" }],
   },
   {
     // 足を取られた思い出。専用モデル(plan/models/archive/model-nukarumigani.md)
@@ -751,6 +772,7 @@ export const SPECIES: readonly Species[] = [
     ai: "coward",
     minFloor: 9,
     weight: 4,
+    dreamArts: [{ level: 5, id: "wasuresase" }],
   },
 
   // 第三地方: まどろみの茸林(design/regions.md 13〜18階)。+4
@@ -798,6 +820,10 @@ export const SPECIES: readonly Species[] = [
     // NATIVE_SKILL_BY_SPECIES(entities/skills.ts)側で紐づける
     minFloor: 14,
     weight: 4,
+    dreamArts: [
+      { level: 5, id: "nemuriUta" },
+      { level: 10, id: "sleepBarrelArt" },
+    ],
   },
   {
     // ツブテガエルの遠い親戚。専用モデル(plan/models/archive/model-nebosukegaeru.md)
@@ -830,6 +856,10 @@ export const SPECIES: readonly Species[] = [
     ai: "guard",
     minFloor: 19,
     weight: 4,
+    dreamArts: [
+      { level: 5, id: "honeTsuyoshi" },
+      { level: 10, id: "stoneBarrelArt" },
+    ],
   },
   {
     // 誰のものかも忘れられた骨。honegaramiモデルを流用する
@@ -861,6 +891,7 @@ export const SPECIES: readonly Species[] = [
     ai: "thief",
     minFloor: 21,
     weight: 3,
+    dreamArts: [{ level: 5, id: "katayaburi" }],
   },
   {
     // ホネヅカのぬしに仕える小さな使い。専用モデル(plan/models/archive/model-honezukanotsukai.md)
@@ -895,6 +926,10 @@ export const SPECIES: readonly Species[] = [
     weight: 4,
     // 奔流タイルの近くで射程が伸びる(ai.ts effectiveRangedRange参照)
     rangeBonusNearTorrent: 2,
+    dreamArts: [
+      { level: 5, id: "chiisanaKaze" },
+      { level: 10, id: "windBarrelArt" },
+    ],
   },
   {
     // 涙で色あせた花。purunモデルを流用する
@@ -945,6 +980,7 @@ export const SPECIES: readonly Species[] = [
     minFloor: 25,
     weight: 4,
     swarmSize: [3, 4],
+    dreamArts: [{ level: 5, id: "odoshiNaki" }],
   },
 
   // 第六地方: こだまの尾根(design/regions.md 31〜36階)。+4
@@ -1066,6 +1102,10 @@ export const SPECIES: readonly Species[] = [
     minFloor: 37,
     weight: 4,
     swarmSize: [3, 4],
+    dreamArts: [
+      { level: 5, id: "honokaNaAkari" },
+      { level: 10, id: "lightBarrelArt" },
+    ],
   },
 
   // 第八地方: めざめの前庭(design/regions.md 43〜48階)。+4。エリート個体
@@ -1085,6 +1125,10 @@ export const SPECIES: readonly Species[] = [
     weight: 3,
     inflicts: { kind: "sleep", chance: 0.12, turns: 2 },
     lowHpAtkBonusMax: 0.15,
+    dreamArts: [
+      { level: 5, id: "yumeNoKakebuton" },
+      { level: 12, id: "iyashiNoShizuku" },
+    ],
   },
   {
     // ガジリねずみといしずえねずみが混ざった姿。gajiriモデルを流用する

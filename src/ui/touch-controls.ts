@@ -151,6 +151,9 @@ export class TouchControls {
       </div>
       <button type="button" class="touch-menu-btn">≡</button>
       <div class="touch-menu" style="display:none">
+        <!-- あける(plan/game/archive/barrel-arts.md): 抱えている間だけ意味を持つ文脈ボタンとして
+             正面に出す案は未対応で、まずは「≡」メニューから常に呼べる形にしてある(未決事項) -->
+        <button type="button" data-code="KeyV">あける</button>
         <button type="button" data-code="KeyT">仲間へ指示</button>
         <button type="button" data-code="KeyC">樽守りの技</button>
         <button type="button" data-code="KeyR">区切り/再挑戦</button>

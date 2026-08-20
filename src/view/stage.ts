@@ -301,6 +301,15 @@ export class Stage {
         this.audio.playSfx("levelUp");
         return 0;
       },
+      // 仲間のゆめわざ習得(plan/game/archive/companion-leveling-and-arts.md)。
+      // 専用のSFXは無いため、レベルアップと同じ「良いことが起きた」効果音を流用する
+      dreamArtLearned: () => {
+        this.audio.playSfx("levelUp");
+        return 0;
+      },
+      // レベルアップ時のスキル選択(plan/game/archive/run-build-skills.md):
+      // モーダルの開閉自体はmain.ts側で処理する。盤面演出は特に無い
+      skillChoiceOffered: noop,
       pickup: () => {
         this.audio.playSfx("pickup");
         return 0;

@@ -1,5 +1,5 @@
 import { TUTORIAL_TIP_IDS, type TutorialTipId } from "./core/tutorial";
-import type { AllyActor, FloorState, Item, MarkId, SkillId, Tile } from "./core/types";
+import type { AllyActor, DreamArtId, FloorState, Item, MarkId, SkillId, Tile } from "./core/types";
 import { ACHIEVEMENTS, achievementDef } from "./entities/achievements";
 import { COSTUMES, DEFAULT_COSTUME_ID, type CostumeDef } from "./entities/costumes";
 import { DIFFICULTY_MODES, type DifficultyMode } from "./entities/difficulty";
@@ -12,6 +12,7 @@ import type { TrainingFocus } from "./entities/player";
 import { MESSAGE_SPEEDS, type MessageSpeed } from "./entities/settings";
 import { LOCALES, type LocaleId } from "./i18n";
 import { type BondStage, bondStage } from "./entities/companionBond";
+import { DREAM_ARTS, MAX_DREAM_ARTS } from "./entities/dreamArts";
 import {
   OTAMA_VISIT_STORY,
   type SideStoryDef,
@@ -147,12 +148,6 @@ export interface SaveData {
   bestLevel: number;
   /** 拠点の倉庫 */
   storage: StoredItem[];
-  /**
-   * 既知のめざめの階段(チェックポイント)がある階。1階(入口)は常に含む。
-   * ダイブの結果(踏破・全滅)によらず、足を踏み入れた瞬間に記録される
-   * (plan/checkpoint-select.md の「知識は失われない」原則)。
-   */
-  knownCheckpoints: number[];
   /** 表示済みのチュートリアルヒントid(plan/tutorial.md、アーカイブ済み) */
   seenTutorialTips: TutorialTipId[];
   /**
@@ -342,7 +337,6 @@ const SAVE_FIELDS: SaveFieldSpecs = {
   clears: { default: 0, sanitize: (p) => numberOr(p.clears, 0) },
   bestLevel: { default: 1, sanitize: (p) => numberOr(p.bestLevel, 1) },
   storage: { default: () => STARTER.map((s) => ({ ...s })), sanitize: (p) => sanitizeStorage(p.storage) },
-  knownCheckpoints: { default: () => [1], sanitize: (p) => sanitizeCheckpoints(p.knownCheckpoints) },
   seenTutorialTips: { default: () => [], sanitize: (p) => sanitizeTutorialTips(p.seenTutorialTips) },
   trainingFocus: { default: "balance", sanitize: (p) => sanitizeTrainingFocus(p.trainingFocus) },
   hut: { default: () => [], sanitize: (p) => sanitizeHut(p.hut) },
@@ -506,17 +500,6 @@ export function batchSaves<T>(run: () => T): T {
 /** 最深記録(deepest)を、既存の記録より深ければ更新する。ダイブ中フロアを移動するたびに呼ぶ */
 export function recordDeepest(current: SaveData, depth: number): SaveData {
   return { ...current, deepest: Math.max(current.deepest, depth) };
-}
-
-/** めざめの階段(チェックポイント)を既知にする。すでに知っていれば何もしない */
-export function addKnownCheckpoint(current: SaveData, depth: number): SaveData {
-  if (current.knownCheckpoints.includes(depth)) return current;
-  const next: SaveData = {
-    ...current,
-    knownCheckpoints: [...current.knownCheckpoints, depth].sort((a, b) => a - b),
-  };
-  saveData(next);
-  return next;
 }
 
 /**
@@ -761,7 +744,6 @@ export function recordRun(
     bestLevel: Math.max(current.bestLevel, result.level),
     // 踏破して帰ってきたぶんだけが倉庫に加わる。倒れた場合は持ち込み品が丸ごと消える
     storage: [...current.storage, ...result.broughtBack.map(toStored)],
-    knownCheckpoints: current.knownCheckpoints,
     seenTutorialTips: current.seenTutorialTips,
     trainingFocus: current.trainingFocus,
     // 生きて連れ帰った仲間だけがねむり小屋に加わる。全滅時は何も加わらない
@@ -944,8 +926,9 @@ export function actorToStoredMonster(uid: number, actor: AllyActor): StoredMonst
     uid,
     speciesId,
     level: actor.level,
-    // 仲間自身の経験値蓄積・レベルアップはまだ実装されていないため、常に0
-    exp: 0,
+    // 仲間の経験値・レベルアップ(plan/game/archive/companion-leveling-and-arts.md)
+    exp: actor.growthExp ?? 0,
+    dreamArts: actor.dreamArts ?? [],
     // native(種族由来)はfullSkillSetで暗黙に復元されるため、夢あわせで得た分だけ保存する
     skills: actor.skills ? actor.skills.filter((s) => s !== native) : [],
     nickname: actor.nickname,
@@ -1451,16 +1434,6 @@ export function isWeaponCompendiumComplete(current: SaveData): boolean {
 }
 
 /** 1階(入口)は常に知っている扱いにする */
-function sanitizeCheckpoints(value: unknown): number[] {
-  const known = new Set<number>([1]);
-  if (Array.isArray(value)) {
-    for (const entry of value) {
-      if (typeof entry === "number" && Number.isInteger(entry) && entry >= 1) known.add(entry);
-    }
-  }
-  return [...known].sort((a, b) => a - b);
-}
-
 const VALID_SPECIES_IDS = new Set(SPECIES.map((s) => s.id));
 const VALID_SKILL_IDS = new Set(SKILLS.map((s) => s.id));
 const VALID_ACHIEVEMENT_IDS = new Set(ACHIEVEMENTS.map((a) => a.id));
@@ -1479,11 +1452,17 @@ function sanitizeHut(value: unknown): StoredMonster[] {
       ? m.skills.filter((s): s is SkillId => typeof s === "string" && VALID_SKILL_IDS.has(s))
       : [];
     seenUids.add(m.uid);
+    const dreamArts = Array.isArray(m.dreamArts)
+      ? m.dreamArts
+          .filter((id): id is DreamArtId => typeof id === "string" && id in DREAM_ARTS)
+          .slice(-MAX_DREAM_ARTS)
+      : [];
     const monster: StoredMonster = {
       uid: m.uid,
       speciesId: m.speciesId,
       level: m.level,
       exp: typeof m.exp === "number" && Number.isFinite(m.exp) ? m.exp : 0,
+      dreamArts,
       skills,
       nickname: typeof m.nickname === "string" ? m.nickname : undefined,
       bondSuccessCount:

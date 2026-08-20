@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { Game, type Command, type RunSnapshot } from "./game";
+import { knownBarrelArt } from "./entities/dreamArts";
 import type { GameEvent } from "./core/events";
 import { splitEventsAtRecruits } from "./core/events";
 import { isFree, walkableAt } from "./core/types";
@@ -23,6 +24,7 @@ import { InventoryMenu } from "./ui/menu";
 import { NamingDialog } from "./ui/naming-dialog";
 import { OrientationGuard } from "./ui/orientation-guard";
 import { StairsConfirmModal } from "./ui/stairs-confirm";
+import { SkillChoiceModal } from "./ui/skill-choice";
 import { StanceMenu } from "./ui/stance";
 import { TouchControls } from "./ui/touch-controls";
 import { SYSTEM_TOWN_COLUMNS, TownScreen } from "./ui/town";
@@ -31,7 +33,6 @@ import {
   abandonQuest,
   acceptQuest,
   addFoundVaultPassage,
-  addKnownCheckpoint,
   batchSaves,
   buyFestivalItem,
   checkAchievements,
@@ -104,7 +105,7 @@ import { isDebugEnabled } from "./entities/debugPanel";
 import { DebugPanel } from "./ui/debug-panel";
 import { speciesLore } from "./entities/speciesLore";
 import { tutorialTipText, type TutorialTipId } from "./core/tutorial";
-import type { FloorState, Item } from "./core/types";
+import type { FloorState, Item, RunSkillId } from "./core/types";
 import type { TrainingFocus } from "./entities/player";
 
 /** 拠点に覆われているあいだ、洞窟を描き直す間隔(秒)。うっすら動いて見えれば足りる */
@@ -152,6 +153,8 @@ class App {
   private readonly artsMenu: ArtsMenu;
   /** 階段を降りる前の確認モーダル(plan/stairs-confirm-modal.md) */
   private readonly stairsConfirm: StairsConfirmModal;
+  /** レベルアップ時のスキル選択(plan/game/archive/run-build-skills.md) */
+  private readonly skillChoice: SkillChoiceModal;
   /** エンドロール(plan/ending-sequence.md) */
   private readonly endingScreen: EndingScreen;
   private readonly town: TownScreen;
@@ -209,6 +212,13 @@ class App {
   /** 記録の間(plan/records-hall.md)。このダイブ中に倒した・捕まえた数 */
   private diveDefeats = 0;
   private diveCaptures = 0;
+  /**
+   * 仲間のレベルアップ・ゆめわざ習得(plan/game/archive/companion-leveling-and-arts.md)。
+   * このコマンド1回のイベント再生で該当した仲間のidを集め、直後のhud.update()に
+   * 一度だけ渡してハイライトのCSSクラスを立てる。渡した後すぐ空にする
+   * (立てっぱなしにしない。表示の余韻自体はCSSのアニメーションに任せる)
+   */
+  private allyHighlightIds = new Set<number>();
   /** 依頼板(plan/quest-board.md)。このダイブ中の討伐・図鑑・到達の集計 */
   private diveHuntKills: Record<string, number> = {};
   private diveNewlySeenCount = 0;
@@ -241,6 +251,7 @@ class App {
     this.stanceMenu = new StanceMenu(document.querySelector<HTMLElement>("#stance")!);
     this.artsMenu = new ArtsMenu(document.querySelector<HTMLElement>("#arts")!);
     this.stairsConfirm = new StairsConfirmModal(document.querySelector<HTMLElement>("#stairsConfirm")!);
+    this.skillChoice = new SkillChoiceModal(document.querySelector<HTMLElement>("#skillChoice")!);
     this.endingScreen = new EndingScreen(document.querySelector<HTMLElement>("#ending")!);
     // タッチ操作(plan/touch-controls.md): Inputへ直接press/releaseするだけの
     // 入力ソースなので、以後参照する必要が無く、フィールドには保持しない。
@@ -276,6 +287,7 @@ class App {
       this.stanceMenu.handleKey(code) ||
       this.artsMenu.handleKey(code) ||
       this.stairsConfirm.handleKey(code) ||
+      this.skillChoice.handleKey(code) ||
       this.endingScreen.handleKey(code);
 
     // サウンド再生(plan/audio-playback.md): ブラウザの自動再生制限を避けるため、
@@ -343,7 +355,7 @@ class App {
     this.loop();
   }
 
-  /** 潜る前の拠点。倉庫から持ち込む道具・出発地点・鍛え方・仲間を選ぶ */
+  /** 潜る前の拠点。倉庫から持ち込む道具・鍛え方・仲間を選ぶ */
   private showTown(): void {
     this.hud.hideOverlay();
     this.audio.setBgm("village");
@@ -410,7 +422,7 @@ class App {
     this.exitInterior();
     this.town.show(
       this.save,
-      (carry, storage, startDepth, trainingFocus, bringAllyUids, difficulty, dungeonId) => {
+      (carry, storage, trainingFocus, bringAllyUids, difficulty, dungeonId) => {
         const { save: afterTake, taken } = takeFromHut(
           setDifficulty(setTrainingFocus({ ...this.save, storage }, trainingFocus), difficulty),
           bringAllyUids,
@@ -420,7 +432,7 @@ class App {
         // 実績帳(plan/achievements.md): 続けて強化・刻印系の実績も確定させる
         this.save = checkAchievements(checkEquipmentCompendium(afterTake, carry), carry);
         saveData(this.save);
-        this.newRun(carry, startDepth, trainingFocus, taken, difficulty, dungeonId);
+        this.newRun(carry, 1, trainingFocus, taken, difficulty, dungeonId);
       },
       (axisUid, foodUid) => {
         const fused = fuseMonsters(this.save, axisUid, foodUid);
@@ -1007,13 +1019,14 @@ class App {
     requestAnimationFrame(this.loop);
   };
 
-  /** menu.ts/stance.ts/arts.ts/stairsConfirm/town.ts/naming-dialog.tsのいずれかのモーダルが開いているか */
+  /** menu.ts/stance.ts/arts.ts/stairsConfirm/skillChoice/town.ts/naming-dialog.tsのいずれかのモーダルが開いているか */
   private anyModalOpen(): boolean {
     return (
       this.menu.isOpen ||
       this.stanceMenu.isOpen ||
       this.artsMenu.isOpen ||
       this.stairsConfirm.isOpen ||
+      this.skillChoice.isOpen ||
       this.town.isOpen ||
       this.namingDialog.isOpen
     );
@@ -1259,6 +1272,9 @@ class App {
       case "throwBarrel":
         this.submit({ type: "throwBarrel" });
         break;
+      case "openBarrel":
+        this.submit({ type: "openBarrel" });
+        break;
       case "attack":
         this.submit({ type: "attack" });
         break;
@@ -1266,7 +1282,13 @@ class App {
         if (this.game.allyList.length === 0) {
           this.hud.log("指示できる仲間がいない。");
         } else {
-          this.stanceMenu.show(this.game.allyList, (cmd) => this.submit(cmd));
+          // タルわざ(plan/game/archive/barrel-arts.md): からのタルを抱えている
+          // ときだけ、タルわざを覚えた仲間を「タルわざを頼む」の対象にする
+          const barrelArtAllies =
+            this.game.player.carrying?.kind === "empty"
+              ? this.game.allyList.filter((a) => knownBarrelArt(a.dreamArts ?? []) !== undefined)
+              : [];
+          this.stanceMenu.show(this.game.allyList, (cmd) => this.submit(cmd), { barrelArtAllies });
         }
         break;
       case "arts":
@@ -1325,7 +1347,22 @@ class App {
       spawn: noop,
       status: noop,
       statusEnd: noop,
-      levelUp: noop,
+      // 仲間のレベルアップ(plan/game/archive/companion-leveling-and-arts.md)。
+      // ガルド自身のlevelUpは既存どおり何もしない(HUDのLv表示は毎回作り直すので十分)
+      levelUp: (event) => {
+        if (event.actorId !== this.game.player.id) this.allyHighlightIds.add(event.actorId);
+      },
+      dreamArtLearned: (event) => {
+        this.allyHighlightIds.add(event.actorId);
+      },
+      // レベルアップ時のスキル選択(plan/game/archive/run-build-skills.md):
+      // 選ぶまでゲームが進まないモーダルを開く。選んだらchooseSkillコマンドを送る
+      skillChoiceOffered: (event) => {
+        this.skillChoice.show({
+          candidates: event.candidates as RunSkillId[],
+          onChoose: (id) => this.submit({ type: "chooseSkill", id }),
+        });
+      },
       pickup: noop,
       drop: noop,
       useItem: noop,
@@ -1354,7 +1391,6 @@ class App {
       descend: noop,
       // めざめの階段は、ダイブの結果によらず足を踏み入れた瞬間に記録する
       checkpoint: (event) => {
-        this.save = addKnownCheckpoint(this.save, event.depth);
         this.diveReachedDepths.push(event.depth);
       },
       hungerWarning: noop,
@@ -1439,7 +1475,9 @@ class App {
       this.game.depth,
       this.game.allyList,
       this.game.captureOutlook(),
+      this.allyHighlightIds,
     );
+    this.allyHighlightIds.clear();
     this.minimap.draw(this.game.floor, this.game.player);
     // 盤面が変わったので、影も1度は作り直す(以後は再生が終わるまで毎フレーム更新)
     this.renderer.requestShadowUpdate();

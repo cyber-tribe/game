@@ -60,8 +60,10 @@ export const TUTORIAL_TIPS: Record<TutorialTipId, TextVariant> = {
     touch: "レベルが上がった! 少しずつ強くなっている。",
   },
   checkpoint: {
-    keyboard: "めざめの階段を見つけた。ここまでは、もう迷わず来られる。",
-    touch: "めざめの階段を見つけた。ここまでは、もう迷わず来られる。",
+    // 出発地点選択の廃止(plan/game/archive/remove-checkpoint-start.md)に伴い、
+    // 「ここへ直接戻れる」ではなく「ここで区切れる」ことを伝える文面にする
+    keyboard: "めざめの階段を見つけた。ここで区切れば、持ちものと仲間を持ち帰れる。",
+    touch: "めざめの階段を見つけた。ここで区切れば、持ちものと仲間を持ち帰れる。",
   },
   death: {
     keyboard: "力つきても、ここまで知ったことは消えないよ。また潜ればいい。",

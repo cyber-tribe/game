@@ -113,6 +113,7 @@ describe("save.ts: recordRunとねむり小屋の収容数上限", () => {
         skills: [],
         bondSuccessCount: 0,
         recentFusionMaterials: [],
+        dreamArts: [],
       })),
       nextHutUid: 7,
     };
