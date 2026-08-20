@@ -5206,13 +5206,20 @@ def build_mizukagami():
 
 
 def mizukagami_animations():
+    """
+    plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
+    タメ・ツメ(LINEAR補間)・壺の遅れ追従(二次揺れ)を足してある。
+    """
     stem, cap, mirror = "root-stem", "stem-capbase", "capbase-captop"
     return [
-        # 道具のふりをして、ほとんど動かずじっと潜む
+        # 道具のふりをして、ほとんど動かずじっと潜む。水面の揺らぎ(mirror)
+        # が壺(cap)へ3フレーム遅れて伝わる、ごく控えめな二次揺れを追加
         ("idle", [
-            (1, {mirror: (0, 0, 0)}),
+            (1, {mirror: (0, 0, 0), cap: (0, 0, 0)}),
             (48, {mirror: (1.2, 0, 1)}),
+            (51, {cap: (1, 0, 0.8)}, {"partial": True}),
             (96, {mirror: (0, 0, 0)}),
+            (99, {cap: (0, 0, 0)}, {"partial": True}),
         ]),
         # 道具らしからぬ、正体を現したときのぎこちない足取り
         ("walk", [
@@ -5221,22 +5228,27 @@ def mizukagami_animations():
             (14, {stem: (-8, 0, -5), cap: (6, 0, 3)}),
             (21, {stem: (0, 0, 0), cap: (0, 0, 0)}),
         ]),
+        # タメ→LINEARで鋭く打ちつける→行き過ぎ→ゆっくり中立へ
         ("attack", [
             (1, {cap: (0, 0, 0), mirror: (0, 0, 0)}),
-            (5, {cap: (-18, 0, 0), mirror: (-14, 0, 0)}),
-            (10, {cap: (22, 0, 0), mirror: (20, 0, 0)}),
+            (5, {cap: (-18, 0, 0), mirror: (-14, 0, 0)}, {"interp": "LINEAR"}),
+            (8, {cap: (28, 0, 0), mirror: (26, 0, 0)}),
+            (10, {cap: (14, 0, 0), mirror: (12, 0, 0)}),
             (20, {cap: (0, 0, 0), mirror: (0, 0, 0)}),
         ]),
+        # 入りだけLINEARで鋭くする。振幅・戻り時間は現行どおり中程度に保つ
         ("hit", [
-            (1, {stem: (0, 0, 0), cap: (0, 0, 0)}),
+            (1, {stem: (0, 0, 0), cap: (0, 0, 0)}, {"interp": "LINEAR"}),
             (4, {stem: (-16, 0, 0), cap: (-14, 0, 0)}),
             (14, {stem: (0, 0, 0), cap: (0, 0, 0)}),
         ]),
-        # 水面が波紋となって崩れ、映していた姿が消える
+        # 水面が波紋となって崩れ、映していた姿が消える。初動をLINEARで
+        # 鋭くする。24f到達後、stem/capがほんの少し戻るわずかな跳ね返りを追加
         ("die", [
-            (1, {stem: (0, 0, 0), cap: (0, 0, 0)}),
+            (1, {stem: (0, 0, 0), cap: (0, 0, 0)}, {"interp": "LINEAR"}),
             (10, {stem: (-24, 0, 8), cap: (-28, 0, 0), mirror: (-20, 0, 0)}),
             (24, {stem: (-70, 0, 20), cap: (-52, 0, 0), mirror: (-38, 0, 0)}),
+            (28, {stem: (-63, 0, 18), cap: (-47, 0, 0)}, {"partial": True}),
         ]),
     ]
 
