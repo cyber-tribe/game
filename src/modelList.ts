@@ -65,6 +65,7 @@ export const VILLAGE_STRUCTURE_MODELS = [
   "house_records",
   "house_development",
   "prop_quest_board",
+  "prop_signpost",
 ] as const;
 
 /**
