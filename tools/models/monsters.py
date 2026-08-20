@@ -3402,15 +3402,22 @@ def build_menkaburikozo():
 
 
 def menkaburikozo_animations():
+    """
+    plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
+    タメ・ツメ(LINEAR補間)・腕の控えめな二次揺れを足してある。
+    """
     head = "chest-head"
     armL, armR = "chest-armF.L", "chest-armF.R"
     legL, legR = "hip-kneeB.L", "hip-kneeB.R"
     return [
-        # 気配を消してじっと潜む。ほとんど動かない
+        # 気配を消してじっと潜む。ほとんど動かないが、腕(armL,R)が頭より
+        # 2フレーム遅れて控えめに追従する(息を潜めている感じを強める二次揺れ)
         ("idle", [
-            (1, {head: (0, 0, 0)}),
+            (1, {head: (0, 0, 0), armL: (0, 0, 0), armR: (0, 0, 0)}),
             (40, {head: (2, 3, 0)}),
+            (42, {armL: (1, 0, 0), armR: (1, 0, 0)}, {"partial": True}),
             (80, {head: (0, 0, 0)}),
+            (82, {armL: (0, 0, 0), armR: (0, 0, 0)}, {"partial": True}),
         ]),
         # 低い姿勢のまま、音も無く忍び寄る
         ("walk", [
@@ -3419,23 +3426,30 @@ def menkaburikozo_animations():
             (9, {legL: (-24, 0, 0), legR: (-24, 0, 0), head: (-6, 0, 0)}),
             (14, {legL: (0, 0, 0), legR: (0, 0, 0), head: (0, 0, 0)}),
         ]),
-        # 面を突き出すように跳びかかる不意打ち
+        # 面をLINEARで鋭く突き出して跳びかかり、ぶつかった反動で
+        # 戻りかけてからゆっくり中立へ戻る不意打ち
         ("attack", [
             (1, {armL: (0, 0, 0), armR: (0, 0, 0), head: (0, 0, 0)}),
-            (4, {armL: (-40, 0, 20), armR: (-40, 0, -20), head: (-24, 0, 0)}),
+            (4, {armL: (-40, 0, 20), armR: (-40, 0, -20), head: (-24, 0, 0)}, {"interp": "LINEAR"}),
+            (6, {armL: (-48, 0, 20), armR: (-48, 0, -20), head: (-30, 0, 0)}),
             (8, {armL: (30, 0, -10), armR: (30, 0, 10), head: (14, 0, 0)}),
             (16, {armL: (0, 0, 0), armR: (0, 0, 0), head: (0, 0, 0)}),
         ]),
+        # 入りだけLINEARで鋭くする。ambush種族なので振幅は中程度、
+        # 戻りはゆっくりのまま
         ("hit", [
-            (1, {head: (0, 0, 0)}),
+            (1, {head: (0, 0, 0)}, {"interp": "LINEAR"}),
             (4, {head: (18, 0, 0), armL: (-20, 0, 16), armR: (-20, 0, -16)}),
             (14, {head: (0, 0, 0)}),
         ]),
+        # 初動をLINEARで鋭くする。22f到達後、頭がほんの少し戻る
+        # わずかな跳ね返りを追加
         ("die", [
-            (1, {head: (0, 0, 0)}),
+            (1, {head: (0, 0, 0)}, {"interp": "LINEAR"}),
             (9, {head: (24, 0, 0), legL: (-32, 0, 0), legR: (-32, 0, 0)}),
             (22, {head: (36, 0, 0), legL: (-60, 0, 0), legR: (-60, 0, 0),
                   armL: (-54, 0, 22), armR: (-54, 0, -22)}),
+            (26, {head: (31, 0, 0)}, {"partial": True}),
         ]),
     ]
 
