@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { composeJingle, composeSfx, composeTrack } from "../tools/audio/compose.ts";
+import { composeAmbientLoop, composeJingle, composeSfx, composeTrack } from "../tools/audio/compose.ts";
 import { breathCry, drumHit, fluteNote, humVoice, malletNote, mixIn, mulberry32, normalize, pluckedString } from "../tools/audio/synth.ts";
 import { encodeWav } from "../tools/audio/wav.ts";
 
@@ -214,6 +214,18 @@ describe("tools/audio/compose.ts(plan/sound/archive/bgm-quality-upgrade.md)", ()
     expect(Array.from(a.left)).not.toEqual(Array.from(b.left));
   });
 
+  it("quoteMotifを指定すると波形が変わり、未指定の曲には影響しない(plan/sound/archive/village-soundscape.md)", () => {
+    const without = composeTrack({ ...baseParams, seed: 21 });
+    const withQuote = composeTrack({ ...baseParams, seed: 21, quoteMotif: { degrees: [0, 2, 4, 2] } });
+    expect(Array.from(withQuote.left)).not.toEqual(Array.from(without.left));
+  });
+
+  it("quoteMotifは同じシードから決定的に同じ波形を返す", () => {
+    const a = composeTrack({ ...baseParams, seed: 23, quoteMotif: { degrees: [0, 2, 4, 2] } });
+    const b = composeTrack({ ...baseParams, seed: 23, quoteMotif: { degrees: [0, 2, 4, 2] } });
+    expect(Array.from(a.left)).toEqual(Array.from(b.left));
+  });
+
   it("composeSfxは有限な値の配列を返す", () => {
     const out = composeSfx({ kind: "mallet", freq: 660, duration: 0.35, sampleRate: 22050, seed: 1 });
     expect(out.length).toBe(Math.floor(0.35 * 22050));
@@ -239,6 +251,33 @@ describe("tools/audio/compose.ts(plan/sound/archive/bgm-quality-upgrade.md)", ()
     const without = composeSfx(base);
     const withVoice = composeSfx({ ...base, voiceLayer: { freq: 400, duration: 0.15, seed: 202, velocity: 0.25, delaySec: 0.15 } });
     expect(withVoice.length).toBeGreaterThan(without.length);
+  });
+
+  // durationSecは本番(20秒)より小さい2秒にする。441,000要素どうしの
+  // toEqual比較はCIの遅いランナーだと既定の5秒タイムアウトを超えることが
+  // あったため(実際に生成にかかる時間ではなく比較コストが支配的)、
+  // 決定性という性質の検証には短いループで十分という判断
+  it("composeAmbientLoopは指定した長さの有限な値の配列を、同じシードから決定的に返す(plan/sound/archive/village-soundscape.md)", () => {
+    const durationSec = 2;
+    const sampleRate = 22050;
+    const a = composeAmbientLoop({ durationSec, sampleRate, seed: 1 });
+    const b = composeAmbientLoop({ durationSec, sampleRate, seed: 1 });
+    expect(a.length).toBe(Math.floor(durationSec * sampleRate));
+    expect(Array.from(a)).toEqual(Array.from(b));
+    for (const v of a) expect(Number.isFinite(v)).toBe(true);
+  });
+
+  it("composeAmbientLoopは異なるシードで異なる波形を返す", () => {
+    const params = { durationSec: 2, sampleRate: 22050 };
+    const a = composeAmbientLoop({ ...params, seed: 1 });
+    const b = composeAmbientLoop({ ...params, seed: 2 });
+    expect(Array.from(a)).not.toEqual(Array.from(b));
+  });
+
+  it("composeAmbientLoopはBGMの下に薄く敷く前提の控えめな音量に収まる(ピークが0.35を超えない、本番相当の20秒で確認)", () => {
+    const out = composeAmbientLoop({ durationSec: 20, sampleRate: 22050, seed: 3 });
+    const peak = out.reduce((max, v) => Math.max(max, Math.abs(v)), 0);
+    expect(peak).toBeLessThanOrEqual(0.35);
   });
 });
 

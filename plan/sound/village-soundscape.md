@@ -49,6 +49,28 @@
 
 ## 2. 村の環境音(アンビエント)
 
+> **実装済み。** `tools/audio/compose.ts` に `composeAmbientLoop` を新設し、
+> 火のはぜる音(低域フィルタしたノイズの床+時折の「パチッ」)・祠木の葉ずれ
+> (疎らな高域寄りのノイズバースト)・遠い山の寝息(35Hzの超低音が10秒周期で
+> うねる)を1本のモノラルループ(20秒、寝息2周期ぶんで継ぎ目なくループ)に
+> ミックスした。`tools/audio/build.ts`の`MOOD_SPECS`から
+> `public/audio/bgm/mood/village-ambient.wav`へ生成。
+>
+> 再生側は`src/main.ts`の`showTown()`で`this.audio.setMoodLayer(
+> "village-ambient", true)`を、ダイブ開始の共通初期化`presentFloor()`で
+> `setMoodLayer("village-ambient", false)`を呼ぶだけで済んだ
+> (`AudioPlayer.setMoodLayer`は本実装まで未使用だった既存APIをそのまま
+> 流用)。建物内装での屋外アンビエントの停止(「重ねない」)はsection 3側の
+> `enterInterior`/`exitInterior`実装で扱う(このPRの対象外)。
+>
+> **検証**: `npx tsc --noEmit`・`npx vitest run`(117ファイル/1567件)・
+> `npm run build`・`npm run audio`いずれも成功。再生成後の差分は新規の
+> `public/audio/bgm/mood/village-ambient.wav`のみ(既存音源は無変更)。
+> デコードしてピーク0.14・RMS0.013程度と、BGMの下に薄く敷くのに十分
+> 控えめな音量であることを確認済み。
+>
+> 本ファイルのsection 3〜4は未実装(別PRで進める)。
+
 BGMと並行してループ再生する薄い環境音レイヤーを1本追加する
 (`AudioPlayer.setMoodLayer` と同じ重ね方が流用できる):
 
