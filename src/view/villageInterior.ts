@@ -182,6 +182,33 @@ function shelf(
   return group;
 }
 
+/**
+ * 古タル転用の棚(design/village-buildings.md「倉庫の棚はすべて伏せた
+ * タルを転用したもの」、`prop_shelf_barrel.glb`)。モグラ婆の倉庫で使う。
+ * モデルが未読みなら`shelf()`の汎用棚で代用する(`barrel()`と同じ流儀。
+ * 内装は建物ごとに一度だけ組むので、あとから差し替えはしない)
+ */
+function shelfBarrel(
+  assets: Assets,
+  width: number, x: number, z: number, rotY: number,
+  fallbackMaterial: THREE.Material,
+): THREE.Object3D {
+  if (!assets.has("prop_shelf_barrel")) return shelf(width, 2, x, z, rotY, fallbackMaterial);
+  // 単位(横幅1.10)を伸縮させず、必要なぶん横に並べて壁の幅を埋める
+  const group = new THREE.Group();
+  const unitWidth = 1.10;
+  const count = Math.max(1, Math.round(width / unitWidth));
+  const spacing = width / count;
+  for (let i = 0; i < count; i++) {
+    const unit = assets.instantiate("prop_shelf_barrel").root;
+    unit.position.x = -width / 2 + spacing * (i + 0.5);
+    group.add(unit);
+  }
+  group.position.set(x, 0, z);
+  group.rotation.y = rotY;
+  return group;
+}
+
 /** 机。天板1枚と脚4本 */
 function desk(
   w: number, d: number,
@@ -225,6 +252,22 @@ function bedding(assets: Assets, x: number, z: number, clothMaterial: THREE.Mate
   return group;
 }
 
+/**
+ * ねむり小屋のタルの寝床(design/village-buildings.md「タルの寝床が
+ * ずらりと並ぶ」、`prop_barrel_bed.glb`)。横倒しのタル+掛け布+名札の
+ * 専用モデル。モデルが未読みなら`bedding()`の汎用寝床で代用する
+ */
+function barrelBed(assets: Assets, x: number, z: number, rotY: number,
+                   fallbackCloth: THREE.Material): THREE.Object3D {
+  if (assets.has("prop_barrel_bed")) {
+    const object = assets.instantiate("prop_barrel_bed").root;
+    object.position.set(x, 0, z);
+    object.rotation.y = rotY;
+    return object;
+  }
+  return bedding(assets, x, z, fallbackCloth);
+}
+
 /** 部屋の外枠(床・天井・奥と左右の壁)。手前(入口側)は開けたままにする */
 function buildShell(def: VillageInteriorDef): THREE.Group {
   const group = new THREE.Group();
@@ -258,9 +301,10 @@ function buildProps(def: VillageInteriorDef, assets: Assets): THREE.Group {
 
   switch (def.buildingId) {
     case "storage": {
-      // 壁一面の棚
-      group.add(shelf(4.6, 4, 0.2, -2.5, 0, wood));
-      group.add(shelf(3.4, 3, 2.5, 0.1, Math.PI / 2, wood));
+      // 壁一面の棚(古タル転用の棚。design/village-buildings.mdの
+      // 「倉庫の棚はすべて伏せたタルを転用したもの」を反映)
+      group.add(shelfBarrel(assets, 4.6, 0.2, -2.5, 0, wood));
+      group.add(shelfBarrel(assets, 3.4, 2.5, 0.1, Math.PI / 2, wood));
       // 積まれたタル・木箱
       group.add(barrel(assets, -0.9, 0, 1.2));
       group.add(barrel(assets, -0.35, 0, 1.5));
@@ -295,12 +339,13 @@ function buildProps(def: VillageInteriorDef, assets: Assets): THREE.Group {
       break;
     }
     case "sleepHut": {
-      // 並んだ寝床(小さなタルが寝かされている)
+      // 並んだ寝床(横倒しのタル+掛け布+名札。design/village-buildings.md
+      // の「タルの寝床がずらりと並ぶ」を反映)
       const futon = mat(0x4c4470);
-      group.add(bedding(assets, -0.65, -0.3, futon));
-      group.add(bedding(assets, 0.65, -0.3, futon));
-      group.add(bedding(assets, 1.95, -0.3, futon));
-      group.add(bedding(assets, 1.95, 1.5, futon));
+      group.add(barrelBed(assets, -0.65, -0.3, 0, futon));
+      group.add(barrelBed(assets, 0.65, -0.3, 0, futon));
+      group.add(barrelBed(assets, 1.95, -0.3, 0, futon));
+      group.add(barrelBed(assets, 1.95, 1.5, 0, futon));
       // 天蓋の布(部屋をまたいで張った布と、垂れ下がった端)
       const canopy = mat(0x6a5f9a, 0.85);
       group.add(box(5.2, 0.05, 3.2, 0, WALL_HEIGHT - 0.35, -0.5, canopy));

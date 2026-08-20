@@ -1220,6 +1220,88 @@ def build_prop_hokoragi_stump():
     return [C.join(objs, "prop_hokoragi_stump")]
 
 
+def build_prop_barrel_bed():
+    """
+    ねむり小屋のタルの寝床(design/village-buildings.md「ねむり小屋の
+    タルの寝床」、plan/models/model-village-structures.mdのpropBarrelBed)。
+    横倒しのタル+掛け布+名札。`src/view/villageInterior.ts`の内装から
+    使う(内装用の専用モデル)。
+    """
+    wood_mat = C.make_material("barrelbed_wood", BARREL_WOOD_DARK, roughness=0.85)
+    iron_mat = C.make_material("barrelbed_iron", BARREL_IRON, roughness=0.45, metallic=0.7)
+    cloth_mat = C.make_material("barrelbed_cloth", (0.30, 0.28, 0.44), roughness=0.8)
+    tag_mat = C.make_material("barrelbed_tag", (0.80, 0.72, 0.52), roughness=0.75)
+    cord_mat = C.make_material("barrelbed_cord", (0.22, 0.18, 0.12), roughness=0.85)
+
+    objs = []
+    height, radius = 0.62, 0.29
+
+    # 横倒しのタル。胴・鉄輪は原点で組んでから90度倒して配置する
+    # (胴・鉄輪はタルの底が原点に来るよう組まれているので、この順で
+    # 倒すと底を軸に転がした位置関係のまま横たわる)
+    barrel_objs = _barrel_body("barrelbed", BARREL_WOOD_DARK, BARREL_IRON, height=height,
+                               radius=radius)
+    for piece in barrel_objs:
+        piece.rotation_euler = (0.0, math.radians(90.0), 0.0)
+        piece.location = Vector((0.0, 0.0, radius + 0.04))
+    objs.extend(barrel_objs)
+
+    # 掛け布。タルの丸みに沿って端を垂らす
+    cloth = C.box("barrelbed_cloth", (0.0, 0.0, 0.0), (height * 0.86, radius * 2.3, 0.05),
+                 bevel=0.02)
+    for vert in cloth.data.vertices:
+        t = vert.co.y / (radius * 1.15)
+        vert.co.z -= 0.11 * (t * t)
+    cloth.location = Vector((0.0, 0.0, radius * 2 + 0.02))
+    C.assign_material(cloth, cloth_mat)
+    objs.append(cloth)
+
+    # 名札。端の鉄輪から紐で下げる
+    cord = C.cylinder("barrelbed_cord", (0.0, 0.0, 0.0), 0.010, 0.14, segments=6)
+    cord.location = Vector((height / 2 - 0.06, radius + 0.03, radius * 1.7))
+    C.assign_material(cord, cord_mat)
+    objs.append(cord)
+    tag = C.box("barrelbed_tag", (0.0, 0.0, 0.0), (0.14, 0.01, 0.11), bevel=0.005)
+    tag.location = Vector((height / 2 - 0.06, radius + 0.03, radius * 1.7 - 0.11))
+    C.assign_material(tag, tag_mat)
+    objs.append(tag)
+
+    return [C.join(objs, "prop_barrel_bed")]
+
+
+def build_prop_shelf_barrel():
+    """
+    古タル転用の棚(design/village-buildings.md「倉庫の棚はすべて伏せた
+    タルを転用したもの」、plan/models/model-village-structures.mdの
+    propShelfBarrel)。棚板を大タルの底板(円い板)に見立てる。
+    `src/view/villageInterior.ts`の内装から使う(内装用の専用モデル)。
+    """
+    post_mat = C.make_material("shelfbarrel_post", HOUSE_LOG, roughness=0.82)
+    disk_light_mat = C.make_material("shelfbarrel_disk_light", BARREL_WOOD, roughness=0.85)
+    disk_dark_mat = C.make_material("shelfbarrel_disk_dark", BARREL_WOOD_DARK, roughness=0.85)
+
+    objs = []
+    width, height = 1.10, 1.30
+
+    for side in (-1.0, 1.0):
+        post = C.cylinder(f"shelfbarrel_post{side}", (side * width / 2, 0.0, height / 2), 0.045,
+                          height, segments=10)
+        C.assign_material(post, post_mat)
+        objs.append(post)
+
+    # 棚板は大タルの底板(円い板)に見立てて並べる。2段
+    for level, z in enumerate((0.46, 0.98)):
+        disk_r = 0.235
+        for i, x in enumerate((-width / 2 + disk_r * 0.9, 0.0, width / 2 - disk_r * 0.9)):
+            mat = disk_light_mat if (level + i) % 2 == 0 else disk_dark_mat
+            disk = C.cylinder(f"shelfbarrel_disk{level}_{i}", (x, 0.0, z), disk_r, 0.03,
+                              segments=14)
+            C.assign_material(disk, mat)
+            objs.append(disk)
+
+    return [C.join(objs, "prop_shelf_barrel")]
+
+
 # --------------------------------------------------------------------------- 一覧
 
 PROPS = {
@@ -1253,6 +1335,8 @@ PROPS = {
     "prop_hokoragi_a": build_prop_hokoragi_a,
     "prop_hokoragi_b": build_prop_hokoragi_b,
     "prop_hokoragi_stump": build_prop_hokoragi_stump,
+    "prop_barrel_bed": build_prop_barrel_bed,
+    "prop_shelf_barrel": build_prop_shelf_barrel,
 }
 
 
