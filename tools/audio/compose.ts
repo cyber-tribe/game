@@ -277,6 +277,60 @@ export function composeTrack(params: TrackParams): StereoTrack {
   return { left, right };
 }
 
+export interface JingleNote {
+  /** ペンタトニック上の度数(全曲共通のROOT_MIDI基準) */
+  degree: number;
+  /** 音価(拍数) */
+  beats: number;
+  /** 省略時はmallet */
+  instrument?: "mallet" | "flute" | "string";
+}
+
+export interface JingleParams {
+  notes: readonly JingleNote[];
+  tempoBpm: number;
+  sampleRate: number;
+  /** 省略時はリバーブ無し */
+  reverb?: ReverbParams;
+}
+
+/**
+ * 節目の場面(仲間・発見・クリア・全滅)向けの短い音列
+ * (plan/sound/archive/sfx-milestone-jingles.md)。`composeSfx`の単発1音とは
+ * 違い、複数の音を順に鳴らして小さな旋律にする。コード進行・ボイシングは
+ * 持たない(単発のジングルなので不要)。SFXと同じくモノラルのまま
+ */
+export function composeJingle(params: JingleParams): Float32Array {
+  const { notes, tempoBpm, sampleRate, reverb } = params;
+  const beatSec = 60 / tempoBpm;
+  const totalBeats = notes.reduce((sum, note) => sum + note.beats, 0);
+  const totalSamples = Math.max(1, Math.floor(totalBeats * beatSec * sampleRate));
+  const out = new Float32Array(totalSamples);
+
+  let elapsedBeats = 0;
+  notes.forEach((note, index) => {
+    const freq = degreeToFreq(note.degree);
+    const dur = note.beats * beatSec * 0.95;
+    const offset = Math.floor(elapsedBeats * beatSec * sampleRate);
+    const instrument = note.instrument ?? "mallet";
+    const noteSeed = index + 1;
+    const sample =
+      instrument === "mallet"
+        ? malletNote(freq, dur, sampleRate, 0.7)
+        : instrument === "flute"
+          ? fluteNote(freq, dur, sampleRate, 0.6)
+          : pluckedString(freq, dur, sampleRate, noteSeed, 0.6);
+    mixIn(out, sample, offset);
+    elapsedBeats += note.beats;
+  });
+
+  normalize(out);
+  if (!reverb) return out;
+  const wet = reverbOneShot(out, sampleRate, reverb);
+  normalize(wet);
+  return wet;
+}
+
 export interface SfxParams {
   kind: "mallet" | "drum";
   freq: number;
