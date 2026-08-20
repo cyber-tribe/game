@@ -1013,6 +1013,49 @@ def build_house_development():
     return [C.join(objs, "house_development")]
 
 
+def build_prop_quest_board():
+    """
+    オトネの依頼板(design/village-buildings.md「オトネの依頼板」)。大タルの
+    底板を並べた板壁+貼られた依頼札(数枚は裏返し=達成済み)。タルは
+    木の裏表で色が違う、という考証を札の裏表の色差で表現する。
+    """
+    post_mat = C.make_material("questboard_post", HOUSE_LOG, roughness=0.82)
+    plank_mat = C.make_material("questboard_plank", BARREL_WOOD, roughness=0.85)
+    plank_dark_mat = C.make_material("questboard_plank_dark", BARREL_WOOD_DARK, roughness=0.85)
+    tag_front_mat = C.make_material("questboard_tag_front", (0.86, 0.78, 0.58), roughness=0.7)
+    tag_back_mat = C.make_material("questboard_tag_back", (0.36, 0.30, 0.22), roughness=0.75)
+
+    objs = []
+
+    for side in (-1.0, 1.0):
+        post = C.cylinder(f"questboard_post{side}", (side * 0.72, 0.0, 0.55), 0.055, 1.10,
+                          segments=10)
+        C.assign_material(post, post_mat)
+        objs.append(post)
+
+    # 大タルの底板を並べた板壁。丸い底板を思わせるよう、幅の違う板を交互に並べる
+    plank_widths = (0.24, 0.20, 0.26, 0.20, 0.24)
+    x = -0.70
+    for i, w in enumerate(plank_widths):
+        mat = plank_mat if i % 2 == 0 else plank_dark_mat
+        plank = C.box(f"questboard_plank{i}", (x + w / 2, 0.0, 0.95), (w, 0.06, 0.90),
+                     bevel=0.015)
+        C.assign_material(plank, mat)
+        objs.append(plank)
+        x += w
+
+    # 依頼札。数枚を裏返しにして達成済みを示す
+    tag_layout = ((-0.55, 1.25, False), (-0.25, 1.15, False), (0.05, 1.28, True),
+                 (0.35, 1.10, False), (0.55, 1.30, True), (-0.40, 0.75, False),
+                 (0.10, 0.72, True), (0.45, 0.78, False))
+    for i, (tx, tz, flipped) in enumerate(tag_layout):
+        tag = C.box(f"questboard_tag{i}", (tx, 0.035, tz), (0.16, 0.012, 0.13), bevel=0.005)
+        C.assign_material(tag, tag_back_mat if flipped else tag_front_mat)
+        objs.append(tag)
+
+    return [C.join(objs, "prop_quest_board")]
+
+
 # --------------------------------------------------------------------------- 一覧
 
 PROPS = {
@@ -1041,6 +1084,7 @@ PROPS = {
     "house_compendium": build_house_compendium,
     "house_records": build_house_records,
     "house_development": build_house_development,
+    "prop_quest_board": build_prop_quest_board,
 }
 
 
