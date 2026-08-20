@@ -2479,6 +2479,10 @@ def build_madoromigumo():
 
 
 def madoromigumo_animations():
+    """
+    plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
+    タメ・ツメ(LINEAR補間)・脚の遅れ追従(二次揺れ)を足してある。
+    """
     head = "body-head"
     abdomen = "waist-abdomen"
     legA_L, legA_R = "body-legA.L", "body-legA.R"
@@ -2486,11 +2490,14 @@ def madoromigumo_animations():
     legC_L, legC_R = "body-legC.L", "body-legC.R"
     legD_L, legD_R = "body-legD.L", "body-legD.R"
     return [
-        # 気配を消して潜む。ほぼ静止したまま、腹だけがわずかに上下する
+        # 気配を消して潜む。ほぼ静止したまま、腹だけがわずかに上下する。
+        # 脚の先(legB)が腹より2フレーム遅れて追従する(二次揺れ)
         ("idle", [
-            (1, {abdomen: (0, 0, 0)}),
-            (28, {abdomen: (-3, 0, 0), legB_L: (2, 0, 2), legB_R: (-2, 0, -2)}),
+            (1, {abdomen: (0, 0, 0), legB_L: (0, 0, 0), legB_R: (0, 0, 0)}),
+            (28, {abdomen: (-3, 0, 0)}),
+            (30, {legB_L: (2, 0, 2), legB_R: (-2, 0, -2)}, {"partial": True}),
             (56, {abdomen: (0, 0, 0)}),
+            (58, {legB_L: (0, 0, 0), legB_R: (0, 0, 0)}, {"partial": True}),
         ]),
         # 対角の脚(A・C / B・D)を互い違いに踏み出す
         ("walk", [
@@ -2513,21 +2520,24 @@ def madoromigumo_animations():
         ]),
         # 潜んでいた姿勢から前脚を突き出し、首を打ちつけるように噛みつく
         # (ambushStrike=ふいのいちげき)
+        # 潜んでいた姿勢から前脚をLINEARで鋭く突き出し噛みつく(不意打ちの鋭さを強調)
         ("attack", [
             (1, {head: (0, 0, 0), legA_L: (0, 0, 0), legA_R: (0, 0, 0)}),
-            (4, {head: (-18, 0, 0), legA_L: (-30, 0, -10), legA_R: (30, 0, 10)}),
+            (4, {head: (-18, 0, 0), legA_L: (-30, 0, -10), legA_R: (30, 0, 10)}, {"interp": "LINEAR"}),
             (8, {head: (26, 0, 0), legA_L: (34, 0, 8), legA_R: (-34, 0, -8)}),
             (18, {head: (0, 0, 0), legA_L: (0, 0, 0), legA_R: (0, 0, 0)}),
         ]),
+        # 入りだけLINEARで鋭くする。振幅・戻り時間は現行どおり中程度に保つ
         ("hit", [
-            (1, {head: (0, 0, 0), abdomen: (0, 0, 0)}),
+            (1, {head: (0, 0, 0), abdomen: (0, 0, 0)}, {"interp": "LINEAR"}),
             (4, {head: (16, 0, 0), abdomen: (-10, 0, 0),
                  legB_L: (-14, 0, 10), legB_R: (14, 0, -10)}),
             (14, {head: (0, 0, 0), abdomen: (0, 0, 0)}),
         ]),
-        # 脚を内側へ丸め込みながら息絶える、死んだ蜘蛛特有の姿勢
+        # 脚を内側へ丸め込みながら息絶える、死んだ蜘蛛特有の姿勢。初動を
+        # LINEARで鋭くする。24f到達後、腹がほんの少し戻るわずかな跳ね返りを追加
         ("die", [
-            (1, {head: (0, 0, 0)}),
+            (1, {head: (0, 0, 0)}, {"interp": "LINEAR"}),
             (10, {head: (20, 0, 0), abdomen: (10, 0, 0),
                   legA_L: (-40, 0, -30), legA_R: (40, 0, 30),
                   legB_L: (-46, 0, -26), legB_R: (46, 0, 26),
@@ -2538,6 +2548,7 @@ def madoromigumo_animations():
                   legB_L: (-78, 0, -40), legB_R: (78, 0, 40),
                   legC_L: (-78, 0, 40), legC_R: (78, 0, -40),
                   legD_L: (-70, 0, 46), legD_R: (70, 0, -46)}),
+            (28, {abdomen: (15, 0, 0)}, {"partial": True}),
         ]),
     ]
 
