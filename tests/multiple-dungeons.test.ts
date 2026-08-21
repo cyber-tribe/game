@@ -16,9 +16,10 @@ import { initialSave, recordRun } from "../src/save";
 const region1 = REGION_DUNGEON_IDS[0];
 
 describe("entities/dungeons.ts", () => {
-  it("第一地方は常に解放済み", () => {
+  it("第一地方はひなたの寝穴の踏破が条件(plan/game/tutorial-dungeon.md)", () => {
     const dungeon = dungeonById(region1);
-    expect(isDungeonUnlocked(dungeon, 0, 1)).toBe(true);
+    expect(isDungeonUnlocked(dungeon, 0, 1, 0, [], false)).toBe(false);
+    expect(isDungeonUnlocked(dungeon, 0, 1, 0, [], true)).toBe(true);
   });
 
   it("近道屋の裏穴は最深到達記録が条件未満だと未解放", () => {

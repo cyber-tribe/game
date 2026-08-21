@@ -120,6 +120,39 @@ await settle();
 // セーブ枠選択
 await page.keyboard.press("Enter");
 await settle();
+
+// ひなたの寝穴(plan/game/tutorial-dungeon.md): 新規セーブ(このスクリプトは
+// 毎回ストレージの無いフレッシュなブラウザプロファイルで動くため、常に
+// 新規セーブ扱い)の初回出発は、村を経由せず自動的にチュートリアル専用
+// ダンジョンへ潜る。まずここを実際に踏破してから、以降の村なか探索の
+// 検証に進む(踏破しないと第一地方が解放されず、後続のダイブ検証が
+// すべて的外れになるため)
+const startedInHinata = await page.evaluate(() => globalThis.__app?.game?.dungeonId === "hinata");
+console.log("新規セーブでひなたの寝穴へ自動的に潜った:", startedInHinata);
+if (!startedInHinata) {
+  console.error("新規セーブなのにひなたの寝穴へ自動誘導されなかった。");
+  process.exitCode = 1;
+}
+await page.screenshot({ path: `${OUT}/00a-hinata.png` });
+for (let i = 0; i < 2; i++) {
+  await page.evaluate(() => globalThis.__app.debugBoostHp());
+  await page.evaluate(() => globalThis.__app.debugDescend());
+  await settle();
+}
+const hinataStatus = await page.evaluate(() => {
+  const app = globalThis.__app;
+  app.game.player.pos = { ...app.game.floor.stairs };
+  app.submit({ type: "bank" });
+  return app.game.status;
+});
+await settle(15_000);
+console.log("ひなたの寝穴を踏破した:", hinataStatus === "cleared");
+if (hinataStatus !== "cleared") {
+  console.error("ひなたの寝穴を踏破できなかった。");
+  process.exitCode = 1;
+}
+await page.evaluate(() => globalThis.__app.returnToTownAfterRun());
+await settle();
 await page.screenshot({ path: `${OUT}/00-village.png` });
 
 /**

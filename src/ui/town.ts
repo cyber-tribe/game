@@ -23,6 +23,7 @@ import { COSTUMES, type CostumeDef } from "../entities/costumes";
 import {
   DUNGEONS,
   type DungeonDef,
+  HINATA_ID,
   TARUKURABE_ID,
   TRUE_AWAKENING_ID,
   dungeonById,
@@ -400,24 +401,35 @@ export class TownScreen {
    * 乗せず(dungeons.tsのコメント参照)、isTrueAwakeningUnlockedを満たした
    * ときだけ末尾に追加する隠し要素として扱う。樽比べ(plan/tarukurabe-
    * minigame.md、TARUKURABE_ID)も同じ理由で除外し、isTarukurabeDayの日
-   * だけ末尾に追加する
+   * だけ末尾に追加する。ひなたの寝穴(plan/game/tutorial-dungeon.md、HINATA_ID)
+   * も同じ理由で除外し、踏破済み(hinataCleared)のときだけ再訪用に追加する
+   * (未踏破の間は拠点の行き先選択そのものを経由しない自動誘導専用のため)
    */
   private unlockedDungeons(): DungeonDef[] {
     const deepest = this.save?.deepest ?? 0;
     const villageStage = this.save?.villageStage ?? 1;
     const foundPassageCount = this.save?.foundVaultPassages.length ?? 0;
     const defeatedRegionBosses = this.save?.defeatedRegionBosses ?? [];
+    const hinataCleared = this.save?.hinataCleared ?? false;
+    // 旧セーブとの互換(plan/game/tutorial-dungeon.md): ひなたの寝穴の追加より前から
+    // 実際にダイブしていた(runs>0)セーブは、ひなたの寝穴を経験していなくても
+    // 第一地方まで到達済みのはずなので、第一地方をロックしない
+    const region1Unlocked = hinataCleared || (this.save?.runs ?? 0) > 0;
     const normal = DUNGEONS.filter(
       (d) =>
         d.id !== TRUE_AWAKENING_ID &&
         d.id !== TARUKURABE_ID &&
-        isDungeonUnlocked(d, deepest, villageStage, foundPassageCount, defeatedRegionBosses),
+        d.id !== HINATA_ID &&
+        isDungeonUnlocked(d, deepest, villageStage, foundPassageCount, defeatedRegionBosses, region1Unlocked),
     );
     if (this.save && isTrueAwakeningUnlocked(this.save)) {
       normal.push(dungeonById(TRUE_AWAKENING_ID));
     }
     if (isTarukurabeDay(todayKey())) {
       normal.push(dungeonById(TARUKURABE_ID));
+    }
+    if (hinataCleared) {
+      normal.push(dungeonById(HINATA_ID));
     }
     return normal;
   }
@@ -2232,6 +2244,9 @@ export class TownScreen {
       const villageStage = this.save?.villageStage ?? 1;
       const foundPassageCount = this.save?.foundVaultPassages.length ?? 0;
       const defeatedRegionBosses = this.save?.defeatedRegionBosses ?? [];
+      const hinataCleared = this.save?.hinataCleared ?? false;
+      // 旧セーブとの互換(plan/game/tutorial-dungeon.md): unlockedDungeons()と同じ理由
+      const region1Unlocked = hinataCleared || (this.save?.runs ?? 0) > 0;
       const unlocked = this.unlockedDungeons();
       const list = document.createElement("ul");
       // スクリーンリーダー対応(plan/screen-reader-support.md): list-style:noneのulは
@@ -2240,10 +2255,16 @@ export class TownScreen {
       // 真の目覚め(plan/true-awakening.md)は隠し要素として扱う。3条件が
       // すべて揃うまでは、未解放のヒント表示すらこの一覧に出さない。
       // 樽比べ(plan/tarukurabe-minigame.md)も同じく、開催日以外は一覧に出さない
-      // (宵祭りの出店と同じく、開催日以外は存在自体を示さない扱い)
-      DUNGEONS.filter((d) => d.id !== TRUE_AWAKENING_ID && d.id !== TARUKURABE_ID).forEach((dungeon) => {
+      // (宵祭りの出店と同じく、開催日以外は存在自体を示さない扱い)。
+      // ひなたの寝穴(plan/game/tutorial-dungeon.md)も、踏破するまでは
+      // 未解放のヒント表示すら出さない(自動誘導専用のため)
+      DUNGEONS.filter(
+        (d) => d.id !== TRUE_AWAKENING_ID && d.id !== TARUKURABE_ID && d.id !== HINATA_ID,
+      ).forEach((dungeon) => {
         const li = document.createElement("li");
-        if (isDungeonUnlocked(dungeon, deepest, villageStage, foundPassageCount, defeatedRegionBosses)) {
+        if (
+          isDungeonUnlocked(dungeon, deepest, villageStage, foundPassageCount, defeatedRegionBosses, region1Unlocked)
+        ) {
           li.textContent = dungeon.name;
           const selected = this.column === 12 && unlocked[this.dungeonIndex]?.id === dungeon.id;
           if (selected) li.classList.add("selected");
@@ -2266,11 +2287,23 @@ export class TownScreen {
           li.textContent = `???(第${regionIndexForDungeonId(dungeon.id)}地方のぬしを鎮めるとひらける)`;
         } else if (dungeon.unlock !== "always" && "afterBossDefeated" in dungeon.unlock) {
           li.textContent = `${dungeon.name}(未解放: ${speciesById(dungeon.unlock.afterBossDefeated).name}を撃破すると解放)`;
+        } else if (dungeon.unlock !== "always" && "afterDungeonCleared" in dungeon.unlock) {
+          li.textContent = `${dungeon.name}(未解放: ひなたの寝穴を踏破すると解放)`;
         } else {
           li.textContent = `${dungeon.name}(未解放: 忘れ物蔵の隠し通路を全8地方で見つけると解放。現在${foundPassageCount}/8)`;
         }
         list.appendChild(li);
       });
+      if (hinataCleared) {
+        const hinata = dungeonById(HINATA_ID);
+        const li = document.createElement("li");
+        li.textContent = hinata.name;
+        const selected = this.column === 12 && unlocked[this.dungeonIndex]?.id === hinata.id;
+        if (selected) li.classList.add("selected");
+        const unlockedIndex = unlocked.findIndex((d) => d.id === hinata.id);
+        li.addEventListener("click", () => this.tapItem(12, selected, () => { this.dungeonIndex = unlockedIndex; }));
+        list.appendChild(li);
+      }
       if (this.save && isTrueAwakeningUnlocked(this.save)) {
         const trueAwakening = dungeonById(TRUE_AWAKENING_ID);
         const li = document.createElement("li");

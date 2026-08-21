@@ -43,6 +43,7 @@ describe("save.ts: recordRunは腕試しの間の踏破を記録する(plan/hidd
       runs: 10,
       clears: 5,
       bestLevel: 20,
+      hinataCleared: false,
       storage: [],
       seenTutorialTips: [],
       trainingFocus: "balance",

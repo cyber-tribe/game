@@ -23,7 +23,9 @@ export interface DungeonDef {
     /** 指定した地方ボスのspeciesIdを撃破済みなら解放。地方ダンジョン同士の連鎖・山の芯で使う */
     | { afterBossDefeated: string }
     /** 夜ごとの夢(plan/game/dungeon-per-region.md)。8地方すべてのボスを撃破済みなら解放 */
-    | { allRegionBossesDefeated: true };
+    | { allRegionBossesDefeated: true }
+    /** 指定したダンジョンidを踏破済みなら解放(plan/game/tutorial-dungeon.md。ひなたの寝穴→第一地方) */
+    | { afterDungeonCleared: string };
   /** 出現モンスター・アイテムの抽選テーブルに足す深さのずれ */
   floorOffset?: number;
   /** モンスターハウス出現率に掛ける倍率 */
@@ -105,6 +107,9 @@ export const REGION_CHECKPOINT_FLOOR = Math.ceil(REGION_SIZE / 2);
  */
 export function isCheckpointFloor(dungeonId: string, depth: number): boolean {
   if (isRegionDungeonId(dungeonId)) return depth === REGION_CHECKPOINT_FLOOR;
+  // ひなたの寝穴(plan/game/tutorial-dungeon.md): 最終階(3階)だけがめざめの階段の階。
+  // 1階では「区切り」をまだ教えない、という本文の狙いどおり
+  if (dungeonId === HINATA_ID) return depth === HINATA_MAX_DEPTH;
   return true;
 }
 
@@ -118,6 +123,14 @@ export const CHAPTER3_COLLAPSE_REGION_INDEX = 4;
 export function isChapter3CollapseFloor(dungeonId: string, depth: number): boolean {
   return regionIndexForDungeonId(dungeonId) === CHAPTER3_COLLAPSE_REGION_INDEX && depth === REGION_SIZE;
 }
+
+/**
+ * チュートリアル専用ダンジョン「ひなたの寝穴」(plan/game/tutorial-dungeon.md)。
+ * 新規セーブの初回出発でだけ自動的に潜る。踏破(3階のめざめの階段で
+ * 「区切って持ち帰る」)が第一地方の解放条件になる
+ */
+export const HINATA_ID = "hinata";
+export const HINATA_MAX_DEPTH = 3;
 
 export const NIGHTLY_DREAM_ID = "nightlyDream";
 /** 腕試しの間(plan/hidden-dungeon.md)。地方ボスの再戦だけで構成するボスラッシュ */
@@ -149,12 +162,19 @@ const REGION_DUNGEONS: readonly DungeonDef[] = REGIONS.map((region, i) => ({
   name: region.name,
   description: REGION_DESCRIPTIONS[i] ?? "",
   maxDepth: REGION_SIZE,
-  unlock: i === 0 ? ("always" as const) : { afterBossDefeated: REGIONS[i - 1]!.bossSpeciesId },
+  unlock: i === 0 ? { afterDungeonCleared: HINATA_ID } : { afterBossDefeated: REGIONS[i - 1]!.bossSpeciesId },
   floorOffset: i * REGION_SIZE,
   monsterHouseRateMul: region.monsterHouseRateMul,
 }));
 
 export const DUNGEONS: readonly DungeonDef[] = [
+  {
+    id: HINATA_ID,
+    name: "ひなたの寝穴",
+    description: "地表のすぐ下、うたたねの浅い眠り。外の光が差し込む、明るく見通しのよい修練場。",
+    maxDepth: HINATA_MAX_DEPTH,
+    unlock: "always",
+  },
   ...REGION_DUNGEONS,
   {
     id: "shortcutBackHole",
@@ -254,6 +274,8 @@ export function isDungeonUnlocked(
   foundPassageCount = 0,
   /** 撃破済みの地方ボスspeciesId一覧 */
   defeatedRegionBosses: readonly string[] = [],
+  /** ひなたの寝穴(plan/game/tutorial-dungeon.md)を踏破済みか */
+  hinataCleared = false,
 ): boolean {
   if (dungeon.unlock === "always") return true;
   if ("minDeepest" in dungeon.unlock) return deepest >= dungeon.unlock.minDeepest;
@@ -261,6 +283,9 @@ export function isDungeonUnlocked(
   if ("afterBossDefeated" in dungeon.unlock) return defeatedRegionBosses.includes(dungeon.unlock.afterBossDefeated);
   if ("allRegionBossesDefeated" in dungeon.unlock) {
     return REGIONS.every((r) => defeatedRegionBosses.includes(r.bossSpeciesId));
+  }
+  if ("afterDungeonCleared" in dungeon.unlock) {
+    return dungeon.unlock.afterDungeonCleared === HINATA_ID ? hinataCleared : false;
   }
   return foundPassageCount >= 8;
 }

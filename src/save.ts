@@ -268,6 +268,11 @@ export interface SaveData {
    * 夢のかけら出現率ボーナスの判定に使う恒久フラグ)
    */
   trueAwakeningCleared: boolean;
+  /**
+   * ひなたの寝穴(plan/game/tutorial-dungeon.md)。チュートリアル専用ダンジョンを
+   * 踏破済みかどうか。第一地方の解放条件・初回自動誘導の停止条件に使う
+   */
+  hinataCleared: boolean;
   /** サウンド再生(plan/audio-playback.md)。ミュート中かどうか */
   audioMuted: boolean;
   /** サウンド再生(plan/audio-playback.md)。マスター音量(0..1)。既定0.7 */
@@ -395,6 +400,7 @@ const SAVE_FIELDS: SaveFieldSpecs = {
   },
   storyCleared: { default: false, sanitize: (p) => p.storyCleared === true },
   trueAwakeningCleared: { default: false, sanitize: (p) => p.trueAwakeningCleared === true },
+  hinataCleared: { default: false, sanitize: (p) => p.hinataCleared === true },
   audioMuted: { default: false, sanitize: (p) => p.audioMuted === true },
   audioVolume: {
     default: DEFAULT_AUDIO_VOLUME,
@@ -609,6 +615,41 @@ export function recordTarukurabeResult(current: SaveData, score: number): SaveDa
   return withAchievements;
 }
 
+/**
+ * ひなたの寝穴(plan/game/tutorial-dungeon.md)。3階のめざめの階段で
+ * 「区切って持ち帰る」を選んだときだけ呼ぶ(全滅時は呼ばない=hinataClearedは
+ * 立たない。次回起動時にまた自動でひなたの寝穴へ誘導される)。
+ * recordRunは呼ばない――踏破数・最深記録・依頼板の集計対象に含めない
+ * (修練場のため)という本文の指示どおり、通常ダイブの記録を一切発生させない
+ */
+export function recordHinataClear(
+  current: SaveData,
+  broughtBack: Item[],
+  broughtBackAllies: AllyActor[],
+): SaveData {
+  let nextHutUid = current.nextHutUid;
+  const remainingHutCapacity = Math.max(0, hutCapacity(current.villageStage) - current.hut.length);
+  const newlyStored: StoredMonster[] = broughtBackAllies.slice(0, remainingHutCapacity).map((actor) => {
+    const stored = actorToStoredMonster(nextHutUid, actor);
+    nextHutUid++;
+    return stored;
+  });
+  const next: SaveData = {
+    ...current,
+    hinataCleared: true,
+    storage: [...current.storage, ...broughtBack.map(toStored)],
+    hut: [...current.hut, ...newlyStored],
+    nextHutUid,
+    compendium: newlyStored.reduce(
+      (acc, m) => (m.speciesId ? { ...acc, [m.speciesId]: "captured" as const } : acc),
+      current.compendium,
+    ),
+  };
+  const withAchievements = checkAchievements(next);
+  saveData(withAchievements);
+  return withAchievements;
+}
+
 /** サウンド再生(plan/audio-playback.md)。マスター音量(0..1)を設定する */
 export function setAudioVolume(current: SaveData, volume: number): SaveData {
   const clamped = clamp01(volume);
@@ -748,6 +789,7 @@ export function recordRun(
     runs: current.runs + 1,
     clears: current.clears + (result.cleared ? 1 : 0),
     bestLevel: Math.max(current.bestLevel, result.level),
+    hinataCleared: current.hinataCleared,
     // 踏破して帰ってきたぶんだけが倉庫に加わる。倒れた場合は持ち込み品が丸ごと消える
     storage: [...current.storage, ...result.broughtBack.map(toStored)],
     seenTutorialTips: current.seenTutorialTips,

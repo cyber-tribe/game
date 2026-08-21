@@ -56,6 +56,7 @@ import {
   markVillageEventSeen,
   migrateLegacySaveIfNeeded,
   recordDeepest,
+  recordHinataClear,
   recordRun,
   recordTarukurabeResult,
   refreshBoard,
@@ -83,6 +84,7 @@ import {
 import type { DifficultyMode } from "./entities/difficulty";
 import { costumeById } from "./entities/costumes";
 import {
+  HINATA_ID,
   LOST_AND_FOUND_VAULT_ID,
   MOUNTAIN_CORE_ID,
   NIGHTLY_DREAM_ID,
@@ -94,7 +96,7 @@ import {
   regionIndexForDungeonId,
 } from "./entities/dungeons";
 import { isYoimatsuri } from "./entities/festivals";
-import { DEFAULT_MOOD_ID, MOOD_VISUALS, moodForDate } from "./entities/moods";
+import { DEFAULT_MOOD_ID, HINATA_MOOD_VISUAL, MOOD_VISUALS, moodForDate } from "./entities/moods";
 import { todayKey } from "./entities/quests";
 import { STORY_CHAPTER_MESSAGES, storyChapter, storyChapterEventId } from "./entities/story";
 import { speciesById } from "./entities/species";
@@ -354,11 +356,29 @@ class App {
       this.resumeRun(snapshot);
     } else {
       if (snapshot) clearRunSnapshot(); // 正規に終わったあとの残骸(あるはずはないが念のため)
-      // 先に1階を組んでおく。拠点の裏で洞窟が見えているほうが雰囲気が出る
-      this.newRun([]);
-      this.showTown();
+      if (this.shouldAutoDiveHinata()) {
+        // ひなたの寝穴(plan/game/tutorial-dungeon.md): 新規セーブの初回出発は、
+        // 拠点の行き先選択を出さずに自動でチュートリアル専用ダンジョンへ潜る
+        this.newRun([], 1, "balance", [], "normal", HINATA_ID);
+      } else {
+        // 先に1階を組んでおく。拠点の裏で洞窟が見えているほうが雰囲気が出る
+        this.newRun([]);
+        this.showTown();
+      }
     }
     this.loop();
+  }
+
+  /**
+   * ひなたの寝穴(plan/game/tutorial-dungeon.md)。新規セーブの初回出発でだけ
+   * 自動誘導する。runs/clearsが両方0(=一度もダイブを終えていない)かつ
+   * hinataCleared=falseのあいだだけtrue。ひなたの寝穴自体のダイブは
+   * runs/clearsを変化させない(recordHinataClear参照)ので、全滅しても
+   * 踏破するまでは何度でも再挑戦になる。既存セーブ(踏破記録あり)は
+   * runs>0のため対象外になる
+   */
+  private shouldAutoDiveHinata(): boolean {
+    return !this.save.hinataCleared && this.save.runs === 0 && this.save.clears === 0;
   }
 
   /** 潜る前の拠点。倉庫から持ち込む道具・鍛え方・仲間を選ぶ */
@@ -730,8 +750,12 @@ class App {
     this.audio.setMoodLayer("village-ambient", false);
     this.updateDiveBgm();
     // 気分の視覚演出(plan/mood-visual-effects.md): ダイブ中に気分が変わることは
-    // ないので、ダイブ開始・オートセーブ復帰のこの1回だけで確定させる
-    this.renderer.setMoodVisual(MOOD_VISUALS[this.game.moodId]);
+    // ないので、ダイブ開始・オートセーブ復帰のこの1回だけで確定させる。
+    // ひなたの寝穴(plan/game/tutorial-dungeon.md)だけは、日替わりの気分演出を
+    // 上書きして専用の明るい見た目に固定する
+    this.renderer.setMoodVisual(
+      this.game.dungeonId === HINATA_ID ? HINATA_MOOD_VISUAL : MOOD_VISUALS[this.game.moodId],
+    );
   }
 
   /**
@@ -766,6 +790,8 @@ class App {
     if (dungeonId === NIGHTLY_DREAM_ID) return "nightly-dream";
     // 忘れ物蔵(plan/sound/archive/bgm-lost-and-found-vault.md)
     if (dungeonId === LOST_AND_FOUND_VAULT_ID) return "lost-and-found";
+    // ひなたの寝穴(plan/game/tutorial-dungeon.md): 専用曲は作らず、第一地方の曲を流用する
+    if (dungeonId === HINATA_ID) return "region1";
     return undefined;
   }
 
@@ -1546,6 +1572,8 @@ class App {
       // 実績・依頼の集計)とは全く別物なので、finish()には通さない
       if (this.game.dungeonId === TARUKURABE_ID) {
         this.finishTarukurabe(over.reason);
+      } else if (this.game.dungeonId === HINATA_ID) {
+        this.finishHinata(over.reason);
       } else {
         this.finish(over.reason);
       }
@@ -1568,6 +1596,34 @@ class App {
       `${reason} — ${resolveText(RETURN_TO_TOWN_HINT, currentInputMode())}`,
       { label: RETURN_TO_TOWN_LABEL, onSelect: () => this.returnToTownAfterRun() },
     );
+  }
+
+  /**
+   * ひなたの寝穴(plan/game/tutorial-dungeon.md)。recordRunは呼ばない(踏破数・
+   * 最深記録・依頼板の集計対象に含めない、修練場のため)。3階のめざめの階段で
+   * 「区切って持ち帰る」を選んだとき(status==="cleared")だけhinataCleared
+   * を立てて拠点へ戻す。全滅したときは記録を残さず、踏破するまで
+   * 何度でもひなたの寝穴からやり直させる(拠点の行き先選択は出さない)
+   */
+  private finishHinata(reason: string): void {
+    this.ended = true;
+    const cleared = this.game.status === "cleared";
+    if (cleared) {
+      this.save = recordHinataClear(this.save, this.game.player.inventory.items, [...this.game.allyList]);
+      this.hud.showOverlay(
+        "見習い卒業!",
+        "モグラ婆:「これでお前も見習い卒業だね。表の寝穴、第一地方(始まりの森の寝穴)が開いたよ」",
+        `${reason} — ${resolveText(RETURN_TO_TOWN_HINT, currentInputMode())}`,
+        { label: RETURN_TO_TOWN_LABEL, onSelect: () => this.returnToTownAfterRun() },
+      );
+    } else {
+      this.hud.showOverlay(
+        "ちからつきた……",
+        "モグラ婆:「あわてなくていいよ。もう一度、ひなたの寝穴からやり直そう」",
+        `${reason} — ${resolveText(RETURN_TO_TOWN_HINT, currentInputMode())}`,
+        { label: RETURN_TO_TOWN_LABEL, onSelect: () => this.newRun([], 1, "balance", [], "normal", HINATA_ID) },
+      );
+    }
   }
 
   private finish(reason: string): void {

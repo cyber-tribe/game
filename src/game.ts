@@ -67,6 +67,7 @@ import {
   createAllyFromStored,
   createBarrel,
   createItem,
+  createMonster,
   findFreeTile,
   placeChapter3CollapseObstacle,
   placeDecoyBarrels,
@@ -84,6 +85,7 @@ import {
   isCheckpointFloor,
   isChapter3CollapseFloor,
   type DungeonDef,
+  HINATA_ID,
   MOUNTAIN_CORE_ID,
   NIGHTLY_DREAM_ID,
   REGION_DUNGEON_IDS,
@@ -892,6 +894,13 @@ export class Game {
       this.enterTarukurabeFloor();
       return;
     }
+    // ひなたの寝穴(plan/game/tutorial-dungeon.md): 通常のフロア生成を経由せず、
+    // 階ごとに手作りの固定Floorを直接組み立てる(tarukurabeと同じ考え方)。
+    // 罠・ギミック・モンスターハウスは一切乗らず、出現はぷるんだけになる
+    if (this.dungeon.id === HINATA_ID) {
+      this.enterHinataFloor(depth);
+      return;
+    }
     // 地方ボス(plan/region-bosses.md): 地方ダンジョンのボス階には、通常の野生モンスターも
     // フロアギミックも乗せない(ボス以外の変数を減らす、本文どおりの方針)。
     // 腕試しの間(plan/hidden-dungeon.md)は、全階がボス階の再戦だけで構成される
@@ -1091,6 +1100,62 @@ export class Game {
     this.tarukurabeBarrelsLeft = TARUKURABE_BARREL_COUNT;
     this.tarukurabeScoredLanes.clear();
     this.spawnTarukurabeBarrel();
+
+    updateVisibility(this.floor, this.player.pos, this.visionExtraRange());
+  }
+
+  /**
+   * ひなたの寝穴(plan/game/tutorial-dungeon.md)。1部屋だけの小さな固定Floorを
+   * 直接組み立てる(enterTarukurabeFloorと同じ考え方)。区画割り・通路の
+   * generateFloorを経由しないため、罠・地形ギミック・モンスターハウス・
+   * 野生湧きは一切乗らない。出現・設置物はぷるんと必要な道具だけを階ごとに
+   * 手で置く(1階: 攻撃を覚える的にぷるん1体。2階: タル投げ・捕獲を覚える
+   * 空のタル1個+ぷるん1体。3階: 道具・満腹度を覚えるいやしの葉+かたパン、
+   * 番人のぷるん2体、最奥にめざめの階段)
+   */
+  private enterHinataFloor(depth: number): void {
+    const width = 13;
+    const height = 7;
+    const tiles: Tile[] = [];
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const isWall = x === 0 || y === 0 || x === width - 1 || y === height - 1;
+        tiles.push({ kind: isWall ? TILE_WALL : TILE_ROOM, roomId: isWall ? -1 : 0, explored: false, visible: false });
+      }
+    }
+
+    this.floor = {
+      depth,
+      width,
+      height,
+      tiles,
+      rooms: [{ id: 0, x: 1, y: 1, w: width - 2, h: height - 2 }],
+      stairs: { x: width - 2, y: 3 },
+      actors: [],
+      items: [],
+      traps: [],
+      barrels: [],
+      goldPiles: [],
+      fieldObstacles: [],
+      secretPassages: [],
+    };
+
+    this.player.pos = { x: 1, y: 3 };
+    this.player.carrying = null;
+    this.floor.actors.push(this.player);
+
+    const purun = speciesById("purun");
+    if (depth === 1) {
+      this.floor.actors.push(createMonster(this.ids.nextActorId(), purun, { x: 5, y: 3 }));
+    } else if (depth === 2) {
+      this.floor.barrels.push(createBarrel(this.ids.nextBarrelId(), "empty", { x: 5, y: 2 }));
+      this.floor.actors.push(createMonster(this.ids.nextActorId(), purun, { x: 5, y: 4 }));
+    } else {
+      this.floor.items.push({ item: createItem(this.ids.nextItemUid(), "healLeaf"), pos: { x: 4, y: 2 } });
+      this.floor.items.push({ item: createItem(this.ids.nextItemUid(), "hardBread"), pos: { x: 4, y: 4 } });
+      this.floor.actors.push(createMonster(this.ids.nextActorId(), purun, { x: 9, y: 2 }));
+      this.floor.actors.push(createMonster(this.ids.nextActorId(), purun, { x: 9, y: 4 }));
+    }
 
     updateVisibility(this.floor, this.player.pos, this.visionExtraRange());
   }
