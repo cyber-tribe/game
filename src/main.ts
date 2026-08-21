@@ -1414,6 +1414,8 @@ class App {
       putBarrel: noop,
       throwBarrel: noop,
       barrelBreak: noop,
+      barrelOpen: noop,
+      barrelArtCast: noop,
       explosion: noop,
       // 記録の間(plan/records-hall.md): 捕まえた数
       capture: () => {

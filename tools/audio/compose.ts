@@ -583,6 +583,57 @@ export function composeSmallFireAmbient(params: AmbientLoopParams): Float32Array
   return out;
 }
 
+/** 元素タルの5種(plan/sound/archive/village-soundscape.md) */
+export type BarrelElement = "water" | "wind" | "light" | "stone" | "sleep";
+
+export interface BarrelOpenParams {
+  element: BarrelElement;
+  sampleRate: number;
+  seed: number;
+  /** SFXより薄いウェット率のリバーブ。省略時はリバーブ無し */
+  reverb?: ReverbParams;
+}
+
+/**
+ * 元素タルをあける音: 栓を抜く「ポン」(全属性共通)+こぼれる音
+ * (属性ごとに音色を変える)。既存の楽器合成(mallet/drum/flute/pluck/hum)の
+ * 組み合わせだけで、属性ごとの質感を作る(plan/sound/archive/village-soundscape.md)
+ */
+export function composeBarrelOpen(params: BarrelOpenParams): Float32Array {
+  const { element, sampleRate, seed, reverb } = params;
+  const pop = drumHit(0.05, sampleRate, seed, 500, 0.7);
+
+  let tail: Float32Array;
+  switch (element) {
+    case "water": // 水: 弦の減衰音で、しずくが跳ねる質感を近似する
+      tail = pluckedString(180, 0.5, sampleRate, seed + 1, 0.4);
+      break;
+    case "wind": // 風: 低いフィルタ音主体の「ヒュッ」という抜け
+      tail = drumHit(0.4, sampleRate, seed + 1, 60, 0.35);
+      break;
+    case "light": // 光: 笛の澄んだ伸び
+      tail = fluteNote(1100, 0.45, sampleRate, 0.35);
+      break;
+    case "stone": // 石: 低く長い「ドン」
+      tail = drumHit(0.5, sampleRate, seed + 1, 80, 0.5);
+      break;
+    case "sleep": // ねむ: ハミングに近い、力の抜けた「んー」
+      tail = humVoice(260, 0.6, sampleRate, seed + 1, 0.3);
+      break;
+  }
+
+  const delaySamples = Math.floor(0.04 * sampleRate); // ポンの直後からこぼれ始める
+  const dry = new Float32Array(Math.max(pop.length, delaySamples + tail.length));
+  mixIn(dry, pop, 0);
+  mixIn(dry, tail, delaySamples);
+
+  normalize(dry);
+  if (!reverb) return dry;
+  const wet = reverbOneShot(dry, sampleRate, reverb);
+  normalize(wet);
+  return wet;
+}
+
 export interface SfxParams {
   kind: "mallet" | "drum";
   freq: number;

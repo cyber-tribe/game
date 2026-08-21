@@ -1983,6 +1983,10 @@ export class Game {
       return true;
     }
 
+    // 元素タルをあける音(plan/sound/archive/village-soundscape.md)。
+    // ここまで来た時点でbarrel.kindは元素タル5種のいずれかに絞られている
+    events.push({ type: "barrelOpen", barrelId: barrel.id, kind: barrel.kind, pos: center });
+
     switch (barrel.kind) {
       case "water":
         this.openWaterBarrel(center, barrel.enhanced ?? false, events);
@@ -2083,6 +2087,8 @@ export class Game {
       type: "message",
       text: `${displayActorName(ally)}が『${art.name}』でタルを変えた!`,
     });
+    // タルわざ注入の音(plan/sound/archive/village-soundscape.md)
+    events.push({ type: "barrelArtCast", allyId: ally.id, kind: art.barrelKind });
     return true;
   }
 

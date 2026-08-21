@@ -5,7 +5,7 @@ import { DungeonView } from "./dungeonMesh";
 import { ParticleSystem } from "./particles";
 import { TILE } from "./renderer";
 import type { GameEvent } from "../core/events";
-import type { Actor, FloorState } from "../core/types";
+import type { Actor, BarrelKind, FloorState } from "../core/types";
 import { tileAt } from "../core/types";
 import { toWorld } from "./renderer";
 import { BARREL_MODELS } from "../modelList";
@@ -18,6 +18,22 @@ import type { AudioPlayer } from "../audio/player";
  * game.ts側が組み立てる文言の末尾の記号だけで判定する
  */
 const BOSS_TELEGRAPH_MESSAGE_SUFFIX = "――!";
+
+/**
+ * 元素タルをあけたときのSFX id(plan/sound/archive/village-soundscape.md)。
+ * 元素タル5種以外(empty/bomb/caught)はbarrelOpenイベント自体が出ないが、
+ * 型としてはBarrelKind全体を受けるのでnullを許容しておく
+ */
+const BARREL_OPEN_SFX: Record<BarrelKind, string | null> = {
+  empty: null,
+  bomb: null,
+  caught: null,
+  water: "barrelOpenWater",
+  wind: "barrelOpenWind",
+  light: "barrelOpenLight",
+  stone: "barrelOpenStone",
+  sleep: "barrelOpenSleep",
+};
 
 /** 1マス動くのにかける時間。短いほどきびきびするが、短すぎると何が起きたか読めない */
 export const MOVE_TIME = 0.15;
@@ -370,6 +386,19 @@ export class Stage {
       },
       barrelBreak: () => {
         this.audio.playSfx("barrelBreak");
+        return 0;
+      },
+      // 元素タルをあける音(plan/sound/archive/village-soundscape.md): 栓を
+      // 抜くポン+こぼれる音。元素の種類ごとに後半の音色を変えてある
+      barrelOpen: (event) => {
+        const sfxId = BARREL_OPEN_SFX[event.kind];
+        if (sfxId) this.audio.playSfx(sfxId);
+        return 0;
+      },
+      // タルわざ注入の音(plan/sound/archive/village-soundscape.md): 仲間が
+      // 夢気を注ぐ短いきらめき
+      barrelArtCast: () => {
+        this.audio.playSfx("barrelArtCast");
         return 0;
       },
       explosion: (event) => {

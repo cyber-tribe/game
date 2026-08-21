@@ -126,6 +126,8 @@ describe("game.ts: タルわざ(castBarrelArt)で空のタルを元素タルに�
     expect(game.player.carrying?.kind).toBe("water");
     expect(game.player.carrying?.enhanced).toBe(false);
     expect(events.some((e) => e.type === "message" && e.text.includes("水タルわざ"))).toBe(true);
+    // タルわざ注入の音(plan/sound/archive/village-soundscape.md)
+    expect(events.some((e) => e.type === "barrelArtCast" && e.allyId === ally.id && e.kind === "water")).toBe(true);
   });
 
   it("なじみが「すっかりなじんだ」段階以上だと強化版(enhanced)になる", () => {
@@ -221,17 +223,19 @@ describe("game.ts: あける(openBarrel)", () => {
     const game = newGame(7);
     carry(game, "empty");
     const turnBefore = game.turnCount;
-    game.command({ type: "openBarrel" });
+    const events = game.command({ type: "openBarrel" });
     expect(game.turnCount).toBe(turnBefore);
     expect(game.player.carrying?.kind).toBe("empty");
+    expect(events.some((e) => e.type === "barrelOpen")).toBe(false);
   });
 
-  it("水タルをあけると、周囲が水びたし(quagmire)になり、空のタルに戻る", () => {
+  it("水タルをあけると、周囲が水びたし(quagmire)になり、空のタルに戻る。あける音(barrelOpen)が出る(plan/sound/archive/village-soundscape.md)", () => {
     const game = newGame(8);
     faceOpenDirection(game);
     carry(game, "water");
-    game.command({ type: "openBarrel" });
+    const events = game.command({ type: "openBarrel" });
     expect(game.player.carrying?.kind).toBe("empty");
+    expect(events.some((e) => e.type === "barrelOpen" && e.kind === "water")).toBe(true);
     const nearby = game.floor.tiles.some(
       (t, i) =>
         t.quagmire &&
@@ -312,13 +316,14 @@ describe("game.ts: あける(openBarrel)", () => {
     expect(game.player.carrying?.kind).toBe("empty");
   });
 
-  it("ばくはつタルをあけると自爆する", () => {
+  it("ばくはつタルをあけると自爆する。barrelOpenは出ない(既存のexplosion/barrelBreakが担う)", () => {
     const game = newGame(13);
     carry(game, "bomb");
     const before = game.player.hp;
-    game.command({ type: "openBarrel" });
+    const events = game.command({ type: "openBarrel" });
     expect(game.player.hp).toBeLessThan(before);
     expect(game.player.carrying).toBeNull();
+    expect(events.some((e) => e.type === "barrelOpen")).toBe(false);
   });
 });
 

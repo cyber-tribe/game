@@ -51,6 +51,16 @@ export type GameEvent =
   | { type: "captureFailed"; actorId: number; name: string; from: Vec2 }
   /** タルから出して仲間になった */
   | { type: "recruit"; actorId: number; name: string }
+  /**
+   * 元素タルをあけた(plan/sound/archive/village-soundscape.md)。爆発・
+   * モンスター入り(explosion/capture後の解放)は既存のイベントが担うので、
+   * 元素タル5種(water/wind/light/stone/sleep)のときだけ出る
+   */
+  | { type: "barrelOpen"; barrelId: number; kind: BarrelKind; pos: Vec2 }
+  /**
+   * タルわざで空のタルを元素タルに変えた(plan/sound/archive/village-soundscape.md)
+   */
+  | { type: "barrelArtCast"; allyId: number; kind: BarrelKind }
   | { type: "descend"; depth: number }
   /** めざめの階段(チェックポイント)に足を踏み入れた */
   | { type: "checkpoint"; depth: number }
