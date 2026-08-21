@@ -25,6 +25,7 @@ import { NamingDialog } from "./ui/naming-dialog";
 import { OrientationGuard } from "./ui/orientation-guard";
 import { StairsConfirmModal } from "./ui/stairs-confirm";
 import { DoorConfirmModal } from "./ui/door-confirm";
+import { BranchEntranceConfirmModal } from "./ui/branch-entrance-confirm";
 import { SkillChoiceModal } from "./ui/skill-choice";
 import { StanceMenu } from "./ui/stance";
 import { TouchControls } from "./ui/touch-controls";
@@ -159,6 +160,7 @@ class App {
   private readonly stairsConfirm: StairsConfirmModal;
   /** ボスの間の扉を開ける前の確認モーダル(plan/game/dungeon-boss-rooms.md) */
   private readonly doorConfirm: DoorConfirmModal;
+  private readonly branchEntranceConfirm: BranchEntranceConfirmModal;
   /** レベルアップ時のスキル選択(plan/game/archive/run-build-skills.md) */
   private readonly skillChoice: SkillChoiceModal;
   /** エンドロール(plan/ending-sequence.md) */
@@ -258,6 +260,9 @@ class App {
     this.artsMenu = new ArtsMenu(document.querySelector<HTMLElement>("#arts")!);
     this.stairsConfirm = new StairsConfirmModal(document.querySelector<HTMLElement>("#stairsConfirm")!);
     this.doorConfirm = new DoorConfirmModal(document.querySelector<HTMLElement>("#doorConfirm")!);
+    this.branchEntranceConfirm = new BranchEntranceConfirmModal(
+      document.querySelector<HTMLElement>("#branchEntranceConfirm")!,
+    );
     this.skillChoice = new SkillChoiceModal(document.querySelector<HTMLElement>("#skillChoice")!);
     this.endingScreen = new EndingScreen(document.querySelector<HTMLElement>("#ending")!);
     // タッチ操作(plan/touch-controls.md): Inputへ直接press/releaseするだけの
@@ -295,6 +300,7 @@ class App {
       this.artsMenu.handleKey(code) ||
       this.stairsConfirm.handleKey(code) ||
       this.doorConfirm.handleKey(code) ||
+      this.branchEntranceConfirm.handleKey(code) ||
       this.skillChoice.handleKey(code) ||
       this.endingScreen.handleKey(code);
 
@@ -1074,7 +1080,7 @@ class App {
     requestAnimationFrame(this.loop);
   };
 
-  /** menu.ts/stance.ts/arts.ts/stairsConfirm/doorConfirm/skillChoice/town.ts/naming-dialog.tsのいずれかのモーダルが開いているか */
+  /** menu.ts/stance.ts/arts.ts/stairsConfirm/doorConfirm/branchEntranceConfirm/skillChoice/town.ts/naming-dialog.tsのいずれかのモーダルが開いているか */
   private anyModalOpen(): boolean {
     return (
       this.menu.isOpen ||
@@ -1082,6 +1088,7 @@ class App {
       this.artsMenu.isOpen ||
       this.stairsConfirm.isOpen ||
       this.doorConfirm.isOpen ||
+      this.branchEntranceConfirm.isOpen ||
       this.skillChoice.isOpen ||
       this.town.isOpen ||
       this.namingDialog.isOpen
@@ -1376,6 +1383,14 @@ class App {
             bossName: speciesById(door.bossSpeciesId).name,
             onOpen: () => this.submit({ type: "openDoor" }),
           });
+        } else if (
+          this.game.floor.branchEntrance &&
+          eq(this.game.player.pos, this.game.floor.branchEntrance.pos)
+        ) {
+          // 横穴(plan/game/dungeon-per-region.md): 入り口に立って確定すると確認モーダルを出す
+          this.branchEntranceConfirm.show({
+            onEnter: () => this.submit({ type: "enterBranch" }),
+          });
         } else {
           this.submit({ type: "pickup" });
         }
@@ -1559,10 +1574,12 @@ class App {
     // ダイブ中オートセーブ(plan/mid-dive-autosave.md)。1ターンが解決するたびに
     // 現在の状態をまるごと書き出す。全滅・踏破・区切りで正規に終わったときは、
     // 続きから再開する必要がなくなるので消す(finish側でも消すが、ここでも
-    // status の変化を漏れなく拾っておく)
-    if (this.game.status === "playing") {
+    // status の変化を漏れなく拾っておく)。横穴(plan/game/dungeon-per-region.md)
+    // の中にいる間は書き出さず、入る直前の(元の地方ダンジョンの)スナップショット
+    // をそのまま残す(Game.inBranchDungeonのコメント参照)
+    if (this.game.status === "playing" && !this.game.inBranchDungeon) {
       saveRunSnapshot(this.game.toSnapshot());
-    } else {
+    } else if (this.game.status !== "playing") {
       clearRunSnapshot();
     }
 

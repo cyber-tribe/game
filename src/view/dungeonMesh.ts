@@ -51,6 +51,12 @@ export class DungeonView {
    * 開いたら非表示にして、下の通路床が見えるようにする
    */
   private readonly doorGroup = new THREE.Group();
+  /**
+   * 横穴(plan/game/dungeon-per-region.md)の入り口。村の入洞口と同じ
+   * cave_gate モデルを流用する(通路タイル自体は歩けるので、扉と違って
+   * 覆い隠しはしない。目印として置くだけ)
+   */
+  private readonly branchEntranceGroup = new THREE.Group();
   private readonly itemGroup = new THREE.Group();
   private readonly trapGroup = new THREE.Group();
   private readonly barrelGroup = new THREE.Group();
@@ -64,7 +70,14 @@ export class DungeonView {
     private readonly scene: THREE.Scene,
     private readonly assets: Assets,
   ) {
-    this.group.add(this.stairsGroup, this.doorGroup, this.itemGroup, this.trapGroup, this.barrelGroup);
+    this.group.add(
+      this.stairsGroup,
+      this.doorGroup,
+      this.branchEntranceGroup,
+      this.itemGroup,
+      this.trapGroup,
+      this.barrelGroup,
+    );
     this.scene.add(this.group);
   }
 
@@ -126,6 +139,32 @@ export class DungeonView {
     this.syncItems(floor);
     this.syncTraps(floor);
     this.syncBarrels(floor);
+    this.syncBranchEntrance(floor);
+  }
+
+  /**
+   * 横穴の入り口。モデルが背景読み込み中でまだ届いていなければ、次のターンに
+   * 拾う(syncItems/syncTrapsと同じ流儀)。入口は1フロアに高々1つで、
+   * 入ると消える(FloorState.branchEntranceがundefinedになる)ので、
+   * 対応関係はグループの子の有無だけで足りる
+   */
+  private syncBranchEntrance(floor: FloorState): void {
+    const entrance = floor.branchEntrance;
+    if (!entrance) {
+      this.branchEntranceGroup.clear();
+      return;
+    }
+    if (this.branchEntranceGroup.children.length === 0) {
+      if (!this.assets.has("cave_gate")) {
+        this.assets.loadInBackground(["cave_gate"]);
+        return;
+      }
+      const gate = this.assets.instantiate("cave_gate").root;
+      gate.position.copy(toWorld(entrance.pos));
+      this.branchEntranceGroup.add(gate);
+    }
+    const tile = tileAt(floor, entrance.pos);
+    this.branchEntranceGroup.visible = tile?.explored ?? false;
   }
 
   /**
@@ -346,6 +385,7 @@ export class DungeonView {
     this.floors = null;
     this.stairsGroup.clear();
     this.doorGroup.clear();
+    this.branchEntranceGroup.clear();
     this.itemGroup.clear();
     this.trapGroup.clear();
     this.barrelGroup.clear();

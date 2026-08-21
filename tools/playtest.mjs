@@ -179,7 +179,12 @@ async function enterNearestVillageBuilding(key = "ArrowUp") {
  * `debugVillagePos`/`debugVillageBuildings`(いずれもデバッグ用の入口)を
  * 見ながら狙った建物のidに着くまで少しずつ歩く。着いたら確定キーで入る
  */
-async function walkToBuildingAndEnter(id, timeout = 8_000) {
+// タイムアウトは元々8秒だったが、CIの遅いソフトウェア描画下ではメインループの
+// dtクランプ(main.tsのMath.min(0.05, ...))により村なかの移動速度も実時間に
+// 対して遅くなることがあり、まれに間に合わないことが分かった(#745-749と同じ
+// 「CIの遅い描画」由来の時間切れ)。移動そのものは壊れていないので、待つ時間を
+// 広げて確実に間に合わせる
+async function walkToBuildingAndEnter(id, timeout = 20_000) {
   const target = await page.evaluate(
     (bid) => globalThis.__app?.debugVillageBuildings?.()?.find((b) => b.id === bid) ?? null,
     id,

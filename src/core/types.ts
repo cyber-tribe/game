@@ -841,6 +841,12 @@ export interface FloorState {
    * にだけ立つ。一度開けたら閉じない(open=trueのまま)
    */
   door?: FloorDoor;
+  /**
+   * 横穴(分岐ダンジョン、plan/game/dungeon-per-region.md)の入り口。低確率で
+   * 特定の地方ダンジョンの特定階に生成される。踏んで確定すると短い分岐
+   * ダンジョンへ移り、踏破すると元のこの階のこの位置へ戻ってくる
+   */
+  branchEntrance?: FloorBranchEntrance;
 }
 
 export interface FloorDoor {
@@ -848,6 +854,12 @@ export interface FloorDoor {
   open: boolean;
   /** 扉の向こうで待つボスの種族id。開けたときの一言・BGM切り替えに使う */
   bossSpeciesId: string;
+}
+
+export interface FloorBranchEntrance {
+  pos: Vec2;
+  /** 移動先の分岐ダンジョンid(src/entities/dungeons.ts の DungeonDef.id) */
+  dungeonId: string;
 }
 
 export function tileAt(floor: FloorState, p: Vec2): Tile | undefined {
