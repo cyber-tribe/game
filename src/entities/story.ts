@@ -1,16 +1,22 @@
 /**
  * 章立て(plan/story-chapters.md)。design/story.mdの全6章構成
- * (序章・第一〜第四章・終章)を、既存のdeepest・storyClearedから
+ * (序章・第一〜第四章・終章)を、既存のdefeatedRegionBosses・storyClearedから
  * 導出する。SaveDataに章番号そのものを保存するフィールドは作らない。
+ *
+ * 元は最深到達記録(deepest)ベースだった。表の寝穴の地方分割
+ * (plan/game/dungeon-per-region.md)で1ダイブが1地方(6階)を超えなく
+ * なり、deepestが章の進行度を表さなくなったため、撃破済み地方ボス数
+ * (defeatedRegionBossCount)に置き換えた。旧しきい値(42/30/18/6階=
+ * 第七/第五/第三/第一地方境界)は、撃破済み地方ボス数7/5/3/1体に対応する
  */
 export type StoryChapter = 0 | 1 | 2 | 3 | 4 | 5;
 
-export function storyChapter(deepest: number, storyCleared: boolean): StoryChapter {
+export function storyChapter(defeatedRegionBossCount: number, storyCleared: boolean): StoryChapter {
   if (storyCleared) return 5; // 終章。山の芯クリア後
-  if (deepest >= 42) return 4; // 第四章: 第七〜第八地方
-  if (deepest >= 30) return 3; // 第三章: 第五〜第六地方
-  if (deepest >= 18) return 2; // 第二章: 近道屋の裏穴+第三〜第四地方
-  if (deepest >= 6) return 1; // 第一章: 第一〜第二地方
+  if (defeatedRegionBossCount >= 7) return 4; // 第四章: 第七〜第八地方
+  if (defeatedRegionBossCount >= 5) return 3; // 第三章: 第五〜第六地方
+  if (defeatedRegionBossCount >= 3) return 2; // 第二章: 近道屋の裏穴+第三〜第四地方
+  if (defeatedRegionBossCount >= 1) return 1; // 第一章: 第一〜第二地方
   return 0; // 序章: 第一地方
 }
 

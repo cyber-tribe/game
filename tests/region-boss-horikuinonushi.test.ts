@@ -5,6 +5,8 @@ import { roomContains } from "../src/core/types";
 import { decideMonsterAction } from "../src/entities/ai";
 import { REGION_BOSS_ORDER, speciesById } from "../src/entities/species";
 import { Game } from "../src/game";
+import { REGION_DUNGEON_IDS, REGION_SIZE } from "../src/entities/dungeons";
+const bossRegionDungeonId = REGION_DUNGEON_IDS[7]!;
 import { access } from "./helpers/access";
 import { makeEmptyFloor } from "./helpers/floor";
 
@@ -111,19 +113,19 @@ describe("entities/ai.ts: 掘り杭の主の大技(decideMonsterAction)", () => 
 
 describe("game.ts: 地方ボスの階(depth 48、表の寝穴)", () => {
   it("掘り杭の主が1体だけ配置される(通常の野生モンスターは湧かない)", () => {
-    const game = new Game({ seed: 1, startDepth: 48 });
+    const game = new Game({ seed: 1, dungeonId: bossRegionDungeonId, startDepth: REGION_SIZE });
     const monsters = game.floor.actors.filter((a) => a.kind === "monster");
     expect(monsters).toHaveLength(1);
     expect(monsters[0]!.speciesId).toBe("horikuiNoNushi");
   });
 
   it("フロアギミックが乗らない", () => {
-    const game = new Game({ seed: 1, startDepth: 48 });
+    const game = new Game({ seed: 1, dungeonId: bossRegionDungeonId, startDepth: REGION_SIZE });
     expect(game.floor.gimmick).toBeUndefined();
   });
 
   it("撃破すると地方限定素材(掘り杭の杭先)を確定ドロップする", () => {
-    const game = new Game({ seed: 1, startDepth: 48 });
+    const game = new Game({ seed: 1, dungeonId: bossRegionDungeonId, startDepth: REGION_SIZE });
     const boss = game.floor.actors.find(
       (a): a is MonsterActor => a.kind === "monster" && a.speciesId === "horikuiNoNushi",
     )!;
@@ -204,7 +206,7 @@ describe("game.ts: 予兆ターンでcrackWarningを可視化し、発動ター�
 
 describe("game.ts: ばくはつタルで大技(予兆)を解除すると、crackWarningも一緒に消える", () => {
   it("予兆中のボスと同じ部屋でタルを爆発させると、telegraphChargeとcrackWarningの両方が解除される", () => {
-    const game = new Game({ seed: 1, startDepth: 48 });
+    const game = new Game({ seed: 1, dungeonId: bossRegionDungeonId, startDepth: REGION_SIZE });
     const boss = game.floor.actors.find(
       (a): a is MonsterActor => a.kind === "monster" && a.speciesId === "horikuiNoNushi",
     )!;

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { REGION_CHECKPOINT_FLOOR } from "../src/entities/dungeons";
 import { Game } from "../src/game";
 
 describe("出発地点(startDepth)", () => {
@@ -54,19 +55,19 @@ function stepOntoStairs(game: Game): ReturnType<Game["command"]> {
 }
 
 describe("めざめの階段の記録(checkpointイベント)", () => {
-  it("表の寝穴では、地方の最終階(6の倍数)の階段でcheckpointイベントが流れる", () => {
-    const game = new Game({ seed: 2, startDepth: 6 });
+  it("地方ダンジョンでは、中間階(REGION_CHECKPOINT_FLOOR)の階段でcheckpointイベントが流れる", () => {
+    const game = new Game({ seed: 2, startDepth: REGION_CHECKPOINT_FLOOR });
     const events = stepOntoStairs(game);
     const checkpoint = events.find(
       (e): e is Extract<(typeof events)[number], { type: "checkpoint" }> =>
         e.type === "checkpoint",
     );
     expect(checkpoint).toBeDefined();
-    expect(checkpoint?.depth).toBe(6);
+    expect(checkpoint?.depth).toBe(REGION_CHECKPOINT_FLOOR);
   });
 
-  it("表の寝穴では、地方境界でない階の階段ではcheckpointイベントが流れない", () => {
-    const game = new Game({ seed: 2, startDepth: 3 });
+  it("地方ダンジョンでは、中間階でない階の階段ではcheckpointイベントが流れない", () => {
+    const game = new Game({ seed: 2, startDepth: REGION_CHECKPOINT_FLOOR - 1 });
     const events = stepOntoStairs(game);
     const checkpoint = events.find((e) => e.type === "checkpoint");
     expect(checkpoint).toBeUndefined();

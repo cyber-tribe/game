@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { REGION_DUNGEON_IDS } from "../src/entities/dungeons";
 import { Game } from "../src/game";
 import type { MonsterActor } from "../src/core/types";
+
+const region5 = REGION_DUNGEON_IDS[4]!;
+const region6 = REGION_DUNGEON_IDS[5]!;
 
 function makeMonster(
   id: number,
@@ -28,7 +32,7 @@ function makeMonster(
 
 describe("game.ts: 第六地方(31〜36階)は攻撃で周囲のモンスターに気づかれる", () => {
   it("攻撃すると、範囲6以内の(視界に関係なく)モンスターがawareになる", () => {
-    const game = new Game({ seed: 1, startDepth: 31 });
+    const game = new Game({ seed: 1, dungeonId: region6, startDepth: 1 });
     game.floor.actors = game.floor.actors.filter((a) => a.kind === "player");
     // 部屋ベースの既存の視認判定(roomOf)による巻き添えを避け、本ギミック単体を検証する
     game.floor.rooms = [];
@@ -46,7 +50,7 @@ describe("game.ts: 第六地方(31〜36階)は攻撃で周囲のモンスター�
   });
 
   it("攻撃が空振りしても(不可視の相手など)、周囲のモンスターは気づく", () => {
-    const game = new Game({ seed: 1, startDepth: 31 });
+    const game = new Game({ seed: 1, dungeonId: region6, startDepth: 1 });
     game.floor.actors = game.floor.actors.filter((a) => a.kind === "player");
     // 部屋ベースの既存の視認判定(roomOf)による巻き添えを避け、本ギミック単体を検証する
     game.floor.rooms = [];
@@ -62,7 +66,8 @@ describe("game.ts: 第六地方(31〜36階)は攻撃で周囲のモンスター�
   });
 
   it("罠を踏んでも、範囲6以内のモンスターがawareになる", () => {
-    const game = new Game({ seed: 1, startDepth: 31 });
+    // seed:5は(5,5)→(6,5)の移動が塞がれていない(生成された床の形はseedごとに違う)
+    const game = new Game({ seed: 5, dungeonId: region6, startDepth: 1 });
     game.floor.actors = game.floor.actors.filter((a) => a.kind === "player");
     // 部屋ベースの既存の視認判定(roomOf)による巻き添えを避け、本ギミック単体を検証する
     game.floor.rooms = [];
@@ -77,7 +82,7 @@ describe("game.ts: 第六地方(31〜36階)は攻撃で周囲のモンスター�
   });
 
   it("第五地方(25〜30階)など、対象外の地方では範囲の巻き添えは起きない", () => {
-    const game = new Game({ seed: 1, startDepth: 25 });
+    const game = new Game({ seed: 1, dungeonId: region5, startDepth: 1 });
     game.floor.actors = game.floor.actors.filter((a) => a.kind === "player");
     // 部屋ベースの既存の視認判定(roomOf)による巻き添えを避け、本ギミック単体を検証する
     game.floor.rooms = [];

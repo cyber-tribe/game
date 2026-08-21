@@ -3,7 +3,13 @@ import type { AllyActor, DreamArtId, FloorState, Item, MarkId, SkillId, Tile } f
 import { ACHIEVEMENTS, achievementDef } from "./entities/achievements";
 import { COSTUMES, DEFAULT_COSTUME_ID, type CostumeDef } from "./entities/costumes";
 import { DIFFICULTY_MODES, type DifficultyMode } from "./entities/difficulty";
-import { MAIN_CAVE_ID, MAIN_CAVE_MAX_DEPTH, NIGHTLY_DREAM_ID, REGION_SIZE, TRIAL_CHAMBER_ID } from "./entities/dungeons";
+import {
+  NIGHTLY_DREAM_ID,
+  REGION_DUNGEON_IDS,
+  REGION_SIZE,
+  TRIAL_CHAMBER_ID,
+  isRegionDungeonId,
+} from "./entities/dungeons";
 import { MAX_RECENT_FUSION_MATERIALS, tryEvolve } from "./entities/evolution";
 import { FESTIVAL_SHOP_OFFERS, isYoimatsuri } from "./entities/festivals";
 import { HOKORA_DUST_DEF_ID, MARK_STONE_DEF_ID, MARKS, MAX_MARK_SLOTS, MAX_PLUS } from "./entities/forging";
@@ -652,11 +658,11 @@ export function equipCostume(current: SaveData, id: string): SaveData {
 }
 
 /**
- * 村の発展(plan/village-development.md)。次の段階の条件(最深到達記録・
+ * 村の発展(plan/village-development.md)。次の段階の条件(撃破済み地方ボス数・
  * ゴールド)を満たしていなければ何もしない
  */
 export function developVillage(current: SaveData): SaveData {
-  if (!canDevelopVillage(current.villageStage, current.deepest, current.gold)) return current;
+  if (!canDevelopVillage(current.villageStage, current.defeatedRegionBosses.length, current.gold)) return current;
   const requirement = nextVillageStageRequirement(current.villageStage);
   if (!requirement) return current;
   const next: SaveData = {
@@ -833,20 +839,24 @@ function checkChallengeAchievements(
   result: { depth: number; cleared: boolean; dungeonId?: string; usedItem?: boolean; usedMultipleWeapons?: boolean },
 ): SaveData {
   if (!result.cleared) return current;
-  // 「地方」は表の寝穴(plan/region-expansion.md)だけの概念。他のダンジョンは
-  // 全階がチェックポイントになる(design/multiple-dungeons.mdどおり地方の
-  // 区切りを持たない)ため、挑戦実績の対象も表の寝穴に限る
-  const isMainCave = result.dungeonId === undefined || result.dungeonId === MAIN_CAVE_ID;
-  if (!isMainCave) return current;
+  // 「地方」は地方ダンジョン(plan/game/dungeon-per-region.md)だけの概念。他の
+  // ダンジョンは全階がチェックポイントになる(design/multiple-dungeons.mdどおり
+  // 地方の区切りを持たない)ため、挑戦実績の対象も地方ダンジョンに限る
+  const dungeonId = result.dungeonId ?? REGION_DUNGEON_IDS[0];
+  if (!isRegionDungeonId(dungeonId)) return current;
   let next = current;
-  // 「1地方踏破」の判定は地方境界(plan/checkpoint-select.mdが
-  // チェックポイントにする、深さがREGION_SIZEの倍数)を使う。区切って
-  // 持ち帰ったタイミングと自然に一致する
-  if (!result.usedItem && result.depth % REGION_SIZE === 0) {
+  // 「1地方踏破」の判定は、地方ダンジョンの最終階(=ボスの間、地方ボス撃破階)
+  // まで到達したかどうかで見る。区切って持ち帰ったタイミングと自然に一致する
+  if (!result.usedItem && result.depth === REGION_SIZE) {
     next = unlockAchievement(next, "noItemRegion");
   }
-  const isMainCaveFullClear = result.depth >= MAIN_CAVE_MAX_DEPTH;
-  if (!isMainCaveFullClear) return next;
+  // 「表の寝穴フルクリア」は、最後の第八地方(めざめの前庭)ダンジョンの
+  // クリアに読み替える。第八地方は第一〜第七地方を順に踏破しないと解放
+  // されないため、ここへ到達しクリアした時点で全地方踏破済みと言える
+  // (旧来の「48階連続ノーアイテム」から「第八地方単体ノーアイテム」に
+  // 難度が変わる点は、地方ごとに入口を分けた設計上の帰結として受け入れる)
+  const isFullClear = dungeonId === REGION_DUNGEON_IDS[REGION_DUNGEON_IDS.length - 1] && result.depth === REGION_SIZE;
+  if (!isFullClear) return next;
   if (!result.usedItem) next = unlockAchievement(next, "noItemFullClear");
   if (!result.usedMultipleWeapons) next = unlockAchievement(next, "singleWeapon");
   if (!result.usedItem && !result.usedMultipleWeapons) {
@@ -1824,7 +1834,7 @@ function sideStoryStageMet(current: SaveData, bondStageOfNpc: BondStage, s: Side
   if (s.requiresCompendiumComplete && !isCompendiumComplete(current)) return false;
   if (
     s.minStoryChapter !== undefined &&
-    storyChapter(current.deepest, current.storyCleared) < s.minStoryChapter
+    storyChapter(current.defeatedRegionBosses.length, current.storyCleared) < s.minStoryChapter
   ) {
     return false;
   }
@@ -1875,7 +1885,7 @@ function talkToOtama(current: SaveData): { save: SaveData; message?: string } {
   const seenCount = current.seenVillageEvents.filter((id) => id.startsWith("sideStory:otama:")).length;
   if (seenCount >= OTAMA_VISIT_STORY.length) return { save: current };
   const stage = OTAMA_VISIT_STORY[seenCount]!;
-  if (stage.requiresStoryChapter3 && storyChapter(current.deepest, current.storyCleared) !== 3) {
+  if (stage.requiresStoryChapter3 && storyChapter(current.defeatedRegionBosses.length, current.storyCleared) !== 3) {
     return { save: current };
   }
   const eventId = `sideStory:otama:${seenCount}`;

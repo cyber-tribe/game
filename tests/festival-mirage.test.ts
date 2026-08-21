@@ -4,6 +4,10 @@ import { Rng } from "../src/core/rng";
 import { generateFloor } from "../src/dungeon/generate";
 import { placeDecoyBarrels, placeDecoyStairs, type IdSource } from "../src/dungeon/populate";
 import { roomContains } from "../src/core/types";
+import { REGION_DUNGEON_IDS } from "../src/entities/dungeons";
+
+const region6 = REGION_DUNGEON_IDS[5]!;
+const region7 = REGION_DUNGEON_IDS[6]!;
 
 function makeIds(): IdSource {
   let actorId = 0;
@@ -59,12 +63,12 @@ describe("dungeon/populate.ts: placeDecoyBarrels", () => {
   });
 });
 
-describe("game.ts: 表の寝穴の第七地方(37〜42階)にだけ偽の階段・偽のタルが生成される", () => {
-  it("37〜42階では偽の階段・偽のタルが生成されうる", () => {
+describe("game.ts: 第七地方(わすれられた祭りの跡)ダンジョンにだけ偽の階段・偽のタルが生成される", () => {
+  it("第七地方では偽の階段・偽のタルが生成されうる", () => {
     let foundStairs = false;
     let foundBarrel = false;
     for (let seed = 1; seed <= 20 && !(foundStairs && foundBarrel); seed++) {
-      const game = new Game({ seed, startDepth: 37 });
+      const game = new Game({ seed, dungeonId: region7, startDepth: 1 });
       if ((game.floor.decoyStairsPositions?.length ?? 0) > 0) foundStairs = true;
       if (game.floor.barrels.some((b) => b.decoy)) foundBarrel = true;
     }
@@ -72,9 +76,9 @@ describe("game.ts: 表の寝穴の第七地方(37〜42階)にだけ偽の階段�
     expect(foundBarrel).toBe(true);
   });
 
-  it("第六地方(31〜36階)には偽の階段・偽のタルが生成されない", () => {
+  it("第六地方には偽の階段・偽のタルが生成されない", () => {
     for (let seed = 1; seed <= 10; seed++) {
-      const game = new Game({ seed, startDepth: 31 });
+      const game = new Game({ seed, dungeonId: region6, startDepth: 1 });
       expect(game.floor.decoyStairsPositions ?? []).toHaveLength(0);
       expect(game.floor.barrels.some((b) => b.decoy)).toBe(false);
     }
@@ -83,7 +87,7 @@ describe("game.ts: 表の寝穴の第七地方(37〜42階)にだけ偽の階段�
 
 describe("game.ts: 偽の階段", () => {
   it("偽の階段の上で降りようとしても次の階へは進まず、幻だったと判明して消える", () => {
-    const game = new Game({ seed: 1, startDepth: 37 });
+    const game = new Game({ seed: 1, dungeonId: region7, startDepth: 1 });
     game.floor.decoyStairsPositions = [{ x: 3, y: 3 }];
     game.player.pos = { x: 3, y: 3 };
     const depthBefore = game.depth;
@@ -96,7 +100,7 @@ describe("game.ts: 偽の階段", () => {
   });
 
   it("本物の階段は、偽の階段があっても通常どおり機能する", () => {
-    const game = new Game({ seed: 1, startDepth: 37 });
+    const game = new Game({ seed: 1, dungeonId: region7, startDepth: 1 });
     game.floor.decoyStairsPositions = [{ x: 3, y: 3 }];
     game.player.pos = { ...game.floor.stairs };
     const depthBefore = game.depth;

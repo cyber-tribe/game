@@ -84,19 +84,20 @@ import type { DifficultyMode } from "./entities/difficulty";
 import { costumeById } from "./entities/costumes";
 import {
   LOST_AND_FOUND_VAULT_ID,
-  MAIN_CAVE_ID,
   MOUNTAIN_CORE_ID,
   NIGHTLY_DREAM_ID,
-  REGION_SIZE,
+  REGION_DUNGEON_IDS,
   TARUKURABE_ID,
   TRIAL_CHAMBER_ID,
   TRUE_AWAKENING_ID,
+  dungeonById,
+  regionIndexForDungeonId,
 } from "./entities/dungeons";
 import { isYoimatsuri } from "./entities/festivals";
 import { DEFAULT_MOOD_ID, MOOD_VISUALS, moodForDate } from "./entities/moods";
 import { todayKey } from "./entities/quests";
 import { STORY_CHAPTER_MESSAGES, storyChapter, storyChapterEventId } from "./entities/story";
-import { REGION_BOSS_FLOORS, speciesById } from "./entities/species";
+import { speciesById } from "./entities/species";
 import { KEY_REFERENCE, KEY_REFERENCE_TOUCH, messageSpeedScale } from "./entities/settings";
 import { resolveText, type TextVariant } from "./entities/inputText";
 import { currentInputMode } from "./ui/inputMode";
@@ -386,7 +387,7 @@ class App {
     // 屋外の村人(plan/game/village-interiors.md): おたまは第二章の救出後に
     // だけ広場に現れる。章そのものはdeepest/storyClearedから導出される
     // (entities/story.ts)ので、新しいセーブ項目は増やさない
-    this.village.setStoryChapter(storyChapter(this.save.deepest, this.save.storyCleared));
+    this.village.setStoryChapter(storyChapter(this.save.defeatedRegionBosses.length, this.save.storyCleared));
     this.village.reset();
   }
 
@@ -611,7 +612,7 @@ class App {
    * 導入メッセージを1回だけ流す
    */
   private checkStoryChapterTransition(): void {
-    const chapter = storyChapter(this.save.deepest, this.save.storyCleared);
+    const chapter = storyChapter(this.save.defeatedRegionBosses.length, this.save.storyCleared);
     if (chapter === 0) return;
     const eventId = storyChapterEventId(chapter);
     if (this.save.seenVillageEvents.includes(eventId)) return;
@@ -633,7 +634,7 @@ class App {
     trainingFocus: TrainingFocus = "balance",
     bringAllies: readonly StoredMonster[] = [],
     difficulty: DifficultyMode = "normal",
-    dungeonId: string = MAIN_CAVE_ID,
+    dungeonId: string = REGION_DUNGEON_IDS[0],
   ): void {
     this.diveDefeats = 0;
     this.diveCaptures = 0;
@@ -655,7 +656,7 @@ class App {
       moodOverride: moodForDate(todayKey()).id,
       difficulty,
       dungeonId,
-      deepest: this.save.deepest,
+      defeatedRegionBossCount: this.save.defeatedRegionBosses.length,
     });
     this.presentFloor();
     // 樽比べ(plan/tarukurabe-minigame.md): 通常ダイブの「階段をさがそう」は
@@ -731,13 +732,14 @@ class App {
 
   private bgmForDive(dungeonId: string, depth: number): string | undefined {
     if (dungeonId === TRUE_AWAKENING_ID) return "true-awakening";
-    if (dungeonId === MAIN_CAVE_ID) {
-      const regionIndex = Math.floor((depth - 1) / REGION_SIZE);
+    const regionIndex = regionIndexForDungeonId(dungeonId);
+    if (regionIndex !== undefined) {
       // ボスの間(plan/game/dungeon-boss-rooms.md): 扉を開けるまでは前室にいる
       // だけなので、地方の通常曲のまま。開けた瞬間(doorOpenedイベント)に
       // このメソッドが呼び直され、ここでboss曲へ切り替わる
-      if (REGION_BOSS_FLOORS[depth]) return this.game.floor.door?.open ? "boss" : `region${regionIndex + 1}`;
-      return `region${regionIndex + 1}`;
+      const atBossFloor = depth === (dungeonById(dungeonId).maxDepth ?? 0);
+      if (atBossFloor) return this.game.floor.door?.open ? "boss" : `region${regionIndex}`;
+      return `region${regionIndex}`;
     }
     // 近道屋の裏穴(plan/sound/archive/bgm-shortcut-back-hole.md)。5階通しで1曲
     if (dungeonId === "shortcutBackHole") return "shortcut";

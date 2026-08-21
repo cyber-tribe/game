@@ -5,6 +5,11 @@ import type { Dir } from "../src/core/grid";
 import { generateFloor } from "../src/dungeon/generate";
 import { placeTorrentTiles } from "../src/dungeon/populate";
 import { TILE_ROOM, TILE_WALL, roomContains, type Actor } from "../src/core/types";
+import { REGION_DUNGEON_IDS } from "../src/entities/dungeons";
+
+const region4 = REGION_DUNGEON_IDS[3]!;
+const region5 = REGION_DUNGEON_IDS[4]!;
+const region6 = REGION_DUNGEON_IDS[5]!;
 
 describe("dungeon/populate.ts: placeTorrentTiles", () => {
   it("店・モンスターハウス・階段の部屋には付与されない", () => {
@@ -48,26 +53,26 @@ describe("dungeon/populate.ts: placeTorrentTiles", () => {
   });
 });
 
-describe("game.ts: 表の寝穴の第五地方(25〜30階)にだけ奔流タイルが生成される", () => {
-  it("25〜30階では奔流タイルが生成されうる", () => {
+describe("game.ts: 第五地方(なみだの滝つぼ)ダンジョンにだけ奔流タイルが生成される", () => {
+  it("第五地方では奔流タイルが生成されうる", () => {
     let found = false;
     for (let seed = 1; seed <= 30 && !found; seed++) {
-      const game = new Game({ seed, startDepth: 25 });
+      const game = new Game({ seed, dungeonId: region5, startDepth: 1 });
       found = game.floor.tiles.some((t) => t.torrent !== undefined);
     }
     expect(found).toBe(true);
   });
 
-  it("第四地方(19〜24階)には奔流タイルが生成されない", () => {
+  it("第四地方には奔流タイルが生成されない", () => {
     for (let seed = 1; seed <= 10; seed++) {
-      const game = new Game({ seed, startDepth: 20 });
+      const game = new Game({ seed, dungeonId: region4, startDepth: 1 });
       expect(game.floor.tiles.some((t) => t.torrent !== undefined)).toBe(false);
     }
   });
 
-  it("第六地方(31階)には奔流タイルが生成されない", () => {
+  it("第六地方には奔流タイルが生成されない", () => {
     for (let seed = 1; seed <= 10; seed++) {
-      const game = new Game({ seed, startDepth: 31 });
+      const game = new Game({ seed, dungeonId: region6, startDepth: 1 });
       expect(game.floor.tiles.some((t) => t.torrent !== undefined)).toBe(false);
     }
   });

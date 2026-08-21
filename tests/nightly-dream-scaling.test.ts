@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  MAIN_CAVE_MAX_DEPTH,
+  TOTAL_REGION_FLOORS,
   NIGHTLY_DREAM_ID,
   NIGHTLY_DREAM_LAP_MULTIPLIER,
   NIGHTLY_DREAM_OVERFLOW_LAP,
@@ -13,30 +13,30 @@ import type { MonsterActor } from "../src/core/types";
 describe("entities/dungeons.ts: 夜ごとの夢のモンスター強化カーブ(plan/nightly-dream-scaling.md)", () => {
   it("48階以下は倍率1(頭打ちにならない範囲)", () => {
     expect(nightlyDreamStatMultiplier(1)).toBe(1);
-    expect(nightlyDreamStatMultiplier(MAIN_CAVE_MAX_DEPTH)).toBe(1);
+    expect(nightlyDreamStatMultiplier(TOTAL_REGION_FLOORS)).toBe(1);
   });
 
   it("49〜60階(1周目)はまだ倍率1", () => {
-    expect(nightlyDreamStatMultiplier(MAIN_CAVE_MAX_DEPTH + 1)).toBe(1);
-    expect(nightlyDreamStatMultiplier(MAIN_CAVE_MAX_DEPTH + NIGHTLY_DREAM_OVERFLOW_LAP)).toBe(1);
+    expect(nightlyDreamStatMultiplier(TOTAL_REGION_FLOORS + 1)).toBe(1);
+    expect(nightlyDreamStatMultiplier(TOTAL_REGION_FLOORS + NIGHTLY_DREAM_OVERFLOW_LAP)).toBe(1);
   });
 
   it("1周(12階)超えるごとに+15%ずつ増える", () => {
-    const oneLap = MAIN_CAVE_MAX_DEPTH + NIGHTLY_DREAM_OVERFLOW_LAP + 1;
+    const oneLap = TOTAL_REGION_FLOORS + NIGHTLY_DREAM_OVERFLOW_LAP + 1;
     expect(nightlyDreamStatMultiplier(oneLap)).toBeCloseTo(1 + NIGHTLY_DREAM_LAP_MULTIPLIER, 5);
-    const twoLaps = MAIN_CAVE_MAX_DEPTH + NIGHTLY_DREAM_OVERFLOW_LAP * 2 + 1;
+    const twoLaps = TOTAL_REGION_FLOORS + NIGHTLY_DREAM_OVERFLOW_LAP * 2 + 1;
     expect(nightlyDreamStatMultiplier(twoLaps)).toBeCloseTo(1 + NIGHTLY_DREAM_LAP_MULTIPLIER * 2, 5);
   });
 
   it("上限を設けない(深く潜るほど際限なく増え続ける)", () => {
-    const veryDeep = MAIN_CAVE_MAX_DEPTH + NIGHTLY_DREAM_OVERFLOW_LAP * 100 + 1;
+    const veryDeep = TOTAL_REGION_FLOORS + NIGHTLY_DREAM_OVERFLOW_LAP * 100 + 1;
     expect(nightlyDreamStatMultiplier(veryDeep)).toBeCloseTo(1 + NIGHTLY_DREAM_LAP_MULTIPLIER * 100, 5);
   });
 });
 
 describe("game.ts: 夜ごとの夢で48階を超えると、湧くモンスターのステータスが強化される", () => {
   it("1周超えた深さでは、種族基準よりmaxHp/atk/defが強くなる", () => {
-    const depth = MAIN_CAVE_MAX_DEPTH + NIGHTLY_DREAM_OVERFLOW_LAP + 1; // 倍率1.15
+    const depth = TOTAL_REGION_FLOORS + NIGHTLY_DREAM_OVERFLOW_LAP + 1; // 倍率1.15
     const game = new Game({ seed: 3, dungeonId: NIGHTLY_DREAM_ID, startDepth: depth });
     // 近道屋の行商人(kind: "monster"のNPC)はspeciesIdを持たないので除く
     const monsters = game.floor.actors.filter(
@@ -58,7 +58,7 @@ describe("game.ts: 夜ごとの夢で48階を超えると、湧くモンスタ�
     // seed: 60種化(plan/monster-roster-expansion-species.md)でSPECIES総重みが
     // 変わり、旧seed5はごく低確率のかがやきの夢のかけら(shining、1%)を
     // たまたま引くようになったため、引かないseedに差し替えた
-    const game = new Game({ seed: 1, dungeonId: NIGHTLY_DREAM_ID, startDepth: MAIN_CAVE_MAX_DEPTH });
+    const game = new Game({ seed: 1, dungeonId: NIGHTLY_DREAM_ID, startDepth: TOTAL_REGION_FLOORS });
     // 近道屋の行商人(kind: "monster"のNPC)はspeciesIdを持たないので除く
     const monsters = game.floor.actors.filter(
       (a): a is MonsterActor => a.kind === "monster" && !!a.speciesId,

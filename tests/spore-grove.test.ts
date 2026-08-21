@@ -5,6 +5,11 @@ import { Rng } from "../src/core/rng";
 import { generateFloor } from "../src/dungeon/generate";
 import { placeSporeRooms } from "../src/dungeon/populate";
 import { roomCenter, roomContains } from "../src/core/types";
+import { REGION_DUNGEON_IDS } from "../src/entities/dungeons";
+
+const region2 = REGION_DUNGEON_IDS[1]!;
+const region3 = REGION_DUNGEON_IDS[2]!;
+const region4 = REGION_DUNGEON_IDS[3]!;
 
 describe("dungeon/populate.ts: placeSporeRooms", () => {
   it("店・モンスターハウス・階段の部屋には付与されない", () => {
@@ -34,26 +39,26 @@ describe("dungeon/populate.ts: placeSporeRooms", () => {
   });
 });
 
-describe("game.ts: 表の寝穴の第三地方(13〜18階)にだけ胞子部屋が生成される", () => {
-  it("13〜18階では胞子部屋が生成されうる", () => {
+describe("game.ts: 第三地方(まどろみの茸林)ダンジョンにだけ胞子部屋が生成される", () => {
+  it("第三地方では胞子部屋が生成されうる", () => {
     let found = false;
     for (let seed = 1; seed <= 20 && !found; seed++) {
-      const game = new Game({ seed, startDepth: 13 });
+      const game = new Game({ seed, dungeonId: region3, startDepth: 1 });
       found = game.floor.rooms.some((r) => r.spored);
     }
     expect(found).toBe(true);
   });
 
-  it("第二地方(7〜12階)には胞子部屋が生成されない", () => {
+  it("第二地方には胞子部屋が生成されない", () => {
     for (let seed = 1; seed <= 10; seed++) {
-      const game = new Game({ seed, startDepth: 7 });
+      const game = new Game({ seed, dungeonId: region2, startDepth: 1 });
       expect(game.floor.rooms.some((r) => r.spored)).toBe(false);
     }
   });
 
-  it("第四地方(19階)には胞子部屋が生成されない", () => {
+  it("第四地方には胞子部屋が生成されない", () => {
     for (let seed = 1; seed <= 10; seed++) {
-      const game = new Game({ seed, startDepth: 19 });
+      const game = new Game({ seed, dungeonId: region4, startDepth: 1 });
       expect(game.floor.rooms.some((r) => r.spored)).toBe(false);
     }
   });

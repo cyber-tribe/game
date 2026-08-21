@@ -5,6 +5,8 @@ import { roomContains } from "../src/core/types";
 import { decideMonsterAction } from "../src/entities/ai";
 import { REGION_BOSS_ORDER, speciesById } from "../src/entities/species";
 import { Game } from "../src/game";
+import { REGION_DUNGEON_IDS, REGION_SIZE } from "../src/entities/dungeons";
+const bossRegionDungeonId = REGION_DUNGEON_IDS[6]!;
 import { access } from "./helpers/access";
 import { makeEmptyFloor } from "./helpers/floor";
 
@@ -116,19 +118,19 @@ describe("entities/ai.ts: 見世物のぬしの大技(decideMonsterAction)", () 
 
 describe("game.ts: 地方ボスの階(depth 42、表の寝穴)", () => {
   it("見世物のぬしが1体だけ配置される(通常の野生モンスターは湧かない)", () => {
-    const game = new Game({ seed: 1, startDepth: 42 });
+    const game = new Game({ seed: 1, dungeonId: bossRegionDungeonId, startDepth: REGION_SIZE });
     const monsters = game.floor.actors.filter((a) => a.kind === "monster");
     expect(monsters).toHaveLength(1);
     expect(monsters[0]!.speciesId).toBe("misemonoNoNushi");
   });
 
   it("フロアギミックが乗らない", () => {
-    const game = new Game({ seed: 1, startDepth: 42 });
+    const game = new Game({ seed: 1, dungeonId: bossRegionDungeonId, startDepth: REGION_SIZE });
     expect(game.floor.gimmick).toBeUndefined();
   });
 
   it("撃破すると地方限定素材(見世物の面)を確定ドロップする", () => {
-    const game = new Game({ seed: 1, startDepth: 42 });
+    const game = new Game({ seed: 1, dungeonId: bossRegionDungeonId, startDepth: REGION_SIZE });
     const boss = game.floor.actors.find(
       (a): a is MonsterActor => a.kind === "monster" && a.speciesId === "misemonoNoNushi",
     )!;
@@ -145,7 +147,7 @@ describe("game.ts: 地方ボスの階(depth 42、表の寝穴)", () => {
 
 describe("game.ts: 大技(summonMirror)が本体そっくりの幻影を呼び出す", () => {
   it("予兆済みのボスに隣接した状態で行動させると、幻影が3体まで現れる", () => {
-    const game = new Game({ seed: 1, startDepth: 42 });
+    const game = new Game({ seed: 1, dungeonId: bossRegionDungeonId, startDepth: REGION_SIZE });
     const boss = game.floor.actors.find(
       (a): a is MonsterActor => a.kind === "monster" && a.speciesId === "misemonoNoNushi",
     )!;

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AllyActor } from "../src/core/types";
+import { REGION_BOSS_ORDER } from "../src/entities/regions";
 import {
   VILLAGE_STAGE_REQUIREMENTS,
   canDevelopVillage,
@@ -41,26 +42,26 @@ describe("entities/village.ts", () => {
     expect(nextVillageStageRequirement(4)).toBeUndefined();
   });
 
-  it("canDevelopVillageは最深到達記録・ゴールドの両方が条件を満たして初めてtrue", () => {
+  it("canDevelopVillageは撃破済み地方ボス数・ゴールドの両方が条件を満たして初めてtrue", () => {
     const req = nextVillageStageRequirement(1)!;
-    expect(canDevelopVillage(1, req.minDeepest - 1, req.cost)).toBe(false);
-    expect(canDevelopVillage(1, req.minDeepest, req.cost - 1)).toBe(false);
-    expect(canDevelopVillage(1, req.minDeepest, req.cost)).toBe(true);
+    expect(canDevelopVillage(1, req.minRegionBossesDefeated - 1, req.cost)).toBe(false);
+    expect(canDevelopVillage(1, req.minRegionBossesDefeated, req.cost - 1)).toBe(false);
+    expect(canDevelopVillage(1, req.minRegionBossesDefeated, req.cost)).toBe(true);
   });
 
-  it("段階が上がるほど必要な最深到達記録・ゴールドも増える", () => {
+  it("段階が上がるほど必要な撃破済み地方ボス数・ゴールドも増える", () => {
     for (let i = 1; i < VILLAGE_STAGE_REQUIREMENTS.length; i++) {
-      expect(VILLAGE_STAGE_REQUIREMENTS[i]!.minDeepest).toBeGreaterThan(
-        VILLAGE_STAGE_REQUIREMENTS[i - 1]!.minDeepest,
+      expect(VILLAGE_STAGE_REQUIREMENTS[i]!.minRegionBossesDefeated).toBeGreaterThan(
+        VILLAGE_STAGE_REQUIREMENTS[i - 1]!.minRegionBossesDefeated,
       );
       expect(VILLAGE_STAGE_REQUIREMENTS[i]!.cost).toBeGreaterThan(VILLAGE_STAGE_REQUIREMENTS[i - 1]!.cost);
     }
   });
 
-  it("段階2〜4のminDeepestは地方境界(12/24/48)に沿っている(plan/village-stage-rebalance.md)", () => {
-    expect(villageStageRequirement(2)?.minDeepest).toBe(12);
-    expect(villageStageRequirement(3)?.minDeepest).toBe(24);
-    expect(villageStageRequirement(4)?.minDeepest).toBe(48);
+  it("段階2〜4のminRegionBossesDefeatedは地方境界(2/4/8体)に沿っている(plan/village-stage-rebalance.md)", () => {
+    expect(villageStageRequirement(2)?.minRegionBossesDefeated).toBe(2);
+    expect(villageStageRequirement(3)?.minRegionBossesDefeated).toBe(4);
+    expect(villageStageRequirement(4)?.minRegionBossesDefeated).toBe(8);
   });
 });
 
@@ -68,7 +69,11 @@ describe("save.ts: developVillage", () => {
   it("条件を満たしていれば段階が進み、ゴールドが引かれる", () => {
     const req = nextVillageStageRequirement(1)!;
     let save = initialSave();
-    save = { ...save, deepest: req.minDeepest, gold: req.cost + 100 };
+    save = {
+      ...save,
+      defeatedRegionBosses: REGION_BOSS_ORDER.slice(0, req.minRegionBossesDefeated),
+      gold: req.cost + 100,
+    };
     save = developVillage(save);
     expect(save.villageStage).toBe(2);
     expect(save.gold).toBe(100);
@@ -81,7 +86,7 @@ describe("save.ts: developVillage", () => {
 
   it("最終段階からはさらに発展できない", () => {
     let save = initialSave();
-    save = { ...save, villageStage: 4, deepest: 999, gold: 999999 };
+    save = { ...save, villageStage: 4, defeatedRegionBosses: [...REGION_BOSS_ORDER], gold: 999999 };
     expect(developVillage(save)).toBe(save);
   });
 });
