@@ -301,6 +301,32 @@ describe("view/village.ts: VillageView", () => {
 });
 
 /**
+ * 村の画面構成の再設計(plan/models/village-scene-redesign.md): 既定は
+ * 明るい昼、宵祭りの日だけ茜色の夕暮れに切り替える
+ */
+describe("view/village.ts: setFestivalLighting", () => {
+  it("既定(コンストラクタ直後)は明るい昼の空になっている", () => {
+    const view = new VillageView(emptyAssets());
+    const bg = view.scene.background as THREE.Color;
+    // 暗い夜寄りの色(旧: 0x0c1420)ではなく、明るい空色になっている
+    expect(bg.getHex()).not.toBe(0x0c1420);
+    expect(bg.r + bg.g + bg.b).toBeGreaterThan(1.5); // 明るい色は成分の合計が大きい
+  });
+
+  it("trueにすると茜色の夕暮れへ、falseで昼へ戻す", () => {
+    const view = new VillageView(emptyAssets());
+    const dayBg = (view.scene.background as THREE.Color).getHex();
+
+    view.setFestivalLighting(true);
+    const duskBg = (view.scene.background as THREE.Color).getHex();
+    expect(duskBg).not.toBe(dayBg);
+
+    view.setFestivalLighting(false);
+    expect((view.scene.background as THREE.Color).getHex()).toBe(dayBg);
+  });
+});
+
+/**
  * #446: 村なかのプレイヤーがカプセルのままで、主人公ガルドのモデルに
  * なっていなかった。モデルが読めているならそちらを使う
  */

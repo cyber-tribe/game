@@ -414,6 +414,9 @@ class App {
     // だけ広場に現れる。章そのものはdeepest/storyClearedから導出される
     // (entities/story.ts)ので、新しいセーブ項目は増やさない
     this.village.setStoryChapter(storyChapter(this.save.defeatedRegionBosses.length, this.save.storyCleared));
+    // 村の画面構成の再設計(plan/models/village-scene-redesign.md): 既定は
+    // 明るい昼にし、宵祭りの日だけ茜色の夕暮れへ切り替える
+    this.village.setFestivalLighting(isYoimatsuri(todayKey()));
     this.village.reset();
   }
 

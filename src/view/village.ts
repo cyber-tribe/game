@@ -139,7 +139,7 @@ export const VILLAGE_SCENERY: readonly VillageScenery[] = [
 
 /**
  * 窓の明かりを漏らす、壁を持つ家屋の建物id
- * (plan/game/village-scene-redesign.mdの「各建物の窓・入口から暖色の
+ * (plan/models/village-scene-redesign.mdの「各建物の窓・入口から暖色の
  * 明かりを漏らす」)。東屋(development)や壁の無い小道具(board・
  * questBoard)、広場(npcSquare)・洞窟(cave)は含めない
  */
@@ -261,12 +261,15 @@ export function nearestVillageBuilding(
 interface BuiltStructure {
   group: THREE.Group;
   primitive: THREE.Group;
+  /** 窓・入口の明かり(`WINDOW_GLOW_BUILDINGS`のみ)。昼/宵祭りで強さを切り替えるため保持する */
+  windowGlow?: THREE.PointLight;
 }
 
 function buildStructure(building: VillageBuilding): BuiltStructure {
   const group = new THREE.Group();
   const primitive = new THREE.Group();
   group.add(primitive);
+  let windowGlow: THREE.PointLight | undefined;
   const wallMat = new THREE.MeshStandardMaterial({ color: building.color, roughness: 0.9 });
   const roofMat = new THREE.MeshStandardMaterial({ color: 0x2a2018, roughness: 0.95 });
 
@@ -353,7 +356,7 @@ function buildStructure(building: VillageBuilding): BuiltStructure {
     }
   }
 
-  // 窓・入口から漏れる暖色の明かり(plan/game/village-scene-redesign.md
+  // 窓・入口から漏れる暖色の明かり(plan/models/village-scene-redesign.md
   // 「各建物の窓・入口から暖色の明かりを漏らす(生活の気配)」)。壁を持つ
   // 家屋だけに付ける(東屋の村の発展の受付、壁の無い依頼板・看板・広場・
   // 洞窟には付けない)。`primitive`ではなく`group`に足すのは、焚き火の
@@ -372,15 +375,20 @@ function buildStructure(building: VillageBuilding): BuiltStructure {
     // 建物は入口が山側(+Y=画面奥)を向く考証どおり、+Y面に明かりを置く
     glow.position.set(0, 0.75, 0.79);
     group.add(glow);
-    group.add(new THREE.PointLight(glowColor, 2.2, 3.5, 1.8).translateY(0.75).translateZ(0.7));
+    // 明るさは昼/宵祭りでVillageView.setFestivalLightingが切り替える
+    // (plan/models/village-scene-redesign.md「昼は控えめ、宵祭り時のみ強調」)。
+    // 既定値はここでは触れず、setFestivalLighting側の初期呼び出しに委ねる
+    windowGlow = new THREE.PointLight(glowColor, 2.2, 3.5, 1.8);
+    windowGlow.translateY(0.75).translateZ(0.7);
+    group.add(windowGlow);
   }
 
   group.position.set(building.x, 0, building.z);
-  return { group, primitive };
+  return { group, primitive, windowGlow };
 }
 
 /**
- * ヨリシロの稜線を模した遠景の山影(plan/game/village-scene-redesign.md
+ * ヨリシロの稜線を模した遠景の山影(plan/models/village-scene-redesign.md
  * 「山を背景に置く」)。村の奥(北=-Z側)に、霧がかった大きな山影を
  * 常に見せる。低ポリの四角錐を3層に重ね、奥ほど色を薄く・霧がかって
  * 見せることで遠近を表す。`material.fog = false`にしてあるのは、
@@ -415,6 +423,43 @@ function buildMountainBackdrop(): THREE.Group {
   }
   return group;
 }
+
+/**
+ * 昼/宵祭りの光の切り替え(plan/models/village-scene-redesign.mdの
+ * 「ライティング・色」節)。既定は明るい昼(現実=日なたの明るさ)にし、
+ * `design/village-festivals.md`の宵祭りの日だけ茜色の夕暮れへ切り替える。
+ * 「常に夕暮れ〜宵」という当初案は撤回されているので、この2値だけで足りる。
+ */
+interface VillageLightingPreset {
+  background: number;
+  fog: number;
+  ambientColor: number;
+  ambientIntensity: number;
+  sunColor: number;
+  sunIntensity: number;
+  /** 窓・入口の明かりの強さ。昼は控えめ、宵祭りだけ強調する */
+  windowGlowIntensity: number;
+}
+
+const DAYTIME_LIGHTING: VillageLightingPreset = {
+  background: 0xcfe8f7,
+  fog: 0xcfe8f7,
+  ambientColor: 0xfff2df,
+  ambientIntensity: 1.9,
+  sunColor: 0xfff4d8,
+  sunIntensity: 1.5,
+  windowGlowIntensity: 1.2,
+};
+
+const YOIMATSURI_LIGHTING: VillageLightingPreset = {
+  background: 0x6b3550,
+  fog: 0x6b3550,
+  ambientColor: 0x4a3550,
+  ambientIntensity: 1.0,
+  sunColor: 0xffa050,
+  sunIntensity: 0.9,
+  windowGlowIntensity: 3.0,
+};
 
 /**
  * 村なか歩き(plan/town-3d-exploration.md)の見た目。
@@ -462,15 +507,19 @@ export class VillageView {
    */
   private readonly sceneryGroups = new Map<string, THREE.Group>();
   private readonly builtScenery = new Set<string>();
+  /** 昼/宵祭りで色・強さを切り替える光源(`setFestivalLighting`) */
+  private readonly ambientLight = new THREE.AmbientLight();
+  private readonly sunLight = new THREE.DirectionalLight();
+  /** 建物ごとの窓明かり(`WINDOW_GLOW_BUILDINGS`のみ持つ)。`buildingId → PointLight` */
+  private readonly windowGlowLights = new Map<string, THREE.PointLight>();
 
   constructor(private readonly assets: Assets) {
-    this.scene.background = new THREE.Color(0x0c1420);
-    this.scene.fog = new THREE.Fog(0x0c1420, 14, 30);
+    this.scene.background = new THREE.Color(DAYTIME_LIGHTING.background);
+    this.scene.fog = new THREE.Fog(DAYTIME_LIGHTING.fog, 14, 30);
 
-    this.scene.add(new THREE.AmbientLight(0x8fa0c8, 1.5));
-    const sun = new THREE.DirectionalLight(0xfff0d0, 1.1);
-    sun.position.set(6, 12, 4);
-    this.scene.add(sun);
+    this.scene.add(this.ambientLight);
+    this.sunLight.position.set(6, 12, 4);
+    this.scene.add(this.sunLight);
 
     const ground = new THREE.Mesh(
       new THREE.PlaneGeometry(
@@ -485,8 +534,9 @@ export class VillageView {
     this.scene.add(buildMountainBackdrop());
 
     for (const building of VILLAGE_BUILDINGS) {
-      const { group, primitive } = buildStructure(building);
+      const { group, primitive, windowGlow } = buildStructure(building);
       this.buildingGroups.set(building.id, primitive);
+      if (windowGlow) this.windowGlowLights.set(building.id, windowGlow);
       this.scene.add(group);
     }
 
@@ -507,6 +557,8 @@ export class VillageView {
 
     this.camera = new THREE.PerspectiveCamera(48, 1, 0.1, 60);
     this.updateCamera();
+    // 既定は明るい昼(showTown側でsetFestivalLightingが呼ばれる前の保険でもある)
+    this.setFestivalLighting(false);
   }
 
   /**
@@ -516,6 +568,25 @@ export class VillageView {
    */
   setStoryChapter(chapter: StoryChapter): void {
     this.chapter = chapter;
+  }
+
+  /**
+   * 昼/宵祭りの光を切り替える(plan/models/village-scene-redesign.md)。
+   * `active`は`isYoimatsuri(todayKey())`をそのまま渡す想定
+   * (`design/village-festivals.md`と同じ、新規セーブ項目を増やさない設計)。
+   * 空・霧・環境光・陽光・窓明かりの強さをまとめて切り替える
+   */
+  setFestivalLighting(active: boolean): void {
+    const preset = active ? YOIMATSURI_LIGHTING : DAYTIME_LIGHTING;
+    (this.scene.background as THREE.Color).setHex(preset.background);
+    (this.scene.fog as THREE.Fog).color.setHex(preset.fog);
+    this.ambientLight.color.setHex(preset.ambientColor);
+    this.ambientLight.intensity = preset.ambientIntensity;
+    this.sunLight.color.setHex(preset.sunColor);
+    this.sunLight.intensity = preset.sunIntensity;
+    for (const glow of this.windowGlowLights.values()) {
+      glow.intensity = preset.windowGlowIntensity;
+    }
   }
 
   /** 拠点へ戻るたび(showTown())に、村の中の立ち位置を出発点へ戻す */
