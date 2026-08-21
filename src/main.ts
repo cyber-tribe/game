@@ -10,7 +10,7 @@ import { Assets } from "./view/assets";
 import { Hud } from "./view/hud";
 import { ATTACK_KEY_CODE, Input } from "./view/input";
 import { Minimap } from "./view/minimap";
-import { Renderer } from "./view/renderer";
+import { PLAYER_LIGHT, Renderer } from "./view/renderer";
 import { GalleryView } from "./view/gallery";
 import { Stage } from "./view/stage";
 import { VILLAGE_BUILDINGS, VillageView } from "./view/village";
@@ -1023,7 +1023,7 @@ class App {
       // 松明はプレイヤーの見た目の位置に付いてくる。マス単位の座標ではなく
       // 補間中の位置を使わないと、光だけが先に動いてしまう
       const here = this.stage.playerWorld(this.game.player);
-      this.renderer.playerLight.position.set(here.x, 2.0, here.z);
+      this.renderer.playerLight.position.set(here.x, PLAYER_LIGHT.height, here.z);
       this.renderer.setFocus(this.game.player.pos);
       this.renderer.update(dt);
       this.drainDamageFx();
