@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   composeAmbientLoop,
+  composeBarrelOpen,
   composeForgeHum,
   composeGalleryAmbient,
   composeJingle,
@@ -318,6 +319,40 @@ describe("tools/audio/compose.ts(plan/sound/archive/bgm-quality-upgrade.md)", ()
       const out = compose({ durationSec: 20, sampleRate: 22050, seed: 3 });
       const peak = out.reduce((max, v) => Math.max(max, Math.abs(v)), 0);
       expect(peak).toBeLessThanOrEqual(0.35);
+    });
+  });
+
+  // 元素タルをあける音(plan/sound/archive/village-soundscape.md)
+  describe("composeBarrelOpen", () => {
+    it("同じ属性・シードから決定的に、有限な値の配列を返す", () => {
+      const params = { element: "water", sampleRate: 22050, seed: 1 } as const;
+      const a = composeBarrelOpen(params);
+      const b = composeBarrelOpen(params);
+      expect(Array.from(a)).toEqual(Array.from(b));
+      for (const v of a) expect(Number.isFinite(v)).toBe(true);
+    });
+
+    it("属性ごとに異なる波形を返す(こぼれる音の音色を聴き分けられる)", () => {
+      const elements = ["water", "wind", "light", "stone", "sleep"] as const;
+      const waveforms = elements.map((element) => Array.from(composeBarrelOpen({ element, sampleRate: 22050, seed: 1 })));
+      for (let i = 0; i < waveforms.length; i++) {
+        for (let j = i + 1; j < waveforms.length; j++) {
+          expect(waveforms[i]).not.toEqual(waveforms[j]);
+        }
+      }
+    });
+
+    it("ピークが1.0を超えない(クリップ防止)", () => {
+      const out = composeBarrelOpen({ element: "stone", sampleRate: 22050, seed: 2 });
+      const peak = out.reduce((max, v) => Math.max(max, Math.abs(v)), 0);
+      expect(peak).toBeLessThanOrEqual(1);
+    });
+
+    it("リバーブを指定すると音が伸びる(尾を切り捨てない)", () => {
+      const dry = composeBarrelOpen({ element: "light", sampleRate: 22050, seed: 4 });
+      const wet = composeBarrelOpen({ element: "light", sampleRate: 22050, seed: 4, reverb: { wet: 0.25, roomSize: 0.4 } });
+      expect(wet.length).toBeGreaterThan(dry.length);
+      for (const v of wet) expect(Number.isFinite(v)).toBe(true);
     });
   });
 });

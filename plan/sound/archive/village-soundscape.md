@@ -1,3 +1,6 @@
+> **実装済み。** 4セクション(村BGMの改訂・環境音・建物ごとの音・タルの
+> 操作音の拡充)すべて実装済み。各セクション見出し直下の実装メモを参照。
+
 # 村の音風景 ― 建物考証を音で語る
 
 ## 経緯
@@ -145,6 +148,45 @@ BGMと並行してループ再生する薄い環境音レイヤーを1本追加�
 - 室内環境音は屋外アンビエントを止めて差し替える(重ねない)。
 
 ## 4. タルの操作音の拡充
+
+> **実装済み。** `openBarrel`/`castBarrelArt`コマンドは従来`message`
+> イベントしか出していなかったため、`src/core/events.ts`に新しい
+> GameEvent型を2つ追加した: `barrelOpen`(元素タルをあけた。
+> `barrelId`/`kind`/`pos`)・`barrelArtCast`(タルわざで空のタルを
+> 元素タルに変えた。`allyId`/`kind`)。`src/game.ts`の
+> `openCarriedBarrel`(元素タル5種の分岐に入った時点で`barrelOpen`を
+> 発行)・`castBarrelArt`(仲間がタルを変えたあとに`barrelArtCast`を
+> 発行)を編集して発行するようにした。
+>
+> 音そのものは`tools/audio/compose.ts`に`composeBarrelOpen`を新設:
+> 栓を抜く「ポン」(全属性共通、drumHit)+こぼれる音(属性ごとに
+> 音色を変える。水=pluckedString・風=低いdrumHit・光=fluteNote・
+> 石=低く長いdrumHit・ねむ=humVoice)。既存の楽器合成の組み合わせだけで
+> 5属性を作れたので、新しい波形生成そのものは追加していない。
+> `tools/audio/build.ts`の`BARREL_OPEN_SPECS`から
+> `barrelOpenWater`/`barrelOpenWind`/`barrelOpenLight`/`barrelOpenStone`/
+> `barrelOpenSleep`の5SFXを生成。タルわざ注入は既存の`composeJingle`で
+> 十分だったため、`JINGLE_SPECS`に3音の速い上行アルペジオ
+> `barrelArtCast`を追加した。`src/view/stage.ts`の
+> `buildEventHandlers`に`barrelOpen`(`BarrelKind`→SFX idの対応表
+> `BARREL_OPEN_SFX`を引いて再生)・`barrelArtCast`(`barrelArtCast`を
+> 再生)を追加。`src/main.ts`の`buildSubmitEventHandlers`にも
+> (記録・進行フラグは不要なため)noopとして追加した。
+>
+> **捕獲失敗の音色**は元々drum系の低い一撃(`captureFailed`: drum/190Hz)
+> であり、今回追加したポン(drumHit)と同じ「drum系の物理的な一撃」の
+> 語彙に既に収まっていたため、コード変更はしていない。
+>
+> **検証**: `npx tsc --noEmit`・`npx vitest run`(118ファイル/1607件)・
+> `npm run build`・`npm run audio`いずれも成功。再生成後の差分は新規の
+> `barrelOpenWater`/`barrelOpenWind`/`barrelOpenLight`/`barrelOpenStone`/
+> `barrelOpenSleep`/`barrelArtCast`の6ファイルのみ(既存音源は無変更)。
+> デコードしてピーク値がいずれも1.0以内(クリップ無し)であることを
+> 確認済み。`tests/barrel-arts.test.ts`に`barrelOpen`/`barrelArtCast`
+> イベントが正しい`kind`で発行される(元素タルのみ、爆発タルでは
+> 出ない)ことを確認するテストを追加した。
+>
+> 本ファイルの4セクションすべて実装済み。archiveへ移動する。
 
 考証で「タル=夢のゆりかご」の位置づけが強まったのに合わせ、
 タル操作のSFXを聞き分けられるように増やす:

@@ -12,6 +12,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   composeAmbientLoop,
+  composeBarrelOpen,
   composeForgeHum,
   composeGalleryAmbient,
   composeJingle,
@@ -21,6 +22,7 @@ import {
   composeTrack,
   LEITMOTIF_DEGREES,
   type AmbientLoopParams,
+  type BarrelElement,
   type InstrumentWeights,
   type JingleNote,
   type VoiceCryParams,
@@ -354,6 +356,23 @@ const SFX_SPECS: readonly SfxSpec[] = [
   { id: "enterGarudoHouse", kind: "drum", freq: 220, duration: 0.3, seed: 128 }, // 戸の開閉
 ];
 
+interface BarrelOpenSpec {
+  id: string;
+  element: BarrelElement;
+  seed: number;
+}
+
+// 元素タルをあける音(plan/sound/archive/village-soundscape.md)。栓を抜く
+// 「ポン」は共通、こぼれる音の音色だけ属性ごとに変える。composeBarrelOpenが
+// mallet/drum単体のcomposeSfxとは違う合成をするので、別枠のspecにする
+const BARREL_OPEN_SPECS: readonly BarrelOpenSpec[] = [
+  { id: "barrelOpenWater", element: "water", seed: 301 },
+  { id: "barrelOpenWind", element: "wind", seed: 302 },
+  { id: "barrelOpenLight", element: "light", seed: 303 },
+  { id: "barrelOpenStone", element: "stone", seed: 304 },
+  { id: "barrelOpenSleep", element: "sleep", seed: 305 },
+];
+
 interface JingleSpec {
   id: string;
   notes: readonly JingleNote[];
@@ -429,6 +448,18 @@ const JINGLE_SPECS: readonly JingleSpec[] = [
     reverb: { wet: 0.4, roomSize: 0.7, damping: 0.15 },
     // ハミングが鳴り止んだあと、ごく短く一度だけ息を吐く。「誰かがそこにいた」余韻を締める
     coda: { freq: 220, duration: 0.3, seed: 203, velocity: 0.2 },
+  },
+  // タルわざ注入(plan/sound/archive/village-soundscape.md)。仲間が夢気を
+  // 注ぐ短いきらめき。3音の速い上行アルペジオ+浅い残響でシャラッとした光を出す
+  {
+    id: "barrelArtCast",
+    notes: [
+      { degree: 0, beats: 0.4 },
+      { degree: 4, beats: 0.4 },
+      { degree: 7, beats: 0.6 },
+    ],
+    tempoBpm: 150,
+    reverb: { wet: 0.25, roomSize: 0.4, damping: 0.15 },
   },
   // 全滅。沈んでいく静けさ
   {
@@ -514,6 +545,18 @@ function main(): void {
     const path = resolve(AUDIO_ROOT, "sfx", `${spec.id}.wav`);
     writeFileSync(path, encodeWav([samples], SAMPLE_RATE));
     console.log(`sfx/${spec.id}.wav (${(samples.length / SAMPLE_RATE).toFixed(2)}s)`);
+  }
+
+  for (const spec of BARREL_OPEN_SPECS) {
+    const samples = composeBarrelOpen({
+      element: spec.element,
+      sampleRate: SAMPLE_RATE,
+      seed: spec.seed,
+      reverb: SFX_REVERB,
+    });
+    const path = resolve(AUDIO_ROOT, "sfx", `${spec.id}.wav`);
+    writeFileSync(path, encodeWav([samples], SAMPLE_RATE));
+    console.log(`sfx/${spec.id}.wav (${(samples.length / SAMPLE_RATE).toFixed(2)}s, ${spec.element})`);
   }
 
   for (const spec of JINGLE_SPECS) {
