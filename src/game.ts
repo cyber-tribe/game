@@ -119,6 +119,7 @@ import {
   type DifficultyMode,
 } from "./entities/difficulty";
 import { HOKORA_DUST_DEF_ID, MARK_STONE_DEF_ID, MARKS } from "./entities/forging";
+import { rollBossTreasure } from "./entities/bossTreasure";
 import { sellPrice } from "./entities/shop";
 import {
   MAX_ALLIES,
@@ -310,6 +311,13 @@ export interface RunOptions {
    * 持たない初回プレイヤーがこの階で足止めされてしまうため
    */
   defeatedRegionBossCount?: number;
+  /**
+   * ぬしの置き土産(plan/game/dungeon-boss-rooms.md)。SaveData.
+   * defeatedRegionBossesをそのまま渡す。地方ボスのspeciesIdがここに
+   * 含まれていれば「2回目以降の踏破」として置き土産を一段軽くする。
+   * 省略時は空(=常に初回踏破扱い)
+   */
+  defeatedRegionBossIds?: readonly string[];
   /**
    * 真の目覚め(plan/true-awakening.md)。SaveData.trueAwakeningClearedを
    * そのまま渡す。true ならかがやきの夢のかけらの出現率がさらに上がる
@@ -775,6 +783,14 @@ export class Game {
    */
   private readonly defeatedRegionBossCountAtStart: number;
 
+  /**
+   * ぬしの置き土産(plan/game/dungeon-boss-rooms.md)。このダイブ開始前に
+   * 撃破済みだった地方ボスのspeciesId一覧。killActorで「初回踏破か」を
+   * 判定するのに使う(SaveData.defeatedRegionBossesはダイブ完了後にしか
+   * 反映されないため、開始時点のスナップショットをそのまま保持する)
+   */
+  private readonly defeatedRegionBossIdsAtStart: ReadonlySet<string>;
+
   /** 潜っているダンジョンid(plan/multiple-dungeons.md)。記録の間の集計などに使う */
   get dungeonId(): string {
     return this.dungeon.id;
@@ -816,6 +832,9 @@ export class Game {
     if (opts.resume) {
       // 復帰時は新しくフロアを生成しないため使わないが、readonlyの初期化として必要
       this.defeatedRegionBossCountAtStart = 0;
+      // 復帰後にボスを倒す稀なケースでは常に初回踏破扱いになる(クラッシュ
+      // 復帰は演出寄りの状態を厳密に保つ設計ではないため許容する)
+      this.defeatedRegionBossIdsAtStart = new Set();
       const s = opts.resume;
       this.rng = Rng.fromState(s.rngState);
       this.maxDepth = s.maxDepth;
@@ -856,6 +875,7 @@ export class Game {
 
     this.rng = new Rng(opts.seed);
     this.defeatedRegionBossCountAtStart = opts.defeatedRegionBossCount ?? 0;
+    this.defeatedRegionBossIdsAtStart = new Set(opts.defeatedRegionBossIds ?? []);
     this.dungeon = dungeonById(opts.dungeonId ?? REGION_DUNGEON_IDS[0]);
     this.maxDepth = opts.maxDepth ?? this.dungeon.maxDepth ?? Number.POSITIVE_INFINITY;
     this.trainingFocus = opts.trainingFocus ?? "balance";
@@ -3366,6 +3386,15 @@ export class Game {
     // 山の芯(plan/mountain-core.md): 撃破した地方ボスを記録する
     if (target.speciesId && speciesById(target.speciesId).isRegionBoss) {
       this.defeatedRegionBossesThisRun.add(target.speciesId);
+      // ぬしの置き土産(plan/game/dungeon-boss-rooms.md): 確定ドロップとは
+      // 別に、宝箱相当の報酬をもう1つ落とす。2回目以降の踏破では一段軽くなる
+      const firstClear = !this.defeatedRegionBossIdsAtStart.has(target.speciesId);
+      const tableDepth = this.depth + (this.dungeon.floorOffset ?? 0);
+      const treasure = rollBossTreasure(this.rng, () => this.ids.nextItemUid(), tableDepth, firstClear);
+      for (const item of treasure) this.floor.items.push({ item, pos: { ...target.pos } });
+      if (treasure.length > 0) {
+        events.push({ type: "message", text: "ぬしの置き土産を見つけた!" });
+      }
     }
     const exp = target.exp ?? 0;
     if (exp > 0) {

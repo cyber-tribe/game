@@ -696,6 +696,7 @@ class App {
       difficulty,
       dungeonId,
       defeatedRegionBossCount: this.save.defeatedRegionBosses.length,
+      defeatedRegionBossIds: this.save.defeatedRegionBosses,
     });
     this.presentFloor();
     // 樽比べ(plan/tarukurabe-minigame.md): 通常ダイブの「階段をさがそう」は
