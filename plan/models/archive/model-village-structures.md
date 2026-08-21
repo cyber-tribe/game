@@ -6,7 +6,7 @@
 主要な小道具をBlenderパイプライン(`tools/models/`、既存の
 `props.py` にタル・壁・罠の前例あり)の正式なモデルに置き換える。
 
-配置・カメラ・光は `plan/game/village-scene-redesign.md` が扱う。
+配置・カメラ・光は `plan/models/village-scene-redesign.md` が扱う。
 本書は造形のみ。
 
 ## 共通の造形言語(考証の反映)
