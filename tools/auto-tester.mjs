@@ -75,6 +75,25 @@ function weightedPick(rng, entries) {
 
 const DIRECTIONS = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
 
+/**
+ * 直前の操作の再生ロック(this.lock、演出の再生中は新しい入力をまるごと
+ * 無視する)が解けるまで待つ。tools/playtest.mjsのsettle()と同じ考え方。
+ *
+ * 以前はここが固定120msのwaitForTimeoutだけで、ロックが解ける前に次の
+ * moveキーを送ってしまうことがあった。CIの遅いソフトウェア描画
+ * (SwiftShader)下だと演出がなかなか終わらず、押した方向キーがまるごと
+ * 無視されたまま`softlock.noteDirection(dir)`だけは呼ばれ続ける。実際には
+ * 一度もその方向を試せていないのに「4方向すべて試した」ことになり、
+ * ゲームが本当は動けるのに「進行不能」を誤検知していた
+ * (#745/#746/#747/#748の低確信度レポート群の主因と見られる)。
+ */
+async function settle(page, timeout = 10_000) {
+  await page
+    .evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))))
+    .catch(() => {});
+  await page.waitForFunction(() => globalThis.__app?.debugIdle() !== false, { timeout }).catch(() => {});
+}
+
 const readHud = (page) =>
   page.evaluate(() => {
     const app = globalThis.__app;
@@ -321,7 +340,10 @@ async function runSession(browser, index) {
         await page.waitForTimeout(150);
         await page.keyboard.press("Escape");
       }
-      await page.waitForTimeout(120);
+      // 次の周回でHUDを読む前に、この操作の再生ロックが解けるのを待つ。
+      // 固定waitのままだと、まだロックが解けていないうちに次のmoveを
+      // 送ってしまい、入力が丸ごと無視されたまま「試した」ことになる
+      await settle(page);
 
       // 階層の進め方: ターン予算の7割を消化した時点でまだ同じ階にいれば強制的に次の階へ
       if (turn === descendAtTurn) {
