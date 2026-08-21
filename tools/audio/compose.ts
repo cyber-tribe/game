@@ -391,6 +391,51 @@ export interface AmbientLoopParams {
   seed: number;
 }
 
+/** 低域寄りのフィルタしたノイズの継続音(火・炉のうなりの土台に使う一次ローパス) */
+function noiseFloor(n: number, rng: () => number, lpCoeff: number): Float32Array {
+  const out = new Float32Array(n);
+  let lp = 0;
+  for (let i = 0; i < n; i++) {
+    const noise = rng() * 2 - 1;
+    lp += (noise - lp) * lpCoeff;
+    out[i] = lp;
+  }
+  return out;
+}
+
+interface NoiseBurstParams {
+  /** 置く回数 */
+  count: number;
+  minDurationSec: number;
+  maxDurationSec: number;
+  /** バースト内のフィルタの追従速度 */
+  lpCoeff: number;
+  /** trueならフィルタ後の低域を差し引き、高域寄りの質感にする(葉ずれ・紙めくり向け) */
+  highpass: boolean;
+  /** decay: 立ち上がって指数減衰(はぜる音向け)。hump: なだらかな山形(擦れる音向け) */
+  envShape: "decay" | "hump";
+  velocity: number;
+}
+
+/** 短いノイズバースト(はぜる音・葉ずれ・紙めくり等)を、ランダムな位置へoutに加算する */
+function scatterNoiseBursts(out: Float32Array, sampleRate: number, rng: () => number, params: NoiseBurstParams): void {
+  const { count, minDurationSec, maxDurationSec, lpCoeff, highpass, envShape, velocity } = params;
+  const n = out.length;
+  for (let b = 0; b < count; b++) {
+    const offset = Math.floor(rng() * n);
+    const burstDur = minDurationSec + rng() * (maxDurationSec - minDurationSec);
+    const burstN = Math.max(1, Math.floor(burstDur * sampleRate));
+    let lp = 0;
+    for (let i = 0; i < burstN && offset + i < n; i++) {
+      const progress = i / burstN;
+      const env = envShape === "decay" ? Math.exp(-progress * 6) : Math.sin(Math.PI * progress);
+      const noise = rng() * 2 - 1;
+      lp += (noise - lp) * lpCoeff;
+      out[offset + i]! += (highpass ? noise - lp : lp) * env * velocity;
+    }
+  }
+}
+
 /**
  * 村の屋外アンビエント(火のはぜる音・祠木の葉ずれ・遠い山の寝息)を1本の
  * モノラルループにミックスする。BGMとは独立して`AudioPlayer.setMoodLayer`で
@@ -402,40 +447,31 @@ export function composeAmbientLoop(params: AmbientLoopParams): Float32Array {
   const out = new Float32Array(n);
   const rng = mulberry32(seed);
 
-  // 火のはぜる音: 低域寄りのフィルタしたノイズの床(常時)+時折の小さな「パチッ」
-  let fireFloorLp = 0;
-  for (let i = 0; i < n; i++) {
-    const noise = rng() * 2 - 1;
-    fireFloorLp += (noise - fireFloorLp) * 0.05;
-    out[i]! += fireFloorLp * 0.06;
-  }
-  const popCount = Math.round(durationSec * 1.5); // 1秒あたり1.5回程度のはぜる音
-  for (let p = 0; p < popCount; p++) {
-    const offset = Math.floor(rng() * durationSec * sampleRate);
-    const popN = Math.max(1, Math.floor((0.03 + rng() * 0.03) * sampleRate));
-    let popLp = 0;
-    for (let i = 0; i < popN && offset + i < n; i++) {
-      const env = Math.exp(-(i / popN) * 6);
-      const noise = rng() * 2 - 1;
-      popLp += (noise - popLp) * 0.4;
-      out[offset + i]! += popLp * env * 0.15;
-    }
-  }
+  // 火のはぜる音: 低域寄りのフィルタしたノイズの床(常時)
+  const fireFloor = noiseFloor(n, rng, 0.05);
+  for (let i = 0; i < n; i++) out[i]! += fireFloor[i]! * 0.06;
+
+  // 時折の小さな「パチッ」
+  scatterNoiseBursts(out, sampleRate, rng, {
+    count: Math.round(durationSec * 1.5), // 1秒あたり1.5回程度
+    minDurationSec: 0.03,
+    maxDurationSec: 0.06,
+    lpCoeff: 0.4,
+    highpass: false,
+    envShape: "decay",
+    velocity: 0.15,
+  });
 
   // 祠木の葉ずれ: 疎らに、高域寄りのノイズバーストを置く(風が通るたび)
-  const rustleCount = Math.round(durationSec * 0.4); // 数秒に1回程度
-  for (let r = 0; r < rustleCount; r++) {
-    const offset = Math.floor(rng() * durationSec * sampleRate);
-    const rustleN = Math.max(1, Math.floor((0.4 + rng() * 0.5) * sampleRate));
-    let rustleLp = 0;
-    for (let i = 0; i < rustleN && offset + i < n; i++) {
-      const env = Math.sin(Math.PI * (i / rustleN)) * 0.5; // なだらかな山
-      const noise = rng() * 2 - 1;
-      rustleLp += (noise - rustleLp) * 0.5;
-      const highpassed = noise - rustleLp; // 低域を差し引き、高域寄りの質感にする
-      out[offset + i]! += highpassed * env * 0.05;
-    }
-  }
+  scatterNoiseBursts(out, sampleRate, rng, {
+    count: Math.round(durationSec * 0.4), // 数秒に1回程度
+    minDurationSec: 0.4,
+    maxDurationSec: 0.9,
+    lpCoeff: 0.5,
+    highpass: true,
+    envShape: "hump",
+    velocity: 0.025,
+  });
 
   // 遠い山の寝息: 可聴域ぎりぎりの超低音が、10秒周期でうねる
   // (聞こえないスピーカーがあっても害は無い想定。plan/sound/archive/village-soundscape.md 未決事項)
@@ -449,6 +485,101 @@ export function composeAmbientLoop(params: AmbientLoopParams): Float32Array {
 
   // 3つのノイズ・低音源が重なっても暴れないよう、上限だけ抑える(押し上げはしない)
   normalize(out, 0.35);
+  return out;
+}
+
+/**
+ * ゲンドの工房の室内環境音: 炉の低い燃焼音。はぜる音・葉ずれは無く、
+ * 継続する低いうなりが6秒周期でゆっくり息づく(plan/sound/archive/village-soundscape.md)
+ */
+export function composeForgeHum(params: AmbientLoopParams): Float32Array {
+  const { durationSec, sampleRate, seed } = params;
+  const n = Math.max(1, Math.floor(durationSec * sampleRate));
+  const out = new Float32Array(n);
+  const rng = mulberry32(seed);
+  const floor = noiseFloor(n, rng, 0.02); // 屋外の火より深いローパスで、暗く重い質感にする
+  for (let i = 0; i < n; i++) {
+    const t = i / sampleRate;
+    const wobble = 0.85 + 0.15 * Math.sin((2 * Math.PI * t) / 6);
+    out[i] = floor[i]! * 0.12 * wobble;
+  }
+  normalize(out, 0.3);
+  return out;
+}
+
+/**
+ * ねむり小屋の室内環境音: 子守唄のライトモチーフ(LEITMOTIF_DEGREES)を
+ * ごく細い鈴でゆっくり1回鳴らし(常時歌わせない)、タルの軋みを疎らに置く
+ * (plan/sound/archive/village-soundscape.md)
+ */
+export function composeSleepHutAmbient(params: AmbientLoopParams): Float32Array {
+  const { durationSec, sampleRate, seed } = params;
+  const n = Math.max(1, Math.floor(durationSec * sampleRate));
+  const out = new Float32Array(n);
+  const rng = mulberry32(seed);
+
+  const noteBeatSec = 1.1;
+  let elapsed = 0;
+  for (const degree of LEITMOTIF_DEGREES) {
+    const freq = degreeToFreq(degree + SCALE_LEN); // 主旋律より1オクターブ上げ、鈴らしい高さにする
+    const offset = Math.floor(elapsed * sampleRate);
+    mixIn(out, malletNote(freq, noteBeatSec * 0.9, sampleRate, 0.12), offset);
+    elapsed += noteBeatSec;
+  }
+
+  const creakCount = Math.max(1, Math.round(durationSec / 7));
+  for (let c = 0; c < creakCount; c++) {
+    const posSec = (c + rng()) * (durationSec / creakCount);
+    const offset = Math.floor(posSec * sampleRate);
+    mixIn(out, drumHit(0.4, sampleRate, seed + c + 1, 140, 0.15), offset);
+  }
+
+  normalize(out, 0.3);
+  return out;
+}
+
+/**
+ * おキヨの図鑑小屋の室内環境音: 紙・木札をめくる音が時折(plan/sound/archive/village-soundscape.md)
+ */
+export function composeGalleryAmbient(params: AmbientLoopParams): Float32Array {
+  const { durationSec, sampleRate, seed } = params;
+  const n = Math.max(1, Math.floor(durationSec * sampleRate));
+  const out = new Float32Array(n);
+  const rng = mulberry32(seed);
+  scatterNoiseBursts(out, sampleRate, rng, {
+    count: Math.max(1, Math.round(durationSec / 5)), // 数秒に1回程度
+    minDurationSec: 0.2,
+    maxDurationSec: 0.4,
+    lpCoeff: 0.6,
+    highpass: true,
+    envShape: "hump",
+    velocity: 0.06,
+  });
+  normalize(out, 0.3);
+  return out;
+}
+
+/**
+ * ガルドの家の室内環境音: 火の小さなはぜる音。村の屋外アンビエントの火の
+ * 層と同じ質感だが、葉ずれ・寝息は無く一段控えめ(plan/sound/archive/village-soundscape.md)
+ */
+export function composeSmallFireAmbient(params: AmbientLoopParams): Float32Array {
+  const { durationSec, sampleRate, seed } = params;
+  const n = Math.max(1, Math.floor(durationSec * sampleRate));
+  const out = new Float32Array(n);
+  const rng = mulberry32(seed);
+  const floor = noiseFloor(n, rng, 0.05);
+  for (let i = 0; i < n; i++) out[i]! += floor[i]! * 0.04;
+  scatterNoiseBursts(out, sampleRate, rng, {
+    count: Math.round(durationSec * 1.0),
+    minDurationSec: 0.02,
+    maxDurationSec: 0.04,
+    lpCoeff: 0.4,
+    highpass: false,
+    envShape: "decay",
+    velocity: 0.1,
+  });
+  normalize(out, 0.3);
   return out;
 }
 
