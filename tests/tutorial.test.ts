@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { REGION_CHECKPOINT_FLOOR } from "../src/entities/dungeons";
 import { Game } from "../src/game";
 import type { GameEvent } from "../src/core/events";
 import { TUTORIAL_TIPS, TUTORIAL_TIP_IDS, tutorialTipText, type TutorialTipId } from "../src/core/tutorial";
@@ -141,9 +142,9 @@ describe("チュートリアルヒントのGameEvent", () => {
   });
 
   it("めざめの階段に到達すると checkpoint ヒントが流れる", () => {
-    // 表の寝穴では地方境界(6の倍数)の階だけがめざめの階段になる
-    // (plan/region-expansion.md)
-    const game = new Game({ seed: 10, startDepth: 6 });
+    // 地方ダンジョンでは中間階(REGION_CHECKPOINT_FLOOR)だけがめざめの階段になる
+    // (plan/game/dungeon-per-region.md)
+    const game = new Game({ seed: 10, startDepth: REGION_CHECKPOINT_FLOOR });
     const candidates: Array<{ from: { x: number; y: number }; dir: 0 | 2 | 4 | 6 }> = [
       { from: { x: game.floor.stairs.x, y: game.floor.stairs.y - 1 }, dir: 4 },
       { from: { x: game.floor.stairs.x - 1, y: game.floor.stairs.y }, dir: 2 },

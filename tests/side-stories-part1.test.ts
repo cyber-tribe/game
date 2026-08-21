@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { OTAMA_VISIT_STORY, SIDE_STORIES, sideStoryFor } from "../src/entities/sideStories";
+import { REGION_BOSS_ORDER } from "../src/entities/regions";
 import { itemDef } from "../src/items/catalog";
 import { initialSave, talkToNpc } from "../src/save";
 import type { SaveData } from "../src/save";
@@ -115,14 +116,14 @@ describe("save.ts: talkToNpc(目覚めたおたま、会うたびに進む)", ()
     expect(third.message).toBe(OTAMA_VISIT_STORY[2]!.text);
   });
 
-  it("第4段は storyChapter===3(deepest 30〜41)の間だけ解放される", () => {
+  it("第4段は storyChapter===3(撃破済み地方ボス5〜6体)の間だけ解放される", () => {
     let save = initialSave();
     for (let i = 0; i < 3; i++) save = talkToNpc(save, "otama").save;
 
-    const tooEarly = talkToNpc({ ...save, deepest: 18 }, "otama");
+    const tooEarly = talkToNpc({ ...save, defeatedRegionBosses: REGION_BOSS_ORDER.slice(0, 3) }, "otama");
     expect(tooEarly.message).toBeUndefined();
 
-    const inChapter3 = talkToNpc({ ...save, deepest: 30 }, "otama");
+    const inChapter3 = talkToNpc({ ...save, defeatedRegionBosses: REGION_BOSS_ORDER.slice(0, 5) }, "otama");
     expect(inChapter3.message).toBe(OTAMA_VISIT_STORY[3]!.text);
   });
 

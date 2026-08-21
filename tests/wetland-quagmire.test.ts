@@ -5,6 +5,11 @@ import { generateFloor } from "../src/dungeon/generate";
 import { placeQuagmireTiles } from "../src/dungeon/populate";
 import { dirFromDelta } from "../src/core/grid";
 import { TILE_ROOM } from "../src/core/types";
+import { REGION_DUNGEON_IDS } from "../src/entities/dungeons";
+
+const region1 = REGION_DUNGEON_IDS[0];
+const region2 = REGION_DUNGEON_IDS[1]!;
+const region3 = REGION_DUNGEON_IDS[2]!;
 
 describe("dungeon/populate.ts: placeQuagmireTiles", () => {
   it("店・モンスターハウスの部屋には付与されない", () => {
@@ -46,26 +51,26 @@ describe("dungeon/populate.ts: placeQuagmireTiles", () => {
   });
 });
 
-describe("game.ts: 表の寝穴の第二地方(7〜12階)にだけ深みタイルが生成される", () => {
-  it("7〜12階では深みタイルが生成されうる", () => {
+describe("game.ts: 第二地方(忘れ潮の湿地)ダンジョンにだけ深みタイルが生成される", () => {
+  it("第二地方では深みタイルが生成されうる", () => {
     let found = false;
     for (let seed = 1; seed <= 20 && !found; seed++) {
-      const game = new Game({ seed, startDepth: 7 });
+      const game = new Game({ seed, dungeonId: region2, startDepth: 1 });
       found = game.floor.tiles.some((t) => t.quagmire);
     }
     expect(found).toBe(true);
   });
 
-  it("第一地方(1〜6階)には深みタイルが生成されない", () => {
+  it("第一地方には深みタイルが生成されない", () => {
     for (let seed = 1; seed <= 10; seed++) {
-      const game = new Game({ seed, startDepth: 1 });
+      const game = new Game({ seed, dungeonId: region1, startDepth: 1 });
       expect(game.floor.tiles.some((t) => t.quagmire)).toBe(false);
     }
   });
 
-  it("第三地方(13階)には深みタイルが生成されない", () => {
+  it("第三地方には深みタイルが生成されない", () => {
     for (let seed = 1; seed <= 10; seed++) {
-      const game = new Game({ seed, startDepth: 13 });
+      const game = new Game({ seed, dungeonId: region3, startDepth: 1 });
       expect(game.floor.tiles.some((t) => t.quagmire)).toBe(false);
     }
   });
@@ -79,7 +84,7 @@ describe("game.ts: 深みタイルへの移動でモンスター行動がもう1
     let monsterPos: { x: number; y: number } | undefined;
 
     for (let seed = 1; seed <= 30 && !game; seed++) {
-      const candidate = new Game({ seed, startDepth: 7 });
+      const candidate = new Game({ seed, dungeonId: region2, startDepth: 1 });
       const quagmireTiles = candidate.floor.tiles
         .map((t, i) => ({ t, x: i % candidate.floor.width, y: Math.floor(i / candidate.floor.width) }))
         .filter((q) => q.t.quagmire);
@@ -146,7 +151,7 @@ describe("game.ts: 深みタイルへの移動でモンスター行動がもう1
     let monsterPos: { x: number; y: number } | undefined;
 
     for (let seed = 1; seed <= 30 && !game; seed++) {
-      const candidate = new Game({ seed, startDepth: 1 }); // 第一地方は深みタイルが無い
+      const candidate = new Game({ seed, dungeonId: region1, startDepth: 1 }); // 第一地方は深みタイルが無い
       const roomTiles = candidate.floor.tiles
         .map((t, i) => ({ t, x: i % candidate.floor.width, y: Math.floor(i / candidate.floor.width) }))
         .filter((q) => q.t.kind === TILE_ROOM);

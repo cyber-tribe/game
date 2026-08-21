@@ -4,6 +4,8 @@ import type { FloorState, MonsterActor, PlayerActor } from "../src/core/types";
 import { decideMonsterAction } from "../src/entities/ai";
 import { REGION_BOSS_ORDER, speciesById } from "../src/entities/species";
 import { Game } from "../src/game";
+import { REGION_DUNGEON_IDS, REGION_SIZE } from "../src/entities/dungeons";
+const bossRegionDungeonId = REGION_DUNGEON_IDS[2]!;
 import { access } from "./helpers/access";
 import { makeEmptyFloor } from "./helpers/floor";
 import { roomContains } from "../src/core/types";
@@ -101,19 +103,19 @@ describe("entities/ai.ts: オオマドロミの大技(decideMonsterAction)", () 
 
 describe("game.ts: 地方ボスの階(depth 18、表の寝穴)", () => {
   it("オオマドロミが1体だけ配置され、通常の野生モンスターは湧かない", () => {
-    const game = new Game({ seed: 1, startDepth: 18 });
+    const game = new Game({ seed: 1, dungeonId: bossRegionDungeonId, startDepth: REGION_SIZE });
     const monsters = game.floor.actors.filter((a) => a.kind === "monster");
     expect(monsters).toHaveLength(1);
     expect(monsters[0]!.speciesId).toBe("oomadoromi");
   });
 
   it("フロアギミックが乗らない", () => {
-    const game = new Game({ seed: 1, startDepth: 18 });
+    const game = new Game({ seed: 1, dungeonId: bossRegionDungeonId, startDepth: REGION_SIZE });
     expect(game.floor.gimmick).toBeUndefined();
   });
 
   it("撃破すると地方限定素材(オオマドロミの胞子玉)を確定ドロップする", () => {
-    const game = new Game({ seed: 1, startDepth: 18 });
+    const game = new Game({ seed: 1, dungeonId: bossRegionDungeonId, startDepth: REGION_SIZE });
     const boss = game.floor.actors.find(
       (a): a is MonsterActor => a.kind === "monster" && a.speciesId === "oomadoromi",
     )!;
@@ -132,7 +134,7 @@ describe("game.ts: 大技(aoeSleep)が部屋全体を眠らせることがある
   it("予兆済みのボスに隣接した状態で行動させると、プレイヤーが眠らされることがある", () => {
     let slept = false;
     for (let seed = 1; seed <= 30 && !slept; seed++) {
-      const game = new Game({ seed, startDepth: 18 });
+      const game = new Game({ seed, dungeonId: bossRegionDungeonId, startDepth: REGION_SIZE });
       const boss = game.floor.actors.find(
         (a): a is MonsterActor => a.kind === "monster" && a.speciesId === "oomadoromi",
       );
@@ -165,7 +167,7 @@ describe("game.ts: 大技(aoeSleep)が部屋全体を眠らせることがある
 
 describe("game.ts: ばくはつタルで大技(予兆)を解除する", () => {
   it("予兆中のボスと同じ部屋でタルを爆発させると、telegraphChargeがfalseに戻る", () => {
-    const game = new Game({ seed: 1, startDepth: 18 });
+    const game = new Game({ seed: 1, dungeonId: bossRegionDungeonId, startDepth: REGION_SIZE });
     const boss = game.floor.actors.find(
       (a): a is MonsterActor => a.kind === "monster" && a.speciesId === "oomadoromi",
     )!;

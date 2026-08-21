@@ -1,18 +1,21 @@
 import { describe, expect, it } from "vitest";
 import {
-  MAIN_CAVE_ID,
-  MAIN_CAVE_MAX_DEPTH,
   NIGHTLY_DREAM_ID,
+  REGION_CHECKPOINT_FLOOR,
+  REGION_DUNGEON_IDS,
   REGION_SIZE,
+  TOTAL_REGION_FLOORS,
   dungeonById,
-  isDungeonUnlocked,
 } from "../src/entities/dungeons";
 import { speciesForDepth } from "../src/entities/species";
 import { Game } from "../src/game";
 
+const region1 = REGION_DUNGEON_IDS[0];
+
 /**
- * 地方拡張(plan/region-expansion.md)。表の寝穴を8地方・全48階に広げ、
- * めざめの階段(チェックポイント)を地方境界(6階ごと)だけに絞る。
+ * 地方ごとの独立ダンジョン(plan/game/dungeon-per-region.md)。表の寝穴の
+ * 8地方・全48階を、地方ごとに入口の異なる8つのダンジョン(各6階)へ分割し、
+ * めざめの階段(チェックポイント)を各ダンジョンの中間階だけに絞る。
  */
 
 /** 階段に隣接する歩けるマスから1歩だけ踏み出し、そのイベント列を返す */
@@ -35,26 +38,27 @@ function stepOntoStairs(game: Game): ReturnType<Game["command"]> {
   throw new Error("階段に隣接する歩けるマスが見つからなかった");
 }
 
-describe("entities/dungeons.ts: 表の寝穴が8地方・全48階になる", () => {
-  it("MAIN_CAVE_MAX_DEPTHは48", () => {
-    expect(MAIN_CAVE_MAX_DEPTH).toBe(48);
+describe("entities/dungeons.ts: 地方ごとの独立ダンジョンが8地方・各6階になる", () => {
+  it("TOTAL_REGION_FLOORSは48(地方1〜8の合計階数)", () => {
+    expect(TOTAL_REGION_FLOORS).toBe(48);
   });
 
-  it("REGION_SIZEは6(1地方=6階)で、MAIN_CAVE_MAX_DEPTHはその倍数", () => {
+  it("REGION_SIZEは6(1地方=6階)で、TOTAL_REGION_FLOORSはその倍数", () => {
     expect(REGION_SIZE).toBe(6);
-    expect(MAIN_CAVE_MAX_DEPTH % REGION_SIZE).toBe(0);
+    expect(TOTAL_REGION_FLOORS % REGION_SIZE).toBe(0);
   });
 
-  it("省略時のGame.maxDepthは48になる", () => {
+  it("地方ダンジョンが8件、いずれもmaxDepth=REGION_SIZE", () => {
+    expect(REGION_DUNGEON_IDS).toHaveLength(8);
+    for (const id of REGION_DUNGEON_IDS) {
+      expect(dungeonById(id).maxDepth).toBe(REGION_SIZE);
+    }
+  });
+
+  it("省略時のGame.maxDepthは第一地方のREGION_SIZEになる", () => {
     const game = new Game({ seed: 1 });
-    expect(game.maxDepth).toBe(48);
-    expect(game.dungeonId).toBe(MAIN_CAVE_ID);
-  });
-
-  it("夜ごとの夢の解放条件は、表の寝穴の完全踏破(48階)に引き上がる", () => {
-    const nightly = dungeonById(NIGHTLY_DREAM_ID);
-    expect(isDungeonUnlocked(nightly, 47, 1)).toBe(false);
-    expect(isDungeonUnlocked(nightly, 48, 1)).toBe(true);
+    expect(game.maxDepth).toBe(REGION_SIZE);
+    expect(game.dungeonId).toBe(region1);
   });
 });
 
@@ -65,20 +69,23 @@ describe("entities/species.ts: monster-compendium.mdの地方別モンスター�
   });
 });
 
-describe("game.ts: 表の寝穴のめざめの階段は地方境界(6の倍数)だけになる", () => {
-  it.each([6, 12, 18, 24, 30, 36, 42, 48])("%i階(地方境界)ではcheckpointイベントが出る", (depth) => {
-    const game = new Game({ seed: 5, startDepth: depth });
+describe("game.ts: 地方ダンジョンのめざめの階段は各ダンジョンの中間階だけになる", () => {
+  it.each(REGION_DUNGEON_IDS)("%sのREGION_CHECKPOINT_FLOOR階ではcheckpointイベントが出る", (dungeonId) => {
+    const game = new Game({ seed: 5, dungeonId, startDepth: REGION_CHECKPOINT_FLOOR });
     const events = stepOntoStairs(game);
     const checkpoint = events.find((e) => e.type === "checkpoint");
     expect(checkpoint).toBeDefined();
   });
 
-  it.each([1, 3, 7, 13, 19, 25, 31, 37, 43])("%i階(地方境界でない)ではcheckpointイベントが出ない", (depth) => {
-    const game = new Game({ seed: 5, startDepth: depth });
-    const events = stepOntoStairs(game);
-    const checkpoint = events.find((e) => e.type === "checkpoint");
-    expect(checkpoint).toBeUndefined();
-  });
+  it.each([1, 2].filter((d) => d !== REGION_CHECKPOINT_FLOOR))(
+    "第一地方の%i階(中間階でない)ではcheckpointイベントが出ない",
+    (depth) => {
+      const game = new Game({ seed: 5, dungeonId: region1, startDepth: depth });
+      const events = stepOntoStairs(game);
+      const checkpoint = events.find((e) => e.type === "checkpoint");
+      expect(checkpoint).toBeUndefined();
+    },
+  );
 
   it("近道屋の裏穴(地方の概念を持たないダンジョン)は、どの階でも従来どおりcheckpointイベントが出る", () => {
     const game = new Game({ seed: 5, dungeonId: "shortcutBackHole", startDepth: 3 });
@@ -89,9 +96,9 @@ describe("game.ts: 表の寝穴のめざめの階段は地方境界(6の倍数)�
 });
 
 describe("dungeon/generate.ts: 地形生成アルゴリズム自体は深さによらず共通", () => {
-  it("48階でもフロア生成が破綻しない(到達可能性を含む)", () => {
+  it("深い階でもフロア生成が破綻しない(到達可能性を含む)", () => {
     for (let seed = 1; seed <= 10; seed++) {
-      const game = new Game({ seed, startDepth: 48 });
+      const game = new Game({ seed, dungeonId: NIGHTLY_DREAM_ID, startDepth: 48 });
       expect(game.floor.width).toBeGreaterThan(0);
       expect(game.floor.stairs).toBeDefined();
     }

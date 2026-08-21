@@ -5,27 +5,26 @@ import { visibleVillageNpcs } from "../src/entities/village";
 describe("entities/story.ts: storyChapter", () => {
   it("storyClearedがtrueなら常に終章(5)", () => {
     expect(storyChapter(0, true)).toBe(5);
-    expect(storyChapter(48, true)).toBe(5);
+    expect(storyChapter(8, true)).toBe(5);
   });
 
-  it("deepestの閾値どおりに章が進む", () => {
+  it("撃破済み地方ボス数の閾値どおりに章が進む", () => {
     expect(storyChapter(0, false)).toBe(0);
-    expect(storyChapter(5, false)).toBe(0);
-    expect(storyChapter(6, false)).toBe(1);
-    expect(storyChapter(17, false)).toBe(1);
-    expect(storyChapter(18, false)).toBe(2);
-    expect(storyChapter(29, false)).toBe(2);
-    expect(storyChapter(30, false)).toBe(3);
-    expect(storyChapter(41, false)).toBe(3);
-    expect(storyChapter(42, false)).toBe(4);
-    expect(storyChapter(47, false)).toBe(4);
-    expect(storyChapter(48, false)).toBe(4);
+    expect(storyChapter(0, false)).toBe(0);
+    expect(storyChapter(1, false)).toBe(1);
+    expect(storyChapter(2, false)).toBe(1);
+    expect(storyChapter(3, false)).toBe(2);
+    expect(storyChapter(4, false)).toBe(2);
+    expect(storyChapter(5, false)).toBe(3);
+    expect(storyChapter(6, false)).toBe(3);
+    expect(storyChapter(7, false)).toBe(4);
+    expect(storyChapter(8, false)).toBe(4);
   });
 
-  it("章は単調増加する(深く潜るほど章が戻ることはない)", () => {
+  it("章は単調増加する(地方ボスを倒すほど章が戻ることはない)", () => {
     let previous = storyChapter(0, false);
-    for (let deepest = 1; deepest <= 48; deepest++) {
-      const current = storyChapter(deepest, false);
+    for (let count = 1; count <= 8; count++) {
+      const current = storyChapter(count, false);
       expect(current).toBeGreaterThanOrEqual(previous);
       previous = current;
     }
@@ -45,11 +44,11 @@ describe("entities/story.ts: storyChapter", () => {
 
 describe("entities/village.ts: 章立てと目覚めたおたまの出現条件の接続", () => {
   it("第一章まではまだ出現しない", () => {
-    expect(visibleVillageNpcs(storyChapter(17, false)).some((n) => n.id === "otama")).toBe(false);
+    expect(visibleVillageNpcs(storyChapter(2, false)).some((n) => n.id === "otama")).toBe(false);
   });
 
   it("第二章に入った瞬間から出現する", () => {
-    expect(visibleVillageNpcs(storyChapter(18, false)).some((n) => n.id === "otama")).toBe(true);
+    expect(visibleVillageNpcs(storyChapter(3, false)).some((n) => n.id === "otama")).toBe(true);
   });
 
   it("storyClearedで終章になっても出現し続ける", () => {

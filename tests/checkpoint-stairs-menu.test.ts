@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { REGION_CHECKPOINT_FLOOR } from "../src/entities/dungeons";
 import { Game } from "../src/game";
 import { moveStairsCursor, stairsChoices } from "../src/ui/stairs-confirm";
 
@@ -49,16 +50,14 @@ describe("ui/stairs-confirm.ts: moveStairsCursor", () => {
 });
 
 describe("game.ts: onCheckpointFloor", () => {
-  it("表の寝穴では6の倍数階だけがめざめの階段の階", () => {
+  it("地方ダンジョンでは中間階(REGION_CHECKPOINT_FLOOR)だけがめざめの階段の階", () => {
     const game = new Game({ seed: 1 });
-    game.depth = 5;
+    game.depth = REGION_CHECKPOINT_FLOOR - 1;
     expect(game.onCheckpointFloor).toBe(false);
-    game.depth = 6;
+    game.depth = REGION_CHECKPOINT_FLOOR;
     expect(game.onCheckpointFloor).toBe(true);
-    game.depth = 7;
+    game.depth = REGION_CHECKPOINT_FLOOR + 1;
     expect(game.onCheckpointFloor).toBe(false);
-    game.depth = 12;
-    expect(game.onCheckpointFloor).toBe(true);
   });
 
   it("地方の概念が無いダンジョンでは全階が該当する", () => {

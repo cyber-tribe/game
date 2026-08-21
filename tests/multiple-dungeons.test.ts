@@ -3,19 +3,22 @@ import { Rng } from "../src/core/rng";
 import { generateFloor } from "../src/dungeon/generate";
 import {
   DUNGEONS,
-  MAIN_CAVE_ID,
-  MAIN_CAVE_MAX_DEPTH,
   NIGHTLY_DREAM_ID,
+  REGION_DUNGEON_IDS,
+  REGION_SIZE,
   dungeonById,
   isDungeonUnlocked,
 } from "../src/entities/dungeons";
+import { REGION_BOSS_ORDER } from "../src/entities/regions";
 import { Game } from "../src/game";
 import { initialSave, recordRun } from "../src/save";
 
+const region1 = REGION_DUNGEON_IDS[0];
+
 describe("entities/dungeons.ts", () => {
-  it("表の寝穴は常に解放済み", () => {
-    const mainCave = dungeonById(MAIN_CAVE_ID);
-    expect(isDungeonUnlocked(mainCave, 0, 1)).toBe(true);
+  it("第一地方は常に解放済み", () => {
+    const dungeon = dungeonById(region1);
+    expect(isDungeonUnlocked(dungeon, 0, 1)).toBe(true);
   });
 
   it("近道屋の裏穴は最深到達記録が条件未満だと未解放", () => {
@@ -27,10 +30,10 @@ describe("entities/dungeons.ts", () => {
     expect(isDungeonUnlocked(shortcut, minDeepest, 1)).toBe(true);
   });
 
-  it("夜ごとの夢は表の寝穴の踏破(最深MAIN_CAVE_MAX_DEPTH階)が条件", () => {
+  it("夜ごとの夢は8地方すべてのボス撃破が条件", () => {
     const nightly = dungeonById(NIGHTLY_DREAM_ID);
-    expect(isDungeonUnlocked(nightly, MAIN_CAVE_MAX_DEPTH - 1, 1)).toBe(false);
-    expect(isDungeonUnlocked(nightly, MAIN_CAVE_MAX_DEPTH, 1)).toBe(true);
+    expect(isDungeonUnlocked(nightly, 0, 1, 0, REGION_BOSS_ORDER.slice(0, 7))).toBe(false);
+    expect(isDungeonUnlocked(nightly, 0, 1, 0, REGION_BOSS_ORDER)).toBe(true);
   });
 
   it("未知のidはエラーになる", () => {
@@ -46,10 +49,10 @@ describe("entities/dungeons.ts", () => {
 });
 
 describe("game.ts: RunOptions.dungeonIdによるmaxDepthの解決", () => {
-  it("省略時は表の寝穴(maxDepth=10)", () => {
+  it("省略時は第一地方(maxDepth=REGION_SIZE)", () => {
     const game = new Game({ seed: 1 });
-    expect(game.maxDepth).toBe(MAIN_CAVE_MAX_DEPTH);
-    expect(game.dungeonId).toBe(MAIN_CAVE_ID);
+    expect(game.maxDepth).toBe(REGION_SIZE);
+    expect(game.dungeonId).toBe(region1);
   });
 
   it("近道屋の裏穴はmaxDepth=5", () => {
@@ -79,9 +82,9 @@ describe("game.ts: RunOptions.dungeonIdによるmaxDepthの解決", () => {
 });
 
 describe("game.ts: floorOffsetによる出現テーブルのずれ", () => {
-  it("表の寝穴の1階ではtsubute(minFloor:3)は出現しない", () => {
+  it("第一地方の1階ではtsubute(minFloor:3)は出現しない", () => {
     for (let seed = 1; seed <= 40; seed++) {
-      const game = new Game({ seed, dungeonId: MAIN_CAVE_ID, startDepth: 1 });
+      const game = new Game({ seed, dungeonId: region1, startDepth: 1 });
       const has = game.floor.actors.some((a) => a.kind === "monster" && a.speciesId === "tsubute");
       expect(has, `seed=${seed}`).toBe(false);
     }

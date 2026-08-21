@@ -2,21 +2,22 @@
  * 村の発展(plan/village-development.md)。
  * 物語の進行(章の節目)とゴールド投資の両方を条件に、拠点(ネンネ村)が
  * 段階的に発展していく。章立て(design/story.md)自体は未実装のため、
- * 代わりに既存の最深到達記録(SaveData.deepest)を進行度の代替指標として使う
- * (plan/multiple-dungeons.mdの解放条件と同じ簡略化)。
+ * 代わりに撃破済み地方ボス数(SaveData.defeatedRegionBosses.length)を
+ * 進行度の代替指標として使う(plan/multiple-dungeons.mdの解放条件と同じ簡略化)。
  *
- * minDeepestの各値は地方境界(plan/region-expansion.mdのREGION_SIZE=6)に
- * 沿わせている(plan/village-stage-rebalance.md)。表の寝穴がMAIN_CAVE_MAX_DEPTH
- * =48に拡張されたことで、旧来の3/6/10という値のままでは村段階4(物語クリア
- * 相当の節目)が第二地方クリア程度の早い段階で満たせてしまうため、
- * 12(第二地方)/24(第四地方)/48(第八地方=完全踏破)に引き上げた。
+ * 元は最深到達記録(SaveData.deepest)ベースだった(minDeepest 12/24/48=
+ * 第二・第四・第八地方境界)が、表の寝穴を地方ごとの独立ダンジョンへ分割した
+ * (plan/game/dungeon-per-region.md)ことで、1ダイブの深さが1地方(6階)を
+ * 超えなくなり、deepestが48まで伸びなくなった。地方境界の意味そのもの
+ * (第2/4/8地方クリアの節目)は、撃破済み地方ボス数がちょうど引き継ぐため、
+ * 2/4/8体撃破をそのまま新しい条件にしている
  */
 export type VillageStage = 1 | 2 | 3 | 4;
 
 export interface VillageStageRequirement {
   stage: VillageStage;
-  /** 章クリアの代替指標。最深到達記録がこの階以上で満たす */
-  minDeepest: number;
+  /** 章クリアの代替指標。撃破済み地方ボス数がこの数以上で満たす */
+  minRegionBossesDefeated: number;
   /** 発展に必要なゴールド */
   cost: number;
   label: string;
@@ -24,9 +25,9 @@ export interface VillageStageRequirement {
 
 /** 段階を上げる条件。段階1(始まりの村)は既定なので含まない */
 export const VILLAGE_STAGE_REQUIREMENTS: readonly VillageStageRequirement[] = [
-  { stage: 2, minDeepest: 12, cost: 300, label: "依頼板が建つ" },
-  { stage: 3, minDeepest: 24, cost: 800, label: "工房の拡張" },
-  { stage: 4, minDeepest: 48, cost: 2000, label: "山を静めたあとの村" },
+  { stage: 2, minRegionBossesDefeated: 2, cost: 300, label: "依頼板が建つ" },
+  { stage: 3, minRegionBossesDefeated: 4, cost: 800, label: "工房の拡張" },
+  { stage: 4, minRegionBossesDefeated: 8, cost: 2000, label: "山を静めたあとの村" },
 ];
 
 const HUT_CAPACITY: Record<VillageStage, number> = { 1: 8, 2: 12, 3: 20, 4: 30 };
@@ -46,10 +47,10 @@ export function nextVillageStageRequirement(
   return villageStageRequirement(((stage + 1) as VillageStage));
 }
 
-export function canDevelopVillage(stage: VillageStage, deepest: number, gold: number): boolean {
+export function canDevelopVillage(stage: VillageStage, regionBossesDefeated: number, gold: number): boolean {
   const next = nextVillageStageRequirement(stage);
   if (!next) return false;
-  return deepest >= next.minDeepest && gold >= next.cost;
+  return regionBossesDefeated >= next.minRegionBossesDefeated && gold >= next.cost;
 }
 
 import type { StoryChapter } from "./story";

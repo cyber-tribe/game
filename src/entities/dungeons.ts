@@ -20,8 +20,10 @@ export interface DungeonDef {
     | { minDeepest: number }
     | { minVillageStage: number }
     | { allPassagesFound: true }
-    /** 山の芯(plan/mountain-core.md)。指定した地方ボスのspeciesIdを撃破済みなら解放 */
-    | { afterBossDefeated: string };
+    /** 指定した地方ボスのspeciesIdを撃破済みなら解放。地方ダンジョン同士の連鎖・山の芯で使う */
+    | { afterBossDefeated: string }
+    /** 夜ごとの夢(plan/game/dungeon-per-region.md)。8地方すべてのボスを撃破済みなら解放 */
+    | { allRegionBossesDefeated: true };
   /** 出現モンスター・アイテムの抽選テーブルに足す深さのずれ */
   floorOffset?: number;
   /** モンスターハウス出現率に掛ける倍率 */
@@ -35,30 +37,88 @@ export interface DungeonDef {
   satietyDrainMul?: number;
 }
 
-import { REGION_BOSS_ORDER } from "./regions";
+import { REGIONS, REGION_BOSS_ORDER } from "./regions";
 
-export const MAIN_CAVE_ID = "mainCave";
 /**
- * 表の寝穴の最大階数(plan/region-expansion.md)。8地方 × 6階 = 48階。
- * design/regions.mdの8地方構成に合わせて10→48へ拡張した。
+ * 地方ごとの独立ダンジョン(plan/game/dungeon-per-region.md)。
+ * かつての「表の寝穴」(単一の連続48階、MAIN_CAVE_ID)を、地方ごとに
+ * 入口の異なる8つのダンジョンへ分割した。1つ=1地方=6階、地方k+1は
+ * 地方kのボス撃破で解放される連鎖(unlock: afterBossDefeated)。
+ * 生成テーブルは旧来どおりfloorOffsetで選ぶため、地方ごとの出現内容・
+ * ギミックは分割前と変わらない(REGIONS/regions.tsのデータをそのまま流用)。
+ * 階数の最終値(合計60階案)・横穴(分岐ダンジョン)は未決事項として
+ * plan/game/dungeon-per-region.mdに残したまま、この段階では旧来の
+ * 均等6階構成を保っている
  */
-export const MAIN_CAVE_MAX_DEPTH = 48;
-/** 1地方あたりの階数(plan/region-expansion.md)。地方境界は depth % REGION_SIZE === 0 */
+export const REGION_DUNGEON_IDS = [
+  "dozingApproach",
+  "forgottenTideMarsh",
+  "drowsingMushroomForest",
+  "bonepileCorridor",
+  "teardropFalls",
+  "echoRidge",
+  "forgottenFestivalRuins",
+  "awakeningForecourt",
+] as const;
+
+/** 地方ごとの簡単な説明文(design/regions.mdの各地方の書き出しから引いた) */
+const REGION_DESCRIPTIONS: readonly string[] = [
+  "斜面もゆるい、素朴な洞窟。チュートリアルを兼ねる。",
+  "足場がぬかるみ、霧で視界が縮む湿地帯。",
+  "きのこがひしめく、胞子まみれの森。",
+  "古い記憶が積み重なった、狭く入り組んだ回廊。",
+  "地下水が幾筋もの滝になって流れ落ちる、湿った岩窟。",
+  "ヨリシロの夢の中でも外気に近い、吹きさらしの尾根。物音がよく響く。",
+  "かつての賑わいの記憶が朽ちた、寂れた祭り会場のような一角。",
+  "ヨリシロの意識の錨に最も近く、これまでの地方の記憶が入り乱れる。",
+];
+
+export function isRegionDungeonId(id: string): boolean {
+  return (REGION_DUNGEON_IDS as readonly string[]).includes(id);
+}
+
+/** 地方ダンジョンidから地方番号(1始まり)を引く。地方ダンジョンでなければundefined */
+export function regionIndexForDungeonId(id: string): number | undefined {
+  const i = (REGION_DUNGEON_IDS as readonly string[]).indexOf(id);
+  return i === -1 ? undefined : i + 1;
+}
+
+/**
+ * 地方1〜8の合計階数。旧・表の寝穴(MAIN_CAVE_ID)の最大深さと同じ値を、
+ * 夜ごとの夢の周回判定(nightlyDreamStatMultiplier)・山の芯/はじめの夢の
+ * floorOffset(第八地方相当のテーブルを流用)のために定数として残している
+ */
+export const TOTAL_REGION_FLOORS = 48;
+/** 1地方あたりの階数 */
 export const REGION_SIZE = 6;
 /**
+ * 地方ダンジョンのめざめの階段の階(plan/game/dungeon-per-region.md)。
+ * 各ダンジョンの中間(階数の半分)に1つだけ置き、「区切って持ち帰る」専用とする
+ */
+export const REGION_CHECKPOINT_FLOOR = Math.ceil(REGION_SIZE / 2);
+
+/**
  * その階がめざめの階段の階か(plan/game/no-pitfall-on-checkpoint-floors.md)。
- * 表の寝穴では地方の最終階(6の倍数階)だけ。地方の概念を持たない他の
- * ダンジョンは全階が該当する。既知チェックポイントの記録・階段の3択
- * モーダル・落とし穴の生成除外が、みなこの1箇所の判定を共有する
+ * 地方ダンジョンでは中間階(REGION_CHECKPOINT_FLOOR)だけ。地方の概念を
+ * 持たない他のダンジョンは全階が該当する。既知チェックポイントの記録・
+ * 階段の3択モーダル・落とし穴の生成除外が、みなこの1箇所の判定を共有する
  */
 export function isCheckpointFloor(dungeonId: string, depth: number): boolean {
-  return dungeonId !== MAIN_CAVE_ID || depth % REGION_SIZE === 0;
+  if (isRegionDungeonId(dungeonId)) return depth === REGION_CHECKPOINT_FLOOR;
+  return true;
 }
+
+/** 第三章「仲間探し」の崩落イベント(plan/chapter3-collapse-event.md)の対象地方番号(骨積みの回廊=第四地方) */
+export const CHAPTER3_COLLAPSE_REGION_INDEX = 4;
+
 /**
- * 第三章「仲間探し」の崩落イベント(plan/chapter3-collapse-event.md)。
- * 骨積みの回廊(第四地方)最終階=24階
+ * 第三章「仲間探し」の崩落イベントの階か。骨積みの回廊(第四地方)ダンジョンの
+ * 最終階(=ボスの間でもある)にだけ発生する
  */
-export const CHAPTER3_COLLAPSE_DEPTH = REGION_SIZE * 4;
+export function isChapter3CollapseFloor(dungeonId: string, depth: number): boolean {
+  return regionIndexForDungeonId(dungeonId) === CHAPTER3_COLLAPSE_REGION_INDEX && depth === REGION_SIZE;
+}
+
 export const NIGHTLY_DREAM_ID = "nightlyDream";
 /** 腕試しの間(plan/hidden-dungeon.md)。地方ボスの再戦だけで構成するボスラッシュ */
 export const TRIAL_CHAMBER_ID = "trialChamber";
@@ -84,14 +144,18 @@ export const TRUE_AWAKENING_ID = "trueAwakening";
  */
 export const TARUKURABE_ID = "tarukurabe";
 
+const REGION_DUNGEONS: readonly DungeonDef[] = REGIONS.map((region, i) => ({
+  id: REGION_DUNGEON_IDS[i]!,
+  name: region.name,
+  description: REGION_DESCRIPTIONS[i] ?? "",
+  maxDepth: REGION_SIZE,
+  unlock: i === 0 ? ("always" as const) : { afterBossDefeated: REGIONS[i - 1]!.bossSpeciesId },
+  floorOffset: i * REGION_SIZE,
+  monsterHouseRateMul: region.monsterHouseRateMul,
+}));
+
 export const DUNGEONS: readonly DungeonDef[] = [
-  {
-    id: MAIN_CAVE_ID,
-    name: "表の寝穴",
-    description: "最初から解放済みのメインダンジョン。",
-    maxDepth: MAIN_CAVE_MAX_DEPTH,
-    unlock: "always",
-  },
+  ...REGION_DUNGEONS,
   {
     id: "shortcutBackHole",
     name: "近道屋の裏穴",
@@ -106,7 +170,7 @@ export const DUNGEONS: readonly DungeonDef[] = [
     id: NIGHTLY_DREAM_ID,
     name: "夜ごとの夢",
     description: "終わりのないダンジョン。潜れるだけ潜って自己ベストを更新する。",
-    unlock: { minDeepest: MAIN_CAVE_MAX_DEPTH },
+    unlock: { allRegionBossesDefeated: true },
   },
   {
     id: TRIAL_CHAMBER_ID,
@@ -130,8 +194,8 @@ export const DUNGEONS: readonly DungeonDef[] = [
     description: "ヨリシロの意識の核に近い、特別な夢。近道屋との決着の場。",
     maxDepth: 3,
     unlock: { afterBossDefeated: "horikuiNoNushi" },
-    // 出現モンスタープールは第八地方(めざめの前庭・43〜48階)と同じものを
-    // 流用し、floorOffsetで難度だけ底上げする(近道屋の裏穴と同じ仕組み)。
+    // 出現モンスタープールは第八地方(めざめの前庭)と同じものを流用し、
+    // floorOffsetで難度だけ底上げする(近道屋の裏穴と同じ仕組み)。
     // 1〜3階 + 42 = 43〜45階ぶんのテーブルを引く
     floorOffset: 42,
   },
@@ -161,7 +225,7 @@ export function dungeonById(id: string): DungeonDef {
 
 /**
  * 夜ごとの夢のモンスター強化カーブ(plan/nightly-dream-scaling.md)。
- * 表の寝穴の最大深さ(MAIN_CAVE_MAX_DEPTH)を1周(12階=地方2つぶん)超える
+ * 地方1〜8の合計階数(TOTAL_REGION_FLOORS)を1周(12階=地方2つぶん)超える
  * ごとに、モンスターのステータスに+15%ずつ乗数を掛ける。上限は設けない
  * (「潜れるだけ潜って自己ベストを更新する」無限モードの性質上、意図的に
  * 頭打ちにしない)。数値は初期案で、実測分布を見て調整する前提
@@ -175,11 +239,11 @@ export const NIGHTLY_DREAM_LAP_MULTIPLIER = 0.15;
  * 唯一のブレーキ――を、経験値効率まで強化すると崩してしまうため)。
  *
  * 49〜60階(1周目)はまだ倍率1.0の猶予とし、61階目から+15%が乗る
- * (depth - MAIN_CAVE_MAX_DEPTH - 1 を12で割った切り捨てが周回数になる)
+ * (depth - TOTAL_REGION_FLOORS - 1 を12で割った切り捨てが周回数になる)
  */
 export function nightlyDreamStatMultiplier(depth: number): number {
-  if (depth <= MAIN_CAVE_MAX_DEPTH) return 1;
-  const laps = Math.floor((depth - MAIN_CAVE_MAX_DEPTH - 1) / NIGHTLY_DREAM_OVERFLOW_LAP);
+  if (depth <= TOTAL_REGION_FLOORS) return 1;
+  const laps = Math.floor((depth - TOTAL_REGION_FLOORS - 1) / NIGHTLY_DREAM_OVERFLOW_LAP);
   return 1 + laps * NIGHTLY_DREAM_LAP_MULTIPLIER;
 }
 
@@ -188,12 +252,15 @@ export function isDungeonUnlocked(
   deepest: number,
   villageStage: number,
   foundPassageCount = 0,
-  /** 山の芯(plan/mountain-core.md)。撃破済みの地方ボスspeciesId一覧 */
+  /** 撃破済みの地方ボスspeciesId一覧 */
   defeatedRegionBosses: readonly string[] = [],
 ): boolean {
   if (dungeon.unlock === "always") return true;
   if ("minDeepest" in dungeon.unlock) return deepest >= dungeon.unlock.minDeepest;
   if ("minVillageStage" in dungeon.unlock) return villageStage >= dungeon.unlock.minVillageStage;
   if ("afterBossDefeated" in dungeon.unlock) return defeatedRegionBosses.includes(dungeon.unlock.afterBossDefeated);
+  if ("allRegionBossesDefeated" in dungeon.unlock) {
+    return REGIONS.every((r) => defeatedRegionBosses.includes(r.bossSpeciesId));
+  }
   return foundPassageCount >= 8;
 }

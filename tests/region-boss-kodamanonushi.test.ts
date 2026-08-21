@@ -5,6 +5,8 @@ import { roomContains } from "../src/core/types";
 import { decideMonsterAction } from "../src/entities/ai";
 import { REGION_BOSS_ORDER, speciesById } from "../src/entities/species";
 import { Game } from "../src/game";
+import { REGION_DUNGEON_IDS, REGION_SIZE } from "../src/entities/dungeons";
+const bossRegionDungeonId = REGION_DUNGEON_IDS[5]!;
 import { access } from "./helpers/access";
 import { makeEmptyFloor } from "./helpers/floor";
 
@@ -114,19 +116,19 @@ describe("entities/ai.ts: こだまの主の大技(decideMonsterAction)", () => 
 
 describe("game.ts: 地方ボスの階(depth 36、表の寝穴)", () => {
   it("こだまの主が1体だけ配置される(通常の野生モンスターは湧かない)", () => {
-    const game = new Game({ seed: 1, startDepth: 36 });
+    const game = new Game({ seed: 1, dungeonId: bossRegionDungeonId, startDepth: REGION_SIZE });
     const monsters = game.floor.actors.filter((a) => a.kind === "monster");
     expect(monsters).toHaveLength(1);
     expect(monsters[0]!.speciesId).toBe("kodamaNoNushi");
   });
 
   it("フロアギミックが乗らない", () => {
-    const game = new Game({ seed: 1, startDepth: 36 });
+    const game = new Game({ seed: 1, dungeonId: bossRegionDungeonId, startDepth: REGION_SIZE });
     expect(game.floor.gimmick).toBeUndefined();
   });
 
   it("撃破すると地方限定素材(こだまのかけら)を確定ドロップする", () => {
-    const game = new Game({ seed: 1, startDepth: 36 });
+    const game = new Game({ seed: 1, dungeonId: bossRegionDungeonId, startDepth: REGION_SIZE });
     const boss = game.floor.actors.find(
       (a): a is MonsterActor => a.kind === "monster" && a.speciesId === "kodamaNoNushi",
     )!;
@@ -143,7 +145,7 @@ describe("game.ts: 地方ボスの階(depth 36、表の寝穴)", () => {
 
 describe("game.ts: 大技(summonEcho)がHPを共有する分身を呼び出す", () => {
   it("予兆済みのボスに隣接した状態で行動させると、分身が2体まで現れる", () => {
-    const game = new Game({ seed: 1, startDepth: 36 });
+    const game = new Game({ seed: 1, dungeonId: bossRegionDungeonId, startDepth: REGION_SIZE });
     const boss = game.floor.actors.find(
       (a): a is MonsterActor => a.kind === "monster" && a.speciesId === "kodamaNoNushi",
     )!;

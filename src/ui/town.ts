@@ -27,6 +27,7 @@ import {
   TRUE_AWAKENING_ID,
   dungeonById,
   isDungeonUnlocked,
+  regionIndexForDungeonId,
 } from "../entities/dungeons";
 import { dialogueContext, dialoguePoolFor } from "../entities/dialogue";
 import { FESTIVAL_SHOP_OFFERS, isTarukurabeDay, isYoimatsuri } from "../entities/festivals";
@@ -390,7 +391,7 @@ export class TownScreen {
 
   /** 章立て(plan/story-chapters.md) */
   private currentStoryChapter(): ReturnType<typeof storyChapter> {
-    return storyChapter(this.save?.deepest ?? 0, this.save?.storyCleared ?? false);
+    return storyChapter(this.save?.defeatedRegionBosses.length ?? 0, this.save?.storyCleared ?? false);
   }
 
   /**
@@ -1594,7 +1595,7 @@ export class TownScreen {
       const stage = this.save?.villageStage ?? 1;
       const requirement = nextVillageStageRequirement(stage);
       desc.textContent = requirement
-        ? `Enterで発展させる: ${requirement.label}(最深${requirement.minDeepest}階到達・${requirement.cost}G必要)`
+        ? `Enterで発展させる: ${requirement.label}(地方ボス${requirement.minRegionBossesDefeated}体撃破・${requirement.cost}G必要)`
         : "村はすでに最終段階まで発展している。";
     } else if (this.column === 14) {
       desc.textContent =
@@ -2055,7 +2056,7 @@ export class TownScreen {
       list.setAttribute("role", "list");
       const rows: [string, number][] = save
         ? [
-            ["最深到達(表の寝穴)", save.deepest],
+            ["最深到達", save.deepest],
             ["累計ダイブ回数", save.runs],
             ["踏破回数", save.clears],
             ["全滅回数", save.runs - save.clears],
@@ -2252,6 +2253,17 @@ export class TownScreen {
           li.textContent = `${dungeon.name}(未解放: 最深${dungeon.unlock.minDeepest}階到達で解放)`;
         } else if (dungeon.unlock !== "always" && "minVillageStage" in dungeon.unlock) {
           li.textContent = `${dungeon.name}(未解放: 村の発展段階${dungeon.unlock.minVillageStage}で解放)`;
+        } else if (dungeon.unlock !== "always" && "allRegionBossesDefeated" in dungeon.unlock) {
+          li.textContent = `${dungeon.name}(未解放: 8地方すべてのぬしを鎮めると解放)`;
+        } else if (
+          dungeon.unlock !== "always" &&
+          "afterBossDefeated" in dungeon.unlock &&
+          regionIndexForDungeonId(dungeon.id) !== undefined
+        ) {
+          // 地方ダンジョン(plan/game/dungeon-per-region.md)は、次に何が来るかを
+          // 隠す「???」表示にする。地方の連鎖以外(山の芯など)は従来どおり
+          // 相手の名前を明かす表示のまま
+          li.textContent = `???(第${regionIndexForDungeonId(dungeon.id)}地方のぬしを鎮めるとひらける)`;
         } else if (dungeon.unlock !== "always" && "afterBossDefeated" in dungeon.unlock) {
           li.textContent = `${dungeon.name}(未解放: ${speciesById(dungeon.unlock.afterBossDefeated).name}を撃破すると解放)`;
         } else {
@@ -2354,12 +2366,12 @@ export class TownScreen {
         const done = stage >= requirement.stage;
         li.textContent = done
           ? `${requirement.label}(達成)`
-          : `${requirement.label}: 最深${requirement.minDeepest}階到達・${requirement.cost}G`;
+          : `${requirement.label}: 地方ボス${requirement.minRegionBossesDefeated}体撃破・${requirement.cost}G`;
         list.appendChild(li);
       });
       wrapper.appendChild(list);
 
-      if (save && canDevelopVillage(stage, save.deepest, save.gold)) {
+      if (save && canDevelopVillage(stage, save.defeatedRegionBosses.length, save.gold)) {
         const ready = document.createElement("p");
         ready.className = "selected";
         ready.textContent = "タップ(またはEnter)で発展させられる!";

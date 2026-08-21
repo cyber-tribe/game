@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { Game } from "../src/game";
-import { MAIN_CAVE_ID, NIGHTLY_DREAM_ID, REGION_SIZE } from "../src/entities/dungeons";
+import { NIGHTLY_DREAM_ID, REGION_DUNGEON_IDS, REGION_SIZE } from "../src/entities/dungeons";
 import { achievementDef } from "../src/entities/achievements";
 import { initialSave, recordRun } from "../src/save";
+
+const region1 = REGION_DUNGEON_IDS[0];
+const region8 = REGION_DUNGEON_IDS[REGION_DUNGEON_IDS.length - 1]!;
 
 function newGame(seed = 42) {
   return new Game({ seed });
@@ -108,13 +111,13 @@ describe("game.ts: usedMultipleWeaponsThisRun(plan/challenge-achievements.md)", 
 describe("save.ts: recordRunの「挑戦」カテゴリ即時判定(plan/challenge-achievements.md)", () => {
   const base = initialSave();
 
-  it("表の寝穴を無道具・単一武器で完全踏破すると4実績すべて解放される", () => {
+  it("最後の第八地方ダンジョンを無道具・単一武器でクリアすると4実績すべて解放される", () => {
     const save = recordRun(base, {
-      depth: 48,
+      depth: REGION_SIZE,
       level: 5,
       cleared: true,
       broughtBack: [],
-      dungeonId: MAIN_CAVE_ID,
+      dungeonId: region8,
       usedItem: false,
       usedMultipleWeapons: false,
     });
@@ -126,11 +129,11 @@ describe("save.ts: recordRunの「挑戦」カテゴリ即時判定(plan/challen
 
   it("道具を使っていれば無道具系の実績は解放されない(武器持ち替え無しならsingleWeaponだけ解放)", () => {
     const save = recordRun(base, {
-      depth: 48,
+      depth: REGION_SIZE,
       level: 5,
       cleared: true,
       broughtBack: [],
-      dungeonId: MAIN_CAVE_ID,
+      dungeonId: region8,
       usedItem: true,
       usedMultipleWeapons: false,
     });
@@ -142,11 +145,11 @@ describe("save.ts: recordRunの「挑戦」カテゴリ即時判定(plan/challen
 
   it("武器を持ち替えていればsingleWeapon系は解放されない", () => {
     const save = recordRun(base, {
-      depth: 48,
+      depth: REGION_SIZE,
       level: 5,
       cleared: true,
       broughtBack: [],
-      dungeonId: MAIN_CAVE_ID,
+      dungeonId: region8,
       usedItem: false,
       usedMultipleWeapons: true,
     });
@@ -155,13 +158,13 @@ describe("save.ts: recordRunの「挑戦」カテゴリ即時判定(plan/challen
     expect(save.achievements.noItemFullClear).toBeDefined();
   });
 
-  it("48階未満(地方境界の12階)で区切って持ち帰ればnoItemRegionだけ解放される", () => {
+  it("最終地方でない地方ダンジョンをクリアすればnoItemRegionだけ解放される", () => {
     const save = recordRun(base, {
-      depth: REGION_SIZE * 2,
+      depth: REGION_SIZE,
       level: 3,
       cleared: true,
       broughtBack: [],
-      dungeonId: MAIN_CAVE_ID,
+      dungeonId: region1,
       usedItem: false,
       usedMultipleWeapons: false,
     });
@@ -169,13 +172,13 @@ describe("save.ts: recordRunの「挑戦」カテゴリ即時判定(plan/challen
     expect(save.achievements.noItemFullClear).toBeUndefined();
   });
 
-  it("地方境界でない深さでは、道具を使っていなくてもnoItemRegionは解放されない", () => {
+  it("地方ダンジョンの最終階でない深さ(中間のめざめの階段)では、道具を使っていなくてもnoItemRegionは解放されない", () => {
     const save = recordRun(base, {
-      depth: REGION_SIZE * 2 + 1,
+      depth: REGION_SIZE - 1,
       level: 3,
       cleared: true,
       broughtBack: [],
-      dungeonId: MAIN_CAVE_ID,
+      dungeonId: region1,
       usedItem: false,
       usedMultipleWeapons: false,
     });
@@ -184,11 +187,11 @@ describe("save.ts: recordRunの「挑戦」カテゴリ即時判定(plan/challen
 
   it("全滅(cleared: false)では、条件を満たしていても何も解放されない", () => {
     const save = recordRun(base, {
-      depth: 48,
+      depth: REGION_SIZE,
       level: 5,
       cleared: false,
       broughtBack: [],
-      dungeonId: MAIN_CAVE_ID,
+      dungeonId: region8,
       usedItem: false,
       usedMultipleWeapons: false,
     });
@@ -196,9 +199,9 @@ describe("save.ts: recordRunの「挑戦」カテゴリ即時判定(plan/challen
     expect(save.achievements.noItemFullClear).toBeUndefined();
   });
 
-  it("表の寝穴以外のダンジョン(夜ごとの夢)では「地方」の概念が無いため解放されない", () => {
+  it("地方ダンジョン以外(夜ごとの夢)では「地方」の概念が無いため解放されない", () => {
     const save = recordRun(base, {
-      depth: 48,
+      depth: REGION_SIZE,
       level: 5,
       cleared: true,
       broughtBack: [],

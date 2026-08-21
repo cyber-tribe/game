@@ -82,17 +82,17 @@ import { displayActorName } from "./entities/naming";
 import { ALLY_STANCE_NAMES, barrelDisplayName } from "./entities/displayNames";
 import {
   isCheckpointFloor,
-  CHAPTER3_COLLAPSE_DEPTH,
+  isChapter3CollapseFloor,
   type DungeonDef,
-  MAIN_CAVE_ID,
   MOUNTAIN_CORE_ID,
   NIGHTLY_DREAM_ID,
-  REGION_SIZE,
+  REGION_DUNGEON_IDS,
   TARUKURABE_ID,
   TRIAL_CHAMBER_ID,
   TRUE_AWAKENING_ID,
   dungeonById,
   nightlyDreamStatMultiplier,
+  regionIndexForDungeonId,
 } from "./entities/dungeons";
 import { storyChapter } from "./entities/story";
 import { DEFAULT_MOOD_ID, type MoodDef, type MoodId, moodDef } from "./entities/moods";
@@ -127,7 +127,7 @@ import {
   totalAttack,
   totalDefense,
 } from "./entities/player";
-import { HAJIME_NO_YUME_ID, REGION_BOSS_FLOORS, REGION_BOSS_ORDER, speciesById } from "./entities/species";
+import { HAJIME_NO_YUME_ID, REGION_BOSS_ORDER, speciesById } from "./entities/species";
 import { REGIONS, regionByIndex } from "./entities/regions";
 import { type BondStage, bondStage } from "./entities/companionBond";
 import { gainAllyExp } from "./entities/companionGrowth";
@@ -298,13 +298,13 @@ export interface RunOptions {
   dungeonId?: string;
   /**
    * 第三章「仲間探し」の崩落イベント(plan/chapter3-collapse-event.md)用。
-   * SaveData.deepest(これまでの最深到達記録)。省略時は0(序章扱い)。
-   * 骨積みの回廊(第四地方)最終階の崩落は、既に一度そこを越えて
-   * deepest>=30(章立て上の第三章)まで進んだあとの「戻り」のダイブ
-   * でだけ発生させる。そうしないと、まだ壊せる仲間を持たない
-   * 初回プレイヤーがこの階で足止めされてしまうため
+   * SaveData.defeatedRegionBosses.length(これまでの撃破済み地方ボス数)。
+   * 省略時は0(序章扱い)。骨積みの回廊(第四地方)最終階の崩落は、既に
+   * 章立て上の第三章(地方ボスを5体以上撃破済み)まで進んだあとの
+   * 「戻り」のダイブでだけ発生させる。そうしないと、まだ壊せる仲間を
+   * 持たない初回プレイヤーがこの階で足止めされてしまうため
    */
-  deepest?: number;
+  defeatedRegionBossCount?: number;
   /**
    * 真の目覚め(plan/true-awakening.md)。SaveData.trueAwakeningClearedを
    * そのまま渡す。true ならかがやきの夢のかけらの出現率がさらに上がる
@@ -735,13 +735,16 @@ export class Game {
   private difficulty: DifficultyMode = "normal";
 
   /** 潜っているダンジョン(plan/multiple-dungeons.md) */
-  private dungeon: DungeonDef = dungeonById(MAIN_CAVE_ID);
+  private dungeon: DungeonDef = dungeonById(REGION_DUNGEON_IDS[0]);
 
   /**
    * 第三章「仲間探し」の崩落イベント(plan/chapter3-collapse-event.md)用。
-   * SaveData.deepest(このダイブ開始前の最深到達記録)
+   * SaveData.defeatedRegionBosses.length(このダイブ開始前の撃破済み地方ボス数)。
+   * 表の寝穴の地方分割(plan/game/dungeon-per-region.md)前は最深到達記録を
+   * 使っていたが、1ダイブが1地方(6階)を超えなくなり、最深到達記録が
+   * 章の進行度の指標として機能しなくなったため、撃破済み地方ボス数に置き換えた
    */
-  private readonly deepestAtStart: number;
+  private readonly defeatedRegionBossCountAtStart: number;
 
   /** 潜っているダンジョンid(plan/multiple-dungeons.md)。記録の間の集計などに使う */
   get dungeonId(): string {
@@ -771,7 +774,7 @@ export class Game {
 
     if (opts.resume) {
       // 復帰時は新しくフロアを生成しないため使わないが、readonlyの初期化として必要
-      this.deepestAtStart = 0;
+      this.defeatedRegionBossCountAtStart = 0;
       const s = opts.resume;
       this.rng = Rng.fromState(s.rngState);
       this.maxDepth = s.maxDepth;
@@ -811,8 +814,8 @@ export class Game {
     }
 
     this.rng = new Rng(opts.seed);
-    this.deepestAtStart = opts.deepest ?? 0;
-    this.dungeon = dungeonById(opts.dungeonId ?? MAIN_CAVE_ID);
+    this.defeatedRegionBossCountAtStart = opts.defeatedRegionBossCount ?? 0;
+    this.dungeon = dungeonById(opts.dungeonId ?? REGION_DUNGEON_IDS[0]);
     this.maxDepth = opts.maxDepth ?? this.dungeon.maxDepth ?? Number.POSITIVE_INFINITY;
     this.trainingFocus = opts.trainingFocus ?? "balance";
     this.compendiumComplete = opts.compendiumComplete ?? false;
@@ -889,12 +892,13 @@ export class Game {
       this.enterTarukurabeFloor();
       return;
     }
-    // 地方ボス(plan/region-bosses.md): 表の寝穴のボス階には、通常の野生モンスターも
+    // 地方ボス(plan/region-bosses.md): 地方ダンジョンのボス階には、通常の野生モンスターも
     // フロアギミックも乗せない(ボス以外の変数を減らす、本文どおりの方針)。
     // 腕試しの間(plan/hidden-dungeon.md)は、全階がボス階の再戦だけで構成される
+    const dungeonRegionIndex = regionIndexForDungeonId(this.dungeon.id);
     const bossSpeciesId =
-      this.dungeon.id === MAIN_CAVE_ID
-        ? REGION_BOSS_FLOORS[depth]
+      dungeonRegionIndex !== undefined && depth === this.dungeon.maxDepth
+        ? regionByIndex(dungeonRegionIndex).bossSpeciesId
         : this.dungeon.id === TRIAL_CHAMBER_ID
           ? REGION_BOSS_ORDER[depth - 1]
           : // 真の目覚め(plan/true-awakening.md): 最終階にだけ「はじめの夢」を配置する
@@ -902,21 +906,20 @@ export class Game {
             ? HAJIME_NO_YUME_ID
             : undefined;
 
-    // ボスの間(plan/game/dungeon-boss-rooms.md): 表の寝穴の地方ボス階だけ、通常の
+    // ボスの間(plan/game/dungeon-boss-rooms.md): 地方ダンジョンのボス階だけ、通常の
     // フロア生成(generateFloor)を経由せず、前室→扉→ボスの間の固定構造を組む。
     // 腕試しの間・真の目覚めは対象外(docの対象外どおり。それぞれ既存の
     // generateFloor経由の挙動のまま)
-    if (this.dungeon.id === MAIN_CAVE_ID && bossSpeciesId) {
+    if (dungeonRegionIndex !== undefined && bossSpeciesId) {
       this.enterBossFloor(depth, bossSpeciesId);
       return;
     }
 
-    // 第八地方(めざめの前庭)固有ギミック(plan/dream-garden-mosaic.md): 43〜48階は、
-    // 第二〜第七地方の固有ギミックのうち1〜2種類をランダムに選んで、そのフロアだけに適用する
+    // 第八地方(めざめの前庭)固有ギミック(plan/dream-garden-mosaic.md): 第八地方
+    // ダンジョンの各階は、第二〜第七地方の固有ギミックのうち1〜2種類を
+    // ランダムに選んで、そのフロアだけに適用する
     this.mosaicRegions =
-      this.dungeon.id === MAIN_CAVE_ID && depth >= 43 && depth <= 48
-        ? this.rng.shuffled(MOSAIC_CANDIDATE_REGIONS).slice(0, this.rng.int(1, 2))
-        : [];
+      dungeonRegionIndex === 8 ? this.rng.shuffled(MOSAIC_CANDIDATE_REGIONS).slice(0, this.rng.int(1, 2)) : [];
     const gimmick = bossSpeciesId
       ? undefined
       : pickFloorGimmick(
@@ -924,7 +927,7 @@ export class Game {
           depth,
           this.previousGimmick,
           GIMMICK_CHANCE_MULTIPLIER[this.difficulty] * (this.mood.floorGimmickRateMul ?? 1),
-          this.dungeon.id === MAIN_CAVE_ID,
+          dungeonRegionIndex,
           isCheckpointFloor(this.dungeon.id, depth),
         );
     this.previousGimmick = gimmick;
@@ -936,11 +939,11 @@ export class Game {
         : MONSTER_HOUSE_CHANCE_MULTIPLIER[this.difficulty] *
           (this.dungeon.monsterHouseRateMul ?? 1) *
           (this.mood.monsterHouseRateMul ?? 1) *
-          // 第四地方(骨積みの回廊)固有ギミック(plan/bonepile-corridor.md): 19〜24階はモンスターハウスが出やすい
-          (this.dungeon.id === MAIN_CAVE_ID &&
-          this.regionGimmickApplies(depth, BONEPILE_REGION.floors[0], BONEPILE_REGION.floors[1], BONEPILE_REGION.index)
-            ? (BONEPILE_REGION.monsterHouseRateMul ?? 1)
-            : 1),
+          // 第四地方(骨積みの回廊)固有ギミック(plan/bonepile-corridor.md): モンスターハウスが
+          // 出やすい。骨積みの回廊ダンジョン自身の分はDungeonDef.monsterHouseRateMul
+          // (dungeons.tsでregions.tsのデータをそのまま流用)で既にかかっているため、
+          // ここでは第八地方のモザイク抽選で骨積みの回廊が選ばれた場合だけ追加で掛ける
+          (this.mosaicRegions.includes(BONEPILE_REGION.index) ? (BONEPILE_REGION.monsterHouseRateMul ?? 1) : 1),
       shopChanceMultiplier: bossSpeciesId
         ? 0
         : (this.dungeon.shopRateMul ?? 1) * (this.mood.shopRateMul ?? 1),
@@ -980,20 +983,19 @@ export class Game {
       thiefWeightMultiplier: this.mood.thiefRateMul ?? 1,
     });
 
-    // 忘れ物蔵(plan/lost-and-found-vault.md): 表の寝穴の各地方の2階目
-    // (depth % REGION_SIZE === 2)にだけ、隠し通路の候補を1本配置する
-    if (this.dungeon.id === MAIN_CAVE_ID && depth % REGION_SIZE === 2) {
-      const regionIndex = Math.floor((depth - 1) / REGION_SIZE);
-      placeSecretPassage(this.rng, this.floor, `region${regionIndex + 1}`);
+    // 忘れ物蔵(plan/lost-and-found-vault.md): 地方ダンジョンの2階目にだけ、
+    // 隠し通路の候補を1本配置する
+    if (dungeonRegionIndex !== undefined && depth === 2) {
+      placeSecretPassage(this.rng, this.floor, `region${dungeonRegionIndex}`);
     }
 
-    // 地方固有の地形ギミック(plan/wetland-quagmire.md 等): 地方の階層範囲内、または
+    // 地方固有の地形ギミック(plan/wetland-quagmire.md 等): 自分の地方ダンジョンか、
     // 第八地方のモザイク抽選(plan/dream-garden-mosaic.md)でその地方番号が選ばれていれば、
     // REGION_GIMMICK_PLACERS に登録された地方ごとの配置フックを呼ぶ
-    if (this.dungeon.id === MAIN_CAVE_ID) {
+    if (dungeonRegionIndex !== undefined) {
       for (const region of REGIONS) {
         const place = REGION_GIMMICK_PLACERS[region.index];
-        if (place && this.regionGimmickApplies(depth, region.floors[0], region.floors[1], region.index)) {
+        if (place && this.regionGimmickApplies(region.index)) {
           place(this.rng, this.floor, this.ids);
         }
       }
@@ -1003,11 +1005,7 @@ export class Game {
     // 回廊(第四地方)最終階の階段部屋の出口に、瓦礫の崩落を固定配置する。
     // 既にdeepest>=30(章立て上の第三章)まで進んだあとの「戻り」のダイブ
     // でだけ発生させる(初回プレイヤーがこの階で足止めされないように)
-    if (
-      this.dungeon.id === MAIN_CAVE_ID &&
-      depth === CHAPTER3_COLLAPSE_DEPTH &&
-      storyChapter(this.deepestAtStart, false) >= 3
-    ) {
+    if (isChapter3CollapseFloor(this.dungeon.id, depth) && storyChapter(this.defeatedRegionBossCountAtStart, false) >= 3) {
       placeChapter3CollapseObstacle(this.floor);
     }
 
@@ -1173,7 +1171,7 @@ export class Game {
     // 骨積みの回廊(第四地方)最終階=24階は、ボスの間でもある。ボスの間の
     // 固定構造に置き換えても、この階固有の物語イベントは消さない
     // (通常のenterFloorと同じ条件のまま、ボスの間側でも呼ぶ)
-    if (depth === CHAPTER3_COLLAPSE_DEPTH && storyChapter(this.deepestAtStart, false) >= 3) {
+    if (isChapter3CollapseFloor(this.dungeon.id, depth) && storyChapter(this.defeatedRegionBossCountAtStart, false) >= 3) {
       placeChapter3CollapseObstacle(this.floor);
     }
 
@@ -1196,12 +1194,12 @@ export class Game {
   }
 
   /**
-   * 地方固有ギミックの適用条件。実際のdepthがその地方の範囲内か、または
+   * 地方固有ギミックの適用条件。今いるダンジョン自身がその地方か、または
    * 第八地方(めざめの前庭)固有ギミック(plan/dream-garden-mosaic.md)で
    * その地方番号が今回のフロアのmosaicRegionsに選ばれていれば true
    */
-  private regionGimmickApplies(depth: number, from: number, to: number, region: number): boolean {
-    return (depth >= from && depth <= to) || this.mosaicRegions.includes(region);
+  private regionGimmickApplies(region: number): boolean {
+    return regionIndexForDungeonId(this.dungeon.id) === region || this.mosaicRegions.includes(region);
   }
 
   /**
@@ -1383,7 +1381,7 @@ export class Game {
    * 概念を持たないため全階が該当する(既知チェックポイントの記録と同じ条件)
    */
   get onCheckpointFloor(): boolean {
-    return this.dungeon.id !== MAIN_CAVE_ID || this.depth % REGION_SIZE === 0;
+    return isCheckpointFloor(this.dungeon.id, this.depth);
   }
 
   /**
@@ -3553,7 +3551,7 @@ export class Game {
    * (階全体をawareにする)より弱い、範囲限定の効果として書き分ける
    */
   private alertNearbyMonsters(pos: Vec2): void {
-    if (!(this.dungeon.id === MAIN_CAVE_ID && this.regionGimmickApplies(this.depth, 31, 36, 6))) return;
+    if (!this.regionGimmickApplies(6)) return;
     for (const actor of this.floor.actors) {
       if (actor.kind !== "monster" || !actor.alive) continue;
       if (chebyshev(actor.pos, pos) <= ECHO_ALERT_RANGE) actor.aware = true;

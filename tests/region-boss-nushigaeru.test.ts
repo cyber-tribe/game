@@ -5,6 +5,8 @@ import { decideMonsterAction } from "../src/entities/ai";
 import { dirFromDelta } from "../src/core/grid";
 import { REGION_BOSS_ORDER, speciesById } from "../src/entities/species";
 import { Game } from "../src/game";
+import { REGION_DUNGEON_IDS, REGION_SIZE } from "../src/entities/dungeons";
+const bossRegionDungeonId = REGION_DUNGEON_IDS[1]!;
 import { access } from "./helpers/access";
 import { makeEmptyFloor } from "./helpers/floor";
 
@@ -116,19 +118,19 @@ describe("entities/ai.ts: ヌシガエルの2フェーズ(decideMonsterAction)",
 
 describe("game.ts: 地方ボスの階(depth 12、表の寝穴)", () => {
   it("ヌシガエルが1体だけ配置され、通常の野生モンスターは湧かない", () => {
-    const game = new Game({ seed: 1, startDepth: 12 });
+    const game = new Game({ seed: 1, dungeonId: bossRegionDungeonId, startDepth: REGION_SIZE });
     const monsters = game.floor.actors.filter((a) => a.kind === "monster");
     expect(monsters).toHaveLength(1);
     expect(monsters[0]!.speciesId).toBe("nushigaeru");
   });
 
   it("フロアギミックが乗らない", () => {
-    const game = new Game({ seed: 1, startDepth: 12 });
+    const game = new Game({ seed: 1, dungeonId: bossRegionDungeonId, startDepth: REGION_SIZE });
     expect(game.floor.gimmick).toBeUndefined();
   });
 
   it("撃破すると地方限定素材(ヌシガエルのうろこ)を確定ドロップする", () => {
-    const game = new Game({ seed: 1, startDepth: 12 });
+    const game = new Game({ seed: 1, dungeonId: bossRegionDungeonId, startDepth: REGION_SIZE });
     const boss = game.floor.actors.find(
       (a): a is MonsterActor => a.kind === "monster" && a.speciesId === "nushigaeru",
     )!;
@@ -152,7 +154,7 @@ describe("game.ts: 深みタイルでの潜伏(STATUS_INVISIBLE)", () => {
     let from: { x: number; y: number } | undefined;
 
     for (let seed = 1; seed <= 20 && !game; seed++) {
-      const candidate = new Game({ seed, startDepth: 12 });
+      const candidate = new Game({ seed, dungeonId: bossRegionDungeonId, startDepth: REGION_SIZE });
       const b = candidate.floor.actors.find(
         (a): a is MonsterActor => a.kind === "monster" && a.speciesId === "nushigaeru",
       );
@@ -195,7 +197,7 @@ describe("game.ts: 深みタイルでの潜伏(STATUS_INVISIBLE)", () => {
     let from: { x: number; y: number } | undefined;
 
     for (let seed = 1; seed <= 20 && !game; seed++) {
-      const candidate = new Game({ seed, startDepth: 12 });
+      const candidate = new Game({ seed, dungeonId: bossRegionDungeonId, startDepth: REGION_SIZE });
       const b = candidate.floor.actors.find(
         (a): a is MonsterActor => a.kind === "monster" && a.speciesId === "nushigaeru",
       );

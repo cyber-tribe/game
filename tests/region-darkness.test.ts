@@ -5,59 +5,61 @@ import { Game } from "../src/game";
 import { itemDef } from "../src/items/catalog";
 
 describe("dungeon/gimmicks.ts: 暗さを地方の個性にする(plan/region-darkness.md)", () => {
-  it("表の寝穴の第一〜第三地方(1〜18階)では、くらやみの階が一切選ばれない", () => {
-    for (let seed = 1; seed <= 300; seed++) {
-      const rng = new Rng(seed);
-      for (let depth = 2; depth <= 18; depth++) {
-        expect(pickFloorGimmick(rng, depth, undefined, 1, true)).not.toBe("darkness");
+  it("地方ダンジョンの第一〜第三地方では、くらやみの階が一切選ばれない", () => {
+    for (const regionIndex of [1, 2, 3]) {
+      for (let seed = 1; seed <= 300; seed++) {
+        const rng = new Rng(seed);
+        for (let depth = 2; depth <= 6; depth++) {
+          expect(pickFloorGimmick(rng, depth, undefined, 1, regionIndex)).not.toBe("darkness");
+        }
       }
     }
   });
 
-  it("表の寝穴以外のダンジョンでは、低い階でもくらやみの階が選ばれうる(従来どおり)", () => {
+  it("地方の概念を持たないダンジョンでは、低い階でもくらやみの階が選ばれうる(従来どおり)", () => {
     let sawDarkness = false;
     for (let seed = 1; seed <= 500 && !sawDarkness; seed++) {
       const rng = new Rng(seed);
-      if (pickFloorGimmick(rng, 5, undefined, 1, false) === "darkness") sawDarkness = true;
+      if (pickFloorGimmick(rng, 5, undefined, 1, undefined) === "darkness") sawDarkness = true;
     }
     expect(sawDarkness).toBe(true);
   });
 
-  it("表の寝穴の第四地方以降(19階〜)では、くらやみの階が選ばれうる", () => {
+  it("地方ダンジョンの第四地方以降では、くらやみの階が選ばれうる", () => {
     let sawDarkness = false;
     for (let seed = 1; seed <= 500 && !sawDarkness; seed++) {
       const rng = new Rng(seed);
-      if (pickFloorGimmick(rng, 20, undefined, 1, true) === "darkness") sawDarkness = true;
+      if (pickFloorGimmick(rng, 5, undefined, 1, 4) === "darkness") sawDarkness = true;
     }
     expect(sawDarkness).toBe(true);
   });
 
-  it("表の寝穴の第四地方以降は、くらやみの階の出現重みが他のダンジョンより高い", () => {
-    let mainCaveDark = 0;
-    let mainCaveTotal = 0;
+  it("地方ダンジョンの第四地方以降は、くらやみの階の出現重みが地方の概念を持たないダンジョンより高い", () => {
+    let regionDark = 0;
+    let regionTotal = 0;
     let otherDark = 0;
     let otherTotal = 0;
     const trials = 3000;
     for (let i = 0; i < trials; i++) {
-      const gMain = pickFloorGimmick(new Rng(i + 1), 20, undefined, 1, true);
-      if (gMain !== undefined) {
-        mainCaveTotal++;
-        if (gMain === "darkness") mainCaveDark++;
+      const gRegion = pickFloorGimmick(new Rng(i + 1), 5, undefined, 1, 4);
+      if (gRegion !== undefined) {
+        regionTotal++;
+        if (gRegion === "darkness") regionDark++;
       }
-      const gOther = pickFloorGimmick(new Rng(i + 1), 20, undefined, 1, false);
+      const gOther = pickFloorGimmick(new Rng(i + 1), 5, undefined, 1, undefined);
       if (gOther !== undefined) {
         otherTotal++;
         if (gOther === "darkness") otherDark++;
       }
     }
-    expect(mainCaveDark / mainCaveTotal).toBeGreaterThan(otherDark / otherTotal);
+    expect(regionDark / regionTotal).toBeGreaterThan(otherDark / otherTotal);
   });
 
   it("直前の階と同じギミック(くらやみ含む)は連続で選ばれない", () => {
     const rng = new Rng(11);
     let previous: ReturnType<typeof pickFloorGimmick>;
-    for (let depth = 20; depth <= 2000; depth++) {
-      const gimmick = pickFloorGimmick(rng, depth, previous, 1, true);
+    for (let depth = 2; depth <= 2000; depth++) {
+      const gimmick = pickFloorGimmick(rng, depth, previous, 1, 4);
       if (gimmick !== undefined && previous !== undefined) {
         expect(gimmick).not.toBe(previous);
       }

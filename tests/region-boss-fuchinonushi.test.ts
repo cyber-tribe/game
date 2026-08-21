@@ -5,6 +5,8 @@ import { roomContains } from "../src/core/types";
 import { decideMonsterAction } from "../src/entities/ai";
 import { REGION_BOSS_ORDER, speciesById } from "../src/entities/species";
 import { Game } from "../src/game";
+import { REGION_DUNGEON_IDS, REGION_SIZE } from "../src/entities/dungeons";
+const bossRegionDungeonId = REGION_DUNGEON_IDS[4]!;
 import { access } from "./helpers/access";
 import { makeEmptyFloor } from "./helpers/floor";
 
@@ -101,19 +103,19 @@ describe("entities/ai.ts: 淵の主の大技(decideMonsterAction)", () => {
 
 describe("game.ts: 地方ボスの階(depth 30、表の寝穴)", () => {
   it("淵の主が1体だけ配置される(通常の野生モンスターは湧かない)", () => {
-    const game = new Game({ seed: 1, startDepth: 30 });
+    const game = new Game({ seed: 1, dungeonId: bossRegionDungeonId, startDepth: REGION_SIZE });
     const monsters = game.floor.actors.filter((a) => a.kind === "monster");
     expect(monsters).toHaveLength(1);
     expect(monsters[0]!.speciesId).toBe("fuchiNoNushi");
   });
 
   it("フロアギミックが乗らない", () => {
-    const game = new Game({ seed: 1, startDepth: 30 });
+    const game = new Game({ seed: 1, dungeonId: bossRegionDungeonId, startDepth: REGION_SIZE });
     expect(game.floor.gimmick).toBeUndefined();
   });
 
   it("撃破すると地方限定素材(淵の主のうろこ)を確定ドロップする", () => {
-    const game = new Game({ seed: 1, startDepth: 30 });
+    const game = new Game({ seed: 1, dungeonId: bossRegionDungeonId, startDepth: REGION_SIZE });
     const boss = game.floor.actors.find(
       (a): a is MonsterActor => a.kind === "monster" && a.speciesId === "fuchiNoNushi",
     )!;
@@ -130,7 +132,7 @@ describe("game.ts: 地方ボスの階(depth 30、表の寝穴)", () => {
 
 describe("game.ts: 大技(summonTorrent)が部屋の外周に一時的な奔流タイルを設置する", () => {
   it("予兆済みのボスに隣接した状態で行動させると、部屋の外周に奔流タイルが現れる", () => {
-    const game = new Game({ seed: 1, startDepth: 30 });
+    const game = new Game({ seed: 1, dungeonId: bossRegionDungeonId, startDepth: REGION_SIZE });
     const boss = game.floor.actors.find(
       (a): a is MonsterActor => a.kind === "monster" && a.speciesId === "fuchiNoNushi",
     )!;
@@ -165,7 +167,7 @@ describe("game.ts: 大技(summonTorrent)が部屋の外周に一時的な奔流�
   });
 
   it("3ターン経過すると、設置した奔流タイルは自動的に元に戻る", () => {
-    const game = new Game({ seed: 1, startDepth: 30 });
+    const game = new Game({ seed: 1, dungeonId: bossRegionDungeonId, startDepth: REGION_SIZE });
     game.floor.actors = game.floor.actors.filter((a) => a.kind === "player");
     const boss = { ...bossActor(), pos: { x: 5, y: 5 } };
     const room = { id: 99, x: 3, y: 3, w: 5, h: 5 };
@@ -199,7 +201,7 @@ describe("game.ts: 大技(summonTorrent)が部屋の外周に一時的な奔流�
 
 describe("game.ts: ばくはつタルで大技(予兆)を解除する", () => {
   it("予兆中のボスと同じ部屋でタルを爆発させると、telegraphChargeがfalseに戻る", () => {
-    const game = new Game({ seed: 1, startDepth: 30 });
+    const game = new Game({ seed: 1, dungeonId: bossRegionDungeonId, startDepth: REGION_SIZE });
     const boss = game.floor.actors.find(
       (a): a is MonsterActor => a.kind === "monster" && a.speciesId === "fuchiNoNushi",
     )!;
