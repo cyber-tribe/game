@@ -118,6 +118,20 @@ export const MOOD_VISUALS: Readonly<Record<MoodId, MoodVisual>> = {
   shortcutPresence: { fogColor: 0x100c06, fogNear: 16, fogFar: 34, ambientColor: 0x9a8060, ambientIntensity: 1.75 },
 };
 
+/**
+ * ひなたの寝穴(plan/game/tutorial-dungeon.md)専用の明るい見た目。
+ * 「気分」の抽選プール(MOODS/moodForDate)には入れない――日替わりで
+ * ランダムに選ばれてほしくない、このダンジョン専用の固定演出のため。
+ * ambientを強く、fogを遠くして、日なたの暖白色にする
+ */
+export const HINATA_MOOD_VISUAL: MoodVisual = {
+  fogColor: 0xfbead0,
+  fogNear: 40,
+  fogFar: 90,
+  ambientColor: 0xfff2d8,
+  ambientIntensity: 3.2,
+};
+
 const MOOD_IDS: readonly MoodId[] = MOODS.map((m) => m.id);
 
 const BY_ID = new Map(MOODS.map((m) => [m.id, m]));
