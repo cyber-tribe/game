@@ -434,6 +434,22 @@ function buildProps(def: VillageInteriorDef, assets: Assets): THREE.Group {
       group.add(barrel(assets, 0.1, 0, 1.5));
       group.add(box(0.14, 0.62, 0.05, -0.4, 0.31, 1.5, wood, 0.25));
       group.add(box(0.14, 0.62, 0.05, -0.2, 0.31, 1.62, wood, -0.15));
+      // 寝かせて乾かす祠木の材(plan/models/village-scene-redesign.mdの
+      // 内装表。伐り出した祠木をタルの材にする前に、横倒しに積んで
+      // 乾かしている。太さを少しずつ変え、無造作に積んだ雰囲気にする)
+      {
+        const driedWood = mat(0x8a6a42, 0.95);
+        for (let i = 0; i < 4; i++) {
+          const log = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.09, 0.1, 1.1 - i * 0.05, 8),
+            driedWood,
+          );
+          log.rotation.z = Math.PI / 2;
+          log.rotation.y = 0.08 * i;
+          log.position.set(2.1, 0.1 + i * 0.16, 0.4 + i * 0.05);
+          group.add(log);
+        }
+      }
       break;
     }
     case "sleepHut": {
@@ -503,7 +519,8 @@ function buildProps(def: VillageInteriorDef, assets: Assets): THREE.Group {
       for (let i = 0; i < 4; i++) {
         group.add(wallPanel(0.42, 0.54, 2.05 + (i % 2) * 0.5, 1.62 - Math.floor(i / 2) * 0.66, mat(0xefe6c8, 0.9)));
       }
-      // 文机と筆
+      // 文机と筆。広げてある本は年代記「ねむりのしおり」
+      // (plan/models/village-scene-redesign.mdの内装表)
       group.add(desk(1.5, 0.8, 1.55, 1.1, -0.3, wood, 0.4));
       group.add(box(0.34, 0.02, 0.28, 1.45, 0.45, 1.05, mat(0xefe6c8, 0.9), -0.3));
       const brush = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.3, 6), mat(0x2a2018, 0.7));
