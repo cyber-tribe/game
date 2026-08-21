@@ -76,8 +76,15 @@ const SHADOW_HALF_SPAN = 12;
  *
  * `distance`(光の届く上限)は13のまま。ここを縮めると遠くの床が急に
  * 切り落とされて、視界の境界が不自然に見える
+ *
+ * `height`(光源のY座標)は主人公の頭上ほぼ直上に置いているため、光源
+ * 自身から主人公モデルまでの距離が床までの距離よりずっと近くなる
+ * (issue #718)。2.0だと頭部までの距離が約0.8〜1.0しかなく、decay 2の
+ * 減衰式では放射照度が床の6倍以上になり、主人公だけがブルームで白く
+ * 発光して見えていた。3.0へ上げて頭部までの距離を約1.9〜2.1に伸ばし、
+ * 床(直下で距離3.0)とおおむね同程度の照度に揃えた
  */
-export const PLAYER_LIGHT = { intensity: 30, distance: 13, decay: 2 } as const;
+export const PLAYER_LIGHT = { intensity: 30, distance: 13, decay: 2, height: 3.0 } as const;
 
 export class Renderer {
   readonly scene = new THREE.Scene();
@@ -160,7 +167,7 @@ export class Renderer {
       PLAYER_LIGHT.distance,
       PLAYER_LIGHT.decay,
     );
-    this.playerLight.position.set(0, 2.0, 0);
+    this.playerLight.position.set(0, PLAYER_LIGHT.height, 0);
     this.scene.add(this.playerLight);
 
     // ポストプロセスチェーン: RenderPass → ブルーム → 色調グレーディング

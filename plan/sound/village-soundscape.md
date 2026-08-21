@@ -69,7 +69,8 @@
 > デコードしてピーク0.14・RMS0.013程度と、BGMの下に薄く敷くのに十分
 > 控えめな音量であることを確認済み。
 >
-> 本ファイルのsection 3〜4は未実装(別PRで進める)。
+> 本ファイルのsection 3は実装済み(下記参照)。section 4は未実装
+> (別PRで進める)。
 
 BGMと並行してループ再生する薄い環境音レイヤーを1本追加する
 (`AudioPlayer.setMoodLayer` と同じ重ね方が流用できる):
@@ -84,6 +85,48 @@ BGMと並行してループ再生する薄い環境音レイヤーを1本追加�
 増やさない)。
 
 ## 3. 建物ごとの音
+
+> **実装済み。** `src/view/villageInterior.ts`の`VillageInteriorDef`に
+> `enterSfx`(入店SFXのid)・`ambientMoodId`(室内環境音のid、無ければ
+> 「静けさ」)を追加し、下表の6件(storage/workshop/sleepHut/gallery/
+> recordsHall/garudoHouse)に割り当てた(development は表に無いので
+> どちらも未割り当て)。
+>
+> 入店SFXは既存の`composeSfx`(mallet/drum)のみで6音を賄えた
+> (`tools/audio/build.ts`の`SFX_SPECS`に`enterStorage`等を追加)。
+> 室内環境音は`tools/audio/compose.ts`に4つの新しい合成関数を追加:
+> `composeForgeHum`(工房の炉、継続する低いうなりが6秒周期で息づく)・
+> `composeSleepHutAmbient`(ねむり小屋、`LEITMOTIF_DEGREES`を鈴でごく
+> 細く1回鳴らし+タルの軋みを疎らに)・`composeGalleryAmbient`(図鑑小屋、
+> 紙・木札をめくる音が時折)・`composeSmallFireAmbient`(ガルドの家、
+> `composeAmbientLoop`の火の層より一段控えめ)。共通する「ノイズの床」
+> 「ノイズバースト」の部分は`composeAmbientLoop`から
+> `noiseFloor`/`scatterNoiseBursts`という2つの非公開ヘルパーに切り出し、
+> 4つ全部+`composeAmbientLoop`自身で共有する形にリファクタした
+> (`composeAmbientLoop`の出力自体は完全に不変であることを確認済み。
+> 下記検証参照)。storage・recordsHallは表どおり「静けさ」のまま、
+> 専用の環境音は追加していない。
+>
+> 再生側は`src/main.ts`の`enterInterior()`/`exitInterior()`を編集: 入店時に
+> `setMoodLayer("village-ambient", false)`で屋外アンビエントを止め、
+> `def.enterSfx`があれば`playSfx`、`def.ambientMoodId`があれば
+> `setMoodLayer(..., true)`。退室時は現在の建物の`ambientMoodId`を止める
+> だけにとどめ、屋外アンビエントの再開は「建物メニューを閉じて村なかへ
+> 戻る」呼び出し元(`tryEnterVillageBuilding`の`onClose`)の責務にした
+> (ダイブ開始画面を開く経路でも`exitInterior`は呼ばれるが、そちらは
+> `presentFloor()`が別途ダイブBGMに切り替えるため、屋外アンビエントを
+> 再開する必要が無い)。
+>
+> **検証**: `npx tsc --noEmit`・`npx vitest run`(118ファイル/1603件、
+> 新規16件を含む)・`npm run build`・`npm run audio`いずれも成功。
+> 再生成後の差分は新規の`enter*.wav`6件(`public/audio/sfx/`)と
+> `workshop-ambient.wav`・`sleep-hut-ambient.wav`・`gallery-ambient.wav`・
+> `garudo-house-ambient.wav`の4件(`public/audio/bgm/mood/`)のみで、
+> `village-ambient.wav`を含む既存音源はバイト単位で無変更(リファクタが
+> 出力を変えていないことの直接確認)。デコードしてピーク・RMSを確認し、
+> 環境音は控えめ・入店SFXは既存SFXと同程度の音量であることを確認済み。
+>
+> 本ファイルのsection 4は未実装(別PRで進める)。
 
 建物に入ったとき(`plan/game/village-interiors.md` の内装シーン)の
 専用SFX・室内アンビエントを、考証の小道具に対応させて用意する:

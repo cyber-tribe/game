@@ -78,6 +78,16 @@ export interface VillageInteriorDef {
   ambientIntensity: number;
   /** 部屋の外の空気の色。シーンの背景に使う */
   background: number;
+  /**
+   * 入店SFX(`AudioPlayer.playSfx`のid)。無ければ鳴らさない
+   * (plan/sound/archive/village-soundscape.md)
+   */
+  enterSfx?: string;
+  /**
+   * 室内の薄い環境音(`AudioPlayer.setMoodLayer`のid)。無ければ屋外の
+   * アンビエントを止めるだけ(静けさ)(plan/sound/archive/village-soundscape.md)
+   */
+  ambientMoodId?: string;
 }
 
 /**
@@ -86,20 +96,86 @@ export interface VillageInteriorDef {
  * `src/view/village.ts`の`OUTDOOR_VILLAGERS`が村マップへ直接村人を立たせる)。
  */
 export const VILLAGE_INTERIORS: readonly VillageInteriorDef[] = [
-  // モグラ婆の倉庫: 壁一面の棚、積まれたタル・木箱、吊りランプ
-  { buildingId: "storage", resident: "mogurabaa", wall: 0x54603e, floor: 0x3a3227, ambient: 0xffe0b0, ambientIntensity: 1.15, background: 0x120f0a },
-  // ゲンドの工房: 炉(暖色の光源)、金床、壁の工具掛け、作りかけのタル
-  { buildingId: "workshop", resident: "gendo", wall: 0x6e3c22, floor: 0x2e2620, ambient: 0xffbb80, ambientIntensity: 0.9, background: 0x160c07 },
-  // ねむり小屋: 並んだ寝床、天蓋の布、夜色の薄明かり
-  { buildingId: "sleepHut", resident: "fuku", wall: 0x453a5e, floor: 0x2b2740, ambient: 0x9fb4ff, ambientIntensity: 0.8, background: 0x0a0a18 },
-  // おキヨの図鑑小屋: 本棚、標本瓶の棚、大きな机に開いた帳面
-  { buildingId: "gallery", resident: "okiyo", wall: 0x5a3c62, floor: 0x322838, ambient: 0xe0ccff, ambientIntensity: 1.1, background: 0x120c18 },
-  // 記録の間: 巻物棚、掲示された記録の紙、文机と筆
-  { buildingId: "recordsHall", resident: "ito", wall: 0x5f5330, floor: 0x36301f, ambient: 0xffeec0, ambientIntensity: 1.05, background: 0x14110a },
-  // 村の発展の受付: 村の模型が乗った台、図面の壁貼り(番人はいない)
+  // モグラ婆の倉庫: 壁一面の棚、積まれたタル・木箱、吊りランプ。
+  // 入店は木の扉のきしみ、室内は静けさ(外の音がくぐもるだけで、専用の
+  // 環境音は重ねない)(plan/sound/archive/village-soundscape.md)
+  {
+    buildingId: "storage",
+    resident: "mogurabaa",
+    wall: 0x54603e,
+    floor: 0x3a3227,
+    ambient: 0xffe0b0,
+    ambientIntensity: 1.15,
+    background: 0x120f0a,
+    enterSfx: "enterStorage",
+  },
+  // ゲンドの工房: 炉(暖色の光源)、金床、壁の工具掛け、作りかけのタル。
+  // 入店は金床を打つ一打、室内は炉の低い燃焼音
+  {
+    buildingId: "workshop",
+    resident: "gendo",
+    wall: 0x6e3c22,
+    floor: 0x2e2620,
+    ambient: 0xffbb80,
+    ambientIntensity: 0.9,
+    background: 0x160c07,
+    enterSfx: "enterWorkshop",
+    ambientMoodId: "workshop-ambient",
+  },
+  // ねむり小屋: 並んだ寝床、天蓋の布、夜色の薄明かり。入店は風鈴ひと鳴り、
+  // 室内は子守唄のライトモチーフを鈴でごく細く+タルの軋み
+  {
+    buildingId: "sleepHut",
+    resident: "fuku",
+    wall: 0x453a5e,
+    floor: 0x2b2740,
+    ambient: 0x9fb4ff,
+    ambientIntensity: 0.8,
+    background: 0x0a0a18,
+    enterSfx: "enterSleepHut",
+    ambientMoodId: "sleep-hut-ambient",
+  },
+  // おキヨの図鑑小屋: 本棚、標本瓶の棚、大きな机に開いた帳面。入店は木札
+  // 同士が触れる音、室内は紙・木札をめくる音が時折
+  {
+    buildingId: "gallery",
+    resident: "okiyo",
+    wall: 0x5a3c62,
+    floor: 0x322838,
+    ambient: 0xe0ccff,
+    ambientIntensity: 1.1,
+    background: 0x120c18,
+    enterSfx: "enterGallery",
+    ambientMoodId: "gallery-ambient",
+  },
+  // 記録の間: 巻物棚、掲示された記録の紙、文机と筆。入店は筆を置く音、
+  // 室内は静けさ(専用の環境音は重ねない)
+  {
+    buildingId: "recordsHall",
+    resident: "ito",
+    wall: 0x5f5330,
+    floor: 0x36301f,
+    ambient: 0xffeec0,
+    ambientIntensity: 1.05,
+    background: 0x14110a,
+    enterSfx: "enterRecordsHall",
+  },
+  // 村の発展の受付: 村の模型が乗った台、図面の壁貼り(番人はいない)。
+  // village-soundscape.mdの建物一覧には無く、専用の音は割り当てない
   { buildingId: "development", resident: null, wall: 0x37624e, floor: 0x2a3229, ambient: 0xcfeedd, ambientIntensity: 1.1, background: 0x0b1410 },
-  // ガルドの家: 寝床、衣装掛け、鏡台(自分の家なので番人はいない)
-  { buildingId: "garudoHouse", resident: null, wall: 0x2f5560, floor: 0x2a3038, ambient: 0xbfe0ff, ambientIntensity: 1.0, background: 0x08111a },
+  // ガルドの家: 寝床、衣装掛け、鏡台(自分の家なので番人はいない)。
+  // 入店は戸の開閉、室内は火の小さなはぜる音
+  {
+    buildingId: "garudoHouse",
+    resident: null,
+    wall: 0x2f5560,
+    floor: 0x2a3038,
+    ambient: 0xbfe0ff,
+    ambientIntensity: 1.0,
+    background: 0x08111a,
+    enterSfx: "enterGarudoHouse",
+    ambientMoodId: "garudo-house-ambient",
+  },
 ];
 
 const INTERIOR_BY_BUILDING = new Map(VILLAGE_INTERIORS.map((def) => [def.buildingId, def]));

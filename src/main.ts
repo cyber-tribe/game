@@ -10,7 +10,7 @@ import { Assets } from "./view/assets";
 import { Hud } from "./view/hud";
 import { ATTACK_KEY_CODE, Input } from "./view/input";
 import { Minimap } from "./view/minimap";
-import { Renderer } from "./view/renderer";
+import { PLAYER_LIGHT, Renderer } from "./view/renderer";
 import { GalleryView } from "./view/gallery";
 import { Stage } from "./view/stage";
 import { VILLAGE_BUILDINGS, VillageView } from "./view/village";
@@ -566,6 +566,9 @@ class App {
     this.openTownScreen(columns, building.label, columns[0] ?? 0, columns.length === 0, () => {
       this.exitInterior();
       this.setVillageActive(true);
+      // 建物から村なかへ戻ったら、屋外アンビエントを再開する
+      // (plan/sound/archive/village-soundscape.md)
+      this.audio.setMoodLayer("village-ambient", true);
     });
     // 建物の中(plan/game/village-interiors.md): 屋内系の7件は、メニューの
     // 背景がダンジョンではなくその建物の内装になる(屋外系は従来どおり)。
@@ -579,14 +582,24 @@ class App {
    * 内装を持たないので、従来どおりダンジョンを背景にしたメニューになる
    */
   private enterInterior(buildingId: string): void {
-    if (!interiorForBuilding(buildingId)) return;
+    const def = interiorForBuilding(buildingId);
+    if (!def) return;
     this.interior.enter(buildingId);
     this.interiorId = buildingId;
+    // 建物ごとの音(plan/sound/archive/village-soundscape.md): 入店SFX+
+    // 室内環境音。屋外アンビエントは重ねず、必ず止める
+    this.audio.setMoodLayer("village-ambient", false);
+    if (def.enterSfx) this.audio.playSfx(def.enterSfx);
+    if (def.ambientMoodId) this.audio.setMoodLayer(def.ambientMoodId, true);
   }
 
   /** 建物を出る(村なか歩きへ戻る/出発する)。内装の描画とレイアウトを畳む */
   private exitInterior(): void {
     if (this.interiorId === null) return;
+    // 室内環境音を止める(屋外アンビエントの再開は呼び出し元の責務)
+    // (plan/sound/archive/village-soundscape.md)
+    const moodId = interiorForBuilding(this.interiorId)?.ambientMoodId;
+    if (moodId) this.audio.setMoodLayer(moodId, false);
     this.interiorId = null;
     this.interior.leave();
     this.uiRoot.classList.remove("village-interior");
@@ -1012,7 +1025,7 @@ class App {
       // 松明はプレイヤーの見た目の位置に付いてくる。マス単位の座標ではなく
       // 補間中の位置を使わないと、光だけが先に動いてしまう
       const here = this.stage.playerWorld(this.game.player);
-      this.renderer.playerLight.position.set(here.x, 2.0, here.z);
+      this.renderer.playerLight.position.set(here.x, PLAYER_LIGHT.height, here.z);
       this.renderer.setFocus(this.game.player.pos);
       this.renderer.update(dt);
       this.drainDamageFx();
