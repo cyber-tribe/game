@@ -4,7 +4,7 @@
 村の各建物が「どんな生活と生業の場で、タルとどう関わり、どんな
 歴史を背負っているか」を定める。モデリング
 (`plan/models/model-village-structures.md`)・画面構成
-(`plan/game/village-scene-redesign.md`)・音
+(`plan/models/village-scene-redesign.md`)・音
 (`plan/sound/village-soundscape.md`)の再設計は本書を出典とする。
 
 ## 村の全体像
