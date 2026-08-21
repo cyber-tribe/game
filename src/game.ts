@@ -92,6 +92,7 @@ import {
   TARUKURABE_ID,
   TRIAL_CHAMBER_ID,
   TRUE_AWAKENING_ID,
+  branchDungeonSpecFor,
   dungeonById,
   nightlyDreamStatMultiplier,
   regionIndexForDungeonId,
@@ -255,6 +256,8 @@ export type Command =
   | { type: "bank" }
   /** ボスの間の扉を開ける(plan/game/dungeon-boss-rooms.md)。ターンは消費しない */
   | { type: "openDoor" }
+  /** 横穴(分岐ダンジョン)へ入る(plan/game/dungeon-per-region.md) */
+  | { type: "enterBranch" }
   /** 樽守りの技(plan/protagonist-arts.md)を繰り出す */
   | { type: "useArt"; id: ArtId }
   /**
@@ -630,9 +633,27 @@ function weaponKindOf(defId: string): string {
   return itemDef(defId).attackPattern ?? "basic";
 }
 
+/**
+ * 横穴(分岐ダンジョン、plan/game/dungeon-per-region.md)に入っているあいだ、
+ * 元いた地方ダンジョン側の状態を退避しておく入れ物。返ってきたときに
+ * そのまま復元する(プレイヤー・仲間・所持品・ターン数などダイブ全体に
+ * かかる状態はいじらず、「どのダンジョンの何階を今表示しているか」だけを
+ * 一時的に差し替える)
+ */
+interface HostDungeonContext {
+  dungeon: DungeonDef;
+  maxDepth: number;
+  depth: number;
+  floor: FloorState;
+  previousGimmick?: FloorGimmickKind;
+  mosaicRegions: number[];
+  monsterHouseWarned: boolean;
+  shopSeenThisRun: boolean;
+}
+
 export class Game {
   readonly rng: Rng;
-  readonly maxDepth: number;
+  maxDepth: number;
   floor!: FloorState;
   player: PlayerState;
   depth = 0;
@@ -740,6 +761,12 @@ export class Game {
   private dungeon: DungeonDef = dungeonById(REGION_DUNGEON_IDS[0]);
 
   /**
+   * 横穴(分岐ダンジョン、plan/game/dungeon-per-region.md)に入っているあいだだけ
+   * 非null。元いた地方ダンジョンの階へ戻るための退避状態
+   */
+  private hostContext: HostDungeonContext | null = null;
+
+  /**
    * 第三章「仲間探し」の崩落イベント(plan/chapter3-collapse-event.md)用。
    * SaveData.defeatedRegionBosses.length(このダイブ開始前の撃破済み地方ボス数)。
    * 表の寝穴の地方分割(plan/game/dungeon-per-region.md)前は最深到達記録を
@@ -751,6 +778,18 @@ export class Game {
   /** 潜っているダンジョンid(plan/multiple-dungeons.md)。記録の間の集計などに使う */
   get dungeonId(): string {
     return this.dungeon.id;
+  }
+
+  /**
+   * 横穴(分岐ダンジョン、plan/game/dungeon-per-region.md)に入っているあいだか。
+   * ダイブ中オートセーブ(plan/mid-dive-autosave.md)は、この間だけ書き出しを
+   * 止める用途に使う。hostContextはRunSnapshotに含めておらず(横穴側の
+   * floorをまるごと退避した2重状態を復元する仕組みまでは持たないため)、
+   * 横穴の中でクラッシュしても「元の地方ダンジョンへ戻れなくなる」ことがない
+   * よう、直近の(横穴に入る前の)スナップショットをそのまま残す
+   */
+  get inBranchDungeon(): boolean {
+    return this.hostContext !== null;
   }
 
   /** このダイブの気分(plan/yorishiro-moods.md)。ダイブ中は固定 */
@@ -998,6 +1037,14 @@ export class Game {
       placeSecretPassage(this.rng, this.floor, `region${dungeonRegionIndex}`);
     }
 
+    // 横穴(分岐ダンジョン、plan/game/dungeon-per-region.md): 特定の地方ダンジョンの
+    // 特定階にだけ、低確率で入り口を生成する
+    const branchSpec = branchDungeonSpecFor(this.dungeon.id, depth);
+    if (branchSpec && this.rng.chance(branchSpec.chance)) {
+      const pos = findFreeTile(this.rng, this.floor, { roomsOnly: true, avoid: [start] });
+      if (pos) this.floor.branchEntrance = { pos, dungeonId: branchSpec.branchDungeonId };
+    }
+
     // 地方固有の地形ギミック(plan/wetland-quagmire.md 等): 自分の地方ダンジョンか、
     // 第八地方のモザイク抽選(plan/dream-garden-mosaic.md)でその地方番号が選ばれていれば、
     // REGION_GIMMICK_PLACERS に登録された地方ごとの配置フックを呼ぶ
@@ -1028,6 +1075,63 @@ export class Game {
     }
 
     updateVisibility(this.floor, this.player.pos, this.visionExtraRange());
+  }
+
+  /**
+   * 横穴(分岐ダンジョン、plan/game/dungeon-per-region.md)に入る。今いる
+   * 地方ダンジョンの状態(ダンジョン・最大階数・現在階・フロア)を退避し、
+   * 分岐ダンジョンの1階目を通常どおり生成する。プレイヤー・仲間・持ち物・
+   * ターン数・気分・難易度などダイブ全体にかかる状態はいじらない
+   */
+  private enterBranchDungeon(branchDungeonId: string, events: GameEvent[]): boolean {
+    if (this.hostContext) return false; // 横穴の中からさらに横穴には入れない(入れ子なし)
+    this.hostContext = {
+      dungeon: this.dungeon,
+      maxDepth: this.maxDepth,
+      depth: this.depth,
+      floor: this.floor,
+      previousGimmick: this.previousGimmick,
+      mosaicRegions: this.mosaicRegions,
+      monsterHouseWarned: this.monsterHouseWarned,
+      shopSeenThisRun: this.shopSeenThisRun,
+    };
+    this.dungeon = dungeonById(branchDungeonId);
+    this.maxDepth = this.dungeon.maxDepth ?? Number.POSITIVE_INFINITY;
+    this.previousGimmick = undefined;
+    this.mosaicRegions = [];
+    // 横穴自体はshopRateMul未設定でforceShop抽選の対象外だが、万一の出店
+    // 出現がホスト側のshopSeenThisRunを誤って上書きしないよう、横穴の中では
+    // 一旦falseから始める(戻るときにホスト側の値を必ず復元する)
+    this.shopSeenThisRun = false;
+    this.enterFloor(1);
+    events.push({ type: "message", text: `${this.dungeon.name}へ入った。` });
+    return true;
+  }
+
+  /**
+   * 横穴(分岐ダンジョン)を踏破したときに呼ぶ。退避しておいた元の地方
+   * ダンジョンの状態(その階の盤面そのもの、途中で倒した敵・拾った物も
+   * 含めて)をそのまま復元する。ダイブ自体は終わらない(status="playing"
+   * のまま)ため、main.ts側の全滅・踏破の記録処理は一切通らない
+   */
+  private returnFromBranchDungeon(events: GameEvent[]): void {
+    const host = this.hostContext;
+    if (!host) return;
+    this.hostContext = null;
+    this.dungeon = host.dungeon;
+    this.maxDepth = host.maxDepth;
+    this.depth = host.depth;
+    this.floor = host.floor;
+    this.previousGimmick = host.previousGimmick;
+    this.mosaicRegions = host.mosaicRegions;
+    this.monsterHouseWarned = host.monsterHouseWarned;
+    this.shopSeenThisRun = host.shopSeenThisRun;
+    // 入ってきた入り口のマスへ戻す。横穴は1階につき一度きりなので、
+    // 戻ったら入り口自体は消す
+    if (this.floor.branchEntrance) this.player.pos = { ...this.floor.branchEntrance.pos };
+    this.floor.branchEntrance = undefined;
+    updateVisibility(this.floor, this.player.pos, this.visionExtraRange());
+    events.push({ type: "message", text: `${host.dungeon.name}へ戻ってきた。` });
   }
 
   /**
@@ -1425,6 +1529,12 @@ export class Game {
 
   private descend(events: GameEvent[]): void {
     if (this.depth >= this.maxDepth) {
+      // 横穴(分岐ダンジョン、plan/game/dungeon-per-region.md): 分岐ダンジョンの
+      // 最終階では、ダイブを終わらせず元の地方ダンジョンの階へ戻すだけにする
+      if (this.hostContext) {
+        this.returnFromBranchDungeon(events);
+        return;
+      }
       this.maybePlayMountainCoreEnding(events);
       this.status = "cleared";
       this.endReason = `${this.maxDepth}階を踏破した!`;
@@ -1492,6 +1602,19 @@ export class Game {
     events.push({ type: "message", text: `扉を開けた。${bossName}の気配が強まる――` });
     events.push({ type: "doorOpened", bossSpeciesId: door.bossSpeciesId });
     return false;
+  }
+
+  /**
+   * 横穴(分岐ダンジョン、plan/game/dungeon-per-region.md)の入り口に立って
+   * 確定したときに呼ぶ。入り口のマスに立っていなければ弾く
+   */
+  private enterBranchTile(events: GameEvent[]): boolean {
+    const entrance = this.floor.branchEntrance;
+    if (!entrance || !eq(this.player.pos, entrance.pos)) {
+      events.push({ type: "message", text: "ここに横穴はない。" });
+      return false;
+    }
+    return this.enterBranchDungeon(entrance.dungeonId, events);
   }
 
   // ------------------------------------------------------------ コマンド処理
@@ -1641,6 +1764,9 @@ export class Game {
 
       case "openDoor":
         return this.openDoor(events);
+
+      case "enterBranch":
+        return this.enterBranchTile(events);
 
       case "use":
         return this.useItem(cmd.uid, events);

@@ -27,6 +27,7 @@ import {
   TARUKURABE_ID,
   TRUE_AWAKENING_ID,
   dungeonById,
+  isBranchDungeonId,
   isDungeonUnlocked,
   regionIndexForDungeonId,
 } from "../entities/dungeons";
@@ -403,7 +404,10 @@ export class TownScreen {
    * minigame.md、TARUKURABE_ID)も同じ理由で除外し、isTarukurabeDayの日
    * だけ末尾に追加する。ひなたの寝穴(plan/game/tutorial-dungeon.md、HINATA_ID)
    * も同じ理由で除外し、踏破済み(hinataCleared)のときだけ再訪用に追加する
-   * (未踏破の間は拠点の行き先選択そのものを経由しない自動誘導専用のため)
+   * (未踏破の間は拠点の行き先選択そのものを経由しない自動誘導専用のため)。
+   * 横穴(plan/game/dungeon-per-region.md、isBranchDungeonId)は
+   * unlock:"always"だが、地方ダンジョンの奥で入口を踏んだときだけ入れる
+   * 短い往復専用で、拠点からの直接選択自体を想定していないので常に除外する
    */
   private unlockedDungeons(): DungeonDef[] {
     const deepest = this.save?.deepest ?? 0;
@@ -420,6 +424,7 @@ export class TownScreen {
         d.id !== TRUE_AWAKENING_ID &&
         d.id !== TARUKURABE_ID &&
         d.id !== HINATA_ID &&
+        !isBranchDungeonId(d.id) &&
         isDungeonUnlocked(d, deepest, villageStage, foundPassageCount, defeatedRegionBosses, region1Unlocked),
     );
     if (this.save && isTrueAwakeningUnlocked(this.save)) {
@@ -2257,9 +2262,14 @@ export class TownScreen {
       // 樽比べ(plan/tarukurabe-minigame.md)も同じく、開催日以外は一覧に出さない
       // (宵祭りの出店と同じく、開催日以外は存在自体を示さない扱い)。
       // ひなたの寝穴(plan/game/tutorial-dungeon.md)も、踏破するまでは
-      // 未解放のヒント表示すら出さない(自動誘導専用のため)
+      // 未解放のヒント表示すら出さない(自動誘導専用のため)。横穴
+      // (plan/game/dungeon-per-region.md)もunlockedDungeons()と同じ理由で除外
       DUNGEONS.filter(
-        (d) => d.id !== TRUE_AWAKENING_ID && d.id !== TARUKURABE_ID && d.id !== HINATA_ID,
+        (d) =>
+          d.id !== TRUE_AWAKENING_ID &&
+          d.id !== TARUKURABE_ID &&
+          d.id !== HINATA_ID &&
+          !isBranchDungeonId(d.id),
       ).forEach((dungeon) => {
         const li = document.createElement("li");
         if (

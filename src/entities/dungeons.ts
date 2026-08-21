@@ -110,6 +110,9 @@ export function isCheckpointFloor(dungeonId: string, depth: number): boolean {
   // ひなたの寝穴(plan/game/tutorial-dungeon.md): 最終階(3階)だけがめざめの階段の階。
   // 1階では「区切り」をまだ教えない、という本文の狙いどおり
   if (dungeonId === HINATA_ID) return depth === HINATA_MAX_DEPTH;
+  // 横穴(分岐ダンジョン、plan/game/dungeon-per-region.md): 短い往復専用で、
+  // 区切って持ち帰る対象ではない(踏破すると必ず元の地方ダンジョンの階へ戻る)
+  if (isBranchDungeonId(dungeonId)) return false;
   return true;
 }
 
@@ -131,6 +134,42 @@ export function isChapter3CollapseFloor(dungeonId: string, depth: number): boole
  */
 export const HINATA_ID = "hinata";
 export const HINATA_MAX_DEPTH = 3;
+
+/**
+ * 横穴(分岐ダンジョン、plan/game/dungeon-per-region.md)。地方ダンジョンの
+ * 特定階に低確率で入り口が生成され、入ると短い分岐ダンジョンへ移り、
+ * 踏破すると元の地方ダンジョンの同じ階の同じ位置へ戻る。初期実装は2件
+ */
+export const MUDDY_DEPTHS_ID = "muddyDepths";
+export const ECHO_NEST_ID = "echoNest";
+
+export interface BranchDungeonSpec {
+  /** 入り口が生成されうるダンジョンid(地方ダンジョン) */
+  hostDungeonId: string;
+  /** 入り口が生成されうる階 */
+  hostDepth: number;
+  branchDungeonId: string;
+  /** その階に入るたびに入り口が生成される確率(低確率) */
+  chance: number;
+}
+
+/**
+ * 第二の湿地穴(忘れ潮の湿地)→「ぬかるみの底」、第六の尾根穴(こだまの尾根)
+ * →「こだまの巣」。doc本文の「初期実装は2件でよい」どおりの2件のみ
+ */
+export const BRANCH_DUNGEONS: readonly BranchDungeonSpec[] = [
+  { hostDungeonId: REGION_DUNGEON_IDS[1], hostDepth: 2, branchDungeonId: MUDDY_DEPTHS_ID, chance: 0.3 },
+  { hostDungeonId: REGION_DUNGEON_IDS[5], hostDepth: 2, branchDungeonId: ECHO_NEST_ID, chance: 0.3 },
+];
+
+/** dungeonId・depthの組から、その階に入り口が生成されうる横穴の仕様を引く */
+export function branchDungeonSpecFor(dungeonId: string, depth: number): BranchDungeonSpec | undefined {
+  return BRANCH_DUNGEONS.find((b) => b.hostDungeonId === dungeonId && b.hostDepth === depth);
+}
+
+export function isBranchDungeonId(id: string): boolean {
+  return id === MUDDY_DEPTHS_ID || id === ECHO_NEST_ID;
+}
 
 export const NIGHTLY_DREAM_ID = "nightlyDream";
 /** 腕試しの間(plan/hidden-dungeon.md)。地方ボスの再戦だけで構成するボスラッシュ */
@@ -176,6 +215,26 @@ export const DUNGEONS: readonly DungeonDef[] = [
     unlock: "always",
   },
   ...REGION_DUNGEONS,
+  {
+    id: MUDDY_DEPTHS_ID,
+    name: "ぬかるみの底",
+    description: "忘れ潮の湿地の底に潜む、水系素材の宝庫。横穴からだけ入れる。",
+    maxDepth: 2,
+    unlock: "always",
+    // 忘れ潮の湿地(第二地方)と同じ出現テーブルを流用する
+    floorOffset: REGION_SIZE * 1,
+    monsterCountMul: 0.5,
+  },
+  {
+    id: ECHO_NEST_ID,
+    name: "こだまの巣",
+    description: "こだまの尾根に隠れた、やまびこ系種族の巣。横穴からだけ入れる。",
+    maxDepth: 3,
+    unlock: "always",
+    // こだまの尾根(第六地方)と同じ出現テーブルを流用する
+    floorOffset: REGION_SIZE * 5,
+    monsterCountMul: 1.5,
+  },
   {
     id: "shortcutBackHole",
     name: "近道屋の裏穴",
