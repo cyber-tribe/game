@@ -1,7 +1,7 @@
-import { type Dir, dirDelta, eq } from "../../core/grid";
+import { eq } from "../../core/grid";
 import type { Vec2 } from "../../core/grid";
 import type { Actor, FloorState } from "../../core/types";
-import { isFree, isHostile, tileAt } from "../../core/types";
+import { isHostile, tileAt } from "../../core/types";
 import type { GameEvent } from "../../core/events";
 import type { PlayerState } from "../../entities/player";
 import type { DifficultyMode } from "../../entities/difficulty";
@@ -13,17 +13,7 @@ import {
   tickStatuses,
   tickTorch,
 } from "./statusTicks";
-
-const OVERLAP_ESCAPE_DIRS: readonly Dir[] = [0, 2, 4, 6, 1, 3, 5, 7];
-
-function adjacentFreeSpot(floor: FloorState, center: Vec2): Vec2 | null {
-  for (const dir of OVERLAP_ESCAPE_DIRS) {
-    const delta = dirDelta(dir);
-    const p = { x: center.x + delta.x, y: center.y + delta.y };
-    if (isFree(floor, p)) return p;
-  }
-  return null;
-}
+import { adjacentFreeSpot } from "../dungeon/floorGimmicks";
 
 /**
  * プレイヤーと敵モンスターは同じマスに同時に存在しない、という不変条件の

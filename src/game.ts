@@ -14,7 +14,6 @@ import type { GameEvent } from "./core/events";
 import {
   STATUS_CONFUSE,
   STATUS_INVISIBLE,
-  STATUS_POISON,
   STATUS_RECOVER,
   STATUS_SLEEP,
   type Actor,
@@ -22,7 +21,6 @@ import {
   type AllyStance,
   type Barrel,
   type BarrelKind,
-  type CombatantActor,
   type FieldSkillId,
   type FloorGimmickKind,
   type FloorState,
@@ -31,10 +29,8 @@ import {
   type MonsterActor,
   type Room,
   type RunSkillId,
-  type StatusKind,
   type TargetActor,
   type Tile,
-  type Trap,
   type WeaponPattern,
   TILE_CORRIDOR,
   TILE_ROOM,
@@ -44,7 +40,6 @@ import {
   freeSpotNear,
   hasStatus,
   hpOwnerOf,
-  isFree,
   isHostile,
   roomContains,
   tileAt,
@@ -157,7 +152,7 @@ import {
   captureOutlookFor,
   resolveEmptyBarrel as domainResolveEmptyBarrel,
 } from "./domain/barrel/barrelCapture";
-import { SPORE_SLEEP_CHANCE, SPORE_SLEEP_TURNS, type BossMoveContext } from "./systems/bossMoves";
+import type { BossMoveContext } from "./systems/bossMoves";
 import { damageActor as domainDamageActor, killActor as domainKillActor } from "./domain/turn/damage";
 import { attack as domainAttack } from "./domain/turn/attackResolution";
 import { applyTorrentPush as domainApplyTorrentPush, pushMonster as domainPushMonster } from "./domain/turn/actorActions";
@@ -171,14 +166,22 @@ import {
 } from "./domain/player/runSkills";
 import { recruitFromBarrel as domainRecruitFromBarrel } from "./domain/party/recruit";
 import { tickAllyDreamArts as domainTickAllyDreamArts } from "./domain/party/dreamArts";
+import {
+  adjacentFreeSpot as domainAdjacentFreeSpot,
+  applyRoomWideStatus as domainApplyRoomWideStatus,
+  digWall as domainDigWall,
+  placeTemporaryWall as domainPlaceTemporaryWall,
+  tickBoneWalls as domainTickBoneWalls,
+  tickMirrors as domainTickMirrors,
+  tickSporeRooms as domainTickSporeRooms,
+  tickSummonedTorrentTiles as domainTickSummonedTorrentTiles,
+} from "./domain/dungeon/floorGimmicks";
+import { alertNearbyMonsters as domainAlertNearbyMonsters, checkTrap as domainCheckTrap } from "./domain/dungeon/traps";
 
 /** 双樽鉤(quickSingle)の会心率の上乗せ分 */
 const QUICK_SINGLE_CRIT_BONUS = 0.15;
 /** 主の大槌(heavySingle)の反動。1ターン分の行動を失わせる(既存の状態異常と同じ off-by-one 消化) */
 const HEAVY_RECOVER_TURNS = 2;
-
-/** 毒罠にかかったときの持続ターン数 */
-const POISON_TRAP_TURNS = 8;
 
 // ---- plan/monster-compendium.md: 新しい特技・特性の各種係数 ----
 /**
@@ -351,16 +354,6 @@ const HERB_SATIETY_BONUS = 5;
 /** このターンごとにモンスターが1体湧く */
 const SPAWN_INTERVAL = 45;
 
-/**
- * 第三地方(まどろみの茸林)固有ギミック(plan/spore-grove.md): 胞子部屋のパルス間隔。
- * 睡眠確率・持続ターン(SPORE_SLEEP_CHANCE/TURNS)は地方ボス(plan/region-boss-
- * oomadoromi.md)の大技(aoeSleep)と値を共有するため systems/bossMoves.ts にある
- */
-const SPORE_PULSE_INTERVAL = 8;
-
-/** 第六地方(こだまの尾根)固有ギミック(plan/echoing-ridge.md): 物音を立てる行動で気づかせる範囲 */
-const ECHO_ALERT_RANGE = 6;
-
 /** 第八地方(めざめの前庭)固有ギミック(plan/dream-garden-mosaic.md): 抽選対象の地方番号(第二〜第七地方) */
 const MOSAIC_CANDIDATE_REGIONS = [2, 3, 4, 5, 6, 7];
 
@@ -442,9 +435,6 @@ const TRUE_AWAKENING_CLOSING: readonly string[] = [
 const LIGHT_BARREL_OPEN_VISION = 2;
 /** 頭上に持つ(光タル): 視界+2(ほのかなあかり等と同じ単純加算) */
 const LIGHT_BARREL_CARRY_VISION_BONUS = 2;
-/** 頭上に持つ(風タル): 罠を踏んでも発動しない確率 */
-const WIND_BARREL_CARRY_TRAP_SUPPRESS_CHANCE = 0.5;
-
 // ---- plan/tarukurabe-minigame.md ----
 /** 持ち込めるタルの数(固定10個)。専用モード内で完結し、通常の倉庫は消費しない */
 const TARUKURABE_BARREL_COUNT = 10;
@@ -1277,21 +1267,6 @@ export class Game {
   }
 
   /**
-   * プレイヤーと敵モンスターの重なりフェイルセーフ(plan/actor-overlap-failsafe.md):
-   * 上下左右→斜めの順で最初に見つかった、隣接する歩行可能マス
-   */
-  private static readonly OVERLAP_ESCAPE_DIRS: readonly Dir[] = [0, 2, 4, 6, 1, 3, 5, 7];
-
-  private adjacentFreeSpot(center: Vec2): Vec2 | null {
-    for (const dir of Game.OVERLAP_ESCAPE_DIRS) {
-      const delta = dirDelta(dir);
-      const p = { x: center.x + delta.x, y: center.y + delta.y };
-      if (isFree(this.floor, p)) return p;
-    }
-    return null;
-  }
-
-  /**
    * タルを抱えたまま階段を使おうとした場合のフェイルセーフ(plan/barrel-stairs-safeguard.md):
    * 階段の上に居座らせず、隣接する空きマスへ押し戻す。「直前にいたマス」を
    * 厳密に追跡する仕組みは持たないため、actor-overlap-failsafeで導入した
@@ -1299,7 +1274,7 @@ export class Game {
    */
   private pushBackFromStairs(events: GameEvent[]): void {
     const player = this.player;
-    const spot = this.adjacentFreeSpot(player.pos);
+    const spot = domainAdjacentFreeSpot(this.floor, player.pos);
     if (!spot) return;
     const from = player.pos;
     player.pos = spot;
@@ -2382,7 +2357,7 @@ export class Game {
       }
     }
     player.facing = dir;
-    this.alertNearbyMonsters(player.pos);
+    domainAlertNearbyMonsters(this.floor, player.pos, (region) => this.regionGimmickApplies(region));
 
     // スキル「タルやぶり」(plan/game/archive/run-build-skills.md): 敵に当たらなかった
     // 場合だけ、正面に置かれたタルを攻撃で割れる(敵がいれば従来どおり敵を優先する)
@@ -2796,65 +2771,17 @@ export class Game {
   // ------------------------------------------------------------ 罠
 
   private checkTrap(pos: Vec2, events: GameEvent[]): void {
-    const trap = this.floor.traps.find((t) => eq(t.pos, pos));
-    if (!trap) return;
-    trap.revealed = true;
-    events.push({ type: "trap", pos, kind: trap.kind });
-    this.alertNearbyMonsters(pos);
-    // 元素タル(plan/game/archive/barrel-arts.md): 風タルを頭上に持っていると、
-    // 罠を踏んでも足取りが軽く、確率で発動しない(見つかりはする)
-    if (this.player.carrying?.kind === "wind" && this.rng.chance(WIND_BARREL_CARRY_TRAP_SUPPRESS_CHANCE)) {
-      events.push({ type: "message", text: "足取りが軽く、罠をやり過ごした!" });
-      return;
-    }
-    this.triggerTrap(trap, events);
-  }
-
-  /**
-   * 第六地方(こだまの尾根)固有ギミック(plan/echoing-ridge.md): プレイヤーが
-   * 攻撃する・罠を踏むなど物音を立てる行動を取るたびに、視界に関係なく
-   * 周囲(チェビシェフ距離6)のモンスターをawareにする。既存のalarm罠
-   * (階全体をawareにする)より弱い、範囲限定の効果として書き分ける
-   */
-  private alertNearbyMonsters(pos: Vec2): void {
-    if (!this.regionGimmickApplies(6)) return;
-    for (const actor of this.floor.actors) {
-      if (actor.kind !== "monster" || !actor.alive) continue;
-      if (chebyshev(actor.pos, pos) <= ECHO_ALERT_RANGE) actor.aware = true;
-    }
-  }
-
-  private triggerTrap(trap: Trap, events: GameEvent[]): void {
-    switch (trap.kind) {
-      case "damage": {
-        const damage = 4 + this.depth;
-        events.push({ type: "message", text: `矢が飛んできた! ${damage}のダメージ!` });
-        this.damageActor(this.player, damage, false, events);
-        break;
-      }
-      case "sleep": {
-        events.push({ type: "message", text: "眠りガスが噴き出した!" });
-        addStatus(this.effectContext(events), this.player, STATUS_SLEEP, 4, "眠ってしまった");
-        break;
-      }
-      case "alarm": {
-        events.push({ type: "message", text: "けたたましい音が鳴り響いた!" });
-        for (const actor of this.floor.actors) {
-          if (actor.kind === "monster" && actor.alive) actor.aware = true;
-        }
-        break;
-      }
-      case "pitfall": {
-        events.push({ type: "message", text: "落とし穴だ!" });
-        this.descend(events);
-        break;
-      }
-      case "poison": {
-        events.push({ type: "message", text: "毒の針が刺さった!" });
-        addStatus(this.effectContext(events), this.player, STATUS_POISON, POISON_TRAP_TURNS, "毒を受けた");
-        break;
-      }
-    }
+    domainCheckTrap({
+      floor: this.floor,
+      pos,
+      rng: this.rng,
+      player: this.player,
+      depth: this.depth,
+      events,
+      damageActor: (target, dmg, crit) => this.damageActor(target, dmg, crit, events),
+      regionGimmickApplies: (region) => this.regionGimmickApplies(region),
+      descend: () => this.descend(events),
+    });
   }
 
   // ------------------------------------------------------------ モンスターの行動
@@ -2913,10 +2840,10 @@ export class Game {
       isPlaying: () => this.status === "playing",
       damageActor: (target, dmg, crit) => this.damageActor(target, dmg, crit, events),
       tickDreamArts: () => this.tickDreamArts(events),
-      tickSporeRooms: () => this.tickSporeRooms(events),
-      tickSummonedTorrentTiles: () => this.tickSummonedTorrentTiles(),
-      tickBoneWalls: () => this.tickBoneWalls(),
-      tickMirrors: () => this.tickMirrors(events),
+      tickSporeRooms: () => domainTickSporeRooms(this.floor, this.rng, this.player, events),
+      tickSummonedTorrentTiles: () => domainTickSummonedTorrentTiles(this.floor),
+      tickBoneWalls: () => domainTickBoneWalls(this.floor),
+      tickMirrors: () => domainTickMirrors(this.floor, events),
       spawnIfDue: () => {
         if (this.turnCount > 0 && this.turnCount % SPAWN_INTERVAL === 0) {
           spawnWanderingMonster(this.rng, this.floor, this.ids, this.player.pos, this.dungeon.floorOffset ?? 0);
@@ -2954,106 +2881,6 @@ export class Game {
     domainTickAllyDreamArts(this.floor);
   }
 
-  /**
-   * 第三地方(まどろみの茸林)固有ギミック(plan/spore-grove.md): 胞子部屋に
-   * 誰か(敵味方問わず)が居続けると、8ターンごとに部屋全体へ睡眠を判定する。
-   * 誰もいないターンはカウントしない
-   */
-  private tickSporeRooms(events: GameEvent[]): void {
-    for (const room of this.floor.rooms) {
-      if (!room.spored) continue;
-      const occupants = this.floor.actors.filter((a) => a.alive && roomContains(room, a.pos));
-      if (occupants.length === 0) continue;
-      room.sporeTimer = (room.sporeTimer ?? 0) + 1;
-      if (room.sporeTimer < SPORE_PULSE_INTERVAL) continue;
-      room.sporeTimer = 0;
-      events.push({ type: "message", text: "むわっと、胞子が満ちた……" });
-      this.applyRoomWideStatus(occupants, STATUS_SLEEP, SPORE_SLEEP_CHANCE, SPORE_SLEEP_TURNS, "眠ってしまった", events);
-    }
-  }
-
-  /**
-   * 地方ボス(plan/region-boss-fuchinonushi.md): 大技(summonTorrent)で一時的に
-   * 設置した奔流タイルを、毎ターンexpiresInぶん減らし、0になったら元に戻す
-   */
-  private tickSummonedTorrentTiles(): void {
-    for (const actor of this.floor.actors) {
-      if (actor.kind !== "monster" && actor.kind !== "ally") continue;
-      if (!actor.summonedTorrentTiles || actor.summonedTorrentTiles.length === 0) continue;
-      const remaining: { pos: Vec2; expiresIn: number }[] = [];
-      for (const entry of actor.summonedTorrentTiles) {
-        entry.expiresIn--;
-        if (entry.expiresIn <= 0) {
-          const tile = tileAt(this.floor, entry.pos);
-          if (tile) tile.torrent = undefined;
-        } else {
-          remaining.push(entry);
-        }
-      }
-      actor.summonedTorrentTiles = remaining;
-    }
-  }
-
-  /**
-   * ぬしのゆめわざ「ホネのとりで」(plan/game/archive/boss-dream-arts.md)で
-   * 一時的に壁化したタイルを、毎ターンexpiresInぶん減らし、0になったら
-   * 元のTileKindに戻す。tickSummonedTorrentTilesと同じ形
-   */
-  private tickBoneWalls(): void {
-    for (const actor of this.floor.actors) {
-      if (actor.kind !== "monster" && actor.kind !== "ally") continue;
-      if (!actor.boneWallTiles || actor.boneWallTiles.length === 0) continue;
-      const remaining: { pos: Vec2; expiresIn: number; originalKind: Tile["kind"] }[] = [];
-      for (const entry of actor.boneWallTiles) {
-        entry.expiresIn--;
-        if (entry.expiresIn <= 0) {
-          const tile = tileAt(this.floor, entry.pos);
-          if (tile) tile.kind = entry.originalKind;
-        } else {
-          remaining.push(entry);
-        }
-      }
-      actor.boneWallTiles = remaining;
-    }
-  }
-
-  /**
-   * 地方ボス(plan/region-boss-misemonononushi.md): 幻影を呼び出してから
-   * 一定ターン(既定5)経過しても本体を当てられない場合、幻影が自然に消えて
-   * 通常状態へ戻る(膠着状態を防ぐ安全弁)
-   */
-  private tickMirrors(events: GameEvent[]): void {
-    for (const actor of this.floor.actors) {
-      if (actor.kind !== "monster") continue;
-      if (actor.mirrorTurnsLeft === undefined) continue;
-      actor.mirrorTurnsLeft--;
-      if (actor.mirrorTurnsLeft > 0) continue;
-      actor.mirrorTurnsLeft = undefined;
-      const hadMirrors = this.floor.actors.some((a) => a.kind === "monster" && a.mirrorOf === actor.id);
-      this.floor.actors = this.floor.actors.filter((a) => a.kind !== "monster" || a.mirrorOf !== actor.id);
-      if (hadMirrors) events.push({ type: "message", text: "幻影が薄れて消えていった……" });
-    }
-  }
-
-  /**
-   * 部屋の在室者全員(敵味方問わず)に状態異常を判定する。plan/spore-grove.md の
-   * 胞子部屋パルス、plan/region-boss-oomadoromi.md の大技(aoeSleep)、
-   * plan/region-boss-honezuka.md の大技(aoeSeal)で共有する
-   */
-  private applyRoomWideStatus(
-    occupants: readonly Actor[],
-    kind: StatusKind,
-    chance: number,
-    turns: number,
-    verb: string,
-    events: GameEvent[],
-  ): void {
-    for (const actor of occupants) {
-      if (!actor.alive || !this.rng.chance(chance)) continue;
-      addStatus(this.effectContext(events), actor, kind, turns, verb);
-    }
-  }
-
   // ------------------------------------------------------------ 補助
 
   private effectContext(events: GameEvent[]): EffectContext {
@@ -3069,7 +2896,7 @@ export class Game {
       ids: this.ids,
       events,
       applyRoomWideStatus: (occupants, kind, chance, turns, verb, evts) =>
-        this.applyRoomWideStatus(occupants, kind, chance, turns, verb, evts),
+        domainApplyRoomWideStatus({ rng: this.rng, floor: this.floor, player: this.player, events: evts }, occupants, kind, chance, turns, verb),
       freeSpotNear: (center) => this.freeSpotNear(center),
       damageActor: (target, damage, critical, evts) => this.damageActor(target, damage, critical, evts),
       isGameOver: () => this.status !== "playing",
@@ -3105,38 +2932,16 @@ export class Game {
         this.partyGuardTurns = Math.max(this.partyGuardTurns, turns);
       },
       applyRoomWideStatus: (occupants, kind, chance, turns, verb, evts) =>
-        this.applyRoomWideStatus(occupants, kind, chance, turns, verb, evts),
-      placeTemporaryWall: (pos, turns) => this.placeTemporaryWall(actor, pos, turns),
-      digWall: (pos) => this.digWall(pos),
+        domainApplyRoomWideStatus({ rng: this.rng, floor: this.floor, player: this.player, events: evts }, occupants, kind, chance, turns, verb),
+      placeTemporaryWall: (pos, turns) => domainPlaceTemporaryWall(this.floor, actor, pos, turns),
+      digWall: (pos) => domainDigWall(this.floor, pos),
       extendEchoAttack: (turns) => {
         this.echoAttackTurns = Math.max(this.echoAttackTurns, turns);
       },
     };
   }
 
-  /**
-   * ぬしのゆめわざ「ホネのとりで」。指定マスを一時的に壁化する。既に壁・
-   * アクター・タルがあるマスには置けない(actorのboneWallTilesに記録し、
-   * tickBoneWallsが元に戻す)
-   */
-  private placeTemporaryWall(actor: CombatantActor, pos: Vec2, turns: number): boolean {
-    const tile = tileAt(this.floor, pos);
-    if (!tile || tile.kind === TILE_WALL) return false;
-    if (actorAt(this.floor, pos) || barrelAt(this.floor, pos)) return false;
-    actor.boneWallTiles ??= [];
-    actor.boneWallTiles.push({ pos: { ...pos }, expiresIn: turns, originalKind: tile.kind });
-    tile.kind = TILE_WALL;
-    return true;
-  }
-
-  /**
-   * ぬしのゆめわざ「つらぬき掘り」。壁タイルを通路に変える。
-   * plan/lost-and-found-vault.mdの隠し通路が崩れる処理と同じ形
-   */
-  private digWall(pos: Vec2): void {
-    const tile = tileAt(this.floor, pos);
-    if (tile) tile.kind = TILE_CORRIDOR;
-  }
+  // placeTemporaryWall/digWallはdomain/dungeon/floorGimmicks.tsへ移動した
 
   /** テストとデバッグ用。指定した種類のアイテムを持ち物に足す */
   giveItem(defId: string): Item | null {
