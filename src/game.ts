@@ -23,7 +23,6 @@ import {
   type Barrel,
   type BarrelKind,
   type CombatantActor,
-  type DreamArtId,
   type FieldSkillId,
   type FloorGimmickKind,
   type FloorState,
@@ -59,7 +58,6 @@ import { GIMMICK_MESSAGES, pickFloorGimmick } from "./dungeon/gimmicks";
 import {
   type IdSource,
   choosePlayerStart,
-  createAlly,
   createAllyFromStored,
   createBarrel,
   createItem,
@@ -118,9 +116,7 @@ import {
 import { HAJIME_NO_YUME_ID, REGION_BOSS_ORDER, speciesById } from "./entities/species";
 import { REGIONS, regionByIndex } from "./entities/regions";
 import { type BondStage, bondStage } from "./entities/companionBond";
-import { gainAllyExp } from "./entities/companionGrowth";
-import { dreamArtDef } from "./entities/dreamArts";
-import { HONOKA_NA_AKARI_VISION_EXTRA, type DreamArtContext } from "./systems/dreamArtEffects";
+import { HONOKA_NA_AKARI_VISION_EXTRA, type DreamArtContext } from "./domain/party/dreamArtEffects";
 import { itemDef } from "./items/catalog";
 import { type EffectContext, addStatus, applyEffect } from "./items/effects";
 import {
@@ -173,6 +169,8 @@ import {
   resolveSkillChoice as domainResolveSkillChoice,
   type SkillChoiceState,
 } from "./domain/player/runSkills";
+import { recruitFromBarrel as domainRecruitFromBarrel } from "./domain/party/recruit";
+import { tickAllyDreamArts as domainTickAllyDreamArts } from "./domain/party/dreamArts";
 
 /** 双樽鉤(quickSingle)の会心率の上乗せ分 */
 const QUICK_SINGLE_CRIT_BONUS = 0.15;
@@ -2093,31 +2091,11 @@ export class Game {
       barrel,
       landing,
       events,
-      recruitFromBarrel: (b, spot) => this.recruitFromBarrel(b, spot, events),
+      recruitFromBarrel: (b, spot) =>
+        domainRecruitFromBarrel({ floor: this.floor, barrel: b, spot, allies: this.allies, ids: this.ids, events }),
     });
   }
 
-  /**
-   * 仲間化(パーティへの加入処理、Phase 5のParty domainの領分)。捕獲(タルから
-   * 中身が出てくるところ)とはreleaseFromBarrelの中で境界を切ってある
-   */
-  private recruitFromBarrel(barrel: Barrel, spot: Vec2, events: GameEvent[]): void {
-    if (barrel.speciesId === undefined) return;
-    if (this.allies.length >= MAX_ALLIES) {
-      events.push({ type: "message", text: "これ以上は連れて歩けない。" });
-      return;
-    }
-
-    const species = speciesById(barrel.speciesId);
-    const ally = createAlly(this.ids.nextActorId(), species, spot);
-    this.allies.push(ally);
-    this.floor.actors.push(ally);
-    events.push({ type: "spawn", actorId: ally.id });
-    events.push({ type: "recruit", actorId: ally.id, name: ally.name });
-    events.push({ type: "message", text: t("msg.recruit", { name: ally.name }) });
-    events.push({ type: "tutorialTip", id: "capture" });
-    if (this.allies.length === 2) events.push({ type: "tutorialTip", id: "allyOrders" });
-  }
 
   private movePlayer(dir: Dir, events: GameEvent[]): boolean {
     const player = this.player;
@@ -2426,7 +2404,8 @@ export class Game {
           isPlaying: () => this.status === "playing",
           damageActor: (target, dmg, crit) => this.damageActor(target, dmg, crit, events),
           pushMonster: (dir2, target, evts) => this.pushMonster(dir2, target, evts),
-          recruitFromBarrel: (b, spot) => this.recruitFromBarrel(b, spot, events),
+          recruitFromBarrel: (b, spot) =>
+        domainRecruitFromBarrel({ floor: this.floor, barrel: b, spot, allies: this.allies, ids: this.ids, events }),
           setLightBarrelTurns: (turns) => {
             this.lightBarrelTurns = Math.max(this.lightBarrelTurns, turns);
           },
@@ -2514,7 +2493,6 @@ export class Game {
       removeAlly: (id) => {
         this.allies = this.allies.filter((a) => a.id !== id);
       },
-      gainAllyExpFromKill: (exp) => this.gainAllyExpFromKill(exp, events),
       onLevelUp: (levels) => {
         // レベルアップ時のスキル選択(plan/game/archive/run-build-skills.md):
         // 1手で複数レベル上がっても、選択肢は1レベルぶんずつ順番に出す
@@ -2522,33 +2500,6 @@ export class Game {
         this.offerNextSkillChoice(events);
       },
     });
-  }
-
-  /**
-   * 仲間の経験値・レベルアップ(plan/game/archive/companion-leveling-and-arts.md)。
-   * killActorから、ガルドの経験値取得と同じタイミングで呼ばれる
-   */
-  private gainAllyExpFromKill(playerExp: number, events: GameEvent[]): void {
-    const allyExp = Math.round(playerExp * 0.5);
-    if (allyExp <= 0) return;
-    for (const actor of this.floor.actors) {
-      if (actor.kind !== "ally" || !actor.alive) continue;
-      const result = gainAllyExp(actor, allyExp);
-      if (result.levelsGained > 0) {
-        events.push({ type: "levelUp", actorId: actor.id, level: actor.level });
-        events.push({
-          type: "message",
-          text: t("msg.allyLevelUp", { name: displayActorName(actor), level: actor.level }),
-        });
-      }
-      for (const learned of result.learnedDreamArts) {
-        events.push({ type: "dreamArtLearned", actorId: actor.id, id: learned.id, level: learned.level });
-        events.push({
-          type: "message",
-          text: `${displayActorName(actor)}は『${dreamArtDef(learned.id).name}』をゆめみた!`,
-        });
-      }
-    }
   }
 
   /**
@@ -3000,16 +2951,7 @@ export class Game {
       this.lightBarrelTurns--;
       if (this.lightBarrelTurns === 0) events.push({ type: "message", text: "光タルの明かりが消えた。" });
     }
-    for (const actor of this.floor.actors) {
-      if (actor.kind !== "ally") continue;
-      if (actor.dreamArtCooldowns) {
-        for (const id of Object.keys(actor.dreamArtCooldowns) as DreamArtId[]) {
-          const remaining = actor.dreamArtCooldowns[id] ?? 0;
-          if (remaining > 0) actor.dreamArtCooldowns[id] = remaining - 1;
-        }
-      }
-      if ((actor.defBuffTurns ?? 0) > 0) actor.defBuffTurns!--;
-    }
+    domainTickAllyDreamArts(this.floor);
   }
 
   /**
@@ -3134,7 +3076,7 @@ export class Game {
     };
   }
 
-  /** ゆめわざ(systems/dreamArtEffects.tsのDREAM_ART_EFFECTS)に渡す、narrowなGameアクセス */
+  /** ゆめわざ(domain/party/dreamArtEffects.tsのDREAM_ART_EFFECTS)に渡す、narrowなGameアクセス */
   private dreamArtContext(actor: AllyActor, events: GameEvent[]): DreamArtContext {
     return {
       actor,

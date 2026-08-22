@@ -53,7 +53,7 @@ export type MonsterAction =
   | { type: "burrowSurface"; to: Vec2 }
   /**
    * ゆめわざ(plan/game/archive/companion-leveling-and-arts.md)。仲間モンスターだけが
-   * 選べる。種類ごとの実装は systems/dreamArtEffects.ts の DREAM_ART_EFFECTS
+   * 選べる。種類ごとの実装は domain/party/dreamArtEffects.ts の DREAM_ART_EFFECTS
    * レジストリにある(bossMoveと同じ構成)
    */
   | { type: "dreamArt"; id: DreamArtId; targetId?: number };
