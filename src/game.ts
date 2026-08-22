@@ -121,7 +121,7 @@ import {
   captureOutlookFor,
   resolveEmptyBarrel as domainResolveEmptyBarrel,
 } from "./domain/barrel/barrelCapture";
-import type { BossMoveContext } from "./systems/bossMoves";
+import type { BossMoveContext } from "./domain/dungeon/bossMoves";
 import { damageActor as domainDamageActor, killActor as domainKillActor } from "./domain/turn/damage";
 import { attack as domainAttack } from "./domain/turn/attackResolution";
 import { applyTorrentPush as domainApplyTorrentPush, pushMonster as domainPushMonster } from "./domain/turn/actorActions";
@@ -2488,7 +2488,7 @@ export class Game {
     return { rng: this.rng, floor: this.floor, player: this.player, events };
   }
 
-  /** 地方ボスの大技(systems/bossMoves.tsのBOSS_MOVES)に渡す、narrowなGameアクセス */
+  /** 地方ボスの大技(domain/dungeon/bossMoves.tsのBOSS_MOVES)に渡す、narrowなGameアクセス */
   private bossMoveContext(actor: MonsterActor, events: GameEvent[]): BossMoveContext {
     return {
       actor,

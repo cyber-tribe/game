@@ -163,7 +163,7 @@ export type AiKind =
  * 発動ターンでcrackWarningの立つマスにいる全アクターへダメージを
  * 適用し、その後crackWarningを解除する(plan/region-boss-horikuinonushi.md)。
  *
- * "targetedStrike"以外の実装は systems/bossMoves.ts の BOSS_MOVES レジストリに
+ * "targetedStrike"以外の実装は domain/dungeon/bossMoves.ts の BOSS_MOVES レジストリに
  * 集約している(1種類=1エントリ。ボス追加時にここへ足すだけでよい)
  */
 export type BossMoveId =

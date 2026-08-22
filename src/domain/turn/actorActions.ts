@@ -27,7 +27,7 @@ import { totalDefense } from "../../entities/player";
 import { displayActorName } from "../../entities/naming";
 import { isVisible } from "../../dungeon/visibility";
 import { DREAM_ART_EFFECTS, type DreamArtContext } from "../party/dreamArtEffects";
-import { BOSS_MOVES, type BossMoveContext } from "../../systems/bossMoves";
+import { BOSS_MOVES, type BossMoveContext } from "../dungeon/bossMoves";
 import { computeDamage } from "../combat/damageCalculation";
 import { mitigateIncomingDamage } from "../combat/damageModifier";
 import { attack, attemptSteal } from "./attackResolution";
@@ -279,7 +279,7 @@ export function executeMonsterAction(
     }
     case "bossMove": {
       // 地方ボス(plan/region-bosses.md): 予兆を消費した大技本体。種類ごとの
-      // 実装は systems/bossMoves.ts の BOSS_MOVES レジストリに集約している
+      // 実装は domain/dungeon/bossMoves.ts の BOSS_MOVES レジストリに集約している
       // (大技はdecideMonsterActionだけが生成するため、実際にはactorは常にmonster)
       if (actor.kind !== "monster") break;
       BOSS_MOVES[action.moveId].execute(buildBossMoveContext(actor));

@@ -25,14 +25,14 @@ import {
   actorAt,
   roomContains,
   tileAt,
-} from "../core/types";
-import type { GameEvent } from "../core/events";
-import { type Vec2, dirFromDelta } from "../core/grid";
-import type { Rng } from "../core/rng";
-import { type IdSource, createMonster } from "../dungeon/populate";
-import { displayActorName } from "../entities/naming";
-import { speciesById } from "../entities/species";
-import { computeDamage } from "../domain/combat/damageCalculation";
+} from "../../core/types";
+import type { GameEvent } from "../../core/events";
+import { type Vec2, dirFromDelta } from "../../core/grid";
+import type { Rng } from "../../core/rng";
+import { type IdSource, createMonster } from "../../dungeon/populate";
+import { displayActorName } from "../../entities/naming";
+import { speciesById } from "../../entities/species";
+import { computeDamage } from "../combat/damageCalculation";
 
 /**
  * 第三地方ボス(plan/region-boss-oomadoromi.md)の大技(aoeSleep)。
