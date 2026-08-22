@@ -1,4 +1,5 @@
 import { dirDelta, type Dir, type Vec2 } from "./grid";
+import type { Rng } from "./rng";
 
 export const TILE_WALL = 0;
 export const TILE_ROOM = 1;
@@ -911,6 +912,22 @@ export function barrelAt(floor: FloorState, p: Vec2): Barrel | undefined {
 /** 誰かが立てるマスか。壁でなく、アクターもタルも載っていないこと */
 export function isFree(floor: FloorState, p: Vec2): boolean {
   return walkableAt(floor, p) && !actorAt(floor, p) && !barrelAt(floor, p);
+}
+
+/** center を中心に、近い輪から順に空いているマスを探す。無ければnull */
+export function freeSpotNear(floor: FloorState, rng: Rng, center: Vec2, maxRing = 3): Vec2 | null {
+  for (let ring = 1; ring <= maxRing; ring++) {
+    const candidates: Vec2[] = [];
+    for (let dy = -ring; dy <= ring; dy++) {
+      for (let dx = -ring; dx <= ring; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== ring) continue;
+        const p = { x: center.x + dx, y: center.y + dy };
+        if (isFree(floor, p)) candidates.push(p);
+      }
+    }
+    if (candidates.length > 0) return rng.pick(candidates);
+  }
+  return null;
 }
 
 export function roomOf(floor: FloorState, p: Vec2): Room | undefined {
