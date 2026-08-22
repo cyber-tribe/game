@@ -1,5 +1,6 @@
 import { Rng } from "./core/rng";
 import { OncePerRunTracker } from "./core/oncePerRunTracker";
+import { TARUKURABE_PERFECT_SCORE, type RunSnapshot, type RunStatus } from "./core/runSnapshot";
 import {
   ALL_DIRS,
   type Dir,
@@ -283,40 +284,7 @@ export interface RunOptions {
   moodOverride?: MoodId;
 }
 
-export type RunStatus = "playing" | "dead" | "cleared";
-
-/**
- * ダイブ中オートセーブのスナップショット。ターン解決のたびに書き出し、
- * 復帰した瞬間に消費される「1回限りのクラッシュ対策」(plan/mid-dive-autosave.md)。
- * `previousGimmick`・`monsterHouseWarned`・`firstStrikeAvailable` のような
- * 演出寄りの内部状態は含めない(復帰時は初期値からやり直しても実害が小さいため)。
- */
-export interface RunSnapshot {
-  rngState: number;
-  maxDepth: number;
-  depth: number;
-  floor: FloorState;
-  player: PlayerState;
-  allies: AllyActor[];
-  status: RunStatus;
-  turnCount: number;
-  endReason: string;
-  actorIdCounter: number;
-  itemUidCounter: number;
-  barrelIdCounter: number;
-  /** 鍛え方(plan/protagonist-training.md)。復帰後もこのダイブの方針を引き継ぐ */
-  trainingFocus: TrainingFocus;
-  /** 潜っているダンジョン(plan/multiple-dungeons.md)。復帰後の階移動で出現テーブルを揃えるのに使う */
-  dungeonId: string;
-  /** 樽比べ(plan/tarukurabe-minigame.md)。専用モード中でなければ常に既定値 */
-  tarukurabeScore: number;
-  tarukurabeBarrelsLeft: number;
-  tarukurabeScoredLanes: number[];
-  /** レベルアップ時のスキル選択(plan/game/archive/run-build-skills.md)。ダイブ限り */
-  runSkills: RunSkillId[];
-  pendingSkillChoice: RunSkillId[] | null;
-  pendingLevelUpChoices: number;
-}
+export type { RunSnapshot, RunStatus } from "./core/runSnapshot";
 
 /**
  * 草を「使った」ときに満腹度も少し回復する(plan/herb-satiety-bonus.md)。
@@ -390,13 +358,7 @@ const TARUKURABE_BARREL_COUNT = 10;
  * タルの飛距離を伸ばす(他のダイブの投擲距離には一切影響しない)
  */
 const TARUKURABE_THROW_RANGE = 9;
-/**
- * 満点。的の配点(近1・中2・遠3)の合計と一致させている。計画書の報酬節は
- * 「満点9点」としていたが、配点表(本文書内で「確定」扱い)と整合しないため、
- * 配点表を正としてこちらを6に読み替えた(詳細はアーカイブノート参照)。
- * save.ts(実績・報酬判定)からも参照するためexportする
- */
-export const TARUKURABE_PERFECT_SCORE = 6;
+export { TARUKURABE_PERFECT_SCORE };
 
 interface TarukurabeTargetLayout {
   /** 部屋のローカル座標(プレイヤーの投擲台を基準にした相対値ではなく絶対値) */
