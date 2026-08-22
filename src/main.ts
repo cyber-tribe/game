@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { Game, type Command, type RunSnapshot, type TestFloorInjection } from "./application/dungeonRun/game";
+import { Rng } from "./core/rng";
 import { knownBarrelArt } from "./entities/dreamArts";
 import type { GameEvent } from "./core/events";
 import { splitEventsAtRecruits } from "./core/events";
@@ -147,10 +148,47 @@ type SubmitEventHandlers = {
 /**
  * テスト用の箱庭(plan/game/test-dungeon-harness.md)。MODE==="test"の
  * ときだけ`window.__testHarness`として生える。Playwrightのテストが
- * これ経由でASCIIマップ由来のFloorStateを注入してダイブを開始する
+ * これ経由でASCIIマップ由来のFloorStateを注入してダイブを開始する。
+ *
+ * `rng`だけTestFloorInjectionそのもの(Rngインスタンス)ではなく、
+ * この簡易仕様で渡す: Playwrightの`page.evaluate`はNode↔ブラウザの
+ * 境界を挟むため、渡した値はプロトタイプを失った単なるデータになる
+ * (メソッドが消え、`Rng`のインスタンスとしては動かない)。そのため
+ * ブラウザ側(このファイル)でRngを組み立て直す
  */
+interface SerializableRngSpec {
+  kind: "seeded" | "enumerated";
+  /** kind: "seeded" のとき使う。省略時は0 */
+  seed?: number;
+  /** kind: "enumerated" のとき使う。next()が返す値の列。使い切ると先頭に戻る */
+  values?: number[];
+}
+type InjectedRunPayload = Omit<TestFloorInjection, "rng"> & { rng?: SerializableRngSpec };
+
 interface TestHarness {
-  startInjectedRun: (injection: TestFloorInjection) => void;
+  startInjectedRun: (payload: InjectedRunPayload) => void;
+}
+
+/**
+ * tests/harness/rng.ts の EnumeratedRng と同じ考え方(next()が返す値を
+ * 列で固定する)だが、src/はtests/をimportできない(tests/architecture.test.ts
+ * の受け入れ基準4)ため、ブラウザ側の再構築用に同じ実装をここに持つ
+ */
+class InjectedEnumeratedRng extends Rng {
+  private cursor = 0;
+  constructor(private readonly values: readonly number[]) {
+    super(1);
+  }
+  override next(): number {
+    const v = this.values[this.cursor % this.values.length] ?? 0.5;
+    this.cursor += 1;
+    return v;
+  }
+}
+
+function buildInjectedRng(spec: SerializableRngSpec | undefined): Rng | undefined {
+  if (!spec) return undefined;
+  return spec.kind === "seeded" ? new Rng(spec.seed ?? 0) : new InjectedEnumeratedRng(spec.values ?? []);
 }
 
 class App {
@@ -766,7 +804,19 @@ class App {
     this.diveReachedDepths = [];
     this.game = new Game({ seed: 0, testFloorInjection: injection });
     this.presentFloor();
+    // 通常はbeginWithSlot()がスロット選択の直後に1回だけthis.loop()を呼び、
+    // requestAnimationFrameの自己連鎖を起動する。箱庭注入はそのスロット選択
+    // 自体を経由しないため、ここで代わりに起動しないと入力・描画が一切
+    // 進まない(盤面は組み上がるが、キー/タップを送っても何も起きない)。
+    // 2回目以降の注入(同じページ内で複数回startInjectedRunを呼ぶテスト)で
+    // 二重に連鎖が走らないよう、初回だけ起動する
+    if (!this.testLoopStarted) {
+      this.testLoopStarted = true;
+      this.loop();
+    }
   }
+
+  private testLoopStarted = false;
 
   /**
    * ダイブ中オートセーブ(plan/mid-dive-autosave.md)からの復帰。
@@ -1970,7 +2020,8 @@ const app = new App();
 // (通常プレイのUIからもここへ辿る導線は無い)
 if (import.meta.env.MODE === "test") {
   (globalThis as unknown as { __testHarness: TestHarness }).__testHarness = {
-    startInjectedRun: (injection: TestFloorInjection) => app.startInjectedTestRun(injection),
+    startInjectedRun: (payload: InjectedRunPayload) =>
+      app.startInjectedTestRun({ ...payload, rng: buildInjectedRng(payload.rng) }),
   };
 }
 
