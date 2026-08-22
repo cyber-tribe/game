@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 import { addItem, equip } from "../src/domain/item/inventory";
 import type { Actor } from "../src/core/types";
 import { mitigateIncomingDamage as domainMitigateIncomingDamage } from "../src/domain/combat/damageModifier";

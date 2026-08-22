@@ -3,7 +3,7 @@ import type { Actor } from "../src/core/types";
 import type { GameEvent } from "../src/core/events";
 import type { OncePerRunTracker } from "../src/core/oncePerRunTracker";
 import { EVOLUTION_RULES, MAX_RECENT_FUSION_MATERIALS, tryEvolve } from "../src/entities/evolution";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 import { speciesById } from "../src/entities/species";
 import { mitigateIncomingDamage as domainMitigateIncomingDamage } from "../src/domain/combat/damageModifier";
 import { fuseMonsters, initialSave, type StoredMonster } from "../src/save";

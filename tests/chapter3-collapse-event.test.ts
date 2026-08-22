@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { placeChapter3CollapseObstacle } from "../src/domain/dungeon/populate";
 import { REGION_DUNGEON_IDS, REGION_SIZE, isChapter3CollapseFloor } from "../src/entities/dungeons";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 import { TILE_ROOM, TILE_WALL, TILE_CORRIDOR, type FloorState, type Tile } from "../src/core/types";
 
 /** 骨積みの回廊(第四地方)ダンジョンid */

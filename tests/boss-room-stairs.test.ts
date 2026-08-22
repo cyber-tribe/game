@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { walkableAt } from "../src/core/types";
 import type { MonsterActor } from "../src/core/types";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 import { access } from "./helpers/access";
 
 describe("core/types.ts: walkableAt - ボスの間の階段", () => {

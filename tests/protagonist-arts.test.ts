@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 import { ARTS, artsForLevel } from "../src/entities/arts";
 import { isFree, type MonsterActor } from "../src/core/types";
 import { captureChance } from "../src/domain/barrel/barrelCapture";

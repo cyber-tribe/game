@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AllyActor, MonsterActor } from "../src/core/types";
 import { STATUS_CONFUSE, STATUS_POISON } from "../src/core/types";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 
 /**
  * DDD Phase 4(plan/game/ddd-phase4-turn-resolution.md)のゴールデンテスト。

@@ -3,7 +3,7 @@ import type { Actor } from "../src/core/types";
 import type { GameEvent } from "../src/core/events";
 import { addStatus, type EffectContext } from "../src/domain/item/effects";
 import { EVOLUTION_RULES, tryEvolve } from "../src/entities/evolution";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 import { speciesById } from "../src/entities/species";
 import type { StoredMonster } from "../src/save";
 

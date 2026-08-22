@@ -5,7 +5,7 @@ import {
   dungeonById,
   isCheckpointFloor,
 } from "../src/entities/dungeons";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 import { initialSave, recordHinataClear } from "../src/save";
 
 describe("entities/dungeons.ts: ひなたの寝穴(plan/game/tutorial-dungeon.md)", () => {

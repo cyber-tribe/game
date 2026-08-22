@@ -1,4 +1,4 @@
-import type { Command } from "../game";
+import type { Command } from "../application/dungeonRun/game";
 import type { PlayerState } from "../entities/player";
 import { t } from "../i18n";
 import { itemDef } from "../entities/itemCatalog";

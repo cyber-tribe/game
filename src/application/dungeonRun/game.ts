@@ -1,6 +1,6 @@
-import { Rng } from "./core/rng";
-import { OncePerRunTracker } from "./core/oncePerRunTracker";
-import { TARUKURABE_PERFECT_SCORE, type RunSnapshot, type RunStatus } from "./core/runSnapshot";
+import { Rng } from "../../core/rng";
+import { OncePerRunTracker } from "../../core/oncePerRunTracker";
+import { TARUKURABE_PERFECT_SCORE, type RunSnapshot, type RunStatus } from "../../core/runSnapshot";
 import {
   type Dir,
   type Vec2,
@@ -8,8 +8,8 @@ import {
   dirDelta,
   dirFromDelta,
   eq,
-} from "./core/grid";
-import type { GameEvent } from "./core/events";
+} from "../../core/grid";
+import type { GameEvent } from "../../core/events";
 import {
   STATUS_CONFUSE,
   STATUS_INVISIBLE,
@@ -36,9 +36,9 @@ import {
   isHostile,
   roomContains,
   walkableAt,
-} from "./core/types";
-import { type ArtId } from "./entities/arts";
-import { useArt as domainUseArt } from "./domain/player/arts";
+} from "../../core/types";
+import { type ArtId } from "../../entities/arts";
+import { useArt as domainUseArt } from "../../domain/player/arts";
 import {
   type IdSource,
   createAllyFromStored,
@@ -46,20 +46,20 @@ import {
   createItem,
   findFreeTile,
   spawnWanderingMonster,
-} from "./domain/dungeon/populate";
-import { displayActorName } from "./entities/naming";
-import { ALLY_STANCE_NAMES, barrelDisplayName } from "./entities/displayNames";
+} from "../../domain/dungeon/populate";
+import { displayActorName } from "../../entities/naming";
+import { ALLY_STANCE_NAMES, barrelDisplayName } from "../../entities/displayNames";
 import {
   isCheckpointFloor,
   type DungeonDef,
   REGION_DUNGEON_IDS,
   TARUKURABE_ID,
   dungeonById,
-} from "./entities/dungeons";
-import { DEFAULT_MOOD_ID, type MoodDef, type MoodId, moodDef } from "./entities/moods";
-import type { StoredMonster } from "./entities/storedMonster";
-import { isVisible, updateVisibility } from "./domain/dungeon/visibility";
-import type { DifficultyMode } from "./entities/difficulty";
+} from "../../entities/dungeons";
+import { DEFAULT_MOOD_ID, type MoodDef, type MoodId, moodDef } from "../../entities/moods";
+import type { StoredMonster } from "../../entities/storedMonster";
+import { isVisible, updateVisibility } from "../../domain/dungeon/visibility";
+import type { DifficultyMode } from "../../entities/difficulty";
 import {
   MAX_ALLIES,
   MAX_SATIETY,
@@ -67,15 +67,15 @@ import {
   type TrainingFocus,
   createPlayer,
   totalAttack,
-} from "./entities/player";
-import { HONOKA_NA_AKARI_VISION_EXTRA, type DreamArtContext } from "./domain/party/dreamArtEffects";
-import { itemDef } from "./entities/itemCatalog";
-import { type EffectContext, addStatus } from "./domain/item/effects";
+} from "../../entities/player";
+import { HONOKA_NA_AKARI_VISION_EXTRA, type DreamArtContext } from "../../domain/party/dreamArtEffects";
+import { itemDef } from "../../entities/itemCatalog";
+import { type EffectContext, addStatus } from "../../domain/item/effects";
 import {
   type ItemActionContext,
   throwItem as domainThrowItem,
   useItem as domainUseItem,
-} from "./domain/item/itemActions";
+} from "../../domain/item/itemActions";
 import {
   addItem,
   displayName,
@@ -85,12 +85,12 @@ import {
   hasEquipEffect,
   isFull,
   removeItem,
-} from "./domain/item/inventory";
-import { attackOffsets } from "./domain/combat/attackPattern";
-import { computeDamage } from "./domain/combat/damageCalculation";
-import { barrelThrowDamage, mitigateIncomingDamage } from "./domain/combat/damageModifier";
-import { BARREL_RANGE, LIGHT_CARRY_RANGE_BONUS, traceThrow } from "./domain/barrel/barrelThrow";
-import { releaseFromBarrel as domainReleaseFromBarrel } from "./domain/barrel/barrelDrop";
+} from "../../domain/item/inventory";
+import { attackOffsets } from "../../domain/combat/attackPattern";
+import { computeDamage } from "../../domain/combat/damageCalculation";
+import { barrelThrowDamage, mitigateIncomingDamage } from "../../domain/combat/damageModifier";
+import { BARREL_RANGE, LIGHT_CARRY_RANGE_BONUS, traceThrow } from "../../domain/barrel/barrelThrow";
+import { releaseFromBarrel as domainReleaseFromBarrel } from "../../domain/barrel/barrelDrop";
 import {
   LIGHT_BARREL_CONFUSE_TURNS,
   SLEEP_BARREL_SLEEP_TURNS,
@@ -98,52 +98,52 @@ import {
   WATER_BARREL_DAMAGE_MULTIPLIER,
   WIND_BARREL_PUSH_DISTANCE,
   applyElementalBarrelHit,
-} from "./domain/barrel/barrelElemental";
+} from "../../domain/barrel/barrelElemental";
 import {
   LIGHT_BARREL_OPEN_TURNS,
   openSleepBarrel,
   openStoneBarrel,
   openWaterBarrel,
   openWindBarrel,
-} from "./domain/barrel/barrelOpen";
-import { burstBarrel as domainBurstBarrel, explode as domainExplode } from "./domain/barrel/barrelExplosion";
+} from "../../domain/barrel/barrelOpen";
+import { burstBarrel as domainBurstBarrel, explode as domainExplode } from "../../domain/barrel/barrelExplosion";
 import {
   type CaptureOutlook,
   captureOutlookFor,
   resolveEmptyBarrel as domainResolveEmptyBarrel,
-} from "./domain/barrel/barrelCapture";
-import type { BossMoveContext } from "./domain/dungeon/bossMoves";
-import { damageActor as domainDamageActor, killActor as domainKillActor } from "./domain/turn/damage";
-import { attack as domainAttack } from "./domain/turn/attackResolution";
-import { pushMonster as domainPushMonster } from "./domain/turn/actorActions";
-import { movePlayer as domainMovePlayer } from "./domain/turn/movement";
+} from "../../domain/barrel/barrelCapture";
+import type { BossMoveContext } from "../../domain/dungeon/bossMoves";
+import { damageActor as domainDamageActor, killActor as domainKillActor } from "../../domain/turn/damage";
+import { attack as domainAttack } from "../../domain/turn/attackResolution";
+import { pushMonster as domainPushMonster } from "../../domain/turn/actorActions";
+import { movePlayer as domainMovePlayer } from "../../domain/turn/movement";
 import {
   type TarukurabeContext,
   enterTarukurabeFloor as domainEnterTarukurabeFloor,
   finishTarukurabeThrow as domainFinishTarukurabeThrow,
   resolveTarukurabeHit as domainResolveTarukurabeHit,
-} from "./domain/tarukurabe/tarukurabe";
+} from "../../domain/tarukurabe/tarukurabe";
 import {
   type ShopContext,
   checkShoplifting as domainCheckShoplifting,
   sellItem as domainSellItem,
-} from "./domain/dungeon/shop";
+} from "../../domain/dungeon/shop";
 import {
   type StoryMomentsContext,
   maybePlayMountainCoreEnding as domainMaybePlayMountainCoreEnding,
   trueAwakeningEnding as domainTrueAwakeningEnding,
-} from "./application/dungeonRun/storyMoments";
-import { resolveCommandDispatch } from "./application/dungeonRun/commands";
-import { resolveTurn as domainResolveTurn, upkeep as domainUpkeep } from "./domain/turn/turnCycle";
+} from "./storyMoments";
+import { resolveCommandDispatch } from "./commands";
+import { resolveTurn as domainResolveTurn, upkeep as domainUpkeep } from "../../domain/turn/turnCycle";
 import {
   createSkillChoiceState,
   isAwaitingSkillChoice,
   offerNextSkillChoice as domainOfferNextSkillChoice,
   resolveSkillChoice as domainResolveSkillChoice,
   type SkillChoiceState,
-} from "./domain/player/runSkills";
-import { recruitFromBarrel as domainRecruitFromBarrel } from "./domain/party/recruit";
-import { tickAllyDreamArts as domainTickAllyDreamArts } from "./domain/party/dreamArts";
+} from "../../domain/player/runSkills";
+import { recruitFromBarrel as domainRecruitFromBarrel } from "../../domain/party/recruit";
+import { tickAllyDreamArts as domainTickAllyDreamArts } from "../../domain/party/dreamArts";
 import {
   adjacentFreeSpot as domainAdjacentFreeSpot,
   applyRoomWideStatus as domainApplyRoomWideStatus,
@@ -153,8 +153,8 @@ import {
   tickMirrors as domainTickMirrors,
   tickSporeRooms as domainTickSporeRooms,
   tickSummonedTorrentTiles as domainTickSummonedTorrentTiles,
-} from "./domain/dungeon/floorGimmicks";
-import { alertNearbyMonsters as domainAlertNearbyMonsters, checkTrap as domainCheckTrap } from "./domain/dungeon/traps";
+} from "../../domain/dungeon/floorGimmicks";
+import { alertNearbyMonsters as domainAlertNearbyMonsters, checkTrap as domainCheckTrap } from "../../domain/dungeon/traps";
 import {
   announceGround as domainAnnounceGround,
   bankRun as domainBankRun,
@@ -164,14 +164,14 @@ import {
   descend as domainDescend,
   openDoor as domainOpenDoor,
   regionGimmickApplies as domainRegionGimmickApplies,
-} from "./domain/dungeon/progression";
+} from "../../domain/dungeon/progression";
 import {
   beginBranchDungeon as domainBeginBranchDungeon,
   endBranchDungeon as domainEndBranchDungeon,
   enterFloor as domainEnterFloor,
   findBranchEntranceDungeonId as domainFindBranchEntranceDungeonId,
   type HostDungeonContext,
-} from "./domain/dungeon/floorEntry";
+} from "../../domain/dungeon/floorEntry";
 
 /** 双樽鉤(quickSingle)の会心率の上乗せ分 */
 const QUICK_SINGLE_CRIT_BONUS = 0.15;
@@ -292,7 +292,7 @@ export interface RunOptions {
   moodOverride?: MoodId;
 }
 
-export type { RunSnapshot, RunStatus } from "./core/runSnapshot";
+export type { RunSnapshot, RunStatus } from "../../core/runSnapshot";
 
 /** このターンごとにモンスターが1体湧く */
 const SPAWN_INTERVAL = 45;

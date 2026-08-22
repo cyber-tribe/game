@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { chebyshev, eq } from "../src/core/grid";
 import { STATUS_SLEEP, TILE_ROOM, TILE_WALL, type Actor, type TileKind } from "../src/core/types";
 import type { GameEvent } from "../src/core/events";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 import { resolveActorOverlaps } from "../src/domain/turn/turnCycle";
 
 function monster(overrides: Partial<Actor> = {}): Actor {

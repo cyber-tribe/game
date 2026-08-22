@@ -14,7 +14,7 @@ import {
 import { attackOffsets } from "../src/domain/combat/attackPattern";
 import { computeDamage } from "../src/domain/combat/damageCalculation";
 import { equip } from "../src/domain/item/inventory";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 
 function findDamage(events: GameEvent[], actorId: number) {
   return events.find(

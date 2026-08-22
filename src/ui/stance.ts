@@ -1,4 +1,4 @@
-import type { Command } from "../game";
+import type { Command } from "../application/dungeonRun/game";
 import { ALLY_STANCE_NAMES } from "../entities/displayNames";
 import type { AllyActor, AllyStance } from "../core/types";
 import { createMenuDesc, createMenuHint, createMenuList, createMenuTitle, wrap } from "./util";

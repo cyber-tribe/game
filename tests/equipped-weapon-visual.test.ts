@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 import { addItem, createInventory, equip, equippedWeaponModel } from "../src/domain/item/inventory";
 import { ActorView } from "../src/view/actorView";
 

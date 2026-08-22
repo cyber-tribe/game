@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 import {
   SAVE_SLOT_COUNT,
   clearRunSnapshot,

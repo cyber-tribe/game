@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Rng } from "../src/core/rng";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 import { createMonster } from "../src/domain/dungeon/populate";
 import { decideMonsterAction, effectiveRangedRange } from "../src/entities/ai";
 import { NATIVE_SKILL_BY_SPECIES } from "../src/entities/skills";

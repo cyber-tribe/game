@@ -11,7 +11,7 @@ import {
 } from "../src/core/types";
 import { DREAM_ARTS, knownBarrelArt } from "../src/entities/dreamArts";
 import { SPECIES, speciesById } from "../src/entities/species";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 
 /**
  * 元素タル(plan/game/archive/barrel-arts.md)。

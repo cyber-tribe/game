@@ -1,4 +1,4 @@
-import type { Command } from "../game";
+import type { Command } from "../application/dungeonRun/game";
 import { artsForLevel } from "../entities/arts";
 import type { PlayerState } from "../entities/player";
 import { createMenuDesc, createMenuHint, createMenuList, createMenuTitle, wrap } from "./util";

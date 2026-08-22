@@ -3,7 +3,7 @@ import { Rng } from "../src/core/rng";
 import type { Actor, FloorState, MonsterActor, PlayerActor } from "../src/core/types";
 import { decideMonsterAction } from "../src/entities/ai";
 import { speciesById } from "../src/entities/species";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 import { access } from "./helpers/access";
 import { makeEmptyFloor } from "./helpers/floor";
 import { fuseMonsters, initialSave, type StoredMonster } from "../src/save";

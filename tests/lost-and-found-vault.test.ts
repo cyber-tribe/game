@@ -3,7 +3,7 @@ import { LOST_AND_FOUND_VAULT_ID, dungeonById, isDungeonUnlocked } from "../src/
 import { placeSecretPassage } from "../src/domain/dungeon/populate";
 import { Rng } from "../src/core/rng";
 import { generateFloor } from "../src/domain/dungeon/generate";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 import { addFoundVaultPassage, initialSave } from "../src/save";
 import { dirFromDelta } from "../src/core/grid";
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 import { Rng } from "../src/core/rng";
 import type { GameEvent } from "../src/core/events";
 import type { OncePerRunTracker } from "../src/core/oncePerRunTracker";

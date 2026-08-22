@@ -14,7 +14,7 @@ import {
   type Tile,
 } from "../src/core/types";
 import { buildDistanceField, decideMonsterAction } from "../src/entities/ai";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 
 function newGame(seed = 1) {
   return new Game({ seed });

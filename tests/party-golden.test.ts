@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AllyActor, MonsterActor, RunSkillId } from "../src/core/types";
 import type { StoredMonster } from "../src/save";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 import { access } from "./helpers/access";
 
 /**

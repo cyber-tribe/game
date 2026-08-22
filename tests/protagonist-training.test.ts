@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 import type { MonsterActor } from "../src/core/types";
 import { createPlayer, expForLevel, gainExp } from "../src/entities/player";
 import {

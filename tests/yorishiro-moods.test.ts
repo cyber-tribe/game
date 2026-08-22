@@ -4,7 +4,7 @@ import type { FloorState, MonsterActor, PlayerActor } from "../src/core/types";
 import { decideMonsterAction } from "../src/entities/ai";
 import { DEFAULT_MOOD_ID, MOODS, moodDef, moodForDate } from "../src/entities/moods";
 import { speciesById } from "../src/entities/species";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 import { makeEmptyFloor } from "./helpers/floor";
 
 describe("entities/moods.ts", () => {

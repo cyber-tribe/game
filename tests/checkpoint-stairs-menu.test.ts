@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { REGION_CHECKPOINT_FLOOR } from "../src/entities/dungeons";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 import { moveStairsCursor, stairsChoices } from "../src/ui/stairs-confirm";
 
 /**

@@ -8,7 +8,7 @@ import {
   dungeonById,
 } from "../src/entities/dungeons";
 import { speciesForDepth } from "../src/entities/species";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 
 const region1 = REGION_DUNGEON_IDS[0];
 

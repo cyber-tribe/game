@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { AllyActor } from "../src/core/types";
 import { speciesById } from "../src/entities/species";
 import { createMonster } from "../src/domain/dungeon/populate";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 
 /**
  * 仲間モンスターの自然回復(plan/ally-natural-regen.md)。

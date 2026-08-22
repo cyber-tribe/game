@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Rng } from "../src/core/rng";
-import { Game, type RunSnapshot } from "../src/game";
+import { Game, type RunSnapshot } from "../src/application/dungeonRun/game";
 import {
   batchSaves,
   clearRunSnapshot,

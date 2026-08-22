@@ -4,7 +4,7 @@ import { STATUS_CONFUSE, hasStatus } from "../../core/types";
 import { TARUKURABE_ID } from "../../entities/dungeons";
 import { liftOrPutBarrel } from "../../domain/barrel/barrelLift";
 import { castBarrelArt as domainCastBarrelArt } from "../../domain/barrel/barrelArt";
-import type { Command, Game } from "../../game";
+import type { Command, Game } from "./game";
 
 /**
  * コマンド種別 → 処理関数の網羅dispatch表(plan/game/ddd-phase8-game-facade.md)。

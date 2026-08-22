@@ -7,7 +7,7 @@ import {
   type FloorState,
   type Tile,
 } from "../src/core/types";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 import { populateFloor, type IdSource } from "../src/domain/dungeon/populate";
 import { speciesById } from "../src/entities/species";
 

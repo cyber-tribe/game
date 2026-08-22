@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { REGION_DUNGEON_IDS } from "../src/entities/dungeons";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 import type { MonsterActor } from "../src/core/types";
 
 const region5 = REGION_DUNGEON_IDS[4]!;

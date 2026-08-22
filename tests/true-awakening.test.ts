@@ -3,7 +3,7 @@ import type { Actor, MonsterActor } from "../src/core/types";
 import type { GameEvent } from "../src/core/events";
 import { DUNGEONS, TRUE_AWAKENING_ID, dungeonById } from "../src/entities/dungeons";
 import { HAJIME_NO_YUME_ID, REGION_BOSS_ORDER, SPECIES, speciesById } from "../src/entities/species";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 import { ACHIEVEMENTS, achievementDef } from "../src/entities/achievements";
 import { checkAchievements, initialSave, isCompendiumComplete, isTrueAwakeningUnlocked, recordRun } from "../src/save";
 

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Actor } from "../src/core/types";
 import type { GameEvent } from "../src/core/events";
 import { DUNGEONS, MOUNTAIN_CORE_ID, dungeonById, isDungeonUnlocked } from "../src/entities/dungeons";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 import { initialSave, recordRun } from "../src/save";
 
 describe("entities/dungeons.ts: 山の芯(plan/mountain-core.md)", () => {

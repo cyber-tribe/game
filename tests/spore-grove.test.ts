@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 import { explode } from "./helpers/access";
 import { Rng } from "../src/core/rng";
 import { generateFloor } from "../src/domain/dungeon/generate";

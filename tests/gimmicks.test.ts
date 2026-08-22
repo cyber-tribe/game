@@ -5,7 +5,7 @@ import { GIMMICK_MESSAGES, GIMMICK_NAMES, pickFloorGimmick } from "../src/domain
 import { generateFloor } from "../src/domain/dungeon/generate";
 import { type IdSource, populateFloor } from "../src/domain/dungeon/populate";
 import { updateVisibility } from "../src/domain/dungeon/visibility";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 
 const ALL_GIMMICKS: readonly FloorGimmickKind[] = [
   "darkness",

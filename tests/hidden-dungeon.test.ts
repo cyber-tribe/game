@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { TRIAL_CHAMBER_ID, dungeonById, isDungeonUnlocked } from "../src/entities/dungeons";
 import { REGION_BOSS_ORDER } from "../src/entities/species";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 import { recordRun, type SaveData } from "../src/save";
 
 describe("entities/dungeons.ts: 腕試しの間(plan/hidden-dungeon.md)", () => {

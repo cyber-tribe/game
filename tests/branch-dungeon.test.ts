@@ -7,7 +7,7 @@ import {
   isBranchDungeonId,
   isCheckpointFloor,
 } from "../src/entities/dungeons";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 
 const HOST_REGION2_ID = REGION_DUNGEON_IDS[1]!; // 忘れ潮の湿地
 const HOST_REGION6_ID = REGION_DUNGEON_IDS[5]!; // こだまの尾根

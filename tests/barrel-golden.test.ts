@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AllyActor, Barrel, MonsterActor } from "../src/core/types";
 import { TILE_ROOM, TILE_WALL } from "../src/core/types";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 
 /**
  * DDD Phase 3(plan/game/ddd-phase3-barrel-domain.md)のゴールデンテスト。

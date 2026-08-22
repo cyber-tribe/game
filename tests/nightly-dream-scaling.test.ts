@@ -7,7 +7,7 @@ import {
   nightlyDreamStatMultiplier,
 } from "../src/entities/dungeons";
 import { speciesById } from "../src/entities/species";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 import type { MonsterActor } from "../src/core/types";
 
 describe("entities/dungeons.ts: 夜ごとの夢のモンスター強化カーブ(plan/nightly-dream-scaling.md)", () => {
