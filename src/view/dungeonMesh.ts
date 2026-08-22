@@ -66,6 +66,12 @@ export class DungeonView {
   private readonly itemGroup = new THREE.Group();
   private readonly trapGroup = new THREE.Group();
   private readonly barrelGroup = new THREE.Group();
+  /**
+   * 夢のもや(plan/models/archive/dungeon-dreamscape.md「1. 夢の演出言語」)。
+   * フロアの外周を虚空ではなく、淡い霧が渦を巻く空間にする。フロアの
+   * 外形にぴったり沿った4枚の板を境界のすぐ外に置くだけの簡単な表現
+   */
+  private readonly mistGroup = new THREE.Group();
   /** アイテム uid → 表示物。毎ターン作り直さずに済ませるための対応表 */
   private readonly itemViews = new Map<number, THREE.Object3D>();
   private readonly trapViews = new Map<string, THREE.Object3D>();
@@ -84,6 +90,7 @@ export class DungeonView {
       this.itemGroup,
       this.trapGroup,
       this.barrelGroup,
+      this.mistGroup,
     );
     this.scene.add(this.group);
   }
@@ -131,7 +138,36 @@ export class DungeonView {
       this.doorGroup.add(door);
     }
 
+    this.buildDreamMist(floor);
     this.refresh(floor);
+  }
+
+  /** フロアの外周4辺のすぐ外に、夢のもやの板を1枚ずつ置く */
+  private buildDreamMist(floor: FloorState): void {
+    const material = new THREE.MeshBasicMaterial({
+      color: 0x8fa0c8,
+      transparent: true,
+      opacity: 0.4,
+      fog: false,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    const mistHeight = 6;
+    const margin = 1.5; // 境界からの張り出し
+    const w = floor.width * TILE;
+    const h = floor.height * TILE;
+    const edges: ReadonlyArray<{ x: number; z: number; width: number; rotY: number }> = [
+      { x: w / 2, z: -margin, width: w + margin * 2, rotY: 0 },
+      { x: w / 2, z: h + margin, width: w + margin * 2, rotY: 0 },
+      { x: -margin, z: h / 2, width: h + margin * 2, rotY: Math.PI / 2 },
+      { x: w + margin, z: h / 2, width: h + margin * 2, rotY: Math.PI / 2 },
+    ];
+    for (const edge of edges) {
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(edge.width, mistHeight), material);
+      mesh.position.set(edge.x, mistHeight / 2 - 1, edge.z);
+      mesh.rotation.y = edge.rotY;
+      this.mistGroup.add(mesh);
+    }
   }
 
   /** 毎ターン呼ぶ。視界に応じた明るさと、落ちているものの増減を反映する */
@@ -386,6 +422,12 @@ export class DungeonView {
       view.rotation.y = time * 0.9;
       view.position.y = 0.10 + Math.sin(time * 2.2) * 0.045;
     }
+    // 夢のもやをゆっくり明滅させる(4枚の板は同じマテリアルを共有しているので
+    // 一括で変わる。plan/models/archive/dungeon-dreamscape.md)
+    const firstMist = this.mistGroup.children[0] as THREE.Mesh | undefined;
+    if (firstMist) {
+      (firstMist.material as THREE.MeshBasicMaterial).opacity = 0.32 + Math.sin(time * 0.25) * 0.08;
+    }
   }
 
   clear(): void {
@@ -408,5 +450,10 @@ export class DungeonView {
     this.itemViews.clear();
     this.trapViews.clear();
     this.barrelViews.clear();
+    // 4枚とも同じマテリアルを共有しているので、1回だけdisposeすればよい
+    const firstMist = this.mistGroup.children[0] as THREE.Mesh | undefined;
+    if (firstMist) (firstMist.material as THREE.Material).dispose();
+    for (const child of this.mistGroup.children) (child as THREE.Mesh).geometry.dispose();
+    this.mistGroup.clear();
   }
 }
