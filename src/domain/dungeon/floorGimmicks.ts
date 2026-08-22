@@ -14,7 +14,7 @@ import {
 import type { GameEvent } from "../../core/events";
 import type { Rng } from "../../core/rng";
 import type { PlayerState } from "../../entities/player";
-import { addStatus, type EffectContext } from "../../items/effects";
+import { addStatus, type EffectContext } from "../item/effects";
 import { SPORE_SLEEP_CHANCE, SPORE_SLEEP_TURNS } from "./bossMoves";
 
 /** 胞子部屋(plan/spore-grove.md)。在室者が居続けたターン数がこれに達するとパルスが起きる */

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DIALOGUE_POOLS, dialogueContext, dialoguePoolFor } from "../src/entities/dialogue";
 import { SPECIES } from "../src/entities/species";
 import { VILLAGE_NPCS } from "../src/entities/village";
-import { itemDef } from "../src/items/catalog";
+import { itemDef } from "../src/entities/itemCatalog";
 import { initialSave } from "../src/save";
 import type { SaveData } from "../src/save";
 

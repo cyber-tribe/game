@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { Rng } from "../src/core/rng";
 import type { MonsterActor } from "../src/core/types";
 import { rollBossTreasure } from "../src/entities/bossTreasure";
-import { itemDef } from "../src/items/catalog";
+import { itemDef } from "../src/entities/itemCatalog";
 import { Game } from "../src/game";
 import { access } from "./helpers/access";
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { OTAMA_VISIT_STORY, SIDE_STORIES, sideStoryFor } from "../src/entities/sideStories";
 import { REGION_BOSS_ORDER } from "../src/entities/regions";
-import { itemDef } from "../src/items/catalog";
+import { itemDef } from "../src/entities/itemCatalog";
 import { initialSave, talkToNpc } from "../src/save";
 import type { SaveData } from "../src/save";
 

@@ -5,7 +5,7 @@ import {
   STATUS_SLEEP,
   hasStatus,
 } from "../src/core/types";
-import { addStatus, type EffectContext } from "../src/items/effects";
+import { addStatus, type EffectContext } from "../src/domain/item/effects";
 import { Game } from "../src/game";
 
 function newGame(seed = 1) {

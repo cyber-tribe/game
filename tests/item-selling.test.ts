@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { Game } from "../src/game";
 import { access } from "./helpers/access";
 import { shopPrice, sellPrice, WARY_PRICE_MULTIPLIER } from "../src/entities/shop";
-import { itemDef } from "../src/items/catalog";
+import { itemDef } from "../src/entities/itemCatalog";
 import { roomCenter, roomContains } from "../src/core/types";
 
 function setupShop(seed: number) {

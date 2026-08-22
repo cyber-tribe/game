@@ -1,6 +1,6 @@
 import type { Barrel, PlayerActor } from "../core/types";
 import { type ArtId, createArtCooldowns } from "./arts";
-import { type Inventory, createInventory, headBonus, shieldBonus, weaponBonus } from "../items/inventory";
+import { type Inventory, createInventory, headBonus, shieldBonus, weaponBonus } from "../domain/item/inventory";
 
 export const MAX_SATIETY = 100;
 

@@ -10,7 +10,7 @@ import {
   headBonus,
   headDefId,
   isEquipped,
-} from "../src/items/inventory";
+} from "../src/domain/item/inventory";
 import { totalDefense } from "../src/entities/player";
 import {
   STATUS_SLEEP,

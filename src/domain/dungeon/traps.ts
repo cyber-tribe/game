@@ -4,7 +4,7 @@ import { STATUS_POISON, STATUS_SLEEP } from "../../core/types";
 import type { GameEvent } from "../../core/events";
 import type { Rng } from "../../core/rng";
 import type { PlayerState } from "../../entities/player";
-import { addStatus } from "../../items/effects";
+import { addStatus } from "../item/effects";
 
 /** 元素タル(plan/game/archive/barrel-arts.md): 風タルを頭上に持っていると、罠を踏んでも足取りが軽く、確率で発動しない(見つかりはする) */
 const WIND_BARREL_CARRY_TRAP_SUPPRESS_CHANCE = 0.5;

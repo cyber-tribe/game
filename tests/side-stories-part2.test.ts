@@ -4,8 +4,8 @@ import { COSTUMES } from "../src/entities/costumes";
 import { SIDE_STORIES, sideStoryFor } from "../src/entities/sideStories";
 import { SPECIES } from "../src/entities/species";
 import { Game } from "../src/game";
-import { itemDef } from "../src/items/catalog";
-import { addItem } from "../src/items/inventory";
+import { itemDef } from "../src/entities/itemCatalog";
+import { addItem } from "../src/domain/item/inventory";
 import { initialSave, refreshUnlockedCostumes, talkToNpc } from "../src/save";
 import type { SaveData } from "../src/save";
 

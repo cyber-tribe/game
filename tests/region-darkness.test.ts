@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { Rng } from "../src/core/rng";
 import { pickFloorGimmick } from "../src/domain/dungeon/gimmicks";
 import { Game } from "../src/game";
-import { itemDef } from "../src/items/catalog";
+import { itemDef } from "../src/entities/itemCatalog";
 
 describe("dungeon/gimmicks.ts: 暗さを地方の個性にする(plan/region-darkness.md)", () => {
   it("地方ダンジョンの第一〜第三地方では、くらやみの階が一切選ばれない", () => {

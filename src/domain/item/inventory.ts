@@ -1,6 +1,6 @@
-import type { EquipEffectId, Item, MarkId } from "../core/types";
-import { SHIELD_PLUS_BONUS, WEAPON_PLUS_BONUS, markDef } from "../entities/forging";
-import { itemDef } from "./catalog";
+import type { EquipEffectId, Item, MarkId } from "../../core/types";
+import { SHIELD_PLUS_BONUS, WEAPON_PLUS_BONUS, markDef } from "../../entities/forging";
+import { itemDef } from "../../entities/itemCatalog";
 
 export const INVENTORY_SIZE = 20;
 

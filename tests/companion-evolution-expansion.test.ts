@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Actor } from "../src/core/types";
 import type { GameEvent } from "../src/core/events";
-import { addStatus, type EffectContext } from "../src/items/effects";
+import { addStatus, type EffectContext } from "../src/domain/item/effects";
 import { EVOLUTION_RULES, tryEvolve } from "../src/entities/evolution";
 import { Game } from "../src/game";
 import { speciesById } from "../src/entities/species";

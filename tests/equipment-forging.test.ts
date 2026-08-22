@@ -10,7 +10,7 @@ import {
   shieldMarkIds,
   weaponBonus,
   weaponMarkIds,
-} from "../src/items/inventory";
+} from "../src/domain/item/inventory";
 import { STATUS_SLEEP, hasStatus, isFree, type Actor, type MarkId } from "../src/core/types";
 import { fromStored, loadSave, toStored, type StoredItem } from "../src/save";
 

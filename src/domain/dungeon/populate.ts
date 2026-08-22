@@ -28,7 +28,7 @@ import { shopPrice } from "../../entities/shop";
 import { fullSkillSet } from "../../entities/skills";
 import { speciesById, speciesForDepth } from "../../entities/species";
 import type { StoredMonster } from "../../entities/storedMonster";
-import { itemsForDepth } from "../../items/catalog";
+import { itemsForDepth } from "../../entities/itemCatalog";
 import { randomTileInRoom } from "./generate";
 
 export interface IdSource {

@@ -1,5 +1,5 @@
 import { SPECIES, speciesForDepth } from "./entities/species";
-import { ITEMS } from "./items/catalog";
+import { ITEMS } from "./entities/itemCatalog";
 
 /**
  * 罠の種類ごとのモデル。基本は trap_<kind> に対応するが、専用モデルを

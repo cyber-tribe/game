@@ -13,7 +13,7 @@ import {
 } from "../src/core/types";
 import { attackOffsets } from "../src/domain/combat/attackPattern";
 import { computeDamage } from "../src/domain/combat/damageCalculation";
-import { equip } from "../src/items/inventory";
+import { equip } from "../src/domain/item/inventory";
 import { Game } from "../src/game";
 
 function findDamage(events: GameEvent[], actorId: number) {

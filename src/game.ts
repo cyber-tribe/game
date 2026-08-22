@@ -82,8 +82,8 @@ import {
 import { speciesById } from "./entities/species";
 import { type BondStage, bondStage } from "./entities/companionBond";
 import { HONOKA_NA_AKARI_VISION_EXTRA, type DreamArtContext } from "./domain/party/dreamArtEffects";
-import { itemDef } from "./items/catalog";
-import { type EffectContext, addStatus, applyEffect } from "./items/effects";
+import { itemDef } from "./entities/itemCatalog";
+import { type EffectContext, addStatus, applyEffect } from "./domain/item/effects";
 import {
   addItem,
   displayName,
@@ -93,7 +93,7 @@ import {
   hasEquipEffect,
   isFull,
   removeItem,
-} from "./items/inventory";
+} from "./domain/item/inventory";
 import { attackOffsets } from "./domain/combat/attackPattern";
 import { computeDamage } from "./domain/combat/damageCalculation";
 import { barrelThrowDamage, mitigateIncomingDamage } from "./domain/combat/damageModifier";

@@ -43,7 +43,7 @@ import { TUTORIAL_TIP_IDS, tutorialTipText } from "../core/tutorial";
 import { resolveText } from "../entities/inputText";
 import { currentInputMode } from "./inputMode";
 import { DEFAULT_AUDIO_VOLUME, isCompendiumComplete, isTrueAwakeningUnlocked, isWeaponCompendiumComplete, type CompendiumStatus, type FontSize, type SaveData, type StoredItem, type StoredMonster } from "../save";
-import { ITEMS, itemDef } from "../items/catalog";
+import { ITEMS, itemDef } from "../entities/itemCatalog";
 import { MAX_ACTIVE_QUESTS, questDef } from "../entities/quests";
 import { storyChapter } from "../entities/story";
 import {
