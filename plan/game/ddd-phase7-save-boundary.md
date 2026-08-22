@@ -1,6 +1,6 @@
 # DDD Phase 7: Save 境界に SaveRepository を導入する
 
-関連: [ADR 0016](../adr/0016-incremental-ddd-for-game-rules.md) Phase 7
+関連: [ADR 0016](../../adr/0016-incremental-ddd-for-game-rules.md) Phase 7
 前提: なし(Phase 2〜6 と独立に実施できる。ただし型の移動が絡むため
 並行作業は避け、着手時点の main から始めること)
 

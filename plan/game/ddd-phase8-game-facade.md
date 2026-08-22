@@ -1,6 +1,6 @@
 # DDD Phase 8: Game を DungeonRun の Facade へ縮小する
 
-関連: [ADR 0016](../adr/0016-incremental-ddd-for-game-rules.md) Phase 8(最終)
+関連: [ADR 0016](../../adr/0016-incremental-ddd-for-game-rules.md) Phase 8(最終)
 前提: Phase 2〜7 完了
 
 ## 目的

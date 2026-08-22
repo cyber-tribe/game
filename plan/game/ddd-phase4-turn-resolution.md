@@ -1,6 +1,6 @@
 # DDD Phase 4: Turn Resolution を分離する
 
-関連: [ADR 0016](../adr/0016-incremental-ddd-for-game-rules.md) Phase 4
+関連: [ADR 0016](../../adr/0016-incremental-ddd-for-game-rules.md) Phase 4
 前提: [Phase 2](ddd-phase2-combat-rules.md)・[Phase 3](ddd-phase3-barrel-domain.md) 完了
 
 ## 目的

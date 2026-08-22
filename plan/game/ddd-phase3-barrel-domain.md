@@ -1,6 +1,6 @@
 # DDD Phase 3: Barrel ドメインを作る
 
-関連: [ADR 0016](../adr/0016-incremental-ddd-for-game-rules.md) Phase 3
+関連: [ADR 0016](../../adr/0016-incremental-ddd-for-game-rules.md) Phase 3
 前提: [Phase 2](ddd-phase2-combat-rules.md) 完了(移行パターンとゴールデンテストの型が確立していること)
 
 ## 目的
