@@ -888,7 +888,13 @@
        * タッチのゾーン(plan/game/archive/mobile-layout-redesign.md)との
        * 関係: 拠点画面が開いているあいだ画面に出ている触UIは、左下の
        * 仮想パッド(カーソル移動)・右下の決定/もどる・右上の「≡」だけ。
-       * パネルは全画面(96vw)から左半分に縮むので、重なりは従来より減る。
+       * パネルは全画面(96vw)から左半分に縮むので、重なりは従来より減る……
+       * はずだったが、パネルは左寄せなだけで縦は#townのalign-items: center
+       * を引き継いだままだったため、内容が伸びると左下の仮想パッドへ
+       * 縦に重なってしまっていた(issue #833)。タッチ端末では上寄せにし、
+       * パッドの縦の占有ぶん(下26px+高さ108px+セーフエリア)を
+       * .town-boxのmax-heightから差し引いて、パッドと重ならない高さで
+       * 頭打ちにする(収まらない列はもとから.town-columns内でスクロールする)。
        */
       #ui.village-interior #town {
         justify-content: flex-start;
@@ -910,10 +916,34 @@
       /* 触UIでは列を1〜2列しか持たない建物ばかりなので、少しだけ広く取り、
          余白を詰めて低い画面でも「もぐる/とじる」まで届くようにする */
       @media (pointer: coarse) {
+        #ui.village-interior #town {
+          align-items: flex-start;
+          padding-top: calc(20px + var(--safe-top));
+        }
         #ui.village-interior .town-box {
           width: min(660px, 56vw);
+          /* 左下の仮想パッド(.touch-pad)と縦に重ならないよう頭打ちにする */
+          max-height: calc(100dvh - 20px - var(--safe-top) - 150px - var(--safe-bottom));
           padding: 12px 14px 10px;
         }
+      }
+      /*
+       * 縦持ちでの強制横向き(plan/game/archive/forced-landscape.md)中は、
+       * #app自体をrotate(90deg)で視覚上だけ横向きにしているため、CSSの
+       * vw/vhは回転前(縦持ちのまま)の物理軸を指し続ける。#app自身は
+       * width: 100dvh / height: 100dvwに入れ替えて辻褄を合わせているが、
+       * このパネルの52vw/56vw(幅)・max-heightの計算根拠にした100dvh
+       * (=回転後の見た目の高さ)はそれぞれ逆の軸を参照したままだと、
+       * 見た目よりずっと狭い/高さの頭打ちが効かない状態になり、説明文が
+       * 極端に細い列へ押し込まれて画面外へ流れ出ていた(issue #833の
+       * 「説明文が画面の左端に縦に押し出されて見切れる」の主因と見られる)。
+       * #appと同じくvw↔dvh・vh↔dvwを入れ替えて視覚軸に揃える
+       * (forced-landscapeは常にpointer: coarseを伴うため、上のブロックより
+       * 詳しいセレクタで上書きすれば足りる)
+       */
+      body.forced-landscape #ui.village-interior .town-box {
+        width: min(660px, 56dvh);
+        max-height: calc(100dvw - 20px - var(--safe-top) - 150px - var(--safe-bottom));
       }
       .town-box h2 {
         margin: 0 0 6px; font-size: 22px; letter-spacing: 0.12em; color: #7fd6ff;
@@ -972,6 +1002,7 @@
       .town-col li.axis { color: #ffe27a; }
       .town-desc {
         margin: 14px 0 0; min-height: 20px; font-size: 12px; color: var(--dim);
+        overflow-wrap: break-word;
       }
       .town-hint { margin: 10px 0 0; font-size: 11px; color: #6b789e; text-align: right; }
       .town-mood { margin: 4px 0 10px; font-size: 11px; color: #9aa8cc; }
@@ -1019,6 +1050,24 @@
            必ず縦スクロールが出て、1画面に1〜2行しか見えなくなる */
         .town-col { min-height: 0; }
       }
+      /*
+       * 縦持ちでの強制横向き(plan/game/archive/forced-landscape.md)中は、
+       * #app自体の見た目の高さは100dvw(回転前の物理"幅")になるが、上の
+       * `@media (max-height: 560px)`は物理軸のままのheight(縦持ちなので
+       * 通常800px超)を見てしまうため、低い画面向けのこの詰め(issue #482)が
+       * 一度も発動しなかった。forced-landscape中は常に見た目の高さが低い
+       * (物理幅ぶんしか無い)ので、高さの条件なしでそのまま適用してよい
+       */
+      body.forced-landscape .town-box { padding: 12px 18px 10px; }
+      body.forced-landscape .town-box h2 { font-size: 17px; margin-bottom: 2px; }
+      body.forced-landscape .town-building { margin-bottom: 4px; }
+      body.forced-landscape .town-stats { margin-bottom: 4px; }
+      body.forced-landscape .town-lead { display: none; }
+      body.forced-landscape .town-desc { margin-top: 6px; }
+      body.forced-landscape .town-flavor { margin-top: 2px; }
+      body.forced-landscape .town-hint { margin-top: 4px; }
+      body.forced-landscape .town-depart-button { margin-top: 8px; padding: 7px; }
+      body.forced-landscape .town-col { min-height: 0; }
 
       /*
        * タッチ端末では、列が少ないときに幅いっぱいまで広げる(issue #519)。
