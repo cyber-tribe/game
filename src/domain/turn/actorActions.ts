@@ -26,7 +26,7 @@ import { dreamArtDef } from "../../entities/dreamArts";
 import { totalDefense } from "../../entities/player";
 import { displayActorName } from "../../entities/naming";
 import { isVisible } from "../../dungeon/visibility";
-import { DREAM_ART_EFFECTS, type DreamArtContext } from "../../systems/dreamArtEffects";
+import { DREAM_ART_EFFECTS, type DreamArtContext } from "../party/dreamArtEffects";
 import { BOSS_MOVES, type BossMoveContext } from "../../systems/bossMoves";
 import { computeDamage } from "../combat/damageCalculation";
 import { mitigateIncomingDamage } from "../combat/damageModifier";
@@ -297,7 +297,7 @@ export function executeMonsterAction(
     }
     case "dreamArt": {
       // ゆめわざ(plan/game/archive/companion-leveling-and-arts.md): 種類ごとの
-      // 実装は systems/dreamArtEffects.ts の DREAM_ART_EFFECTS レジストリにある
+      // 実装は domain/party/dreamArtEffects.ts の DREAM_ART_EFFECTS レジストリにある
       if (actor.kind !== "ally") break;
       DREAM_ART_EFFECTS[action.id].execute(buildDreamArtContext(actor), action.targetId);
       const def = dreamArtDef(action.id);

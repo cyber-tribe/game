@@ -2,7 +2,7 @@
  * ゆめわざ(plan/game/archive/companion-leveling-and-arts.md)の実行部。
  * 発動条件は entities/dreamArts.ts の DREAM_ARTS が持ち(判定だけ、副作用なし)、
  * ここでは実際にGameの状態を書き換える処理だけを担う
- * (systems/bossMoves.tsと同じ「判定はentities/、実行はsystems/」の分担)。
+ * (systems/bossMoves.tsと同じ「判定はentities/、実行はdomain/」の分担)。
  */
 import {
   type Actor,
@@ -15,12 +15,12 @@ import {
   STATUS_ROOT,
   STATUS_SEAL,
   STATUS_SLEEP,
-} from "../core/types";
-import type { GameEvent } from "../core/events";
-import { type Dir, type Vec2, chebyshev, dirFromDelta } from "../core/grid";
-import type { Rng } from "../core/rng";
-import { diggableWallNear, foesInRoom } from "../entities/dreamArts";
-import { displayActorName } from "../entities/naming";
+} from "../../core/types";
+import type { GameEvent } from "../../core/events";
+import { type Dir, type Vec2, chebyshev, dirFromDelta } from "../../core/grid";
+import type { Rng } from "../../core/rng";
+import { diggableWallNear, foesInRoom } from "../../entities/dreamArts";
+import { displayActorName } from "../../entities/naming";
 
 /** ゆめわざの睡眠・封じ・行動封じの持続ターン。共通で3ターン */
 const DREAM_ART_STATUS_TURNS = 3;

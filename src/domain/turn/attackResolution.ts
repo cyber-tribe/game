@@ -12,7 +12,7 @@ import { addStatus } from "../../items/effects";
 import { speciesById } from "../../entities/species";
 import { t } from "../../i18n";
 import { displayActorName } from "../../entities/naming";
-import { KODAMA_NO_OTAKEBI_ECHO_MULTIPLIER } from "../../systems/dreamArtEffects";
+import { KODAMA_NO_OTAKEBI_ECHO_MULTIPLIER } from "../party/dreamArtEffects";
 import { computeDamage } from "../combat/damageCalculation";
 import { resolveAttackModifiers } from "../combat/criticalHit";
 import { tryEvade } from "../combat/evasion";

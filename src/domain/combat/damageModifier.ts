@@ -10,7 +10,7 @@ import type { PlayerState } from "../../entities/player";
 import { totalDefense } from "../../entities/player";
 import { hasSkill } from "../../entities/skills";
 import { speciesById } from "../../entities/species";
-import { HONE_TSUYOSHI_MULTIPLIER, YUME_NO_KAKEBUTON_DAMAGE_REDUCTION } from "../../systems/dreamArtEffects";
+import { HONE_TSUYOSHI_MULTIPLIER, YUME_NO_KAKEBUTON_DAMAGE_REDUCTION } from "../party/dreamArtEffects";
 
 /** がまんのかまえ: 足踏み直後の1撃の与ダメージ倍率 */
 const BRACED_DAMAGE_MULTIPLIER = 2;

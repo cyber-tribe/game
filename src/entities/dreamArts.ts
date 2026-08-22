@@ -7,7 +7,7 @@
  *
  * この1ファイルが「発動条件(trigger)・発動確率・クールダウン・表示」の
  * 単一の情報源になる。実際の効果(HP増減・状態異常付与等、Gameの内部状態を
- * 直接いじる部分)は systems/dreamArtEffects.ts の DREAM_ART_EFFECTS が
+ * 直接いじる部分)は domain/party/dreamArtEffects.ts の DREAM_ART_EFFECTS が
  * 持つ(bossMoves.tsと同じ「判定はentities/、実行はsystems/」の分担)。
  */
 import { chebyshev, type Vec2 } from "../core/grid";
@@ -379,7 +379,7 @@ export const DREAM_ARTS: Readonly<Record<DreamArtId, DreamArtDef>> = {
 
   // ---- タルわざ(plan/game/archive/barrel-arts.md) ----
   // 戦闘中には自動発動しない(trigger は常にnull)。空のタルを抱えたプレイヤーが
-  // 「仲間へ指示」から明示的に頼んだときだけ、systems/dreamArtEffects.tsを
+  // 「仲間へ指示」から明示的に頼んだときだけ、domain/party/dreamArtEffects.tsを
   // 経由せず game.ts が直接 barrelKind を見て処理する
   waterBarrelArt: {
     id: "waterBarrelArt",

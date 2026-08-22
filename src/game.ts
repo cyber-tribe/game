@@ -23,7 +23,6 @@ import {
   type Barrel,
   type BarrelKind,
   type CombatantActor,
-  type DreamArtId,
   type FieldSkillId,
   type FloorGimmickKind,
   type FloorState,
@@ -117,7 +116,7 @@ import {
 import { HAJIME_NO_YUME_ID, REGION_BOSS_ORDER, speciesById } from "./entities/species";
 import { REGIONS, regionByIndex } from "./entities/regions";
 import { type BondStage, bondStage } from "./entities/companionBond";
-import { HONOKA_NA_AKARI_VISION_EXTRA, type DreamArtContext } from "./systems/dreamArtEffects";
+import { HONOKA_NA_AKARI_VISION_EXTRA, type DreamArtContext } from "./domain/party/dreamArtEffects";
 import { itemDef } from "./items/catalog";
 import { type EffectContext, addStatus, applyEffect } from "./items/effects";
 import {
@@ -171,6 +170,7 @@ import {
   type SkillChoiceState,
 } from "./domain/player/runSkills";
 import { recruitFromBarrel as domainRecruitFromBarrel } from "./domain/party/recruit";
+import { tickAllyDreamArts as domainTickAllyDreamArts } from "./domain/party/dreamArts";
 
 /** 双樽鉤(quickSingle)の会心率の上乗せ分 */
 const QUICK_SINGLE_CRIT_BONUS = 0.15;
@@ -2951,16 +2951,7 @@ export class Game {
       this.lightBarrelTurns--;
       if (this.lightBarrelTurns === 0) events.push({ type: "message", text: "光タルの明かりが消えた。" });
     }
-    for (const actor of this.floor.actors) {
-      if (actor.kind !== "ally") continue;
-      if (actor.dreamArtCooldowns) {
-        for (const id of Object.keys(actor.dreamArtCooldowns) as DreamArtId[]) {
-          const remaining = actor.dreamArtCooldowns[id] ?? 0;
-          if (remaining > 0) actor.dreamArtCooldowns[id] = remaining - 1;
-        }
-      }
-      if ((actor.defBuffTurns ?? 0) > 0) actor.defBuffTurns!--;
-    }
+    domainTickAllyDreamArts(this.floor);
   }
 
   /**
@@ -3085,7 +3076,7 @@ export class Game {
     };
   }
 
-  /** ゆめわざ(systems/dreamArtEffects.tsのDREAM_ART_EFFECTS)に渡す、narrowなGameアクセス */
+  /** ゆめわざ(domain/party/dreamArtEffects.tsのDREAM_ART_EFFECTS)に渡す、narrowなGameアクセス */
   private dreamArtContext(actor: AllyActor, events: GameEvent[]): DreamArtContext {
     return {
       actor,

@@ -178,7 +178,7 @@ export type BossMoveId =
 /**
  * ゆめわざ(plan/game/archive/companion-leveling-and-arts.md)。仲間モンスターが
  * レベルで習得する能動的な特技・魔法。既存のパッシブ特技(skills.ts)とは別枠で、
- * 発動条件・実装は entities/dreamArts.ts(判定)と systems/dreamArtEffects.ts
+ * 発動条件・実装は entities/dreamArts.ts(判定)と domain/party/dreamArtEffects.ts
  * (実行)のレジストリに集約している(1種類=1エントリ)
  */
 export type DreamArtId =
