@@ -41,11 +41,19 @@ jobs:
             echo "既存の PR があるため何もしません"
             exit 0
           fi
+          ahead="$(gh api "repos/$REPO/compare/main...$BRANCH" --jq .ahead_by)"
+          if [ "$ahead" = "0" ]; then
+            echo "main との差分が無いため何もしません(すでにマージ済みの push とみられる)"
+            exit 0
+          fi
           title="$(printf '%s\n' "$COMMIT_MESSAGE" | head -n 1)"
           body="$(printf '%s\n' "$COMMIT_MESSAGE" | tail -n +2 \
             | sed '/./,$!d' \
             | grep -v -e '^Co-Authored-By:' -e '^Claude-Session:' || true)"
           gh pr create --repo "$REPO" --head "$BRANCH" --base main \
             --title "$title" --body "$body"
-          gh pr merge --repo "$REPO" --auto --squash "$BRANCH"
+          # チェックが既に完了している PR には --auto を設定できない
+          # (clean status エラー)ので、その場合は直接マージする
+          gh pr merge --repo "$REPO" --auto --squash "$BRANCH" \
+            || gh pr merge --repo "$REPO" --squash "$BRANCH"
           echo "PR を作成し、オートマージ(squash)を設定しました"
