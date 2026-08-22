@@ -13,7 +13,6 @@ import {
 import type { GameEvent } from "./core/events";
 import {
   STATUS_CONFUSE,
-  STATUS_FEAR,
   STATUS_FLINCH,
   STATUS_INVISIBLE,
   STATUS_POISON,
@@ -116,7 +115,6 @@ import {
   GOLD_REWARD_MULTIPLIER,
   MONSTER_ATK_MULTIPLIER,
   MONSTER_HOUSE_CHANCE_MULTIPLIER,
-  SATIETY_RATE_MULTIPLIER,
   SHINING_CHANCE_DIFFICULTY_MULTIPLIER,
   type DifficultyMode,
 } from "./entities/difficulty";
@@ -194,6 +192,13 @@ import {
   resolveEmptyBarrel as domainResolveEmptyBarrel,
 } from "./domain/barrel/barrelCapture";
 import { BOSS_MOVES, SPORE_SLEEP_CHANCE, SPORE_SLEEP_TURNS, type BossMoveContext } from "./systems/bossMoves";
+import {
+  tickArtCooldowns as domainTickArtCooldowns,
+  tickHunger as domainTickHunger,
+  tickRegen as domainTickRegen,
+  tickStatuses as domainTickStatuses,
+  tickTorch as domainTickTorch,
+} from "./domain/turn/statusTicks";
 
 /** 双樽鉤(quickSingle)の会心率の上乗せ分 */
 const QUICK_SINGLE_CRIT_BONUS = 0.15;
@@ -202,24 +207,6 @@ const HEAVY_RECOVER_TURNS = 2;
 
 /** 毒罠にかかったときの持続ターン数 */
 const POISON_TRAP_TURNS = 8;
-/** 毒が1ターンごとに削るHP */
-const POISON_DAMAGE_PER_TURN = 2;
-
-/** 状態異常が明けたときにプレイヤーへ表示するメッセージ */
-const STATUS_END_MESSAGES: Record<StatusKind, string> = {
-  [STATUS_SLEEP]: "目が覚めた。",
-  [STATUS_CONFUSE]: "混乱がおさまった。",
-  [STATUS_SEAL]: "封じが解けた。",
-  [STATUS_RECOVER]: "体勢を立て直した。",
-  [STATUS_POISON]: "毒が抜けた。",
-  [STATUS_INVISIBLE]: "透明が解けた。",
-  [STATUS_FEAR]: "おびえがおさまった。",
-  // ゆめわざ(plan/game/archive/companion-leveling-and-arts.md)。この2つは
-  // 常にモンスター側にしか乗らないため、実際に読まれることはない想定だが、
-  // Record<StatusKind, string>の網羅性のために埋めておく
-  [STATUS_ROOT]: "うごけるようになった。",
-  [STATUS_FLINCH]: "怯みがおさまった。",
-};
 
 /** attacker.inflicts で状態異常を付与したときのメッセージ */
 const STATUS_INFLICT_MESSAGES: Partial<Record<StatusKind, string>> = {
@@ -235,8 +222,6 @@ const CONFUSING_CLAW_CHANCE = 0.15;
 const SEAL_BITE_CHANCE = 0.15;
 /** 夢あわせで得た付与系特技(みだしのつめ・ふうじのキバ)が状態異常を持続させるターン数 */
 const INHERITED_INFLICT_TURNS = 3;
-/** regenIfUnhit(うるみぐま)・特技「しずけさのいやし」が回復させるHP */
-const REGEN_IF_UNHIT_AMOUNT = 2;
 /**
  * 図鑑コンプリート(plan/monster-compendium.md)時、かがやきの夢のかけらの
  * 出現確率に掛かる倍率。基準の確率自体は dungeon/populate.ts 側で定義する
@@ -399,15 +384,11 @@ export interface RunSnapshot {
   pendingLevelUpChoices: number;
 }
 
-/** 満腹度がこのターン数ぶん減る。100 / 0.2 = 500ターンもつ */
-const SATIETY_PER_TURN = 0.2;
 /**
  * 草を「使った」ときに満腹度も少し回復する(plan/herb-satiety-bonus.md)。
  * 食料(45)の1/9程度に抑えて、草を食料の代替にはしない
  */
 const HERB_SATIETY_BONUS = 5;
-/** 満腹度がある間、このターンごとにHPが1回復する */
-const REGEN_INTERVAL = 8;
 /** このターンごとにモンスターが1体湧く */
 const SPAWN_INTERVAL = 45;
 
@@ -3644,16 +3625,30 @@ export class Game {
   // ------------------------------------------------------------ 毎ターンの処理
 
   private upkeep(events: GameEvent[]): void {
-    this.tickStatuses(events);
-    this.tickHunger(events);
-    this.tickArtCooldowns();
+    domainTickStatuses({
+      floor: this.floor,
+      events,
+      damageActor: (target, dmg, crit) => this.damageActor(target, dmg, crit, events),
+      isPlaying: () => this.status === "playing",
+    });
+    domainTickHunger({
+      player: this.player,
+      floor: this.floor,
+      dungeonSatietyDrainMul: this.dungeon.satietyDrainMul,
+      difficulty: this.difficulty,
+      turnCount: this.turnCount,
+      events,
+      isPlaying: () => this.status === "playing",
+      damageActor: (target, dmg, crit) => this.damageActor(target, dmg, crit, events),
+    });
+    domainTickArtCooldowns(this.player);
     this.tickDreamArts(events);
-    this.tickRegen();
+    domainTickRegen({ floor: this.floor, turnCount: this.turnCount, hitThisTurn: this.hitThisTurn });
     this.tickSporeRooms(events);
     this.tickSummonedTorrentTiles();
     this.tickBoneWalls();
     this.tickMirrors(events);
-    this.tickTorch(events);
+    this.torchTurnsLeft = domainTickTorch(this.torchTurnsLeft, events);
 
     if (this.status !== "playing") return;
 
@@ -3664,17 +3659,6 @@ export class Game {
     // 倒された者を取り除く。プレイヤーは死んでも参照が要るので残す
     this.floor.actors = this.floor.actors.filter((a) => a.alive || a.kind === "player");
     this.allies = this.allies.filter((a) => a.alive);
-  }
-
-  /**
-   * 技のクールダウンを1ターンぶん減らす。「樽受け身」は発動から1ターンだけ
-   * 有効な予約なので、被弾で消費されなければここで期限切れにする。
-   */
-  private tickArtCooldowns(): void {
-    for (const id of Object.keys(this.player.artCooldowns) as ArtId[]) {
-      if (this.player.artCooldowns[id] > 0) this.player.artCooldowns[id]--;
-    }
-    this.player.ukemiReady = false;
   }
 
   /**
@@ -3707,103 +3691,6 @@ export class Game {
         }
       }
       if ((actor.defBuffTurns ?? 0) > 0) actor.defBuffTurns!--;
-    }
-  }
-
-  /** 松明(plan/region-darkness.md)。残りターンを減らし、切れた瞬間だけ知らせる */
-  private tickTorch(events: GameEvent[]): void {
-    if (this.torchTurnsLeft <= 0) return;
-    this.torchTurnsLeft--;
-    if (this.torchTurnsLeft === 0) {
-      events.push({ type: "message", text: "松明の火が消えた。" });
-    }
-  }
-
-  private tickStatuses(events: GameEvent[]): void {
-    // 毒はターン経過でじわじわHPを削る。行動そのものは妨げない
-    for (const actor of this.floor.actors) {
-      if (!actor.alive || !hasStatus(actor, STATUS_POISON)) continue;
-      this.damageActor(actor, POISON_DAMAGE_PER_TURN, false, events);
-      if (this.status !== "playing") return;
-    }
-
-    for (const actor of this.floor.actors) {
-      if (!actor.alive) continue;
-      for (const status of actor.statuses) {
-        if (status.turns <= 0) continue;
-        status.turns--;
-        if (status.turns === 0) {
-          events.push({ type: "statusEnd", actorId: actor.id, kind: status.kind });
-          if (actor.kind === "player") {
-            events.push({ type: "message", text: STATUS_END_MESSAGES[status.kind] });
-          }
-        }
-      }
-      actor.statuses = actor.statuses.filter((s) => s.turns > 0);
-    }
-  }
-
-  private tickHunger(events: GameEvent[]): void {
-    // 毒などですでにこのターン力尽きていれば、満腹度の処理は行わない
-    if (this.status !== "playing") return;
-    const player = this.player;
-    const before = player.satiety;
-    const feastMultiplier = this.floor.gimmick === "feast" ? 0.5 : 1;
-    // 満たされ石(plan/protagonist-equipment.md): 満腹度の減りが2割ゆるやかになる
-    const charmMultiplier = hasEquipEffect(player.inventory, "satietyEase") ? 0.8 : 1;
-    // 忘れ物蔵(plan/lost-and-found-vault.md): 満腹度の減りがやや早い(長居できない蔵)
-    const dungeonMultiplier = this.dungeon.satietyDrainMul ?? 1;
-    const rate =
-      SATIETY_PER_TURN *
-      feastMultiplier *
-      charmMultiplier *
-      dungeonMultiplier *
-      SATIETY_RATE_MULTIPLIER[this.difficulty];
-    player.satiety = Math.max(0, player.satiety - rate);
-
-    if (before > 20 && player.satiety <= 20) {
-      events.push({ type: "hungerWarning", level: "low" });
-      events.push({ type: "message", text: "おなかがへってきた……" });
-      events.push({ type: "tutorialTip", id: "hunger" });
-    }
-    if (before > 0 && player.satiety === 0) {
-      events.push({ type: "hungerWarning", level: "empty" });
-      events.push({ type: "message", text: "おなかがすいて目がまわる!" });
-    }
-
-    if (player.satiety <= 0) {
-      this.damageActor(player, 1, false, events);
-    } else if (this.turnCount % REGEN_INTERVAL === 0 && player.hp < player.maxHp) {
-      player.hp = Math.min(player.maxHp, player.hp + 1);
-    }
-  }
-
-  /**
-   * regenIfUnhit(うるみぐま)・特技「しずけさのいやし」(slowMend、
-   * plan/monster-compendium.md): このターン被弾しなかった対象を少しだけ回復する。
-   * さらに仲間全員は、プレイヤーと同じ間隔・同じ量で自然回復する
-   * (plan/ally-natural-regen.md)。仲間には満腹度が無いので、プレイヤーの
-   * ような「空腹で回復停止」の条件は付けない。敵モンスターは従来どおり
-   * regenIfUnhit種のみ
-   */
-  private tickRegen(): void {
-    for (const actor of this.floor.actors) {
-      if (!actor.alive || actor.kind === "player" || actor.kind === "target") continue;
-      // 仲間の自然回復はプレイヤーの回復と同じ扱いなので、被弾した
-      // ターンでも止まらない(unhit条件が付くのは特性・特技の側だけ)
-      if (
-        actor.kind === "ally" &&
-        this.turnCount % REGEN_INTERVAL === 0 &&
-        actor.hp < actor.maxHp
-      ) {
-        actor.hp = Math.min(actor.maxHp, actor.hp + 1);
-      }
-      if (this.hitThisTurn.has(actor.id)) continue;
-      if (actor.hp >= actor.maxHp) continue;
-      const nativeRegen = actor.speciesId !== undefined && speciesById(actor.speciesId).regenIfUnhit === true;
-      const skillRegen = actor.kind === "ally" && hasSkill(actor, "slowMend");
-      if (!nativeRegen && !skillRegen) continue;
-      actor.hp = Math.min(actor.maxHp, actor.hp + REGEN_IF_UNHIT_AMOUNT);
     }
   }
 
