@@ -16,15 +16,16 @@ check: typecheck test
 
 # 型チェックだけ
 typecheck:
-    npm run typecheck
+    npm run --silent typecheck
 
 # ユニットテスト。ファイル指定で絞れる: just test tests/barrel.test.ts
+# (dot レポーターで成功時の出力を抑える。失敗の詳細は従来どおり出る)
 test *files:
-    npx vitest run {{files}}
+    npx vitest run --reporter=dot {{files}}
 
-# 本番ビルド(型チェック込み、dist/ に書き出す)
+# 本番ビルド(型チェック込み、dist/ に書き出す。警告以外の出力は抑える)
 build:
-    npm run build
+    npm run --silent build -- --logLevel warn
 
 # 開発サーバー (http://127.0.0.1:5173/)
 dev:
@@ -56,7 +57,7 @@ models-fast *names:
 
 # モデルの検証テストだけ回す
 models-test:
-    npx vitest run tests/models.test.ts
+    npx vitest run --reporter=dot tests/models.test.ts
 
 # ---- サウンド ----
 
@@ -68,8 +69,8 @@ audio:
 
 # 新しい作業ブランチを origin/main から作る(PRごとに新しい名前で。使い回さない): just fresh claude/my-branch
 fresh branch:
-    git fetch origin main
-    git checkout -B {{branch}} origin/main
+    git fetch --quiet origin main
+    git checkout -q -B {{branch}} origin/main
 
 # コミットして push する。push を受けて Actions(auto-pr.yml)が PR 作成と
 # オートマージ設定まで行う: just ship "コミットメッセージ"
@@ -77,4 +78,4 @@ fresh branch:
 ship message:
     git add -A
     git commit -m "{{message}}"
-    git push -u origin "$(git branch --show-current)"
+    git push --quiet -u origin "$(git branch --show-current)"
