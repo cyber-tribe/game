@@ -2,7 +2,7 @@
  * ゆめわざ(plan/game/archive/companion-leveling-and-arts.md)の実行部。
  * 発動条件は entities/dreamArts.ts の DREAM_ARTS が持ち(判定だけ、副作用なし)、
  * ここでは実際にGameの状態を書き換える処理だけを担う
- * (systems/bossMoves.tsと同じ「判定はentities/、実行はdomain/」の分担)。
+ * (domain/dungeon/bossMoves.tsと同じ「判定はentities/、実行はdomain/」の分担)。
  */
 import {
   type Actor,

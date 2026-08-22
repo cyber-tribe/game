@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { Rng } from "../src/core/rng";
 import { roomCenter, type FloorGimmickKind } from "../src/core/types";
-import { GIMMICK_MESSAGES, GIMMICK_NAMES, pickFloorGimmick } from "../src/dungeon/gimmicks";
-import { generateFloor } from "../src/dungeon/generate";
-import { type IdSource, populateFloor } from "../src/dungeon/populate";
-import { updateVisibility } from "../src/dungeon/visibility";
+import { GIMMICK_MESSAGES, GIMMICK_NAMES, pickFloorGimmick } from "../src/domain/dungeon/gimmicks";
+import { generateFloor } from "../src/domain/dungeon/generate";
+import { type IdSource, populateFloor } from "../src/domain/dungeon/populate";
+import { updateVisibility } from "../src/domain/dungeon/visibility";
 import { Game } from "../src/game";
 
 const ALL_GIMMICKS: readonly FloorGimmickKind[] = [

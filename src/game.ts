@@ -53,7 +53,7 @@ import {
   createItem,
   findFreeTile,
   spawnWanderingMonster,
-} from "./dungeon/populate";
+} from "./domain/dungeon/populate";
 import { displayActorName } from "./entities/naming";
 import { ALLY_STANCE_NAMES, barrelDisplayName } from "./entities/displayNames";
 import {
@@ -66,7 +66,7 @@ import {
 } from "./entities/dungeons";
 import { DEFAULT_MOOD_ID, type MoodDef, type MoodId, moodDef } from "./entities/moods";
 import type { StoredMonster } from "./entities/storedMonster";
-import { isVisible, updateVisibility } from "./dungeon/visibility";
+import { isVisible, updateVisibility } from "./domain/dungeon/visibility";
 import type { DifficultyMode } from "./entities/difficulty";
 import { HOKORA_DUST_DEF_ID, MARK_STONE_DEF_ID, MARKS } from "./entities/forging";
 import { sellPrice } from "./entities/shop";
@@ -121,7 +121,7 @@ import {
   captureOutlookFor,
   resolveEmptyBarrel as domainResolveEmptyBarrel,
 } from "./domain/barrel/barrelCapture";
-import type { BossMoveContext } from "./systems/bossMoves";
+import type { BossMoveContext } from "./domain/dungeon/bossMoves";
 import { damageActor as domainDamageActor, killActor as domainKillActor } from "./domain/turn/damage";
 import { attack as domainAttack } from "./domain/turn/attackResolution";
 import { applyTorrentPush as domainApplyTorrentPush, pushMonster as domainPushMonster } from "./domain/turn/actorActions";
@@ -2488,7 +2488,7 @@ export class Game {
     return { rng: this.rng, floor: this.floor, player: this.player, events };
   }
 
-  /** 地方ボスの大技(systems/bossMoves.tsのBOSS_MOVES)に渡す、narrowなGameアクセス */
+  /** 地方ボスの大技(domain/dungeon/bossMoves.tsのBOSS_MOVES)に渡す、narrowなGameアクセス */
   private bossMoveContext(actor: MonsterActor, events: GameEvent[]): BossMoveContext {
     return {
       actor,

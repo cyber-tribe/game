@@ -11,7 +11,7 @@ import { decideAllyAction } from "../src/entities/ai";
 import { SPECIES, speciesById } from "../src/entities/species";
 import { Rng } from "../src/core/rng";
 import { expForLevel } from "../src/entities/player";
-import { createAllyFromStored } from "../src/dungeon/populate";
+import { createAllyFromStored } from "../src/domain/dungeon/populate";
 import { actorToStoredMonster, loadSave, type StoredMonster } from "../src/save";
 import { Game } from "../src/game";
 import { access, executeMonsterAction } from "./helpers/access";

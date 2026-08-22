@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Rng } from "../src/core/rng";
-import { pickFloorGimmick } from "../src/dungeon/gimmicks";
+import { pickFloorGimmick } from "../src/domain/dungeon/gimmicks";
 import { Game } from "../src/game";
 import { itemDef } from "../src/items/catalog";
 

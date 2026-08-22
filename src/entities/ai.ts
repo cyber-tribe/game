@@ -20,7 +20,7 @@ import {
   tileAt,
   walkableAt,
 } from "../core/types";
-import { canSee } from "../dungeon/visibility";
+import { canSee } from "../domain/dungeon/visibility";
 import { DREAM_ARTS } from "./dreamArts";
 import { hasSkill } from "./skills";
 import { speciesById } from "./species";
@@ -45,7 +45,7 @@ export type MonsterAction =
   | { type: "telegraph"; targetId: number }
   /**
    * 地方ボス(plan/region-bosses.md)の大技本体。予兆を消費した1手。
-   * 種類ごとの実装は systems/bossMoves.ts の BOSS_MOVES レジストリにある
+   * 種類ごとの実装は domain/dungeon/bossMoves.ts の BOSS_MOVES レジストリにある
    * (moveId→実装の対応はそこに集約し、ここでは種類を区別しない)
    */
   | { type: "bossMove"; moveId: Exclude<BossMoveId, "targetedStrike"> }

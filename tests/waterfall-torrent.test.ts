@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { Game } from "../src/game";
 import { Rng } from "../src/core/rng";
-import { generateFloor } from "../src/dungeon/generate";
-import { placeTorrentTiles } from "../src/dungeon/populate";
+import { generateFloor } from "../src/domain/dungeon/generate";
+import { placeTorrentTiles } from "../src/domain/dungeon/populate";
 import { TILE_ROOM, TILE_WALL, roomContains, type Actor } from "../src/core/types";
 import { REGION_DUNGEON_IDS } from "../src/entities/dungeons";
 import { moveActor as moveActorVia } from "./helpers/access";

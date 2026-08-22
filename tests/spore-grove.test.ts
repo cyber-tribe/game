@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { Game } from "../src/game";
 import { explode } from "./helpers/access";
 import { Rng } from "../src/core/rng";
-import { generateFloor } from "../src/dungeon/generate";
-import { placeSporeRooms } from "../src/dungeon/populate";
+import { generateFloor } from "../src/domain/dungeon/generate";
+import { placeSporeRooms } from "../src/domain/dungeon/populate";
 import { roomCenter, roomContains } from "../src/core/types";
 import { REGION_DUNGEON_IDS } from "../src/entities/dungeons";
 

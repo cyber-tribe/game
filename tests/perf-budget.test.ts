@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { spawnWanderingMonster } from "../src/dungeon/populate";
+import { spawnWanderingMonster } from "../src/domain/dungeon/populate";
 import { buildDistanceField } from "../src/entities/ai";
 import { Game } from "../src/game";
 import { saveRunSnapshot } from "../src/save";

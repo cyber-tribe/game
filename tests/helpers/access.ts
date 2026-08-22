@@ -4,7 +4,7 @@ import type { GameEvent } from "../../src/core/events";
 import type { OncePerRunTracker } from "../../src/core/oncePerRunTracker";
 import type { MoodDef } from "../../src/entities/moods";
 import type { MonsterAction } from "../../src/entities/ai";
-import type { BossMoveContext } from "../../src/systems/bossMoves";
+import type { BossMoveContext } from "../../src/domain/dungeon/bossMoves";
 import type { DreamArtContext } from "../../src/domain/party/dreamArtEffects";
 import type { SkillChoiceState } from "../../src/domain/player/runSkills";
 import type { Game } from "../../src/game";

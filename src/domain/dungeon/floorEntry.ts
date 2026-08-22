@@ -4,7 +4,7 @@ import { TILE_CORRIDOR, TILE_ROOM, TILE_WALL, freeSpotNear } from "../../core/ty
 import type { GameEvent } from "../../core/events";
 import type { Rng } from "../../core/rng";
 import type { PlayerState } from "../../entities/player";
-import type { IdSource } from "../../dungeon/populate";
+import type { IdSource } from "./populate";
 import {
   choosePlayerStart,
   createBarrel,
@@ -19,10 +19,10 @@ import {
   placeSporeRooms,
   placeTorrentTiles,
   populateFloor,
-} from "../../dungeon/populate";
-import { generateFloor } from "../../dungeon/generate";
-import { pickFloorGimmick } from "../../dungeon/gimmicks";
-import { updateVisibility } from "../../dungeon/visibility";
+} from "./populate";
+import { generateFloor } from "./generate";
+import { pickFloorGimmick } from "./gimmicks";
+import { updateVisibility } from "./visibility";
 import {
   type DungeonDef,
   branchDungeonSpecFor,
@@ -52,7 +52,7 @@ import { hasEquipEffect } from "../../items/inventory";
 
 /**
  * 図鑑コンプリート(plan/monster-compendium.md)時、かがやきの夢のかけらの
- * 出現確率に掛かる倍率。基準の確率自体は dungeon/populate.ts 側で定義する
+ * 出現確率に掛かる倍率。基準の確率自体は populate.ts 側で定義する
  */
 const COMPENDIUM_COMPLETE_SHINING_MULTIPLIER = 1.5;
 /**
