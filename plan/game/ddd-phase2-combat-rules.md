@@ -1,6 +1,6 @@
 # DDD Phase 2: Game の戦闘計算ルールを domain/combat へ移す
 
-関連: [ADR 0016](../adr/0016-incremental-ddd-for-game-rules.md) Phase 2
+関連: [ADR 0016](../../adr/0016-incremental-ddd-for-game-rules.md) Phase 2
 前提: [Phase 1](ddd-phase1-combat-domain.md) 完了(`src/domain/combat/` が存在すること)
 
 ## 目的

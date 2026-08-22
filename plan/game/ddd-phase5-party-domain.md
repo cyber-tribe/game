@@ -1,6 +1,6 @@
 # DDD Phase 5: Party / Companion と Player 成長を分離する
 
-関連: [ADR 0016](../adr/0016-incremental-ddd-for-game-rules.md) Phase 5
+関連: [ADR 0016](../../adr/0016-incremental-ddd-for-game-rules.md) Phase 5
 前提: [Phase 4](ddd-phase4-turn-resolution.md) 完了(TurnContext のコールバック
 `gainAllyExpFromKill` を実装で置き換えるため)
 

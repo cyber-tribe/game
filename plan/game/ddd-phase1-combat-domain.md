@@ -1,6 +1,6 @@
 # DDD Phase 1: Combat をドメインモジュールの基準実装にする
 
-関連: [ADR 0016](../adr/0016-incremental-ddd-for-game-rules.md) Phase 1
+関連: [ADR 0016](../../adr/0016-incremental-ddd-for-game-rules.md) Phase 1
 
 このドキュメントは実装セッションがそのまま着手できる粒度の作業指示。
 仕様判断は済んでおり、残りはファイル移動・分割・import更新の機械的作業。

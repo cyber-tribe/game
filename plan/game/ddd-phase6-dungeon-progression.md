@@ -1,6 +1,6 @@
 # DDD Phase 6: Dungeon Progression / Floor Rules を分離する
 
-関連: [ADR 0016](../adr/0016-incremental-ddd-for-game-rules.md) Phase 6
+関連: [ADR 0016](../../adr/0016-incremental-ddd-for-game-rules.md) Phase 6
 前提: [Phase 4](ddd-phase4-turn-resolution.md) 完了(`tickFloorGimmicks`
 コールバックをこのPhaseで実装に差し替えるため)
 
