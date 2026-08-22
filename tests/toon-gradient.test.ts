@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { TOON_GRADIENT_STEPS } from "../src/view/assets";
+import * as THREE from "three";
+import { TOON_GRADIENT_STEPS, outlineColorFor } from "../src/view/assets";
 
 /**
  * トゥーンシェーディングの階調マップ(plan/game/archive/toon-shading-pipeline.md、
@@ -31,7 +32,7 @@ describe("view/assets.ts: トゥーンの階調マップ", () => {
 
   it("ハイライトは飽和しない(255まで上げない)", () => {
     // 255だと受光面がアルベドそのままの明るさで出て白飛びする(issue #484)
-    expect(TOON_GRADIENT_STEPS[2]).toBeLessThanOrEqual(230);
+    expect(TOON_GRADIENT_STEPS.at(-1)).toBeLessThanOrEqual(230);
   });
 
   it("段が潰れず、階調として見分けられる幅がある", () => {
@@ -45,5 +46,46 @@ describe("view/assets.ts: トゥーンの階調マップ", () => {
       expect(step).toBeGreaterThanOrEqual(0);
       expect(step).toBeLessThanOrEqual(255);
     }
+  });
+});
+
+/**
+ * 輪郭線の色(plan/models/visual-quality-uplift.md施策C「純黒をやめ、
+ * 各モデルの基色を暗く濁した色にする」)。一律の黒(0x0a0a0c)をやめ、
+ * モデル本体の色相を残しつつ暗く・薄く濁した色を導く
+ */
+describe("view/assets.ts: outlineColorFor(輪郭線の色)", () => {
+  function toonMaterial(hex: number): THREE.MeshToonMaterial {
+    return new THREE.MeshToonMaterial({ color: new THREE.Color(hex) });
+  }
+
+  it("色相は基色と同じまま、暗く濁った色になる(赤なら暗い臙脂)", () => {
+    const red = outlineColorFor(toonMaterial(0xff2020));
+    const hsl = { h: 0, s: 0, l: 0 };
+    red.getHSL(hsl);
+    const baseHsl = { h: 0, s: 0, l: 0 };
+    new THREE.Color(0xff2020).getHSL(baseHsl);
+
+    expect(hsl.h).toBeCloseTo(baseHsl.h, 2);
+    expect(hsl.l).toBeLessThan(0.15); // 純黒ではないが十分暗い
+    expect(hsl.s).toBeLessThan(baseHsl.s); // 彩度は元より濁っている(低い)
+  });
+
+  it("色相が違えばモデルごとに輪郭線の色も変わる(一律の黒ではない)", () => {
+    const red = outlineColorFor(toonMaterial(0xff2020));
+    const blue = outlineColorFor(toonMaterial(0x2040ff));
+    expect(red.getHex()).not.toBe(blue.getHex());
+  });
+
+  it("配列マテリアル(複数マテリアル)は先頭の色から導く", () => {
+    const fromArray = outlineColorFor([toonMaterial(0x30a060), toonMaterial(0xff2020)]);
+    const fromFirst = outlineColorFor(toonMaterial(0x30a060));
+    expect(fromArray.getHex()).toBe(fromFirst.getHex());
+  });
+
+  it("色を持たないマテリアルは既定色にフォールバックする(白飛び・例外を出さない)", () => {
+    const glow = new THREE.MeshBasicMaterial(); // .colorはあるが、色相を意図的に読めない状況を想定
+    (glow as unknown as { color: undefined }).color = undefined;
+    expect(() => outlineColorFor(glow)).not.toThrow();
   });
 });
