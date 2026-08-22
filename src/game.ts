@@ -62,7 +62,6 @@ import { DEFAULT_MOOD_ID, type MoodDef, type MoodId, moodDef } from "./entities/
 import type { StoredMonster } from "./entities/storedMonster";
 import { isVisible, updateVisibility } from "./domain/dungeon/visibility";
 import type { DifficultyMode } from "./entities/difficulty";
-import { sellPrice } from "./entities/shop";
 import {
   MAX_ALLIES,
   MAX_SATIETY,
@@ -129,6 +128,11 @@ import {
   finishTarukurabeThrow as domainFinishTarukurabeThrow,
   resolveTarukurabeHit as domainResolveTarukurabeHit,
 } from "./domain/tarukurabe/tarukurabe";
+import {
+  type ShopContext,
+  checkShoplifting as domainCheckShoplifting,
+  sellItem as domainSellItem,
+} from "./domain/dungeon/shop";
 import { resolveTurn as domainResolveTurn, upkeep as domainUpkeep } from "./domain/turn/turnCycle";
 import {
   createSkillChoiceState,
@@ -1568,24 +1572,20 @@ export class Game {
     domainCollectGold(this.floor, this.player, pos, events);
   }
 
-  /**
-   * 近道屋の出店(plan/shops-and-thieves.md)。未払いのまま持ち出した品を
-   * 持ったまま部屋の外へ出ると万引き扱いになり、店主が豹変する。
-   * 以後そのラン中は、新しく出会う出店すべてが最初から警戒状態(割高)になる
-   */
-  private checkShoplifting(from: Vec2, to: Vec2, events: GameEvent[]): void {
-    const shopRoom = this.floor.rooms.find((r) => r.kind === "shop");
-    if (!shopRoom || !roomContains(shopRoom, from) || roomContains(shopRoom, to)) return;
-    const hasUnpaid = this.player.inventory.items.some((i) => i.unpaid);
-    if (!hasUnpaid) return;
+  /** checkShoplifting/sellItem(domain/dungeon/shop.ts)に渡す、narrowなGameアクセス */
+  private shopContext(): ShopContext {
+    return {
+      floor: this.floor,
+      player: this.player,
+      getShopWary: () => this.shopWary,
+      setShopWary: (wary) => {
+        this.shopWary = wary;
+      },
+    };
+  }
 
-    for (const item of this.player.inventory.items) item.unpaid = false;
-    this.shopWary = true;
-    const keeper = this.floor.actors.find(
-      (a): a is MonsterActor => a.alive && a.kind === "monster" && a.aiKind === "shopkeeper" && roomContains(shopRoom, a.pos),
-    );
-    if (keeper) keeper.angry = true;
-    events.push({ type: "message", text: "万引きだ! 店主が豹変した!" });
+  private checkShoplifting(from: Vec2, to: Vec2, events: GameEvent[]): void {
+    domainCheckShoplifting(from, to, events, this.shopContext());
   }
 
   private announceGround(pos: Vec2, events: GameEvent[]): void {
@@ -1919,13 +1919,7 @@ export class Game {
 
   /** 店の部屋で「置く」を使うと売却になる(plan/item-selling.md) */
   private sellItem(uid: number, events: GameEvent[]): boolean {
-    const item = removeItem(this.player.inventory, uid);
-    if (!item) return false;
-    const def = itemDef(item.defId);
-    const price = sellPrice(def, item, this.shopWary);
-    this.player.gold += price;
-    events.push({ type: "message", text: `${def.name}を${price}ゴールドで売った。` });
-    return true;
+    return domainSellItem(uid, events, this.shopContext());
   }
 
   // ------------------------------------------------------------ 罠
