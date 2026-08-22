@@ -105,6 +105,18 @@ export class Stage {
   private readonly effects: Effect[] = [];
   private readonly effectRoot = new THREE.Group();
 
+  /**
+   * ヒットストップ(plan/models/toon-advanced-techniques.md施策E-2)。
+   * 打撃が当たった瞬間、時間を数フレーム止めて重さを出す
+   * (「絵ではなく時間で打撃の重さを出す」、アクション表現の基本)。
+   * 短すぎると気づかれず、長すぎるとモッサりするので3フレーム
+   * (60fpsで約0.05秒)にした。update()の残り秒数で管理し、
+   * 残っているあいだはStage.update()の中身を丸ごと止める
+   * (アクター・ダンジョンの演出・パーティクルすべてが対象)
+   */
+  private static readonly HIT_STOP_DURATION = 3 / 60;
+  private hitStopRemaining = 0;
+
   constructor(
     private readonly scene: THREE.Scene,
     private readonly assets: Assets,
@@ -265,6 +277,7 @@ export class Stage {
       damage: (event) => {
         const view = this.views.get(event.actorId);
         if (view) {
+          if (event.amount > 0) this.hitStopRemaining = Stage.HIT_STOP_DURATION;
           view.play("hit", 0.3 * scale);
           view.flash(this.scene);
           this.audio.playSfx("hit");
@@ -528,6 +541,10 @@ export class Stage {
   }
 
   update(dt: number, time: number): void {
+    if (this.hitStopRemaining > 0) {
+      this.hitStopRemaining = Math.max(0, this.hitStopRemaining - dt);
+      return;
+    }
     for (const view of this.views.values()) view.update(dt);
     this.dungeon.animate(time);
     this.particles.update(dt);

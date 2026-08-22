@@ -167,3 +167,40 @@ describe("view/actorView.ts: 歩行(walk)の再生速度倍率", () => {
     expect(actionTimeScale(view, "idle")).toBe(1);
   });
 });
+
+/**
+ * スメア(残像変形、plan/models/toon-advanced-techniques.md施策E-1)。
+ * 攻撃の踏み込み(lunge)の立ち上がりだけ、進行方向へルートを伸ばして
+ * 手描きアニメの「線が流れる」速さを出す
+ */
+describe("view/actorView.ts: 攻撃のスメア", () => {
+  it("踏み込みの立ち上がり(最速の瞬間)は進行方向(ローカルZ)へ伸び、直交方向は縮む", () => {
+    const view = new ActorView({ root: new THREE.Group(), mixer: null, actions: new Map() }, { x: 0, y: 0 });
+    view.lunge(1, 0);
+    view.update(0.01); // ごく短い経過。立ち上がり(phaseが小さい)のまま
+
+    expect(view.root.scale.z).toBeGreaterThan(1);
+    expect(view.root.scale.x).toBeLessThan(1);
+  });
+
+  it("踏み込みが半ばを過ぎると、スメアは元の等倍へ戻る", () => {
+    const view = new ActorView({ root: new THREE.Group(), mixer: null, actions: new Map() }, { x: 0, y: 0 });
+    view.lunge(1, 0, 0.28, 0.26); // 既定の距離・時間
+    view.update(0.26 * 0.5); // 半分ほど経過(立ち上がりの窓は過ぎている)
+
+    expect(view.root.scale.x).toBe(1);
+    expect(view.root.scale.y).toBe(1);
+    expect(view.root.scale.z).toBe(1);
+  });
+
+  it("踏み込みが終わったあとは、スケールが等倍のまま残らない", () => {
+    const view = new ActorView({ root: new THREE.Group(), mixer: null, actions: new Map() }, { x: 0, y: 0 });
+    view.lunge(1, 0);
+    view.update(0.01); // スメア中
+    view.update(1); // 踏み込み完了まで進める
+
+    expect(view.root.scale.x).toBe(1);
+    expect(view.root.scale.y).toBe(1);
+    expect(view.root.scale.z).toBe(1);
+  });
+});

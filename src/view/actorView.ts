@@ -118,6 +118,17 @@ export class ActorView {
    * 根本原因。プレイヤー・モンスターどちらの攻撃でも起きる)
    */
   private readonly lungeApplied = new THREE.Vector3();
+  /**
+   * スメア(残像変形、plan/models/toon-advanced-techniques.md施策E-1)。
+   * 攻撃の踏み込み(lunge)の立ち上がり(最も速い瞬間)だけ、進行方向へ
+   * 極端に伸ばして手描きアニメの「線が流れる」速さを出す。骨ではなく
+   * ルート1個のスケールだけで済ませるので、全種族に共通で効く。
+   * `lungeTotal`に対する比率で「立ち上がりの何割か」を決めるので、
+   * lunge()のdurationが変わっても常に立ち上がり付近だけに掛かる
+   */
+  private static readonly SMEAR_PHASE_WINDOW = 0.18;
+  private static readonly SMEAR_STRETCH = 1.35;
+  private static readonly SMEAR_SQUASH = 0.85;
 
   /** 頭上に抱えているもの。タルを持ち上げているあいだ付いてまわる */
   private carried: THREE.Object3D | null = null;
@@ -374,6 +385,20 @@ export class ActorView {
       const amount = Math.sin(phase * Math.PI);
       this.lungeApplied.copy(this.lungeDir).multiplyScalar(amount);
       this.root.position.add(this.lungeApplied);
+
+      // スメア: 踏み込みの立ち上がり(最速の瞬間)だけ進行方向(ローカルZ、
+      // glTF書き出し後の正面軸)へ伸ばす。faceTowards()が直前に向きを
+      // 合わせている前提(stage.tsのattackハンドラの呼び出し順)
+      if (phase < ActorView.SMEAR_PHASE_WINDOW) {
+        const smearT = 1 - phase / ActorView.SMEAR_PHASE_WINDOW;
+        const stretch = 1 + (ActorView.SMEAR_STRETCH - 1) * smearT;
+        const squash = 1 - (1 - ActorView.SMEAR_SQUASH) * smearT;
+        this.root.scale.set(squash, squash, stretch);
+      } else {
+        this.root.scale.set(1, 1, 1);
+      }
+    } else if (this.root.scale.x !== 1 || this.root.scale.z !== 1) {
+      this.root.scale.set(1, 1, 1);
     }
 
     this.yaw += (this.targetYaw - this.yaw) * (1 - Math.exp(-dt * 16));
