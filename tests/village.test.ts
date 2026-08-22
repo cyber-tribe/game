@@ -332,6 +332,50 @@ describe("view/village.ts: setFestivalLighting", () => {
 });
 
 /**
+ * plan/models/village-surroundings.md: 「山頂の孤島」に見える問題を、
+ * 地面の延長・中景の丘・空のグラデーションドームなどで直す
+ */
+describe("view/village.ts: 村の周辺(village-surroundings)", () => {
+  it("地面(1枚目のPlaneGeometry)がプレイ可能範囲より大きく延長されている", () => {
+    const view = new VillageView(emptyAssets());
+    const ground = view.scene.children.find(
+      (o): o is THREE.Mesh => o instanceof THREE.Mesh && o.geometry instanceof THREE.PlaneGeometry,
+    )!;
+    const params = (ground.geometry as THREE.PlaneGeometry).parameters;
+    expect(params.width).toBeGreaterThan(VILLAGE_BOUNDS.maxX - VILLAGE_BOUNDS.minX);
+    expect(params.height).toBeGreaterThan(VILLAGE_BOUNDS.maxZ - VILLAGE_BOUNDS.minZ);
+  });
+
+  it("空のグラデーションドームがシーンに積まれている", () => {
+    const view = new VillageView(emptyAssets());
+    const sky = view.scene.children.find(
+      (o): o is THREE.Mesh =>
+        o instanceof THREE.Mesh && o.geometry instanceof THREE.SphereGeometry && o.renderOrder === -10,
+    );
+    expect(sky).toBeDefined();
+    expect(sky!.geometry.attributes.color).toBeDefined();
+  });
+
+  it("昼/宵祭りの切り替えで空のドームの頂点カラーも変わる", () => {
+    const view = new VillageView(emptyAssets());
+    const sky = view.scene.children.find(
+      (o): o is THREE.Mesh =>
+        o instanceof THREE.Mesh && o.geometry instanceof THREE.SphereGeometry && o.renderOrder === -10,
+    )!;
+    const dayColor = (sky.geometry.attributes.color as THREE.BufferAttribute).array.slice();
+
+    view.setFestivalLighting(true);
+    const duskColor = (sky.geometry.attributes.color as THREE.BufferAttribute).array;
+    expect(Array.from(duskColor)).not.toEqual(Array.from(dayColor));
+
+    view.setFestivalLighting(false);
+    expect(Array.from((sky.geometry.attributes.color as THREE.BufferAttribute).array)).toEqual(
+      Array.from(dayColor),
+    );
+  });
+});
+
+/**
  * #446: 村なかのプレイヤーがカプセルのままで、主人公ガルドのモデルに
  * なっていなかった。モデルが読めているならそちらを使う
  */
