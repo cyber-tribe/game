@@ -77,6 +77,20 @@ export interface VillageScenery {
   rotationY?: number;
 }
 
+/**
+ * 村なかカメラ(plan/models/village-scene-redesign.mdの「カメラワーク」)。
+ * 俯瞰をやめ、主人公の背後・低めに寄った三人称の追従カメラにする。
+ * 距離4m・高さ2m・注視点の高さ1.1mで、見下ろし角はatan((2-1.1)/4)≈13°と
+ * doc指定の10〜15度に収まる
+ */
+export const VILLAGE_CAMERA_DISTANCE = 4;
+export const VILLAGE_CAMERA_HEIGHT = 2;
+export const VILLAGE_CAMERA_LOOK_HEIGHT = 1.1;
+/** ヨーの追従の速さ(renderer.tsのyaw補間と同じ指数補間の係数) */
+const VILLAGE_CAMERA_YAW_SMOOTHING = 9;
+/** カメラと主人公のあいだに入った建物を薄くする不透明度 */
+const VILLAGE_BUILDING_FADE_OPACITY = 0.35;
+
 /** プレイヤーの当たり判定半径 */
 export const VILLAGE_PLAYER_RADIUS = 0.35;
 /** 建物の当たり判定の外側、この距離まで近づけば確定キーで入れる */
@@ -192,6 +206,40 @@ export function outdoorVillagers(chapter: StoryChapter): readonly OutdoorVillage
 
 function clamp(v: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, v));
+}
+
+/**
+ * `to`へ向かう最短の角度差(-π, π]。単純な引き算だと0度⇔360度をまたぐ
+ * ときに大回りしてしまう(例: 359度→1度が-358度回るように見える)ので、
+ * 追従カメラのヨー補間(`VillageView`)はこれを使って最短経路で回り込む
+ */
+export function shortestAngleDelta(from: number, to: number): number {
+  return Math.atan2(Math.sin(to - from), Math.cos(to - from));
+}
+
+/**
+ * カメラと注視点(主人公)を結ぶ線分の上に、この建物が割り込んでいるか
+ * (plan/models/village-scene-redesign.mdの「遮蔽」)。XZ平面だけで判定する
+ * (村の建物・カメラ・主人公はどれも高さの差が小さいため、平面の当たり
+ * 判定で十分)。線分の両端近く(`t`が0または1に近い側)は除外し、
+ * カメラ自身や主人公自身の位置にたまたま建物が重なった扱いにならない
+ * ようにしている
+ */
+export function buildingOccludesView(
+  camera: VillagePos,
+  target: VillagePos,
+  building: VillageBuilding,
+): boolean {
+  const dx = target.x - camera.x;
+  const dz = target.z - camera.z;
+  const lenSq = dx * dx + dz * dz;
+  if (lenSq < 1e-6) return false;
+  const t = ((building.x - camera.x) * dx + (building.z - camera.z) * dz) / lenSq;
+  if (t <= 0.05 || t >= 0.95) return false;
+  const closestX = camera.x + dx * t;
+  const closestZ = camera.z + dz * t;
+  const dist = Math.hypot(building.x - closestX, building.z - closestZ);
+  return dist < building.radius + 0.4;
 }
 
 /**
@@ -486,6 +534,12 @@ export class VillageView {
   private costumeTint: readonly [number, number, number] | null = null;
   private pos: VillagePos = { ...VILLAGE_PLAYER_START };
   /**
+   * 追従カメラのヨー(ラジアン、0のとき主人公の南=画面手前にいる。
+   * これは旧来の俯瞰カメラの位置(pos.z+7)と同じ側なので、静止時の
+   * 見た目は変えていない)。移動した向きへ`update()`が滑らかに寄せる
+   */
+  private cameraYaw = 0;
+  /**
    * 屋外に立っている村人(plan/game/village-interiors.md)。モデルは
    * 起動時には読まれない(`essentialModelNames`に入っていない)ので、
    * 図鑑ギャラリーと同じく毎フレーム様子を見て、届いた回に1度だけ作る
@@ -556,7 +610,7 @@ export class VillageView {
     this.scene.add(this.playerMesh);
 
     this.camera = new THREE.PerspectiveCamera(48, 1, 0.1, 60);
-    this.updateCamera();
+    this.applyCameraTransform();
     // 既定は明るい昼(showTown側でsetFestivalLightingが呼ばれる前の保険でもある)
     this.setFestivalLighting(false);
   }
@@ -592,7 +646,8 @@ export class VillageView {
   /** 拠点へ戻るたび(showTown())に、村の中の立ち位置を出発点へ戻す */
   reset(): void {
     this.pos = { ...VILLAGE_PLAYER_START };
-    this.updateCamera();
+    this.cameraYaw = 0;
+    this.applyCameraTransform();
     this.playerMesh.position.set(this.pos.x, 0.75, this.pos.z);
     this.ensurePlayerView();
     this.playerView?.setPosition(toActorPos(this.pos));
@@ -691,12 +746,54 @@ export class VillageView {
     return this.pos;
   }
 
-  /** 押されている方向に応じて歩かせる。`dir`は`Input.direction()`をそのまま渡す */
+  /**
+   * 建物ごとの今の不透明度(遮蔽の確認用)。建物idが見つからなければnull。
+   * 主にテスト向け(`updateBuildingOcclusion`は private なので、
+   * 効果を外から確かめるための最小限の窓口)
+   */
+  buildingOpacity(id: string): number | null {
+    const group = this.buildingGroups.get(id);
+    if (!group) return null;
+    let opacity: number | null = null;
+    group.traverse((obj) => {
+      if (opacity !== null || !(obj instanceof THREE.Mesh)) return;
+      const material = Array.isArray(obj.material) ? obj.material[0] : obj.material;
+      opacity = material?.opacity ?? null;
+    });
+    return opacity;
+  }
+
+  /**
+   * 押されている方向に応じて歩かせる。`dir`は`Input.direction()`をそのまま渡す。
+   *
+   * plan/models/village-scene-redesign.mdは入力もカメラ基準で解釈する方針を
+   * 挙げているが、これは見送った。`tools/playtest.mjs`の
+   * `walkToBuildingAndEnter`をはじめ、ワールド基準の方角(矢印キー=常に
+   * ワールドのその方角)を前提にした自動操作が複数あり、カメラが回り込んだ
+   * あとに世界の方角と画面の方角がずれると、狙った建物に正しく歩けなく
+   * なることを確認した(#758の実機での通しプレイで検出)。移動そのものは
+   * 引き続きワールド基準のまま、カメラだけが向いた方向を追いかける
+   */
   update(dt: number, dir: Dir | null): void {
     const before = this.pos;
     this.pos = moveVillagePlayer(this.pos, dir, dt);
     this.playerMesh.position.set(this.pos.x, 0.75, this.pos.z);
-    this.updateCamera();
+
+    // 歩いた向きへ向き直り、歩き/待機の仕草を切り替える。
+    // 壁際で押し続けている場合は位置が変わらないので、待機に戻る
+    const dx = this.pos.x - before.x;
+    const dz = this.pos.z - before.z;
+    const moving = dx !== 0 || dz !== 0;
+
+    // カメラは実際に動いた向きの後ろへ滑らかに回り込む(plan/models/
+    // village-scene-redesign.mdの「追従」)。止まっている間は最後の
+    // 向きのまま保つ(勝手に正面へ戻ったりしない)
+    if (moving) {
+      const desiredYaw = Math.atan2(-dx, -dz);
+      this.cameraYaw += shortestAngleDelta(this.cameraYaw, desiredYaw) * (1 - Math.exp(-dt * VILLAGE_CAMERA_YAW_SMOOTHING));
+    }
+    this.applyCameraTransform();
+    this.updateBuildingOcclusion();
 
     this.ensureBuildingModels();
     this.ensureScenery();
@@ -705,11 +802,6 @@ export class VillageView {
     const view = this.playerView;
     if (!view) return;
     view.setPosition(toActorPos(this.pos));
-    // 歩いた向きへ向き直り、歩き/待機の仕草を切り替える。
-    // 壁際で押し続けている場合は位置が変わらないので、待機に戻る
-    const dx = this.pos.x - before.x;
-    const dz = this.pos.z - before.z;
-    const moving = dx !== 0 || dz !== 0;
     if (moving) view.faceTowards(dx, dz);
     view.play(moving ? "walk" : "idle");
     view.update(dt);
@@ -726,8 +818,35 @@ export class VillageView {
     this.camera.updateProjectionMatrix();
   }
 
-  private updateCamera(): void {
-    this.camera.position.set(this.pos.x, 9, this.pos.z + 7);
-    this.camera.lookAt(this.pos.x, 0.6, this.pos.z);
+  /** 今の`pos`・`cameraYaw`からカメラの位置・向きを組み立てる */
+  private applyCameraTransform(): void {
+    this.camera.position.set(
+      this.pos.x + Math.sin(this.cameraYaw) * VILLAGE_CAMERA_DISTANCE,
+      VILLAGE_CAMERA_HEIGHT,
+      this.pos.z + Math.cos(this.cameraYaw) * VILLAGE_CAMERA_DISTANCE,
+    );
+    this.camera.lookAt(this.pos.x, VILLAGE_CAMERA_LOOK_HEIGHT, this.pos.z);
+  }
+
+  /**
+   * カメラと主人公のあいだに割り込んだ建物を薄くする(plan/models/
+   * village-scene-redesign.mdの「遮蔽」)。カメラを壁の内側へ押し込む
+   * より実装が素直で、丸屋根のシルエットも保てる
+   */
+  private updateBuildingOcclusion(): void {
+    const camera: VillagePos = { x: this.camera.position.x, z: this.camera.position.z };
+    for (const building of VILLAGE_BUILDINGS) {
+      const group = this.buildingGroups.get(building.id);
+      if (!group) continue;
+      const opacity = buildingOccludesView(camera, this.pos, building) ? VILLAGE_BUILDING_FADE_OPACITY : 1;
+      group.traverse((obj) => {
+        if (!(obj instanceof THREE.Mesh)) return;
+        const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
+        for (const material of materials) {
+          material.transparent = opacity < 1;
+          material.opacity = opacity;
+        }
+      });
+    }
   }
 }

@@ -4,13 +4,18 @@ import type { Assets } from "../src/view/assets";
 import {
   VILLAGE_BOUNDS,
   VILLAGE_BUILDINGS,
+  VILLAGE_CAMERA_DISTANCE,
+  VILLAGE_CAMERA_HEIGHT,
   VILLAGE_INTERACT_PADDING,
   VILLAGE_PLAYER_RADIUS,
   VILLAGE_PLAYER_START,
   VillageView,
+  buildingOccludesView,
   moveVillagePlayer,
   nearestVillageBuilding,
+  shortestAngleDelta,
   type VillageBuilding,
+  type VillagePos,
 } from "../src/view/village";
 
 describe("view/village.ts: 村マップの配置", () => {
@@ -371,5 +376,99 @@ describe("view/village.ts: 村なかの主人公の姿(#446)", () => {
     // 色替えはマテリアルを複製して掛けるため、メッシュを持たない骨組みでも
     // 例外なく通ること(実際の色はActorView.applyTint側のテストが担保する)
     expect(roots).toHaveLength(1);
+  });
+});
+
+/**
+ * 村なかカメラ(plan/models/village-scene-redesign.mdの「カメラワーク」):
+ * 俯瞰をやめ、主人公の背後・低めに寄った三人称の追従カメラにする
+ */
+describe("view/village.ts: 村なかカメラの追従(village-scene-redesign)", () => {
+  it("静止時は距離4m・高さ2mの、主人公の背後(南側)にいる", () => {
+    const view = new VillageView(emptyAssets());
+    expect(view.camera.position.y).toBeCloseTo(VILLAGE_CAMERA_HEIGHT, 5);
+    expect(view.camera.position.x).toBeCloseTo(VILLAGE_PLAYER_START.x, 5);
+    expect(view.camera.position.z).toBeCloseTo(VILLAGE_PLAYER_START.z + VILLAGE_CAMERA_DISTANCE, 5);
+  });
+
+  it("歩き続けると、カメラのヨーが動いた向きへ寄っていく", () => {
+    // 移動そのものはワールド基準のまま(入力の回転は見送った、update()の
+    // コメント参照)なので、東(dir=2)へ歩き続けると実際の移動方向は
+    // 一定のまま、カメラのヨーだけがそれを追いかけて-π/2付近へ収束する
+    const view = new VillageView(emptyAssets());
+    for (let i = 0; i < 60; i++) view.update(0.05, 2);
+    const cameraYaw = (view as unknown as { cameraYaw: number }).cameraYaw;
+    expect(cameraYaw).toBeCloseTo(-Math.PI / 2, 1);
+  });
+
+  it("立ち止まると、最後に向いていたカメラの向きを保つ(正面へ戻らない)", () => {
+    const view = new VillageView(emptyAssets());
+    for (let i = 0; i < 60; i++) view.update(0.05, 2);
+    const turned = view.camera.position.x;
+    view.update(0.05, null); // 壁際ではないので位置は動かないが、動いても止まってもいい
+    view.update(0.05, null);
+    expect(view.camera.position.x).toBeCloseTo(turned, 1);
+  });
+
+  it("出発地点では、遮る建物が無いのですべて不透明のまま", () => {
+    const view = new VillageView(emptyAssets());
+    view.update(0.016, null);
+    for (const building of VILLAGE_BUILDINGS) {
+      expect(view.buildingOpacity(building.id)).toBe(1);
+    }
+  });
+
+  it("カメラと主人公のあいだに割り込む配置では、その建物だけ薄くなる", () => {
+    // 実在の建物レイアウトのまま歩行の衝突を経由して狙った配置を作るのは
+    // 難しいので、tests/helpers/access.tsと同じ考え方でprivateな
+    // pos/cameraYawを直接差し込み、updateBuildingOcclusion()の効果だけを
+    // 確かめる。board(0,3)がちょうど間(t=0.25)に来る、主人公(0,6)・
+    // カメラのヨー北向き(π。camera.z = pos.z + cos(π)*4 = 2)を使う
+    const view = new VillageView(emptyAssets()) as unknown as {
+      pos: VillagePos;
+      cameraYaw: number;
+      applyCameraTransform: () => void;
+      updateBuildingOcclusion: () => void;
+      buildingOpacity: (id: string) => number | null;
+    };
+    view.pos = { x: 0, z: 6 };
+    view.cameraYaw = Math.PI;
+    view.applyCameraTransform();
+    view.updateBuildingOcclusion();
+    expect(view.buildingOpacity("board")).toBeLessThan(1);
+    // 遠く離れた建物は変わらず不透明
+    expect(view.buildingOpacity("garudoHouse")).toBe(1);
+  });
+});
+
+describe("view/village.ts: shortestAngleDelta", () => {
+  it("同じ向きなら差は0", () => {
+    expect(shortestAngleDelta(1.2, 1.2)).toBeCloseTo(0, 10);
+  });
+
+  it("0度⇔360度をまたぐ側は、大回りせず短い経路の差を返す", () => {
+    const from = Math.PI - 0.1;
+    const to = -Math.PI + 0.1;
+    expect(shortestAngleDelta(from, to)).toBeCloseTo(0.2, 5);
+  });
+});
+
+describe("view/village.ts: buildingOccludesView", () => {
+  const building: VillageBuilding = {
+    id: "test", label: "test", columns: [], role: "test",
+    x: 0, z: 3, radius: 0.7, shape: "post", color: 0,
+  };
+
+  it("カメラと注視点を結ぶ線上に建物があれば遮る", () => {
+    expect(buildingOccludesView({ x: 0, z: 10 }, { x: 0, z: 0 }, building)).toBe(true);
+  });
+
+  it("線から大きく外れていれば遮らない", () => {
+    expect(buildingOccludesView({ x: 20, z: 10 }, { x: 20, z: 0 }, building)).toBe(false);
+  });
+
+  it("カメラ自身・注視点自身のすぐそばは除外する(t境界)", () => {
+    const nearCamera: VillageBuilding = { ...building, x: 0, z: 9.9 };
+    expect(buildingOccludesView({ x: 0, z: 10 }, { x: 0, z: 0 }, nearCamera)).toBe(false);
   });
 });
