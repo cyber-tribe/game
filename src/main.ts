@@ -452,6 +452,11 @@ class App {
     initialColumn: number = openColumns[0] ?? 0,
     systemMenuMode = false,
     onClose?: () => void,
+    /**
+     * セーブデータの管理(plan/game/save-delete-touch.md)は拠点(村なか)
+     * でのみ有効。呼び出し元がthis.villageActiveを畳む前に読んで渡す
+     */
+    canManageSaveData = this.villageActive,
   ): void {
     this.setVillageActive(false);
     // 建物の中(plan/game/village-interiors.md): 直前に入っていた内装は必ず
@@ -570,11 +575,32 @@ class App {
         this.applyLocale();
         this.town.refreshSave(this.save);
       },
+      () => this.openSaveManagement(),
+      canManageSaveData,
       initialColumn,
       openColumns,
       heading,
       systemMenuMode,
       onClose,
+    );
+  }
+
+  /**
+   * セーブデータの管理(plan/game/save-delete-touch.md)。設定画面の末尾
+   * から開く。起動時と同じスロット選択画面(削除ボタンつき)を再利用し、
+   * 枠を選べば従来どおりその枠へ切り替わる。Escapeで村なかへ戻る
+   * (この項目自体が拠点でのみ選べるため、戻り先は常に村で良い)
+   */
+  private openSaveManagement(): void {
+    this.town.hide();
+    this.slotSelect.show(
+      listSaveSlotSummaries(),
+      (slot) => this.beginWithSlot(slot),
+      (slot) => {
+        deleteSaveSlot(slot);
+        this.slotSelect.refresh(listSaveSlotSummaries());
+      },
+      () => this.setVillageActive(true),
     );
   }
 

@@ -1015,6 +1015,8 @@
       .town-col ul { list-style: none; margin: 0; padding: 0; }
       .town-col li { padding: 4px 8px; border-radius: 5px; font-size: 13.5px; cursor: pointer; }
       .town-col li.empty { color: #5c6788; font-size: 12px; }
+      /* セーブデータの管理(plan/game/save-delete-touch.md): ダイブ中は無効表示にする */
+      .town-col li.disabled { color: var(--dim); }
       .town-col li.selected {
         background: rgba(127, 190, 255, 0.20);
         box-shadow: inset 2px 0 0 #7fd6ff;
@@ -1197,10 +1199,36 @@
         border-color: #7fd6ff;
       }
       .slot-row .slot-name { font-size: 14.5px; }
+      .slot-row-right { display: flex; align-items: center; gap: 8px; }
       .slot-row .slot-detail { font-size: 11.5px; color: var(--dim); }
       .slot-row.empty .slot-name { color: #96f0b8; }
+      /* スマホからの削除(plan/game/save-delete-touch.md): Deleteキーが無い
+         タッチ環境向けの常設ボタン。行タップ(選択)とは独立して確認へ入る */
+      .slot-delete-btn {
+        margin-left: 10px; padding: 5px 10px;
+        font-family: inherit; font-size: 11.5px;
+        color: var(--warn); background: rgba(230, 180, 85, 0.12);
+        border: 1px solid var(--warn); border-radius: 6px;
+        cursor: pointer; flex-shrink: 0;
+      }
+      .slot-delete-btn:active { background: rgba(230, 180, 85, 0.28); }
       .slot-hint { margin: 14px 0 0; font-size: 11px; color: #6b789e; text-align: center; }
       .slot-confirm { margin: 10px 0 0; font-size: 12px; color: var(--warn); text-align: center; }
+      .slot-confirm-actions { display: flex; gap: 10px; margin-top: 10px; }
+      .slot-confirm-btn {
+        flex: 1;
+        padding: 9px 10px;
+        font-family: inherit; font-size: 13px;
+        color: var(--ink);
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid var(--edge); border-radius: 6px;
+        cursor: pointer;
+      }
+      .slot-confirm-btn:active { background: rgba(127, 190, 255, 0.28); }
+      .slot-confirm-btn-danger {
+        color: #05060c; background: var(--warn); border-color: var(--warn); font-weight: 700;
+      }
+      .slot-confirm-btn-danger:active { background: #f0c47a; }
 
       /* ------------------------------------------------ 全画面表示 */
       #overlay {

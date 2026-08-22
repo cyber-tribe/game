@@ -233,8 +233,12 @@ export class TownScreen {
   private onSetMessageSpeed: ((speed: MessageSpeed) => void) | null = null;
   /** 多言語対応の土台(plan/i18n-foundation.md) */
   private onSetSaveLocale: ((locale: LocaleId) => void) | null = null;
-  /** 設定画面の一覧上のカーソル位置(0=メッセージ速度、1=操作説明、2=キー配置、3=げんご) */
-  private settingsCursor: 0 | 1 | 2 | 3 = 0;
+  /** セーブデータの管理(plan/game/save-delete-touch.md) */
+  private onOpenSaveManagement: (() => void) | null = null;
+  /** セーブデータの管理は拠点でのみ有効(plan/game/save-delete-touch.md) */
+  private canManageSaveData = false;
+  /** 設定画面の一覧上のカーソル位置(0=メッセージ速度、1=操作説明、2=キー配置、3=げんご、4=セーブデータの管理) */
+  private settingsCursor: 0 | 1 | 2 | 3 | 4 = 0;
   /** 設定画面: 操作説明・キー配置確認を全件表示しているあいだだけ非null */
   private settingsSubView: "tutorialTips" | "keyReference" | null = null;
   /** 実績帳(plan/achievements.md)の一覧上のカーソル位置 */
@@ -278,6 +282,14 @@ export class TownScreen {
     onSetAudioVolume: (volume: number) => void,
     onSetMessageSpeed: (speed: MessageSpeed) => void,
     onSetSaveLocale: (locale: LocaleId) => void,
+    /** セーブデータの管理(plan/game/save-delete-touch.md)。設定画面の末尾から呼ぶ */
+    onOpenSaveManagement: () => void,
+    /**
+     * セーブデータの管理は拠点(村なか)でのみ有効(plan/game/save-delete-touch.md)。
+     * ダイブ中に消すとオートセーブ・進行中の状態が宙に浮くため、ダイブ中は
+     * 選択肢を無効表示にし、Enterを押しても何も起きないようにする
+     */
+    canManageSaveData = false,
     /**
      * 拠点の3D化(plan/town-3d-exploration.md)。村なかで近づいた建物に
      * 対応する列を開いた状態で表示する。省略時は常に0(倉庫)から始まる
@@ -356,6 +368,8 @@ export class TownScreen {
     this.audioSettingsCursor = 0;
     this.onSetMessageSpeed = onSetMessageSpeed;
     this.onSetSaveLocale = onSetSaveLocale;
+    this.onOpenSaveManagement = onOpenSaveManagement;
+    this.canManageSaveData = canManageSaveData;
     this.settingsCursor = 0;
     this.settingsSubView = null;
     this.festivalShopCursor = 0;
@@ -1091,11 +1105,11 @@ export class TownScreen {
       switch (code) {
         case "ArrowUp":
         case "KeyW":
-          this.settingsCursor = wrap(this.settingsCursor - 1, 4) as 0 | 1 | 2 | 3;
+          this.settingsCursor = wrap(this.settingsCursor - 1, 5) as 0 | 1 | 2 | 3 | 4;
           break;
         case "ArrowDown":
         case "KeyS":
-          this.settingsCursor = wrap(this.settingsCursor + 1, 4) as 0 | 1 | 2 | 3;
+          this.settingsCursor = wrap(this.settingsCursor + 1, 5) as 0 | 1 | 2 | 3 | 4;
           break;
         case "ArrowLeft":
         case "KeyA":
@@ -1111,12 +1125,16 @@ export class TownScreen {
             this.settingsSubView = "tutorialTips";
           } else if (this.settingsCursor === 2) {
             this.settingsSubView = "keyReference";
-          } else {
+          } else if (this.settingsCursor === 3) {
             // 多言語対応の土台(plan/i18n-foundation.md): 第1段階時点はLOCALESが"ja"のみのため、
             // 骨格として1周するだけの切り替えになる
             const locales = LOCALES;
             const idx = locales.indexOf(this.save?.locale ?? "ja");
             this.onSetSaveLocale?.(locales[(idx + 1) % locales.length]!);
+          } else if (this.canManageSaveData) {
+            // セーブデータの管理(plan/game/save-delete-touch.md): ダイブ中は
+            // canManageSaveData=falseのため、Enterを押しても何も起きない
+            this.onOpenSaveManagement?.();
           }
           break;
         }
@@ -1653,7 +1671,11 @@ export class TownScreen {
             ? t("ui.settings.descTips")
             : this.settingsCursor === 2
               ? t("ui.settings.descKeys")
-              : t("ui.settings.descLocale");
+              : this.settingsCursor === 3
+                ? t("ui.settings.descLocale")
+                : this.canManageSaveData
+                  ? t("ui.settings.descSaveManagement")
+                  : t("ui.settings.descSaveManagementLocked");
     } else {
       const selected = (this.column === 0 ? this.storage : this.carry)[this.cursor[this.column]];
       desc.textContent = selected ? itemDef(selected.defId).description : "";
@@ -2684,6 +2706,18 @@ export class TownScreen {
       if (localeSelected) localeLi.classList.add("selected");
       localeLi.addEventListener("click", () => this.tapItem(19, localeSelected, () => { this.settingsCursor = 3; }));
       list.appendChild(localeLi);
+
+      const saveManagementLi = document.createElement("li");
+      saveManagementLi.textContent = this.canManageSaveData
+        ? t("ui.settings.saveManagement")
+        : t("ui.settings.saveManagementLocked");
+      const saveManagementSelected = this.column === 19 && this.settingsCursor === 4;
+      if (saveManagementSelected) saveManagementLi.classList.add("selected");
+      if (!this.canManageSaveData) saveManagementLi.classList.add("disabled");
+      saveManagementLi.addEventListener("click", () =>
+        this.tapItem(19, saveManagementSelected, () => { this.settingsCursor = 4; }),
+      );
+      list.appendChild(saveManagementLi);
 
       wrapper.appendChild(list);
     });
