@@ -6,7 +6,7 @@ import type { MessageSpeed } from "../entities/settings";
 import type { LocaleId } from "../i18n";
 import type { VillageStage } from "../entities/village";
 import type { StoredMonster } from "../entities/storedMonster";
-import { TARUKURABE_PERFECT_SCORE, type RunSnapshot, type RunStatus } from "../game";
+import { TARUKURABE_PERFECT_SCORE, type RunSnapshot, type RunStatus } from "../core/runSnapshot";
 
 export type { StoredMonster, RunSnapshot, RunStatus };
 export { TARUKURABE_PERFECT_SCORE };

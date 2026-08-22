@@ -13,7 +13,10 @@ export { DEFAULT_AUDIO_VOLUME, fromStored, toStored } from "./types";
 
 export { initialSave } from "./initial";
 
+export type { SaveRepository } from "./repository";
+
 export {
+  LocalStorageSaveRepository,
   SAVE_SLOT_COUNT,
   batchSaves,
   clearRunSnapshot,
