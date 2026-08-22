@@ -173,6 +173,21 @@ import {
   dropBarrelNear as domainDropBarrelNear,
   releaseFromBarrel as domainReleaseFromBarrel,
 } from "./domain/barrel/barrelDrop";
+import {
+  LIGHT_BARREL_CONFUSE_TURNS,
+  SLEEP_BARREL_SLEEP_TURNS,
+  STONE_BARREL_DAMAGE_MULTIPLIER,
+  WATER_BARREL_DAMAGE_MULTIPLIER,
+  WIND_BARREL_PUSH_DISTANCE,
+  applyElementalBarrelHit,
+} from "./domain/barrel/barrelElemental";
+import {
+  SLEEP_BARREL_OPEN_TURNS,
+  openSleepBarrel,
+  openStoneBarrel,
+  openWaterBarrel,
+  openWindBarrel,
+} from "./domain/barrel/barrelOpen";
 import { BOSS_MOVES, SPORE_SLEEP_CHANCE, SPORE_SLEEP_TURNS, type BossMoveContext } from "./systems/bossMoves";
 
 /** 双樽鉤(quickSingle)の会心率の上乗せ分 */
@@ -497,21 +512,9 @@ const TRUE_AWAKENING_CLOSING: readonly string[] = [
 ];
 
 // ---- 元素タル(plan/game/archive/barrel-arts.md) ----
-/** 投げたときの威力(barrelThrowDamage()に掛ける倍率) */
-const WATER_BARREL_DAMAGE_MULTIPLIER = 1;
-const STONE_BARREL_DAMAGE_MULTIPLIER = 1.5;
-/** 投げて命中した敵を押し出す距離(マス数)。強化版は+1 */
-const WIND_BARREL_PUSH_DISTANCE = 2;
-/** 投げて命中した敵の混乱・眠りの持続ターン。強化版は+1 */
-const LIGHT_BARREL_CONFUSE_TURNS = 3;
-const SLEEP_BARREL_SLEEP_TURNS = 3;
-/** あける(周囲を水びたしにする)の範囲(半径、マス)。強化版は+1 */
-const WATER_BARREL_OPEN_RADIUS = 1;
 /** あける(部屋全体を明るくする)の視界拡張・持続ターン。強化版は視界+1 */
 const LIGHT_BARREL_OPEN_VISION = 2;
 const LIGHT_BARREL_OPEN_TURNS = 5;
-/** あける(周囲1マスの敵に眠りをばらまく)の持続ターン */
-const SLEEP_BARREL_OPEN_TURNS = 3;
 /** 頭上に持つ(光タル): 視界+2(ほのかなあかり等と同じ単純加算) */
 const LIGHT_BARREL_CARRY_VISION_BONUS = 2;
 /** 頭上に持つ(風タル): 罠を踏んでも発動しない確率 */
@@ -2020,86 +2023,100 @@ export class Game {
       // ---- 元素タル(plan/game/archive/barrel-arts.md) ----
       // 命中した最後の1体にだけ効果を発揮し、当たったところで砕ける(ばくはつタルと同じ、使い切り)
       case "water":
-        this.applyElementalBarrelHit(barrel, landing, hits, events, (target) => {
-          const power = Math.round(barrelThrowDamage(this.player.inventory) * WATER_BARREL_DAMAGE_MULTIPLIER);
-          const finalDamage = mitigateIncomingDamage({
-            target,
-            damage: Math.max(1, power),
-            events,
-            rng: this.rng,
-            runSkills: this.runSkills,
-            player: this.player,
-            oncePerRun: this.oncePerRun,
-            partyGuardTurns: this.partyGuardTurns,
-          });
-          events.push({ type: "message", text: `${displayActorName(target)}に${finalDamage}のダメージ!` });
-          this.damageActor(target, finalDamage, false, events);
+        applyElementalBarrelHit({
+          barrel,
+          landing,
+          hits,
+          events,
+          resolveTarukurabeHit: (hit) => this.resolveTarukurabeHit(hit, events),
+          effect: (target) => {
+            const power = Math.round(barrelThrowDamage(this.player.inventory) * WATER_BARREL_DAMAGE_MULTIPLIER);
+            const finalDamage = mitigateIncomingDamage({
+              target,
+              damage: Math.max(1, power),
+              events,
+              rng: this.rng,
+              runSkills: this.runSkills,
+              player: this.player,
+              oncePerRun: this.oncePerRun,
+              partyGuardTurns: this.partyGuardTurns,
+            });
+            events.push({ type: "message", text: `${displayActorName(target)}に${finalDamage}のダメージ!` });
+            this.damageActor(target, finalDamage, false, events);
+          },
         });
         return true;
 
       case "wind":
-        this.applyElementalBarrelHit(barrel, landing, hits, events, (target) => {
-          const distance = barrel.enhanced ? WIND_BARREL_PUSH_DISTANCE + 1 : WIND_BARREL_PUSH_DISTANCE;
-          for (let i = 0; i < distance; i++) {
-            if (!this.pushMonster(player.facing, target, events)) break;
-            if (!target.alive) break;
-          }
+        applyElementalBarrelHit({
+          barrel,
+          landing,
+          hits,
+          events,
+          resolveTarukurabeHit: (hit) => this.resolveTarukurabeHit(hit, events),
+          effect: (target) => {
+            const distance = barrel.enhanced ? WIND_BARREL_PUSH_DISTANCE + 1 : WIND_BARREL_PUSH_DISTANCE;
+            for (let i = 0; i < distance; i++) {
+              if (!this.pushMonster(player.facing, target, events)) break;
+              if (!target.alive) break;
+            }
+          },
         });
         return true;
 
       case "light":
-        this.applyElementalBarrelHit(barrel, landing, hits, events, (target) => {
-          const turns = barrel.enhanced ? LIGHT_BARREL_CONFUSE_TURNS + 1 : LIGHT_BARREL_CONFUSE_TURNS;
-          addStatus(this.effectContext(events), target, STATUS_CONFUSE, turns, "目がくらんだ");
+        applyElementalBarrelHit({
+          barrel,
+          landing,
+          hits,
+          events,
+          resolveTarukurabeHit: (hit) => this.resolveTarukurabeHit(hit, events),
+          effect: (target) => {
+            const turns = barrel.enhanced ? LIGHT_BARREL_CONFUSE_TURNS + 1 : LIGHT_BARREL_CONFUSE_TURNS;
+            addStatus(this.effectContext(events), target, STATUS_CONFUSE, turns, "目がくらんだ");
+          },
         });
         return true;
 
       case "stone":
-        this.applyElementalBarrelHit(barrel, landing, hits, events, (target) => {
-          const power = Math.round(barrelThrowDamage(this.player.inventory) * STONE_BARREL_DAMAGE_MULTIPLIER);
-          const finalDamage = mitigateIncomingDamage({
-            target,
-            damage: Math.max(1, power),
-            events,
-            rng: this.rng,
-            runSkills: this.runSkills,
-            player: this.player,
-            oncePerRun: this.oncePerRun,
-            partyGuardTurns: this.partyGuardTurns,
-          });
-          events.push({ type: "message", text: `${displayActorName(target)}に${finalDamage}のダメージ!` });
-          this.damageActor(target, finalDamage, false, events);
+        applyElementalBarrelHit({
+          barrel,
+          landing,
+          hits,
+          events,
+          resolveTarukurabeHit: (hit) => this.resolveTarukurabeHit(hit, events),
+          effect: (target) => {
+            const power = Math.round(barrelThrowDamage(this.player.inventory) * STONE_BARREL_DAMAGE_MULTIPLIER);
+            const finalDamage = mitigateIncomingDamage({
+              target,
+              damage: Math.max(1, power),
+              events,
+              rng: this.rng,
+              runSkills: this.runSkills,
+              player: this.player,
+              oncePerRun: this.oncePerRun,
+              partyGuardTurns: this.partyGuardTurns,
+            });
+            events.push({ type: "message", text: `${displayActorName(target)}に${finalDamage}のダメージ!` });
+            this.damageActor(target, finalDamage, false, events);
+          },
         });
         return true;
 
       case "sleep":
-        this.applyElementalBarrelHit(barrel, landing, hits, events, (target) => {
-          const turns = barrel.enhanced ? SLEEP_BARREL_SLEEP_TURNS + 1 : SLEEP_BARREL_SLEEP_TURNS;
-          addStatus(this.effectContext(events), target, STATUS_SLEEP, turns, "眠ってしまった");
+        applyElementalBarrelHit({
+          barrel,
+          landing,
+          hits,
+          events,
+          resolveTarukurabeHit: (hit) => this.resolveTarukurabeHit(hit, events),
+          effect: (target) => {
+            const turns = barrel.enhanced ? SLEEP_BARREL_SLEEP_TURNS + 1 : SLEEP_BARREL_SLEEP_TURNS;
+            addStatus(this.effectContext(events), target, STATUS_SLEEP, turns, "眠ってしまった");
+          },
         });
         return true;
     }
-  }
-
-  /**
-   * 元素タル(plan/game/archive/barrel-arts.md)を投げて命中した最後の1体に
-   * だけ効果を適用する共通処理。当たらなければ何も起きずタルだけ砕ける
-   * (爆発タルと同じ、投げたら使い切り)
-   */
-  private applyElementalBarrelHit(
-    barrel: Barrel,
-    landing: Vec2,
-    hits: Actor[],
-    events: GameEvent[],
-    effect: (target: Actor) => void,
-  ): void {
-    const target = hits[hits.length - 1];
-    if (target?.kind === "target") {
-      this.resolveTarukurabeHit(target, events);
-    } else if (target?.alive) {
-      effect(target);
-    }
-    events.push({ type: "barrelBreak", barrelId: barrel.id, pos: landing });
   }
 
   /**
@@ -2142,10 +2159,15 @@ export class Game {
 
     switch (barrel.kind) {
       case "water":
-        this.openWaterBarrel(center, barrel.enhanced ?? false, events);
+        openWaterBarrel(this.floor, center, barrel.enhanced ?? false, events);
         break;
       case "wind":
-        this.openWindBarrel(events);
+        openWindBarrel({
+          floor: this.floor,
+          playerPos: player.pos,
+          events,
+          pushMonster: (dir, target, evts) => this.pushMonster(dir, target, evts),
+        });
         break;
       case "light":
         this.lightBarrelTurns = Math.max(
@@ -2154,10 +2176,15 @@ export class Game {
         );
         break;
       case "stone":
-        this.openStoneBarrel(front, events);
+        openStoneBarrel(this.floor, front, events);
         break;
       case "sleep":
-        this.openSleepBarrel(barrel.enhanced ?? false, events);
+        openSleepBarrel({
+          floor: this.floor,
+          playerPos: player.pos,
+          enhanced: barrel.enhanced ?? false,
+          effectCtx: this.effectContext(events),
+        });
         break;
     }
     // スキル「つぎたし」(plan/game/archive/run-build-skills.md): この元素タルで
@@ -2170,49 +2197,6 @@ export class Game {
     player.carrying = { id: barrel.id, kind: "empty", pos: barrel.pos };
     events.push({ type: "message", text: "からのタルに戻った。" });
     return true;
-  }
-
-  /** 水タルをあける: 周囲を水びたしの床(深みタイルと同じ扱い)にする */
-  private openWaterBarrel(center: Vec2, enhanced: boolean, events: GameEvent[]): void {
-    const radius = enhanced ? WATER_BARREL_OPEN_RADIUS + 1 : WATER_BARREL_OPEN_RADIUS;
-    for (let y = center.y - radius; y <= center.y + radius; y++) {
-      for (let x = center.x - radius; x <= center.x + radius; x++) {
-        const tile = tileAt(this.floor, { x, y });
-        if (tile && walkableAt(this.floor, { x, y })) tile.quagmire = true;
-      }
-    }
-    events.push({ type: "message", text: "周囲が水びたしになった。" });
-  }
-
-  /** 風タルをあける: 隣接する敵全員を1マス押し出す */
-  private openWindBarrel(events: GameEvent[]): void {
-    for (const other of this.floor.actors) {
-      if (!other.alive || other.kind !== "monster") continue;
-      if (chebyshev(this.player.pos, other.pos) !== 1) continue;
-      const dir = dirFromDelta(other.pos.x - this.player.pos.x, other.pos.y - this.player.pos.y);
-      this.pushMonster(dir, other, events);
-    }
-  }
-
-  /** 石タルをあける: 正面(足元)に岩の壁を1マス作る(壊せる仕掛けは今回実装せず、恒久の壁とする) */
-  private openStoneBarrel(front: Vec2, events: GameEvent[]): void {
-    const tile = tileAt(this.floor, front);
-    if (!tile || tile.kind === TILE_WALL || actorAt(this.floor, front) || barrelAt(this.floor, front)) {
-      events.push({ type: "message", text: "しかし、壁を作る場所がなかった。" });
-      return;
-    }
-    tile.kind = TILE_WALL;
-    events.push({ type: "message", text: "岩の壁ができた!" });
-  }
-
-  /** ねむタルをあける: 周囲1マスの敵に眠りをばらまく */
-  private openSleepBarrel(enhanced: boolean, events: GameEvent[]): void {
-    const turns = enhanced ? SLEEP_BARREL_OPEN_TURNS + 1 : SLEEP_BARREL_OPEN_TURNS;
-    for (const other of this.floor.actors) {
-      if (!other.alive || other.kind !== "monster") continue;
-      if (chebyshev(this.player.pos, other.pos) > 1) continue;
-      addStatus(this.effectContext(events), other, STATUS_SLEEP, turns, "眠ってしまった");
-    }
   }
 
   /**
@@ -2815,7 +2799,7 @@ export class Game {
         this.releaseFromBarrel(barrel, barrel.pos, events);
         return;
       case "water":
-        this.openWaterBarrel(barrel.pos, barrel.enhanced ?? false, events);
+        openWaterBarrel(this.floor, barrel.pos, barrel.enhanced ?? false, events);
         return;
       case "wind": {
         for (const other of this.floor.actors) {
