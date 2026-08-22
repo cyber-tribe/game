@@ -44,7 +44,6 @@ import {
   roomContains,
   tileAt,
   walkableAt,
-  walkLine,
 } from "./core/types";
 import { type ArtId, artDef } from "./entities/arts";
 import {
@@ -83,7 +82,12 @@ import { speciesById } from "./entities/species";
 import { type BondStage, bondStage } from "./entities/companionBond";
 import { HONOKA_NA_AKARI_VISION_EXTRA, type DreamArtContext } from "./domain/party/dreamArtEffects";
 import { itemDef } from "./entities/itemCatalog";
-import { type EffectContext, addStatus, applyEffect } from "./domain/item/effects";
+import { type EffectContext, addStatus } from "./domain/item/effects";
+import {
+  type ItemActionContext,
+  throwItem as domainThrowItem,
+  useItem as domainUseItem,
+} from "./domain/item/itemActions";
 import {
   addItem,
   displayName,
@@ -286,16 +290,8 @@ export interface RunOptions {
 
 export type { RunSnapshot, RunStatus } from "./core/runSnapshot";
 
-/**
- * 草を「使った」ときに満腹度も少し回復する(plan/herb-satiety-bonus.md)。
- * 食料(45)の1/9程度に抑えて、草を食料の代替にはしない
- */
-const HERB_SATIETY_BONUS = 5;
 /** このターンごとにモンスターが1体湧く */
 const SPAWN_INTERVAL = 45;
-
-/** 松明(plan/region-darkness.md): 使うと持続する視界拡張の効果時間(ターン)。数値は初期案 */
-const TORCH_DURATION_TURNS = 20;
 
 /**
  * 山の芯(plan/mountain-core.md): 最終フロア到達時の固定の会話イベント。
@@ -388,8 +384,6 @@ const TARUKURABE_TARGETS: readonly TarukurabeTargetLayout[] = [
 ];
 
 /** アイテムの飛距離 */
-const ITEM_THROW_RANGE = 10;
-
 /** 忘れ物蔵(plan/lost-and-found-vault.md)。隠し壁へバンプするたびに崩れる確率 */
 const SECRET_PASSAGE_REVEAL_CHANCE = 0.25;
 
@@ -2103,205 +2097,32 @@ export class Game {
     return true;
   }
 
-  private useItem(uid: number, events: GameEvent[]): boolean {
-    const inv = this.player.inventory;
-    const item = findItem(inv, uid);
-    if (!item) return false;
-    const def = itemDef(item.defId);
-
-    if (
-      def.category === "weapon" ||
-      def.category === "shield" ||
-      def.category === "head" ||
-      def.category === "charm"
-    ) {
-      equip(inv, uid);
-      events.push({ type: "equip", actorId: this.player.id, itemUid: uid, name: def.name });
-      events.push({ type: "message", text: `${def.name}を装備した。` });
-      return true;
-    }
-
-    if (def.category === "material") {
-      // ゲンドの工房(拠点)専用の素材。ダンジョン内で使い道はない
-      events.push({ type: "message", text: `「${def.name}」は素材だ。ここでは使えない。` });
-      return false;
-    }
-
-    if (def.category === "tool") {
-      const handled = this.useTool(item.defId, events);
-      if (handled) {
-        // 実績帳「挑戦」カテゴリ(plan/challenge-achievements.md)
+  /** useItem/useTool/throwItem(domain/item/itemActions.ts)に渡す、narrowなGameアクセス */
+  private itemActionContext(): ItemActionContext {
+    return {
+      player: this.player,
+      floor: this.floor,
+      allies: this.allies,
+      rng: this.rng,
+      runSkills: this.runSkills,
+      damageActor: (target, damage, critical, evts) => this.damageActor(target, damage, critical, evts),
+      freeSpotNear: (center) => this.freeSpotNear(center),
+      completeRun: (reason, evts) => this.completeRun(reason, evts),
+      setTorchTurnsLeft: (turns) => {
+        this.torchTurnsLeft = turns;
+      },
+      markUsedItemThisRun: () => {
         this.usedItemThisRun = true;
-        removeItem(inv, uid);
-      }
-      return handled;
-    }
-
-    if (def.category === "staff") {
-      if ((item.charges ?? 0) <= 0) {
-        events.push({ type: "message", text: `${def.name}は もう振れない。` });
-        return false;
-      }
-    }
-
-    // 実績帳「挑戦」カテゴリ(plan/challenge-achievements.md): 装備・素材
-    // (上の早期returnで除外済み)を除く、実際に道具を使う操作を記録する
-    this.usedItemThisRun = true;
-
-    events.push({ type: "useItem", actorId: this.player.id, itemUid: uid, name: def.name });
-    events.push({ type: "message", text: `${def.name}を使った。` });
-
-    const worked = applyEffect(
-      this.effectContext(events),
-      def.effect ?? "",
-      def.power ?? 0,
-      this.player.facing,
-    );
-
-    // 草は葉っぱを食べている(plan/herb-satiety-bonus.md): 「使う」操作の
-    // ときだけ満腹度も少し回復する。敵への投げ当ては食べていないので
-    // 対象外(そちらはthrow系の経路で、ここを通らない)。満タン時は黙る
-    if (def.category === "herb") {
-      const satietyBefore = this.player.satiety;
-      this.player.satiety = Math.min(MAX_SATIETY, this.player.satiety + HERB_SATIETY_BONUS);
-      if (this.player.satiety > satietyBefore) {
-        events.push({ type: "message", text: "……少しだけおなかが満たされた。" });
-      }
-      // スキル「わけあう手」(plan/game/archive/run-build-skills.md): 回復の
-      // 草を使うと、隣接する仲間にも半分の効果が及ぶ
-      if (def.effect === "heal" && this.runSkills.includes("sharingHand")) {
-        this.applySharingHand(def.power ?? 0, events);
-      }
-    }
-
-    if (def.category === "staff") {
-      if (worked) item.charges = (item.charges ?? 1) - 1;
-    } else {
-      removeItem(inv, uid);
-    }
-    return true;
+      },
+    };
   }
 
-  /** スキル「わけあう手」。隣接する仲間全員に、回復量の半分ぶん分け与える */
-  private applySharingHand(power: number, events: GameEvent[]): void {
-    const amount = Math.round(power / 2);
-    if (amount <= 0) return;
-    for (const ally of this.allies) {
-      if (!ally.alive || chebyshev(ally.pos, this.player.pos) !== 1) continue;
-      const healed = Math.min(ally.maxHp - ally.hp, amount);
-      if (healed <= 0) continue;
-      ally.hp += healed;
-      events.push({ type: "heal", actorId: ally.id, amount: healed, hpAfter: ally.hp });
-      events.push({ type: "message", text: `${displayActorName(ally)}にも分け与え、HPが${healed}回復した。` });
-    }
-  }
-
-  /**
-   * 道具(plan/protagonist-equipment.md、category: "tool")の効果。
-   * 杖・草のような`effect`文字列(items/effects.ts)には乗らない、
-   * Gameクラス自身の状態(status・floor・allies)を直接操作する専用アクション。
-   */
-  private useTool(defId: string, events: GameEvent[]): boolean {
-    switch (defId) {
-      case "ashfireDust": {
-        // めざめの階段を使わずに、その場で安全に麓へ戻る。踏破と同じ扱い
-        // (持ち物・仲間を持ち帰れる)だが、checkpointイベントは出さないので
-        // 「めざめの階段を使った」扱いにはならない
-        this.status = "cleared";
-        this.endReason = "送り火の粉で、その場から麓へ戻った。";
-        events.push({ type: "message", text: this.endReason });
-        events.push({ type: "gameOver", reason: this.endReason });
-        return true;
-      }
-      // おキヨの見取り図(plan/side-stories-part2.md): 効果は樽の目利きと同等
-      case "barrelAppraisal":
-      case "okiyoSketchMap": {
-        const found = this.floor.barrels
-          .filter((b) => b.kind === "caught" && b.speciesId && isVisible(this.floor, b.pos))
-          .map((b) => speciesById(b.speciesId!).name);
-        events.push({
-          type: "message",
-          text:
-            found.length > 0
-              ? `タルの中身を見分けた: ${found.join("、")}`
-              : "視界内にモンスター入りのタルは無かった。",
-        });
-        return true;
-      }
-      // オトネの覚え帳(plan/side-stories-part2.md): 効果は望郷の綱と同等
-      case "homesickRope":
-      case "otoneMemoBook": {
-        let recalled = 0;
-        for (const ally of this.allies) {
-          if (!ally.alive) continue;
-          const spot = this.freeSpotNear(this.player.pos);
-          if (!spot) continue;
-          const from = ally.pos;
-          ally.pos = spot;
-          events.push({ type: "teleport", actorId: ally.id, from, to: spot });
-          recalled++;
-        }
-        events.push({
-          type: "message",
-          text: recalled > 0 ? "仲間を呼び寄せた!" : "呼び寄せる仲間がいない。",
-        });
-        return true;
-      }
-      case "torch": {
-        // 松明(plan/region-darkness.md): 使い直すと残りターンが上書きされる(延長ではなく更新)。
-        // 視界の再計算はcommand()側が使用直後に必ず行う(consumedTurn=trueになるため)
-        this.torchTurnsLeft = TORCH_DURATION_TURNS;
-        events.push({ type: "message", text: "松明に火を灯した。しばらく視界が広がる。" });
-        return true;
-      }
-      default:
-        return false;
-    }
+  private useItem(uid: number, events: GameEvent[]): boolean {
+    return domainUseItem(uid, events, this.itemActionContext());
   }
 
   private throwItem(uid: number, events: GameEvent[]): boolean {
-    const inv = this.player.inventory;
-    const item = findItem(inv, uid);
-    if (!item) return false;
-    const def = itemDef(item.defId);
-    removeItem(inv, uid);
-
-    const from = this.player.pos;
-    let landing = from;
-    let hit: Actor | null = null;
-
-    for (const p of walkLine(this.floor, from, this.player.facing, ITEM_THROW_RANGE)) {
-      landing = p;
-      const actor = actorAt(this.floor, p);
-      if (actor && actor.id !== this.player.id) {
-        hit = actor;
-        break;
-      }
-    }
-
-    events.push({ type: "throwItem", actorId: this.player.id, itemUid: uid, from, to: landing });
-    events.push({ type: "message", text: `${def.name}を投げた。` });
-
-    if (hit) {
-      if (def.category === "herb" && def.effect === "heal") {
-        // 草をぶつけると相手が回復してしまう
-        const healed = Math.min(hit.maxHp - hit.hp, def.power ?? 0);
-        hit.hp += healed;
-        events.push({ type: "heal", actorId: hit.id, amount: healed, hpAfter: hit.hp });
-        events.push({ type: "message", text: `${displayActorName(hit)}のHPが${healed}回復した。` });
-      } else {
-        const { damage, critical } = computeDamage(this.rng, 6, hit.def);
-        events.push({ type: "message", text: `${def.name}が${displayActorName(hit)}に当たった!` });
-        this.damageActor(hit, damage, critical, events);
-      }
-      return true;
-    }
-
-    // 誰にも当たらなければその場に落ちる
-    if (!this.floor.items.some((gi) => eq(gi.pos, landing)) && !eq(landing, from)) {
-      this.floor.items.push({ item, pos: landing });
-    }
-    return true;
+    return domainThrowItem(uid, events, this.itemActionContext());
   }
 
   private dropItem(uid: number, events: GameEvent[]): boolean {
