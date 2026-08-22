@@ -1102,8 +1102,9 @@ class App {
   private step(dt: number): void {
     this.lock = Math.max(0, this.lock - dt);
     // 画面基準の入力をワールドの方角へ直すための補正(issue #463)。
-    // 村なかのカメラは回らない固定視点なので、そちらでは補正しない
-    this.input.cameraQuadrant = this.villageActive ? 0 : this.renderer.cameraQuadrant;
+    // 村なかもQ/E・二本指回転でカメラを回せる(plan/models/
+    // village-camera-manual-rotate.md)ので、村自身のcameraQuadrantを使う
+    this.input.cameraQuadrant = this.villageActive ? this.village.cameraQuadrant : this.renderer.cameraQuadrant;
     // 一歩/ダッシュ(plan/step-movement-and-dash.md): ロック中・メニュー
     // 表示中でも押している実時間はそのまま数えたいので、下の早期returnより
     // 前、毎フレーム欠かさず呼ぶ
@@ -1166,12 +1167,15 @@ class App {
     switch (action) {
       case "rotateLeft":
         // 手動カメラ操作(plan/gallery-interactive-camera.md): 図鑑ギャラリー表示中は
-        // ダンジョンのカメラではなく回転台を回す
+        // ダンジョンのカメラではなく回転台を回す。村なか歩き中は村の
+        // カメラを回す(plan/models/village-camera-manual-rotate.md)
         if (this.town.gallerySpeciesId) this.gallery.rotate(1);
+        else if (this.villageActive) this.village.rotate(1);
         else this.renderer.rotate(1);
         return true;
       case "rotateRight":
         if (this.town.gallerySpeciesId) this.gallery.rotate(-1);
+        else if (this.villageActive) this.village.rotate(-1);
         else this.renderer.rotate(-1);
         return true;
       case "zoomIn":

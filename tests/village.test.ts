@@ -380,34 +380,47 @@ describe("view/village.ts: 村なかの主人公の姿(#446)", () => {
 });
 
 /**
- * 村なかカメラ(plan/models/village-scene-redesign.mdの「カメラワーク」):
- * 俯瞰をやめ、主人公の背後・低めに寄った三人称の追従カメラにする
+ * 村なかカメラ(plan/models/archive/village-scene-redesign.mdの
+ * 「カメラワーク」・plan/models/village-camera-manual-rotate.md):
+ * 俯瞰をやめた主人公の背後・低めの三人称カメラで、向きはQ/E・二本指回転の
+ * 手動操作でのみ動く(移動しても勝手に回り込まない)
  */
-describe("view/village.ts: 村なかカメラの追従(village-scene-redesign)", () => {
-  it("静止時は距離4m・高さ2mの、主人公の背後(南側)にいる", () => {
+describe("view/village.ts: 村なかカメラ(village-camera-manual-rotate)", () => {
+  it("静止時は距離4m・高さ2mの、主人公の背後(南側)にいる=山(北)が正面", () => {
     const view = new VillageView(emptyAssets());
     expect(view.camera.position.y).toBeCloseTo(VILLAGE_CAMERA_HEIGHT, 5);
     expect(view.camera.position.x).toBeCloseTo(VILLAGE_PLAYER_START.x, 5);
     expect(view.camera.position.z).toBeCloseTo(VILLAGE_PLAYER_START.z + VILLAGE_CAMERA_DISTANCE, 5);
   });
 
-  it("歩き続けると、カメラのヨーが動いた向きへ寄っていく", () => {
-    // 移動そのものはワールド基準のまま(入力の回転は見送った、update()の
-    // コメント参照)なので、東(dir=2)へ歩き続けると実際の移動方向は
-    // 一定のまま、カメラのヨーだけがそれを追いかけて-π/2付近へ収束する
+  it("歩き続けても、カメラの向きは勝手に変わらない(自動追従は廃止)", () => {
     const view = new VillageView(emptyAssets());
-    for (let i = 0; i < 60; i++) view.update(0.05, 2);
+    for (let i = 0; i < 60; i++) view.update(0.05, 2); // 東へ歩き続ける
     const cameraYaw = (view as unknown as { cameraYaw: number }).cameraYaw;
-    expect(cameraYaw).toBeCloseTo(-Math.PI / 2, 1);
+    expect(cameraYaw).toBeCloseTo(0, 5);
+    // 位置の追従(後方に付いていく動き)は残っている
+    expect(view.camera.position.x).toBeCloseTo(view.playerPos.x, 5);
+    expect(view.camera.position.z).toBeCloseTo(view.playerPos.z + VILLAGE_CAMERA_DISTANCE, 5);
   });
 
-  it("立ち止まると、最後に向いていたカメラの向きを保つ(正面へ戻らない)", () => {
+  it("rotate()でQ/E・二本指回転と同じ90度単位の回転がかかる", () => {
     const view = new VillageView(emptyAssets());
-    for (let i = 0; i < 60; i++) view.update(0.05, 2);
-    const turned = view.camera.position.x;
-    view.update(0.05, null); // 壁際ではないので位置は動かないが、動いても止まってもいい
-    view.update(0.05, null);
-    expect(view.camera.position.x).toBeCloseTo(turned, 1);
+    view.rotate(1);
+    expect(view.cameraQuadrant).toBe(1);
+    for (let i = 0; i < 30; i++) view.update(0.05, null);
+    // 90度回ると、主人公の東側(x座標がプレイヤーより大きい側)へ寄る
+    expect(view.camera.position.x).toBeGreaterThan(view.playerPos.x + 1);
+
+    view.rotate(-1);
+    expect(view.cameraQuadrant).toBe(0);
+  });
+
+  it("cameraQuadrantは0〜3で循環する", () => {
+    const view = new VillageView(emptyAssets());
+    view.rotate(-1);
+    expect(view.cameraQuadrant).toBe(3);
+    view.rotate(-1);
+    expect(view.cameraQuadrant).toBe(2);
   });
 
   it("出発地点では、遮る建物が無いのですべて不透明のまま", () => {
