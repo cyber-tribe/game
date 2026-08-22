@@ -262,6 +262,72 @@ describe("view/villageInterior.ts: VillageInteriorView", () => {
   });
 });
 
+/**
+ * plan/models/village-interior-brightness.md: 「暗い中に光源がある」から
+ * 「明るい部屋に、性格づけの光が差している」へ基準を変える
+ */
+describe("view/villageInterior.ts: 内装の明るさ(village-interior-brightness)", () => {
+  function ambientLightsOf(view: VillageInteriorView, buildingId: string): THREE.AmbientLight[] {
+    view.enter(buildingId);
+    const room = view.scene.children.find((c) => c.visible)!;
+    const lights: THREE.AmbientLight[] = [];
+    room.traverse((o) => {
+      if (o instanceof THREE.AmbientLight) lights.push(o);
+    });
+    return lights;
+  }
+
+  it("どの内装にも、床・壁が判別できる明るさの基準ambientがある", () => {
+    for (const def of VILLAGE_INTERIORS) {
+      const view = new VillageInteriorView(emptyAssets());
+      const lights = ambientLightsOf(view, def.buildingId);
+      // 基準光(ニュートラル)+性格づけの薄いアクセントの2灯構成
+      expect(lights.length).toBeGreaterThanOrEqual(2);
+      const brightest = Math.max(...lights.map((l) => l.intensity));
+      // 屋外の昼(ambientIntensity=1.9)の6割程度を下限にする(ねむり小屋の
+      // 例外を含めても、これを下回らない)
+      expect(brightest).toBeGreaterThanOrEqual(1.9 * 0.5);
+    }
+  });
+
+  it("ねむり小屋だけ、寝かしつけの場として基準の1段下になっている", () => {
+    const other = new VillageInteriorView(emptyAssets());
+    const otherBase = Math.max(...ambientLightsOf(other, "workshop").map((l) => l.intensity));
+
+    const sleepHut = new VillageInteriorView(emptyAssets());
+    const sleepBase = Math.max(...ambientLightsOf(sleepHut, "sleepHut").map((l) => l.intensity));
+
+    expect(sleepBase).toBeLessThan(otherBase);
+    // 暗くしすぎて寝床・名札が判別できなくならない下限は保つ
+    expect(sleepBase).toBeGreaterThanOrEqual(1.9 * 0.4);
+  });
+
+  it("部屋の色(def.ambient)は、基準光を上回って全体を支配しない", () => {
+    for (const def of VILLAGE_INTERIORS) {
+      const view = new VillageInteriorView(emptyAssets());
+      const lights = ambientLightsOf(view, def.buildingId);
+      const base = Math.max(...lights.map((l) => l.intensity));
+      const accent = lights.find((l) => l.color.getHex() === new THREE.Color(def.ambient).getHex());
+      expect(accent).toBeDefined();
+      expect(accent!.intensity).toBeLessThan(base);
+    }
+  });
+
+  it("炉・夜色などの性格づけの点光源は、周囲2〜3mのアクセントに絞ってある", () => {
+    for (const buildingId of ["workshop", "sleepHut", "storage", "gallery", "recordsHall", "development", "garudoHouse"]) {
+      const view = new VillageInteriorView(emptyAssets());
+      view.enter(buildingId);
+      const room = view.scene.children.find((c) => c.visible)!;
+      room.traverse((o) => {
+        if (o instanceof THREE.PointLight) {
+          expect(o.distance).toBeGreaterThan(0);
+          expect(o.distance).toBeLessThanOrEqual(3);
+        }
+      });
+    }
+  });
+});
+
 describe("view/village.ts: 屋外の村人", () => {
   it("オトネ・ポチ・おたまの3人。モデルはVILLAGER_MODELSに載っている", () => {
     expect(OUTDOOR_VILLAGERS.map((v) => v.npcId)).toEqual(["otone", "pochi", "otama"]);
