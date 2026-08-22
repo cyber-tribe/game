@@ -53,7 +53,6 @@ import { ALLY_STANCE_NAMES, barrelDisplayName } from "./entities/displayNames";
 import {
   isCheckpointFloor,
   type DungeonDef,
-  MOUNTAIN_CORE_ID,
   REGION_DUNGEON_IDS,
   TARUKURABE_ID,
   dungeonById,
@@ -70,7 +69,6 @@ import {
   createPlayer,
   totalAttack,
 } from "./entities/player";
-import { type BondStage, bondStage } from "./entities/companionBond";
 import { HONOKA_NA_AKARI_VISION_EXTRA, type DreamArtContext } from "./domain/party/dreamArtEffects";
 import { itemDef } from "./entities/itemCatalog";
 import { type EffectContext, addStatus } from "./domain/item/effects";
@@ -133,6 +131,11 @@ import {
   checkShoplifting as domainCheckShoplifting,
   sellItem as domainSellItem,
 } from "./domain/dungeon/shop";
+import {
+  type StoryMomentsContext,
+  maybePlayMountainCoreEnding as domainMaybePlayMountainCoreEnding,
+  trueAwakeningEnding as domainTrueAwakeningEnding,
+} from "./application/dungeonRun/storyMoments";
 import { resolveTurn as domainResolveTurn, upkeep as domainUpkeep } from "./domain/turn/turnCycle";
 import {
   createSkillChoiceState,
@@ -296,53 +299,8 @@ export type { RunSnapshot, RunStatus } from "./core/runSnapshot";
 /** このターンごとにモンスターが1体湧く */
 const SPAWN_INTERVAL = 45;
 
-/**
- * 山の芯(plan/mountain-core.md): 最終フロア到達時の固定の会話イベント。
- * design/characters.mdの頭目マサカリのドンズルを踏まえた短い掛け合い。
- * 台詞の実際の執筆はプランのスコープ外だったため、実装時に新規に書いた
- * (design/story.mdの「倒す」より「山の正体を思い知らせ、出て行かせる」
- * という終章方針どおり、戦闘には発展させない)
- */
-const MOUNTAIN_CORE_DIALOGUE: readonly string[] = [
-  "マサカリのドンズル「ここまで来たか、小僧。だが引き返せ、この山はワシらの資源だ」",
-  "ガルド「――違う。この山は、ヨリシロっていう生きものの、眠りそのものなんだ」",
-  "ドンズル「ヨリシロ……? 寝言を抜かすな。夢のかけらは金になる、それで十分だろう」",
-  "杭を打ち込む音が響くたび、あたり一帯がかすかに震えているのに気づく。",
-  "ドンズル「……まさか、本当に……?」",
-  "ドンズル「……分かった。今日のところは引き上げる。だが、忘れたわけじゃないぞ」",
-  "近道屋の一団が、山を降りていく足音が遠ざかっていった。",
-];
 /** 松明: 見晴らしのはちまき(+1)より強い光源として、くらやみの階の暗さを大きく緩和する */
 const TORCH_VISION_BONUS = 2;
-
-/**
- * 真の目覚め(plan/true-awakening.md): 「はじめの夢」との決着イベント。
- * design/postgame.mdの「もう独りではない」と伝わる決着方針どおり、
- * HPが0になっても通常のkillActor(討伐・ドロップ・経験値)処理には進まず、
- * この専用イベントに分岐する。台詞の執筆はプランのスコープ外だったため、
- * 実装時に新規に書いた
- */
-const TRUE_AWAKENING_INTRO: readonly string[] = [
-  "はじめの夢「……だれも、いない。ずっと、そうだった」",
-  "はじめの夢「あなたも、いつか、いなくなる。みんな、そうだった」",
-];
-
-/**
- * 締めの一言は、現在連れている仲間のうち最も絆(なじみ)が深い個体の段階で
- * 出し分ける。仲間を1体も連れていない場合は別枠(TRUE_AWAKENING_FAREWELL_SOLO)
- */
-const TRUE_AWAKENING_FAREWELL_SOLO = "ガルド「独りで来たけど……ここまで、独りじゃなかったよ」";
-const TRUE_AWAKENING_FAREWELL_BY_BOND_STAGE: Readonly<Record<BondStage, string>> = {
-  none: "ガルド「まだ知り合ったばかりの仲間だけど、ちゃんとここにいるよ」",
-  familiar: "ガルド「一緒に潜ってきた仲間が、ここにいる」",
-  close: "ガルド「ずっと並んで歩いてきた仲間が、ちゃんとここにいるよ」",
-  irreplaceable: "ガルド「かけがえのない仲間と、ここまで来た。もう独りじゃない」",
-};
-
-const TRUE_AWAKENING_CLOSING: readonly string[] = [
-  "はじめの夢は、ふっと軽くなったように溶けて消えていった。",
-  "山は、ゆっくりとした寝息に戻っていく。",
-];
 
 // ---- 元素タル(plan/game/archive/barrel-arts.md) ----
 /** あける(部屋全体を明るくする)の視界拡張。強化版は視界+1 */
@@ -819,12 +777,20 @@ export class Game {
    * 山の芯(plan/mountain-core.md): 最終フロアに立った時点(階段を降りる・
    * 区切って持ち帰るのどちらでも)で、固定の会話イベントを1回だけ挟む
    */
+  /** maybePlayMountainCoreEnding/trueAwakeningEnding(application/dungeonRun/storyMoments.ts)に渡す、narrowなGameアクセス */
+  private storyMomentsContext(): StoryMomentsContext {
+    return {
+      dungeonId: this.dungeon.id,
+      depth: this.depth,
+      maxDepth: this.maxDepth,
+      floor: this.floor,
+      allies: this.allies,
+      completeRun: (reason, events) => this.completeRun(reason, events),
+    };
+  }
+
   private maybePlayMountainCoreEnding(events: GameEvent[]): void {
-    if (this.dungeon.id !== MOUNTAIN_CORE_ID || this.depth < this.maxDepth) return;
-    for (const line of MOUNTAIN_CORE_DIALOGUE) {
-      events.push({ type: "message", text: line });
-    }
-    events.push({ type: "mountainCoreCleared" });
+    domainMaybePlayMountainCoreEnding(events, this.storyMomentsContext());
   }
 
   /**
@@ -833,44 +799,7 @@ export class Game {
    * に応じた締めの一言を挟んでダイブを踏破扱いで終える
    */
   private trueAwakeningEnding(target: MonsterActor, events: GameEvent[]): void {
-    target.alive = false;
-    target.hp = 0;
-    events.push({ type: "die", actorId: target.id, kind: target.kind, speciesId: target.speciesId });
-    // summonEcho(地方ボス、plan/region-boss-kodamanonushi.md)で分身を出していた
-    // 場合、本体と同時に消す(killActorの同等処理を踏襲)
-    for (const echo of this.floor.actors) {
-      if (echo.kind !== "monster") continue;
-      if (echo.id === target.id || echo.sharesHpWith !== target.id || !echo.alive) continue;
-      echo.alive = false;
-      echo.hp = 0;
-      events.push({ type: "die", actorId: echo.id, kind: echo.kind, speciesId: echo.speciesId });
-    }
-
-    for (const line of TRUE_AWAKENING_INTRO) {
-      events.push({ type: "message", text: line });
-    }
-    events.push({ type: "message", text: this.trueAwakeningFarewellLine() });
-    for (const line of TRUE_AWAKENING_CLOSING) {
-      events.push({ type: "message", text: line });
-    }
-
-    this.status = "cleared";
-    this.endReason = "「はじめの夢」に、もう独りではないと伝わった。";
-    events.push({ type: "message", text: this.endReason });
-    events.push({ type: "gameOver", reason: this.endReason });
-    events.push({ type: "trueAwakeningCleared" });
-  }
-
-  /** 現在連れている仲間のうち、最も絆(なじみ)が深い個体の段階に応じた締めの一言を返す */
-  private trueAwakeningFarewellLine(): string {
-    if (this.allies.length === 0) return TRUE_AWAKENING_FAREWELL_SOLO;
-    const stageRank: readonly BondStage[] = ["none", "familiar", "close", "irreplaceable"];
-    let best: BondStage = "none";
-    for (const ally of this.allies) {
-      const stage = bondStage(ally.bondSuccessCount ?? 0);
-      if (stageRank.indexOf(stage) > stageRank.indexOf(best)) best = stage;
-    }
-    return TRUE_AWAKENING_FAREWELL_BY_BOND_STAGE[best];
+    domainTrueAwakeningEnding(target, events, this.storyMomentsContext());
   }
 
   private descend(events: GameEvent[]): void {
