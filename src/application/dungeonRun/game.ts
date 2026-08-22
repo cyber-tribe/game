@@ -290,6 +290,33 @@ export interface RunOptions {
    * 実行日によって結果が変わってしまうため、あえて呼び出し側に委ねている
    */
   moodOverride?: MoodId;
+  /**
+   * テスト用の箱庭(plan/game/test-dungeon-harness.md)。generateFloorに
+   * よる乱数生成をバイパスし、与えられたFloorStateでそのままダイブを
+   * 開始する。`import.meta.env.MODE === "test"`のときだけ有効
+   * (本番ビルドではdead code除去され、通常プレイのUIからは辿り着けない)
+   */
+  testFloorInjection?: TestFloorInjection;
+}
+
+/**
+ * テスト用の箱庭(plan/game/test-dungeon-harness.md)への注入内容。
+ * `tests/harness/floor.ts`のbuildTestFloorで組み立てたFloorStateと、
+ * プレイヤーの初期状態の上書き分を渡す
+ */
+export interface TestFloorInjection {
+  /** 差し込むフロア状態。乱数を使わず宣言的に組み立てたものを渡す */
+  floor: FloorState;
+  /**
+   * プレイヤーの初期状態の上書き。省略したフィールドは通常の初期値
+   * (レベル1・満腹度満タン・素の装備なし)を使う。posは省略すると{x:0,y:0}
+   * になり歩けない床に立ってしまうため、実質必須(buildTestFloorのat("@")を渡す)
+   */
+  player?: Partial<PlayerState>;
+  /** 仲間の初期配置。posを含め呼び出し側で組み立てる。省略時は0体 */
+  allies?: AllyActor[];
+  /** 使用するRng。省略時はシード0の通常のRng */
+  rng?: Rng;
 }
 
 export type { RunSnapshot, RunStatus } from "../../core/runSnapshot";
@@ -489,6 +516,33 @@ export class Game {
       nextItemUid: () => ++this.itemUidCounter,
       nextBarrelId: () => ++this.barrelIdCounter,
     };
+
+    // テスト用の箱庭(plan/game/test-dungeon-harness.md)。MODE==="test"の
+    // ときだけ有効。本番ビルドはMODEがリテラル文字列"production"に置き換わる
+    // ため、この分岐ごとdead code除去される。generateFloorを経由せず、
+    // 注入されたFloorStateをそのまま使ってダイブを開始する。それ以外
+    // (コマンド処理・ターン解決・イベント)は普段どおりに動く
+    if (import.meta.env.MODE === "test" && opts.testFloorInjection) {
+      const injection = opts.testFloorInjection;
+      this.defeatedRegionBossCountAtStart = 0;
+      this.defeatedRegionBossIdsAtStart = new Set();
+      this.rng = injection.rng ?? new Rng(0);
+      this.dungeon = dungeonById(REGION_DUNGEON_IDS[0]);
+      this.maxDepth = injection.floor.depth;
+      this.trainingFocus = "balance";
+      this.compendiumComplete = false;
+      this.trueAwakeningCleared = false;
+      this.mood = moodDef(DEFAULT_MOOD_ID);
+      this.difficulty = "normal";
+      this.player = { ...createPlayer(1), ...injection.player };
+      this.allies = injection.allies ?? [];
+      this.depth = injection.floor.depth;
+      this.floor = injection.floor;
+      this.floor.actors.push(this.player, ...this.allies);
+      this.syncEquippedWeaponModel();
+      updateVisibility(this.floor, this.player.pos, this.visionExtraRange());
+      return;
+    }
 
     if (opts.resume) {
       // 復帰時は新しくフロアを生成しないため使わないが、readonlyの初期化として必要
