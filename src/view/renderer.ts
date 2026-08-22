@@ -49,6 +49,45 @@ const GRADE_SHADER = {
   `,
 };
 
+/**
+ * 夢空(plan/models/archive/dungeon-dreamscape.mdの「1. 夢の演出言語」)。
+ * ここは石造りの遺跡ではなくヨリシロの夢の中(design/world.md)なので、
+ * 天井の代わりに頂点カラーのグラデーションドームを頭上に置く。
+ * `Renderer.camera`の子にして常にカメラを包むようにしてあるので、
+ * 盤面のどこにいても(48×36マスの広い盤面でも)途切れて見えない。
+ * 半球は放射状に対称なので、カメラの向き(yaw/pitch)が変わっても
+ * 絵は崩れない。
+ */
+const DREAM_SKY_RADIUS = 60;
+
+export function buildDreamSky(): THREE.Mesh {
+  const geometry = new THREE.SphereGeometry(DREAM_SKY_RADIUS, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2);
+  const material = new THREE.MeshBasicMaterial({
+    vertexColors: true,
+    side: THREE.BackSide,
+    fog: false,
+    depthWrite: false,
+  });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.renderOrder = -10;
+  return mesh;
+}
+
+/** 夢空の頂点カラーを、地平線際(horizon)〜天頂(zenith)のグラデーションへ塗る */
+export function recolorDreamSky(mesh: THREE.Mesh, horizon: THREE.Color, zenith: THREE.Color): void {
+  const geometry = mesh.geometry;
+  const position = geometry.attributes.position;
+  const colors = new Float32Array(position.count * 3);
+  for (let i = 0; i < position.count; i++) {
+    const t = THREE.MathUtils.clamp(position.getY(i) / DREAM_SKY_RADIUS, 0, 1);
+    const c = horizon.clone().lerp(zenith, t);
+    colors[i * 3] = c.r;
+    colors[i * 3 + 1] = c.g;
+    colors[i * 3 + 2] = c.b;
+  }
+  geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+}
+
 /** 1マスの大きさ。すべての座標変換はここを基準にする */
 export const TILE = 1.0;
 
@@ -104,6 +143,8 @@ export class Renderer {
   /** 気分の視覚演出(plan/mood-visual-effects.md)で色・強度を差し替える対象 */
   private readonly fog: THREE.Fog;
   private readonly ambient: THREE.AmbientLight;
+  /** 夢空(plan/models/archive/dungeon-dreamscape.md)。setMoodVisualで塗り替える */
+  private readonly dreamSky: THREE.Mesh;
   /** 影の視錐台を最後に合わせた位置。動いたぶんだけ描き直す */
   private readonly shadowAnchor = new THREE.Vector3(Infinity, 0, Infinity);
 
@@ -137,6 +178,13 @@ export class Renderer {
     this.scene.fog = this.fog;
 
     this.camera = new THREE.PerspectiveCamera(46, 1, 0.1, 120);
+    // 夢空をカメラの子にして常に頭上を覆わせる。カメラの子は、カメラ自身が
+    // シーングラフに入っていないと描画走査(scene.traverse)に届かず
+    // 描かれないため、ここでカメラをシーンへ足す(カメラ自体は描画対象で
+    // はないので、追加しても見た目には影響しない)
+    this.scene.add(this.camera);
+    this.dreamSky = buildDreamSky();
+    this.camera.add(this.dreamSky);
 
     // 洞窟の底なので全体は青く沈ませ、プレイヤーの周りだけを暖色で照らす
     this.ambient = new THREE.AmbientLight(0x6674a0, 1.7);
@@ -227,6 +275,12 @@ export class Renderer {
     this.fog.far = visual.fogFar;
     this.ambient.color.setHex(visual.ambientColor);
     this.ambient.intensity = visual.ambientIntensity;
+    // 夢空(plan/models/archive/dungeon-dreamscape.md)もフォグの色に
+    // 合わせて塗り替える。地平線際はフォグ色を白へ寄せて明るくし、
+    // 天頂はフォグ色そのまま(濃いまま)にする
+    const zenith = new THREE.Color(visual.fogColor);
+    const horizon = zenith.clone().lerp(new THREE.Color(0xffffff), 0.35);
+    recolorDreamSky(this.dreamSky, horizon, zenith);
   }
 
   /** カメラが注視する盤面上の位置。滑らかに追いつく */
