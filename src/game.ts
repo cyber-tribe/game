@@ -27,7 +27,6 @@ import {
   type Item,
   type ItemDef,
   type MonsterActor,
-  type Room,
   type RunSkillId,
   type TargetActor,
   type Tile,
@@ -48,8 +47,7 @@ import {
 } from "./core/types";
 import { type ArtId, artDef } from "./entities/arts";
 import { generateFloor } from "./dungeon/generate";
-import { t } from "./i18n";
-import { GIMMICK_MESSAGES, pickFloorGimmick } from "./dungeon/gimmicks";
+import { pickFloorGimmick } from "./dungeon/gimmicks";
 import {
   type IdSource,
   choosePlayerStart,
@@ -177,6 +175,16 @@ import {
   tickSummonedTorrentTiles as domainTickSummonedTorrentTiles,
 } from "./domain/dungeon/floorGimmicks";
 import { alertNearbyMonsters as domainAlertNearbyMonsters, checkTrap as domainCheckTrap } from "./domain/dungeon/traps";
+import {
+  announceGround as domainAnnounceGround,
+  bankRun as domainBankRun,
+  checkMonsterHouseWarning as domainCheckMonsterHouseWarning,
+  checkSecretPassageHint as domainCheckSecretPassageHint,
+  collectGold as domainCollectGold,
+  descend as domainDescend,
+  openDoor as domainOpenDoor,
+  regionGimmickApplies as domainRegionGimmickApplies,
+} from "./domain/dungeon/progression";
 
 /** 双樽鉤(quickSingle)の会心率の上乗せ分 */
 const QUICK_SINGLE_CRIT_BONUS = 0.15;
@@ -491,13 +499,6 @@ const FIELD_SKILL_HINTS: Record<FieldSkillId, string> = {
   leap: "跳べる",
   dig: "掘れる",
 };
-
-/** posが、部屋の外縁からチェビシェフ距離rangeマス以内にあるか(部屋の中ならtrue) */
-function isNearRoom(room: Room, pos: Vec2, range: number): boolean {
-  const dx = Math.max(room.x - pos.x, 0, pos.x - (room.x + room.w - 1));
-  const dy = Math.max(room.y - pos.y, 0, pos.y - (room.y + room.h - 1));
-  return Math.max(dx, dy) <= range;
-}
 
 /**
  * 武器の系統id(plan/challenge-achievements.md)。基本形・上位形は同じ
@@ -1258,7 +1259,7 @@ export class Game {
    * その地方番号が今回のフロアのmosaicRegionsに選ばれていれば true
    */
   private regionGimmickApplies(region: number): boolean {
-    return regionIndexForDungeonId(this.dungeon.id) === region || this.mosaicRegions.includes(region);
+    return domainRegionGimmickApplies(region, this.dungeon.id, this.mosaicRegions);
   }
 
   /** 指定位置の近くで、誰も立っていないマスを探す */
@@ -1340,26 +1341,27 @@ export class Game {
   }
 
   private descend(events: GameEvent[]): void {
-    if (this.depth >= this.maxDepth) {
-      // 横穴(分岐ダンジョン、plan/game/dungeon-per-region.md): 分岐ダンジョンの
-      // 最終階では、ダイブを終わらせず元の地方ダンジョンの階へ戻すだけにする
-      if (this.hostContext) {
-        this.returnFromBranchDungeon(events);
-        return;
-      }
-      this.maybePlayMountainCoreEnding(events);
-      this.status = "cleared";
-      this.endReason = `${this.maxDepth}階を踏破した!`;
-      events.push({ type: "message", text: this.endReason });
-      events.push({ type: "gameOver", reason: this.endReason });
-      return;
-    }
-    this.enterFloor(this.depth + 1);
-    events.push({ type: "descend", depth: this.depth });
-    events.push({ type: "message", text: t("msg.descend", { depth: this.depth }) });
-    if (this.floor.gimmick) {
-      events.push({ type: "message", text: GIMMICK_MESSAGES[this.floor.gimmick] });
-    }
+    domainDescend({
+      depth: this.depth,
+      maxDepth: this.maxDepth,
+      isInBranchDungeon: this.hostContext !== null,
+      events,
+      enterFloor: (depth) => {
+        this.enterFloor(depth);
+        return { depth: this.depth, gimmick: this.floor.gimmick };
+      },
+      returnFromBranchDungeon: (evts) => this.returnFromBranchDungeon(evts),
+      maybePlayMountainCoreEnding: (evts) => this.maybePlayMountainCoreEnding(evts),
+      completeRun: (reason, evts) => this.completeRun(reason, evts),
+    });
+  }
+
+  /** ダイブを成功扱いで終える(踏破・区切りで共通)。status="cleared"にし、理由メッセージ・gameOverイベントを出す */
+  private completeRun(reason: string, events: GameEvent[]): void {
+    this.status = "cleared";
+    this.endReason = reason;
+    events.push({ type: "message", text: reason });
+    events.push({ type: "gameOver", reason });
   }
 
   /**
@@ -1377,22 +1379,16 @@ export class Game {
    * 通常の踏破と同じ。以後の深い階は次回以降のダイブに持ち越す。
    */
   private bankRun(events: GameEvent[]): boolean {
-    if (!eq(this.player.pos, this.floor.stairs)) {
-      events.push({ type: "message", text: "ここには階段がない。" });
-      return false;
-    }
-    // タルを抱えたままの階段降りを禁止する(plan/barrel-stairs-safeguard.md)
-    if (this.player.carrying) {
-      events.push({ type: "message", text: "タルを抱えたままでは降りられない。" });
-      this.pushBackFromStairs(events);
-      return true;
-    }
-    this.maybePlayMountainCoreEnding(events);
-    this.status = "cleared";
-    this.endReason = t("msg.checkpointReached", { depth: this.depth });
-    events.push({ type: "message", text: this.endReason });
-    events.push({ type: "gameOver", reason: this.endReason });
-    return true;
+    return domainBankRun({
+      playerPos: this.player.pos,
+      stairs: this.floor.stairs,
+      isCarrying: this.player.carrying !== null,
+      depth: this.depth,
+      events,
+      pushBackFromStairs: (evts) => this.pushBackFromStairs(evts),
+      maybePlayMountainCoreEnding: (evts) => this.maybePlayMountainCoreEnding(evts),
+      completeRun: (reason, evts) => this.completeRun(reason, evts),
+    });
   }
 
   /**
@@ -1403,17 +1399,7 @@ export class Game {
    * というdocの意図どおり)
    */
   private openDoor(events: GameEvent[]): boolean {
-    const door = this.floor.door;
-    if (!door || chebyshev(this.player.pos, door.pos) > 1) {
-      events.push({ type: "message", text: "ここに扉はない。" });
-      return false;
-    }
-    if (door.open) return false;
-    door.open = true;
-    const bossName = speciesById(door.bossSpeciesId).name;
-    events.push({ type: "message", text: `扉を開けた。${bossName}の気配が強まる――` });
-    events.push({ type: "doorOpened", bossSpeciesId: door.bossSpeciesId });
-    return false;
+    return domainOpenDoor(this.floor.door, this.player.pos, events);
   }
 
   /**
@@ -2183,27 +2169,12 @@ export class Game {
     return domainPushMonster(this.floor, this.player.id, dir, target, events);
   }
 
-  /**
-   * 忘れ物蔵(plan/lost-and-found-vault.md)。隠し通路に初めて隣接した
-   * ターンにだけ、気配のヒントを1回出す。
-   */
   private checkSecretPassageHint(pos: Vec2, events: GameEvent[]): void {
-    for (const secret of this.floor.secretPassages) {
-      if (secret.hinted) continue;
-      if (chebyshev(pos, secret.pos) <= 1) {
-        secret.hinted = true;
-        events.push({ type: "message", text: "――かすかに隙間の風を感じる。" });
-      }
-    }
+    domainCheckSecretPassageHint(this.floor, pos, events);
   }
 
-  /** 床に落ちている金貨(plan/shops-and-thieves.md)を、踏んだ瞬間に自動で拾う */
   private collectGold(pos: Vec2, events: GameEvent[]): void {
-    const idx = this.floor.goldPiles.findIndex((g) => eq(g.pos, pos));
-    if (idx < 0) return;
-    const [pile] = this.floor.goldPiles.splice(idx, 1);
-    this.player.gold += pile!.amount;
-    events.push({ type: "message", text: t("msg.goldPicked", { amount: pile!.amount }) });
+    domainCollectGold(this.floor, this.player, pos, events);
   }
 
   /**
@@ -2227,46 +2198,17 @@ export class Game {
   }
 
   private announceGround(pos: Vec2, events: GameEvent[]): void {
-    const ground = this.floor.items.find((gi) => eq(gi.pos, pos));
-    if (ground) {
-      const price = ground.forSale ? `(${ground.forSale.price}ゴールド)` : "";
-      events.push({
-        type: "message",
-        text: `${itemDef(ground.item.defId).name}${price}が落ちている。`,
-      });
-    }
-    if (eq(pos, this.floor.stairs)) {
-      events.push({ type: "message", text: "階段がある。" });
-      // 表の寝穴では、地方の最終階(6階ごと)の階段だけが「めざめの階段」
-      // として既知になる(plan/region-expansion.md)。他のダンジョン
-      // (近道屋の裏穴・夜ごとの夢・腕試しの間)は地方の概念を持たないため
-      // 従来どおりどの階の階段でも既知になる。
-      // 足を踏み入れた瞬間に「既知」となる。ダイブの結果によらず記録されるべき
-      // 事実なので、保存は呼び出し側(main.ts)が checkpoint イベントを見て行う
-      if (this.onCheckpointFloor) {
-        events.push({ type: "checkpoint", depth: this.depth });
-        events.push({ type: "tutorialTip", id: "checkpoint" });
-      }
-    }
+    domainAnnounceGround({ floor: this.floor, pos, dungeonId: this.dungeon.id, depth: this.depth, events });
   }
 
-  /**
-   * モンスターハウス(plan/monster-house.md)の予告。部屋の外(通路側)から
-   * 隣接した時点で、1フロアにつき一度だけ気配のメッセージを出す。
-   * 部屋の中に入ってからでは手遅れなので、中にいる間は出さない。
-   * 千里眼の輪(plan/protagonist-equipment.md)を装備していれば、
-   * さらに1マス手前(距離2)から察知できる。
-   */
   private checkMonsterHouseWarning(pos: Vec2, events: GameEvent[]): void {
-    if (this.monsterHouseWarned) return;
-    const room = this.floor.rooms.find((r) => r.kind === "monsterHouse");
-    if (!room || roomContains(room, pos)) return;
-
-    const range = hasEquipEffect(this.player.inventory, "farsight") ? 2 : 1;
-    if (!isNearRoom(room, pos, range)) return;
-
-    this.monsterHouseWarned = true;
-    events.push({ type: "message", text: "――部屋の奥で何かがひしめいている気配がする。" });
+    this.monsterHouseWarned = domainCheckMonsterHouseWarning({
+      floor: this.floor,
+      pos,
+      player: this.player,
+      monsterHouseWarned: this.monsterHouseWarned,
+      events,
+    });
   }
 
   /**
