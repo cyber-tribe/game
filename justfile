@@ -71,15 +71,10 @@ fresh branch:
     git fetch origin main
     git checkout -B {{branch}} origin/main
 
-# コミット→push→PR作成→オートマージ(squash)設定まで一括: just ship "コミットメッセージ"
-# (gh が無い環境では push まで行い、PR作成とオートマージ設定は別の手段で行う)
+# コミットして push する。push を受けて Actions(auto-pr.yml)が PR 作成と
+# オートマージ設定まで行う: just ship "コミットメッセージ"
+# (メッセージの1行目が PR タイトル、本文が説明文になる)
 ship message:
     git add -A
     git commit -m "{{message}}"
     git push -u origin "$(git branch --show-current)"
-    @if command -v gh >/dev/null 2>&1; then \
-      gh pr create --title "{{message}}" --body "" --base main && \
-      gh pr merge --auto --squash; \
-    else \
-      echo "gh なし: PR作成とオートマージ有効化は別の手段で行うこと"; \
-    fi
