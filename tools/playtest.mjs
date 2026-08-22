@@ -160,20 +160,21 @@ await page.screenshot({ path: `${OUT}/00-village.png` });
  * 歩き回る場面に変わった。北へ歩けば必ず「旅の看板」(村の入口すぐ)に
  * 着くようにしてあるので、決め打ちの方向で近づき、確定キーで拠点画面を開く。
  */
-async function enterNearestVillageBuilding(key = "ArrowUp") {
-  await page.keyboard.down(key);
-  // タイムアウトは元々5秒だったが、CIの遅いソフトウェア描画下ではメインループの
-  // dtクランプ(main.tsのMath.min(0.05, this.clock.getDelta()))により村なかの
-  // 移動も実時間に対して遅くなることがあり、まれに間に合わないことが分かった
-  // (walkToBuildingAndEnterで先に見つかったのと同種の「CIの遅い描画」由来の
-  // タイムアウト)。移動そのものには問題が無いため、待つ時間を広げて確実に
-  // 間に合わせる
-  await page
-    .waitForFunction(() => globalThis.__app?.debugVillageNearBuildingId?.() !== null, {
-      timeout: 20_000,
-    })
-    .catch(() => {});
-  await page.keyboard.up(key);
+async function enterNearestVillageBuilding(key = "ArrowUp", timeout = 20_000) {
+  // 元は1回のkeydown保持 + waitForFunctionだったが、CIの遅いソフトウェア描画下
+  // ではメインループのdtクランプ(main.tsのMath.min(0.05, this.clock.getDelta()))
+  // により、保持中のフレーム数そのものが極端に減って移動量が足りないことが
+  // あった(単純なタイムアウト延長では解決しなかった)。walkToBuildingAndEnterと
+  // 同じく、短い保持を何度も繰り返して都度到着を確認する方式にすることで、
+  // 1フレームでも進めば着実に前進できるようにする
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) {
+    const near = await page.evaluate(() => globalThis.__app?.debugVillageNearBuildingId?.() ?? null);
+    if (near !== null) break;
+    await page.keyboard.down(key);
+    await page.waitForTimeout(150);
+    await page.keyboard.up(key);
+  }
   await settle();
   await page.keyboard.press("Space");
   await settle();
