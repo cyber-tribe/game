@@ -11,6 +11,7 @@ import { describe, expect, it } from "vitest";
 
 const SRC_ROOT = resolve(__dirname, "../src");
 const DOMAIN_ROOT = join(SRC_ROOT, "domain");
+const TESTS_ROOT = resolve(__dirname);
 
 const FORBIDDEN_PREFIXES = [
   join(SRC_ROOT, "application"),
@@ -62,6 +63,33 @@ describe("architecture: domain/ の依存方向(plan/game/ddd-phase8-game-facade
         if (!specifier.startsWith(".")) continue; // パッケージ importは対象外
         const resolvedTarget = resolve(dirname(file), specifier);
         if (isForbidden(resolvedTarget)) {
+          violations.push(`${relative(SRC_ROOT, file)} -> "${specifier}"`);
+        }
+      }
+    }
+
+    expect(violations).toEqual([]);
+  });
+});
+
+/**
+ * 箱庭ダンジョン(plan/game/test-dungeon-harness.md)の受け入れ基準4:
+ * tests/ はテスト専用の道具立て(注入フック経由の箱庭ビルダー等)を持つが、
+ * src/ 側からそれを直接importできてしまうと、テスト専用コードが本番の
+ * ビルド・実行に紛れ込む恐れがある。逆(tests/がsrc/をimportする)は自由
+ */
+describe("architecture: src/ は tests/ をimportしない(plan/game/test-dungeon-harness.md)", () => {
+  it("src/配下のどのファイルもtests/への相対importを持たない", () => {
+    const srcFiles = listTsFiles(SRC_ROOT);
+    expect(srcFiles.length).toBeGreaterThan(0);
+
+    const violations: string[] = [];
+    for (const file of srcFiles) {
+      const source = readFileSync(file, "utf-8");
+      for (const specifier of importSpecifiers(source)) {
+        if (!specifier.startsWith(".")) continue;
+        const resolvedTarget = resolve(dirname(file), specifier);
+        if (resolvedTarget === TESTS_ROOT || resolvedTarget.startsWith(TESTS_ROOT + "/")) {
           violations.push(`${relative(SRC_ROOT, file)} -> "${specifier}"`);
         }
       }

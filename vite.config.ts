@@ -1,4 +1,4 @@
-import { defineConfig } from "vitest/config";
+import { defaultExclude, defineConfig } from "vitest/config";
 import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
@@ -57,5 +57,8 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/**/*.test.ts"],
+    // tests/e2e/(plan/game/test-dungeon-harness.md)は実ブラウザとdevサーバー起動を
+    // 伴う別枠のテストなので、通常のnpm testには含めない(vitest.e2e.config.ts参照)
+    exclude: [...defaultExclude, "tests/e2e/**"],
   },
 });
