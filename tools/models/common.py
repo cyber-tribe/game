@@ -23,6 +23,7 @@ Skin モディファイアで皮を張り、サブディビジョンで滑らか
 
 from __future__ import annotations
 
+import colorsys
 import math
 import os
 from typing import Iterable, Sequence
@@ -72,6 +73,49 @@ def make_material(name: str, color, roughness: float = 0.7, metallic: float = 0.
         bsdf.inputs["Emission Color"].default_value = (r, g, b, 1.0)
         bsdf.inputs["Emission Strength"].default_value = emission
     return mat
+
+
+RGB = tuple[float, float, float]
+
+
+def _hue_lerp(h: float, target: float, t: float) -> float:
+    """
+    色相環(0〜1が一周)を最短経路でtだけ進める。単純な `h + (target-h)*t`
+    は、例えば赤(h≈0)から紫(h≈0.72)へ寄せたいときに遠回り(黄→緑→水色
+    経由)してしまう。差分を一度 -0.5〜0.5 に畳んでから進めることで、
+    常に円環上の近い方(この例だと赤→マゼンタ→紫)を通るようにする。
+    """
+    delta = (target - h + 0.5) % 1.0 - 0.5
+    return (h + delta * t) % 1.0
+
+
+def shade_tint(color: RGB, amount: float = 0.35) -> RGB:
+    """
+    影の色(plan/models/archive/visual-quality-uplift.md施策B「色相シフトの
+    規律」)。単に暗くするのではなく、色相を青紫方向(HSVで約260度)へ
+    寄せながら明度を落とす。上質なスタイライズドでは「影は寒色へ」ずらす
+    のが定石で、単色の濃淡だけより画面に深みが出る。
+
+    `amount`は0(元色のまま)〜1(青紫へ強く寄る)。
+    """
+    h, s, v = colorsys.rgb_to_hsv(*color)
+    h = _hue_lerp(h, 0.72, amount * 0.5)
+    s = min(1.0, s * (1 + amount * 0.15))
+    v = v * (1 - amount * 0.5)
+    return colorsys.hsv_to_rgb(h, s, v)
+
+
+def highlight_tint(color: RGB, amount: float = 0.35) -> RGB:
+    """
+    ハイライトの色(`shade_tint`と対になる「光は暖色へ」)。色相を黄橙方向
+    (HSVで約40度)へ寄せながら明度を上げ、彩度をわずかに落とす
+    (白飛びに寄せず、色味を残したまま明るくするため)。
+    """
+    h, s, v = colorsys.rgb_to_hsv(*color)
+    h = _hue_lerp(h, 0.11, amount * 0.5)
+    s = s * (1 - amount * 0.2)
+    v = min(1.0, v * (1 + amount * 0.4) + amount * 0.1)
+    return colorsys.hsv_to_rgb(h, s, v)
 
 
 def assign_material(obj: bpy.types.Object, mat: bpy.types.Material) -> None:
