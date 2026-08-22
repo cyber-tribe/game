@@ -59,7 +59,6 @@ import { GIMMICK_MESSAGES, pickFloorGimmick } from "./dungeon/gimmicks";
 import {
   type IdSource,
   choosePlayerStart,
-  createAlly,
   createAllyFromStored,
   createBarrel,
   createItem,
@@ -171,6 +170,7 @@ import {
   resolveSkillChoice as domainResolveSkillChoice,
   type SkillChoiceState,
 } from "./domain/player/runSkills";
+import { recruitFromBarrel as domainRecruitFromBarrel } from "./domain/party/recruit";
 
 /** 双樽鉤(quickSingle)の会心率の上乗せ分 */
 const QUICK_SINGLE_CRIT_BONUS = 0.15;
@@ -2091,31 +2091,11 @@ export class Game {
       barrel,
       landing,
       events,
-      recruitFromBarrel: (b, spot) => this.recruitFromBarrel(b, spot, events),
+      recruitFromBarrel: (b, spot) =>
+        domainRecruitFromBarrel({ floor: this.floor, barrel: b, spot, allies: this.allies, ids: this.ids, events }),
     });
   }
 
-  /**
-   * 仲間化(パーティへの加入処理、Phase 5のParty domainの領分)。捕獲(タルから
-   * 中身が出てくるところ)とはreleaseFromBarrelの中で境界を切ってある
-   */
-  private recruitFromBarrel(barrel: Barrel, spot: Vec2, events: GameEvent[]): void {
-    if (barrel.speciesId === undefined) return;
-    if (this.allies.length >= MAX_ALLIES) {
-      events.push({ type: "message", text: "これ以上は連れて歩けない。" });
-      return;
-    }
-
-    const species = speciesById(barrel.speciesId);
-    const ally = createAlly(this.ids.nextActorId(), species, spot);
-    this.allies.push(ally);
-    this.floor.actors.push(ally);
-    events.push({ type: "spawn", actorId: ally.id });
-    events.push({ type: "recruit", actorId: ally.id, name: ally.name });
-    events.push({ type: "message", text: t("msg.recruit", { name: ally.name }) });
-    events.push({ type: "tutorialTip", id: "capture" });
-    if (this.allies.length === 2) events.push({ type: "tutorialTip", id: "allyOrders" });
-  }
 
   private movePlayer(dir: Dir, events: GameEvent[]): boolean {
     const player = this.player;
@@ -2424,7 +2404,8 @@ export class Game {
           isPlaying: () => this.status === "playing",
           damageActor: (target, dmg, crit) => this.damageActor(target, dmg, crit, events),
           pushMonster: (dir2, target, evts) => this.pushMonster(dir2, target, evts),
-          recruitFromBarrel: (b, spot) => this.recruitFromBarrel(b, spot, events),
+          recruitFromBarrel: (b, spot) =>
+        domainRecruitFromBarrel({ floor: this.floor, barrel: b, spot, allies: this.allies, ids: this.ids, events }),
           setLightBarrelTurns: (turns) => {
             this.lightBarrelTurns = Math.max(this.lightBarrelTurns, turns);
           },
