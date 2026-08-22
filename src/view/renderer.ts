@@ -7,47 +7,17 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { SMAAPass } from "three/addons/postprocessing/SMAAPass.js";
 import type { Vec2 } from "../core/grid";
 import type { MoodVisual } from "../entities/moods";
-
-/**
- * 色調グレーディング(plan/game/post-processing-stack.md)。彩度を少し上げ、
- * 暗部にわずかな青みを足し、画面端を薄く暗くする。外部LUT画像は使わず、
- * 「アセットはコードから生成する」方針に合わせて小さな自作シェーダーにする。
- */
-const GRADE_SHADER = {
-  uniforms: {
-    tDiffuse: { value: null as THREE.Texture | null },
-    saturation: { value: 1.08 },
-    shadowTint: { value: new THREE.Vector3(0.02, 0.03, 0.05) },
-    vignetteStrength: { value: 0.08 },
-  },
-  vertexShader: /* glsl */ `
-    varying vec2 vUv;
-    void main() {
-      vUv = uv;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-    }
-  `,
-  fragmentShader: /* glsl */ `
-    uniform sampler2D tDiffuse;
-    uniform float saturation;
-    uniform vec3 shadowTint;
-    uniform float vignetteStrength;
-    varying vec2 vUv;
-
-    void main() {
-      vec4 texel = texture2D(tDiffuse, vUv);
-      float luma = dot(texel.rgb, vec3(0.2126, 0.7152, 0.0722));
-      vec3 graded = mix(vec3(luma), texel.rgb, saturation);
-      // 暗部だけ青みを足す(明るい部分ほど寄与が小さくなるよう二乗で減衰)
-      float shadowAmount = (1.0 - luma) * (1.0 - luma);
-      graded += shadowTint * shadowAmount;
-      // 画面端をわずかに暗くする
-      float dist = length(vUv - 0.5) * 2.0;
-      graded *= 1.0 - vignetteStrength * dist * dist;
-      gl_FragColor = vec4(graded, texel.a);
-    }
-  `,
-};
+import {
+  AMBIENT_LIGHT_COLOR,
+  AMBIENT_LIGHT_INTENSITY,
+  BLOOM_PARAMS,
+  CAMERA_FOV,
+  GRADE_SHADER,
+  KEY_LIGHT_COLOR,
+  KEY_LIGHT_INTENSITY,
+  TONE_MAPPING,
+  TONE_MAPPING_EXPOSURE,
+} from "./renderConfig";
 
 /**
  * 夢空(plan/models/archive/dungeon-dreamscape.mdの「1. 夢の演出言語」)。
@@ -168,8 +138,8 @@ export class Renderer {
     // (呼び出し側は requestShadowUpdate を使う)
     this.renderer.shadowMap.autoUpdate = false;
     this.renderer.shadowMap.needsUpdate = true;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 0.98;
+    this.renderer.toneMapping = TONE_MAPPING;
+    this.renderer.toneMappingExposure = TONE_MAPPING_EXPOSURE;
 
     this.scene.background = new THREE.Color(0x05060c);
     // フォグの開始距離はカメラからプレイヤーまでの距離より遠くに置く。
@@ -177,7 +147,7 @@ export class Renderer {
     this.fog = new THREE.Fog(0x070912, 16, 34);
     this.scene.fog = this.fog;
 
-    this.camera = new THREE.PerspectiveCamera(46, 1, 0.1, 120);
+    this.camera = new THREE.PerspectiveCamera(CAMERA_FOV, 1, 0.1, 120);
     // 夢空をカメラの子にして常に頭上を覆わせる。カメラの子は、カメラ自身が
     // シーングラフに入っていないと描画走査(scene.traverse)に届かず
     // 描かれないため、ここでカメラをシーンへ足す(カメラ自体は描画対象で
@@ -187,13 +157,13 @@ export class Renderer {
     this.camera.add(this.dreamSky);
 
     // 洞窟の底なので全体は青く沈ませ、プレイヤーの周りだけを暖色で照らす
-    this.ambient = new THREE.AmbientLight(0x6674a0, 1.7);
+    this.ambient = new THREE.AmbientLight(AMBIENT_LIGHT_COLOR, AMBIENT_LIGHT_INTENSITY);
     this.scene.add(this.ambient);
 
     // 影を落とすのはこの1灯だけ。盤面は 48×36 マスあるので、視錐台を原点に
     // 固定したままだと原点付近にしか影が出ない。カメラの注視点に合わせて
     // 動かし、見えている範囲だけを狭く覆う
-    const key = new THREE.DirectionalLight(0xaec2f5, 0.85);
+    const key = new THREE.DirectionalLight(KEY_LIGHT_COLOR, KEY_LIGHT_INTENSITY);
     key.position.set(6, 14, 4);
     key.castShadow = true;
     key.shadow.mapSize.set(1024, 1024);
@@ -225,7 +195,12 @@ export class Renderer {
     // outputColorSpaceの設定をここで反映するため)
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
-    this.bloomPass = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.35, 0.4, 0.9);
+    this.bloomPass = new UnrealBloomPass(
+      new THREE.Vector2(1, 1),
+      BLOOM_PARAMS.strength,
+      BLOOM_PARAMS.radius,
+      BLOOM_PARAMS.threshold,
+    );
     this.composer.addPass(this.bloomPass);
     this.composer.addPass(new ShaderPass(GRADE_SHADER));
     this.composer.addPass(new SMAAPass());
