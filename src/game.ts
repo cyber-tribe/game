@@ -119,7 +119,6 @@ import {
   type DifficultyMode,
 } from "./entities/difficulty";
 import { HOKORA_DUST_DEF_ID, MARK_STONE_DEF_ID, MARKS } from "./entities/forging";
-import { rollBossTreasure } from "./entities/bossTreasure";
 import { sellPrice } from "./entities/shop";
 import {
   MAX_ALLIES,
@@ -127,7 +126,6 @@ import {
   type PlayerState,
   type TrainingFocus,
   createPlayer,
-  gainExp,
   totalAttack,
   totalDefense,
 } from "./entities/player";
@@ -199,6 +197,7 @@ import {
   tickStatuses as domainTickStatuses,
   tickTorch as domainTickTorch,
 } from "./domain/turn/statusTicks";
+import { damageActor as domainDamageActor, killActor as domainKillActor } from "./domain/turn/damage";
 
 /** 双樽鉤(quickSingle)の会心率の上乗せ分 */
 const QUICK_SINGLE_CRIT_BONUS = 0.15;
@@ -439,8 +438,6 @@ const BOSS_DREAM_ART_BOND_COOLDOWN_MULTIPLIER = 0.8;
 // ---- レベルアップ時のスキル選択(plan/game/archive/run-build-skills.md) ----
 /** はげましの声: 仲間のゆめわざクールダウンの倍率 */
 const ENCOURAGEMENT_COOLDOWN_MULTIPLIER = 0.75;
-/** ねぎらい: 敵を倒すたびの仲間の回復量 */
-const APPRECIATION_HEAL_AMOUNT = 1;
 /** かつぎばしり: タルを抱えている間、気づかれにくくなる確率(ねむタルと同じ形) */
 const STEALTH_CARRY_SUPPRESS_CHANCE = 0.3;
 
@@ -2782,55 +2779,22 @@ export class Game {
   }
 
   private damageActor(target: Actor, damage: number, critical: boolean, events: GameEvent[]): void {
-    // 地方ボス(plan/region-boss-kodamanonushi.md): 分身はHPを共有する。実際の
-    // 増減・生死判定は本体側のActorに対して行う
-    const hpOwner = this.hpOwnerOf(target);
-    hpOwner.hp -= damage;
-    this.hitThisTurn.add(target.id);
-    if (target.kind === "player") this.damageTakenThisRun += damage;
-    events.push({
-      type: "damage",
-      actorId: target.id,
-      amount: damage,
-      hpAfter: Math.max(0, hpOwner.hp),
+    domainDamageActor({
+      floor: this.floor,
+      target,
+      damage,
       critical,
+      events,
+      hitThisTurn: this.hitThisTurn,
+      playerInventory: this.player.inventory,
+      runSkills: this.runSkills,
+      oncePerRun: this.oncePerRun,
+      recordPlayerDamageTaken: (amount) => {
+        this.damageTakenThisRun += amount;
+      },
+      trueAwakeningEnding: (target2) => this.trueAwakeningEnding(target2, events),
+      killActor: (target2) => this.killActor(target2, events),
     });
-    // 攻撃を受ければ目が覚める
-    const sleep = target.statuses.find((s) => s.kind === STATUS_SLEEP);
-    if (sleep) {
-      sleep.turns = 0;
-      events.push({ type: "statusEnd", actorId: target.id, kind: STATUS_SLEEP });
-    }
-    if (hpOwner.hp <= 0) {
-      // 特技「ふんばり」、ホネガラミの印(plan/equipment-forging.md)、または
-      // 身がわりの鈴(plan/protagonist-equipment.md): HPが1残っていた状態
-      // からの致死ダメージを1ダイブ1回だけ耐える
-      const hpBeforeThisHit = hpOwner.hp + damage;
-      const hasStubbornEffect =
-        (hpOwner.kind === "ally" && hasSkill(hpOwner, "stubborn")) ||
-        (hpOwner.kind === "player" && hasEquipEffect(this.player.inventory, "revivalWard"));
-      if (hpBeforeThisHit === 1 && hasStubbornEffect && !this.oncePerRun.hasUsed("stubborn", hpOwner.id)) {
-        hpOwner.hp = 1;
-        this.oncePerRun.markUsed("stubborn", hpOwner.id);
-        events.push({ type: "message", text: `${displayActorName(hpOwner)}はふんばりこらえた!` });
-      } else if (
-        // スキル「目覚めのいのり」(plan/game/archive/run-build-skills.md): 仲間が
-        // 倒れる一撃を、そのダイブで一度だけHP1で耐えさせる(ふんばりと違い、
-        // 直前のHPを問わない代わりに1ラン合計1回だけ)
-        hpOwner.kind === "ally" &&
-        this.runSkills.includes("wakingPrayer") &&
-        !this.oncePerRun.hasUsed("wakingPrayer", 0)
-      ) {
-        hpOwner.hp = 1;
-        this.oncePerRun.markUsed("wakingPrayer", 0);
-        events.push({ type: "message", text: `${displayActorName(hpOwner)}は、目覚めのいのりに支えられて踏みとどまった!` });
-      } else if (hpOwner.kind === "monster" && hpOwner.speciesId === HAJIME_NO_YUME_ID) {
-        this.trueAwakeningEnding(hpOwner, events);
-      } else {
-        this.killActor(hpOwner, events);
-      }
-    }
-    this.mirrorSharedHp(hpOwner);
   }
 
   /** 地方ボス(plan/region-boss-kodamanonushi.md): 分身が紐づく本体を返す。紐づいていなければそのまま(sharesHpWithを持てるのはmonster/allyだけ) */
@@ -2838,122 +2802,39 @@ export class Game {
     return hpOwnerOf(this.floor, actor);
   }
 
-  /** 本体のhpを、紐づく分身全員のhpフィールドへミラーする(表示用。増減判定には使わない) */
-  private mirrorSharedHp(owner: Actor): void {
-    for (const actor of this.floor.actors) {
-      if (actor.kind !== "monster" && actor.kind !== "ally") continue;
-      if (actor.sharesHpWith === owner.id) actor.hp = owner.hp;
-    }
-  }
-
   private killActor(target: Actor, events: GameEvent[]): void {
-    target.alive = false;
-    target.hp = 0;
-    const diedSpeciesId = target.kind === "monster" || target.kind === "ally" ? target.speciesId : undefined;
-    events.push({ type: "die", actorId: target.id, kind: target.kind, speciesId: diedSpeciesId });
-
-    if (target.kind === "player") {
-      this.status = "dead";
-      this.endReason = `地下${this.depth}階で力尽きた……`;
-      events.push({ type: "message", text: this.endReason });
-      events.push({ type: "gameOver", reason: this.endReason });
-      events.push({ type: "tutorialTip", id: "death" });
-      return;
-    }
-
-    if (target.kind === "ally") {
-      this.allies = this.allies.filter((a) => a.id !== target.id);
-      events.push({ type: "message", text: `${displayActorName(target)}は力尽きた……` });
-      return;
-    }
-
-    // 樽比べ(plan/tarukurabe-minigame.md)の的は、専用のresolveTarukurabeHitで
-    // 処理されるためkillActorには本来到達しないが、型上は残る分岐として明示しておく
-    if (target.kind === "target") return;
-
-    events.push({ type: "message", text: `${displayActorName(target)}をたおした!` });
-    // スキル「ねぎらい」(plan/game/archive/run-build-skills.md): 敵を倒すたび仲間全員が少し回復する
-    if (this.runSkills.includes("appreciation")) {
-      for (const ally of this.allies) {
-        if (!ally.alive) continue;
-        const healed = Math.min(ally.maxHp - ally.hp, APPRECIATION_HEAL_AMOUNT);
-        if (healed <= 0) continue;
-        ally.hp += healed;
-        events.push({ type: "heal", actorId: ally.id, amount: healed, hpAfter: ally.hp });
-      }
-    }
-    // スリガラス(plan/shops-and-thieves.md): 盗品を持ったまま倒すと、その場に落とす
-    if (target.aiKind === "thief" && target.stolenGold !== undefined) {
-      this.floor.goldPiles.push({
-        id: this.ids.nextItemUid(),
-        pos: { ...target.pos },
-        amount: target.stolenGold,
-      });
-      events.push({ type: "message", text: "盗まれた金を取り戻した!" });
-    }
-    // かがやきの夢のかけら(plan/monster-compendium.md): 倒すと上質な素材を1つ落とす
-    if (target.shining) {
-      const materialIds = [HOKORA_DUST_DEF_ID, ...MARKS.map((m) => MARK_STONE_DEF_ID[m.id])];
-      const defId = this.rng.pick(materialIds);
-      this.floor.items.push({ item: createItem(this.ids.nextItemUid(), defId), pos: { ...target.pos } });
-      events.push({ type: "message", text: "かがやく残り香から、上質な素材が現れた!" });
-    }
-    // 地方ボス(plan/region-bosses.md): 撃破すると、その地方限定の素材を確定ドロップする
-    const bossDrop = target.speciesId ? speciesById(target.speciesId).bossGuaranteedDrop : undefined;
-    if (bossDrop) {
-      this.floor.items.push({ item: createItem(this.ids.nextItemUid(), bossDrop), pos: { ...target.pos } });
-      events.push({ type: "message", text: "地方ボスの証となる、特別な素材が現れた!" });
-    }
-    // 山の芯(plan/mountain-core.md): 撃破した地方ボスを記録する
-    if (target.speciesId && speciesById(target.speciesId).isRegionBoss) {
-      this.defeatedRegionBossesThisRun.add(target.speciesId);
-      // ぬしの置き土産(plan/game/dungeon-boss-rooms.md): 確定ドロップとは
-      // 別に、宝箱相当の報酬をもう1つ落とす。2回目以降の踏破では一段軽くなる
-      const firstClear = !this.defeatedRegionBossIdsAtStart.has(target.speciesId);
-      const tableDepth = this.depth + (this.dungeon.floorOffset ?? 0);
-      const treasure = rollBossTreasure(this.rng, () => this.ids.nextItemUid(), tableDepth, firstClear);
-      for (const item of treasure) this.floor.items.push({ item, pos: { ...target.pos } });
-      if (treasure.length > 0) {
-        events.push({ type: "message", text: "ぬしの置き土産を見つけた!" });
-      }
-      // ボスの間の階段(plan/game/dungeon-boss-rooms.md): 撃破するまで壁と
-      // 同じく通れなかった階段が、ここで通れるようになる
-      if (this.floor.stairsBlocked) {
-        this.floor.stairsBlocked = false;
-        events.push({ type: "message", text: "奥に、踏破の階段が現れた!" });
-      }
-    }
-    const exp = target.exp ?? 0;
-    if (exp > 0) {
-      const levels = gainExp(this.player, exp, this.trainingFocus);
-      events.push({ type: "message", text: t("msg.expGained", { exp }) });
-      for (let i = 0; i < levels; i++) {
-        events.push({ type: "levelUp", actorId: this.player.id, level: this.player.level });
-        events.push({ type: "message", text: t("msg.levelUp", { level: this.player.level }) });
-      }
-      if (levels > 0) {
-        events.push({ type: "tutorialTip", id: "levelUp" });
+    domainKillActor({
+      floor: this.floor,
+      rng: this.rng,
+      target,
+      events,
+      runSkills: this.runSkills,
+      allies: this.allies,
+      player: this.player,
+      trainingFocus: this.trainingFocus,
+      depth: this.depth,
+      dungeonFloorOffset: this.dungeon.floorOffset,
+      ids: this.ids,
+      defeatedRegionBossesThisRun: this.defeatedRegionBossesThisRun,
+      defeatedRegionBossIdsAtStart: this.defeatedRegionBossIdsAtStart,
+      endRun: (reason) => {
+        this.status = "dead";
+        this.endReason = reason;
+        events.push({ type: "message", text: reason });
+        events.push({ type: "gameOver", reason });
+        events.push({ type: "tutorialTip", id: "death" });
+      },
+      removeAlly: (id) => {
+        this.allies = this.allies.filter((a) => a.id !== id);
+      },
+      gainAllyExpFromKill: (exp) => this.gainAllyExpFromKill(exp, events),
+      onLevelUp: (levels) => {
         // レベルアップ時のスキル選択(plan/game/archive/run-build-skills.md):
         // 1手で複数レベル上がっても、選択肢は1レベルぶんずつ順番に出す
         this.pendingLevelUpChoices += levels;
         this.offerNextSkillChoice(events);
-      }
-      // 仲間の経験値・レベルアップ(plan/game/archive/companion-leveling-and-arts.md):
-      // ガルドが得る全量とは別に、生存して連れている仲間全員がそれぞれ50%を得る
-      // (頭割りにしない。複数連れのパーティが不利にならないように)
-      this.gainAllyExpFromKill(exp, events);
-    }
-
-    // 地方ボス(plan/region-boss-kodamanonushi.md): 本体が倒れたら、紐づく分身も
-    // 同時に消える。経験値・ドロップの重複を避けるため、通常のkillActor処理は
-    // 分身側には通さない
-    for (const echo of this.floor.actors) {
-      if (echo.kind !== "monster") continue;
-      if (echo.id === target.id || echo.sharesHpWith !== target.id || !echo.alive) continue;
-      echo.alive = false;
-      echo.hp = 0;
-      events.push({ type: "die", actorId: echo.id, kind: echo.kind, speciesId: echo.speciesId });
-    }
+      },
+    });
   }
 
   /**
