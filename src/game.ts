@@ -118,8 +118,6 @@ import {
 import { HAJIME_NO_YUME_ID, REGION_BOSS_ORDER, speciesById } from "./entities/species";
 import { REGIONS, regionByIndex } from "./entities/regions";
 import { type BondStage, bondStage } from "./entities/companionBond";
-import { gainAllyExp } from "./entities/companionGrowth";
-import { dreamArtDef } from "./entities/dreamArts";
 import { HONOKA_NA_AKARI_VISION_EXTRA, type DreamArtContext } from "./systems/dreamArtEffects";
 import { itemDef } from "./items/catalog";
 import { type EffectContext, addStatus, applyEffect } from "./items/effects";
@@ -2514,7 +2512,6 @@ export class Game {
       removeAlly: (id) => {
         this.allies = this.allies.filter((a) => a.id !== id);
       },
-      gainAllyExpFromKill: (exp) => this.gainAllyExpFromKill(exp, events),
       onLevelUp: (levels) => {
         // レベルアップ時のスキル選択(plan/game/archive/run-build-skills.md):
         // 1手で複数レベル上がっても、選択肢は1レベルぶんずつ順番に出す
@@ -2522,33 +2519,6 @@ export class Game {
         this.offerNextSkillChoice(events);
       },
     });
-  }
-
-  /**
-   * 仲間の経験値・レベルアップ(plan/game/archive/companion-leveling-and-arts.md)。
-   * killActorから、ガルドの経験値取得と同じタイミングで呼ばれる
-   */
-  private gainAllyExpFromKill(playerExp: number, events: GameEvent[]): void {
-    const allyExp = Math.round(playerExp * 0.5);
-    if (allyExp <= 0) return;
-    for (const actor of this.floor.actors) {
-      if (actor.kind !== "ally" || !actor.alive) continue;
-      const result = gainAllyExp(actor, allyExp);
-      if (result.levelsGained > 0) {
-        events.push({ type: "levelUp", actorId: actor.id, level: actor.level });
-        events.push({
-          type: "message",
-          text: t("msg.allyLevelUp", { name: displayActorName(actor), level: actor.level }),
-        });
-      }
-      for (const learned of result.learnedDreamArts) {
-        events.push({ type: "dreamArtLearned", actorId: actor.id, id: learned.id, level: learned.level });
-        events.push({
-          type: "message",
-          text: `${displayActorName(actor)}は『${dreamArtDef(learned.id).name}』をゆめみた!`,
-        });
-      }
-    }
   }
 
   /**

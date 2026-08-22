@@ -14,6 +14,7 @@ import { HOKORA_DUST_DEF_ID, MARKS, MARK_STONE_DEF_ID } from "../../entities/for
 import { rollBossTreasure } from "../../entities/bossTreasure";
 import { displayActorName } from "../../entities/naming";
 import { gainPlayerExpFromKill } from "../player/leveling";
+import { gainAllyExpFromKill } from "../party/allyGrowth";
 
 /** ねぎらい: 敵を倒すたびの仲間の回復量 */
 const APPRECIATION_HEAL_AMOUNT = 1;
@@ -127,7 +128,6 @@ export interface KillActorArgs {
   defeatedRegionBossIdsAtStart: ReadonlySet<string>;
   endRun(reason: string): void;
   removeAlly(id: number): void;
-  gainAllyExpFromKill(exp: number): void;
   onLevelUp(levels: number): void;
 }
 
@@ -148,7 +148,6 @@ export function killActor(args: KillActorArgs): void {
     defeatedRegionBossIdsAtStart,
     endRun,
     removeAlly,
-    gainAllyExpFromKill,
     onLevelUp,
   } = args;
 
@@ -227,10 +226,7 @@ export function killActor(args: KillActorArgs): void {
   const exp = target.exp ?? 0;
   if (exp > 0) {
     gainPlayerExpFromKill({ player, exp, trainingFocus, events, onLevelUp });
-    // 仲間の経験値・レベルアップ(plan/game/archive/companion-leveling-and-arts.md):
-    // ガルドが得る全量とは別に、生存して連れている仲間全員がそれぞれ50%を得る
-    // (頭割りにしない。複数連れのパーティが不利にならないように)
-    gainAllyExpFromKill(exp);
+    gainAllyExpFromKill(floor, exp, events);
   }
 
   // 地方ボス(plan/region-boss-kodamanonushi.md): 本体が倒れたら、紐づく分身も
