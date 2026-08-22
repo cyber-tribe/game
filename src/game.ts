@@ -139,7 +139,6 @@ import { dreamArtDef, knownBarrelArt } from "./entities/dreamArts";
 import { rollRunSkillChoices, runSkillDef } from "./entities/runSkills";
 import {
   DREAM_ART_EFFECTS,
-  HONE_TSUYOSHI_MULTIPLIER,
   HONOKA_NA_AKARI_VISION_EXTRA,
   KODAMA_NO_OTAKEBI_ECHO_MULTIPLIER,
   YUME_NO_KAKEBUTON_DAMAGE_REDUCTION,
@@ -161,6 +160,7 @@ import { attackOffsets } from "./domain/combat/attackPattern";
 import { computeDamage } from "./domain/combat/damageCalculation";
 import { resolveAttackModifiers } from "./domain/combat/criticalHit";
 import { tryEvade } from "./domain/combat/evasion";
+import { effectiveAttackPower, effectiveDefense } from "./domain/combat/damageModifier";
 import { BOSS_MOVES, SPORE_SLEEP_CHANCE, SPORE_SLEEP_TURNS, type BossMoveContext } from "./systems/bossMoves";
 
 /** 双樽鉤(quickSingle)の会心率の上乗せ分 */
@@ -429,10 +429,7 @@ const ECHO_ATTACK_MAX = 2;
 const BOSS_DREAM_ART_BOND_COOLDOWN_MULTIPLIER = 0.8;
 
 // ---- レベルアップ時のスキル選択(plan/game/archive/run-build-skills.md) ----
-/** がまんのかまえ: 足踏み直後の1撃の与ダメージ倍率 */
-const BRACED_DAMAGE_MULTIPLIER = 2;
-/** すてみ: 与ダメージ・被ダメージの倍率(常時) */
-const ALL_IN_DAMAGE_MULTIPLIER = 1.5;
+/** すてみ: 被ダメージの倍率(常時)。与ダメージぶんはdomain/combat/damageModifier.tsへ移した */
 const ALL_IN_TAKEN_MULTIPLIER = 1.25;
 /** かばいあい: 身代わりが発動する確率 */
 const MUTUAL_GUARD_CHANCE = 0.4;
@@ -2966,43 +2963,21 @@ export class Game {
     });
     if (tryEvade(this.rng, target, events)) return;
 
-    // ゆめわざ「かたやぶり」(plan/game/archive/companion-leveling-and-arts.md):
-    // 消費型の自己強化なので、使ったらここで1回だけ効かせて消す
-    const ignoresDefense = attacker.kind === "ally" && attacker.ignoreDefenseNextHit === true;
-    if (ignoresDefense) {
-      (attacker as AllyActor).ignoreDefenseNextHit = false;
-      events.push({ type: "message", text: "防御を破った!" });
-    }
-    const baseDefense = target.kind === "player" ? totalDefense(this.player) : target.def;
-    // ゆめわざ「ホネつよし」: defにだけ掛かる一時倍率
-    const defBuff =
-      target.kind === "ally" && (target.defBuffTurns ?? 0) > 0 ? HONE_TSUYOSHI_MULTIPLIER : 1;
-    const defense = ignoresDefense ? 0 : Math.round(baseDefense * defBuff);
-    // 地方ごとの成熟系統(plan/companion-evolution-expansion.md): なみだぐまは
-    // HPが減るほど攻撃力が上がる(HP満タンで+0%、HP0近くで最大値に近づく)
-    const attackerSpeciesId = attacker.kind === "monster" || attacker.kind === "ally" ? attacker.speciesId : undefined;
-    const lowHpBonusMax = attackerSpeciesId ? speciesById(attackerSpeciesId).lowHpAtkBonusMax ?? 0 : 0;
-    const hpRatio = attacker.maxHp > 0 ? Math.max(0, attacker.hp) / attacker.maxHp : 1;
-    const lowHpMultiplier = 1 + lowHpBonusMax * (1 - hpRatio);
-    // 60種化・追加種族(plan/monster-roster-expansion-species.md): きのこおとこは
-    // 眠りの胞子で満ちた部屋(Room.spored)にいる間、攻撃力に倍率が乗る
-    const sporeBonusMax = attackerSpeciesId ? speciesById(attackerSpeciesId).atkMulInSporedRoom ?? 0 : 0;
-    const sporeMultiplier =
-      sporeBonusMax > 0 && roomOf(this.floor, attacker.pos)?.spored ? 1 + sporeBonusMax : 1;
-    // スキル「がまんのかまえ」(plan/game/archive/run-build-skills.md): 足踏み直後の1撃だけ2倍
-    const bracedActive = attacker.kind === "player" && (attacker as PlayerState).bracedReady === true;
-    if (bracedActive) (attacker as PlayerState).bracedReady = false;
-    const bracedMultiplier = bracedActive ? BRACED_DAMAGE_MULTIPLIER : 1;
-    // スキル「すてみ」: 与ダメージ+50%(常時)
-    const allInMultiplier =
-      attacker.kind === "player" && this.runSkills.includes("allIn") ? ALL_IN_DAMAGE_MULTIPLIER : 1;
-    const effectivePower = Math.round(
-      (ambushStrike ? attackPower * 1.5 : attackPower) *
-        lowHpMultiplier *
-        sporeMultiplier *
-        bracedMultiplier *
-        allInMultiplier,
-    );
+    const defense = effectiveDefense({ attacker, target, events, player: this.player });
+    const effectivePower = effectiveAttackPower({
+      attacker,
+      attackPower,
+      ambushStrike,
+      sporedRoom: roomOf(this.floor, attacker.pos)?.spored === true,
+      runSkills: this.runSkills,
+      consumeBraced: () => {
+        if (this.player.bracedReady) {
+          this.player.bracedReady = false;
+          return true;
+        }
+        return false;
+      },
+    });
     const { damage, critical } = computeDamage(this.rng, effectivePower, defense, {
       ...combatOpts,
       forceCrit: combatOpts?.forceCrit || forceCrit,
