@@ -10,7 +10,12 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/e2e/**/*.test.ts"],
-    testTimeout: 30_000,
-    hookTimeout: 30_000,
+    testTimeout: 45_000,
+    hookTimeout: 45_000,
+    // テストファイルごとに実ブラウザ+devサーバーを1つずつ起動する。並行実行すると
+    // 複数のChromium・Viteが同時に走ってCPUを奪い合い、SwiftShaderのソフトウェア
+    // 描画も相まってタイムアウトしやすくなる(tools/playtest.mjsが1本の
+    // ブラウザに寄せているのと同じ理由)ため、ファイル単位は直列にする
+    fileParallelism: false,
   },
 });

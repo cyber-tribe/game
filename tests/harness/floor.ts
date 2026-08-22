@@ -144,7 +144,10 @@ export function buildTestFloor(asciiMap: string, opts: BuildTestFloorOptions = {
     gimmick: opts.gimmick,
   };
 
-  let nextActorId = 1;
+  // プレイヤーはinjection側(Game)がid:1で作る(entities/player.tsのcreatePlayer(1))。
+  // ここのactor(モンスター等)のidと衝突すると、攻撃対象の突き合わせ等が
+  // 静かに壊れる(同じidの別アクターとして扱われてしまう)ため2から始める
+  let nextActorId = 2;
   let nextItemUid = 1;
   let nextBarrelId = 1;
   let nextGoldId = 1;
