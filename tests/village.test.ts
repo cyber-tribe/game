@@ -9,6 +9,7 @@ import {
   VILLAGE_INTERACT_PADDING,
   VILLAGE_PLAYER_RADIUS,
   VILLAGE_PLAYER_START,
+  VILLAGE_WALK_TIME_SCALE,
   VillageView,
   buildingOccludesView,
   moveVillagePlayer,
@@ -272,6 +273,30 @@ function loadedAssets(): { assets: Assets; roots: THREE.Object3D[] } {
   return { assets, roots };
 }
 
+/**
+ * `loadedAssets`と同じだが、実物のTHREE.AnimationMixer/Actionを持たせる。
+ * plan/models/archive/garudo-walk-motion.mdの再生速度倍率(timeScale)は
+ * actionsが空のMapだと`play()`が早期returnして検証できないため専用に用意した
+ */
+function loadedAssetsWithClips(): { assets: Assets; actions: Map<string, THREE.AnimationAction>[] } {
+  const actionMaps: Map<string, THREE.AnimationAction>[] = [];
+  const assets = {
+    has: (name: string) => name === "garudo",
+    instantiate: () => {
+      const root = new THREE.Group();
+      const mixer = new THREE.AnimationMixer(root);
+      const actions = new Map<string, THREE.AnimationAction>();
+      for (const name of ["idle", "walk"]) {
+        actions.set(name, mixer.clipAction(new THREE.AnimationClip(name, 1, [])));
+      }
+      actionMaps.push(actions);
+      return { root, mixer, actions };
+    },
+    loadInBackground: () => {},
+  } as unknown as Assets;
+  return { assets, actions: actionMaps };
+}
+
 describe("view/village.ts: VillageView", () => {
   it("初期位置はVILLAGE_PLAYER_START", () => {
     const view = new VillageView(emptyAssets());
@@ -460,6 +485,14 @@ describe("view/village.ts: 村なかの主人公の姿(#446)", () => {
     expect(root.position.z).toBeCloseTo(view.playerPos.z, 5);
     // 実際に動いている(出発点から離れている)ことも確かめる
     expect(view.playerPos).not.toEqual(VILLAGE_PLAYER_START);
+  });
+
+  it("plan/models/archive/garudo-walk-motion.md: walkはVILLAGE_WALK_TIME_SCALEの速さで再生する", () => {
+    const { assets, actions } = loadedAssetsWithClips();
+    const view = new VillageView(assets);
+    view.update(0.016, 4); // モデルを作らせつつ歩かせる(nearBuildingの判定に依存しない)
+    expect(actions).toHaveLength(1);
+    expect(actions[0]!.get("walk")!.timeScale).toBeCloseTo(VILLAGE_WALK_TIME_SCALE);
   });
 
   it("モデルが未読み込みのあいだは何も落ちず、つなぎのまま動く", () => {
