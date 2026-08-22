@@ -28,6 +28,7 @@ npm run dev      # http://127.0.0.1:5173/
 ```
 
 `npm run build` で `dist/` に静的ファイルとして書き出せる。Blender は遊ぶだけなら要らない。
+開発でよく使う手順は `justfile` にまとめてある(`just --list` で一覧)。
 
 ### 操作
 
