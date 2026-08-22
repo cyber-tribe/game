@@ -66,7 +66,7 @@ audio:
 
 # ---- PR サイクル(1決定 = 1PR の運用。CLAUDE.md 参照) ----
 
-# 作業ブランチを origin/main から作り直す: just fresh claude/my-branch
+# 新しい作業ブランチを origin/main から作る(PRごとに新しい名前で。使い回さない): just fresh claude/my-branch
 fresh branch:
     git fetch origin main
     git checkout -B {{branch}} origin/main
