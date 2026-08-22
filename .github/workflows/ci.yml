@@ -97,6 +97,16 @@ jobs:
       - name: 型チェック
         run: npm run typecheck
 
+      # src/ はテスト専用コード(tests/harness/等)を知らない前提で書く
+      # (plan/game/archive/test-dungeon-harness.md)。逆向き(tests/からsrc/)は自由
+      - name: src→testsのimportが無いことを確認する
+        run: |
+          if grep -rnE 'from ["'\''][^"'\'']*tests/' src/; then
+            echo "::error::src/ から tests/ への import が見つかった"
+            exit 1
+          fi
+          echo "src/ から tests/ への import は無い"
+
       - name: ユニットテスト
         # ダンジョン生成の到達可能性(1000シード)と、コミット済み .glb の検査を含む
         run: npm run test
