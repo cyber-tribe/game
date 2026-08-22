@@ -1,0 +1,51 @@
+name: Auto PR
+
+# claude/** ブランチの push を起点に、PR 作成とオートマージ(squash)設定までを
+# 自動で行う。just ship が git push だけで完結するようにするためのもの
+# (CLAUDE.md の PR 節参照)。PR のタイトルは push された先頭コミットの
+# メッセージ1行目、説明文は本文(Co-Authored-By 等のトレーラーを除く)。
+# 2回目以降の push(CI失敗の修正など)では PR が既にあるため何もしない。
+#
+# GITHUB_TOKEN で PR を作ると、その PR では pull_request ワークフロー
+# (ci.yml の必須チェック)が起動せず、オートマージも永遠に発火しない。
+# さらに GITHUB_TOKEN で設定したオートマージのマージは main への push
+# イベントを発火させず、Pages 自動デプロイも止まる。そのため
+# Fine-grained PAT(contents: write / pull requests: write)を
+# リポジトリシークレット AUTO_PR_TOKEN に登録して使う。
+# 未登録の間は何もせず成功する(PR はセッションが従来どおり作成する)。
+on:
+  push:
+    branches: ['claude/**']
+
+permissions: {}
+
+jobs:
+  auto-pr:
+    name: PR作成とオートマージ設定
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: PR を作成しオートマージを有効化
+        env:
+          GH_TOKEN: ${{ secrets.AUTO_PR_TOKEN }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "AUTO_PR_TOKEN が未登録のため何もしません(PR は手動で作成する)"
+            exit 0
+          fi
+          existing="$(gh pr list --repo "$REPO" --head "$BRANCH" --state open --json number --jq length)"
+          if [ "$existing" != "0" ]; then
+            echo "既存の PR があるため何もしません"
+            exit 0
+          fi
+          title="$(printf '%s\n' "$COMMIT_MESSAGE" | head -n 1)"
+          body="$(printf '%s\n' "$COMMIT_MESSAGE" | tail -n +2 \
+            | sed '/./,$!d' \
+            | grep -v -e '^Co-Authored-By:' -e '^Claude-Session:' || true)"
+          gh pr create --repo "$REPO" --head "$BRANCH" --base main \
+            --title "$title" --body "$body"
+          gh pr merge --repo "$REPO" --auto --squash "$BRANCH"
+          echo "PR を作成し、オートマージ(squash)を設定しました"
