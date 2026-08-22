@@ -149,6 +149,23 @@ export const VILLAGE_SCENERY: readonly VillageScenery[] = [
   { id: "hokoragiB2", model: "prop_hokoragi_b", x: 2.5, z: 8.3, rotationY: 3.4 },
   { id: "hokoragiA3", model: "prop_hokoragi_a", x: 8.3, z: -7.5, rotationY: 5.0 },
   { id: "hokoragiStump1", model: "prop_hokoragi_stump", x: 6.6, z: 2.8, rotationY: 0.8 },
+  // 周辺リング(plan/models/village-surroundings.md「1. 周辺リング」)。
+  // プレイ可能範囲(VILLAGE_BOUNDS)の外に、村内より密に祠木を植えて
+  // 境界を林でぼかす。真のInstancedMeshは、非同期に届くGLTFから
+  // ジオメトリを取り出す口が今の`Assets`に無く導入コストが見合わないため
+  // 見送り、既存のVILLAGE_SCENERYの仕組み(建物1棟ぶん程度の負荷)を
+  // そのまま再利用した。北側(山側、-Z)ほど密度を上げてある
+  { id: "hokoragiRingN1", model: "prop_hokoragi_a", x: -11.5, z: -11, rotationY: 2.4 },
+  { id: "hokoragiRingN2", model: "prop_hokoragi_b", x: -3.5, z: -13, rotationY: 0.6 },
+  { id: "hokoragiRingN3", model: "prop_hokoragi_a", x: 4.5, z: -14, rotationY: 4.1 },
+  { id: "hokoragiRingN4", model: "prop_hokoragi_b", x: 11, z: -12, rotationY: 1.8 },
+  { id: "hokoragiRingN5", model: "prop_hokoragi_a", x: -13, z: -6, rotationY: 5.5 },
+  { id: "hokoragiRingE1", model: "prop_hokoragi_b", x: 13.5, z: 1.5, rotationY: 3.0 },
+  { id: "hokoragiRingE2", model: "prop_hokoragi_a", x: 12, z: 8.5, rotationY: 0.2 },
+  { id: "hokoragiRingW1", model: "prop_hokoragi_a", x: -13.5, z: 3, rotationY: 1.0 },
+  { id: "hokoragiRingW2", model: "prop_hokoragi_b", x: -11.5, z: 9, rotationY: 4.7 },
+  { id: "hokoragiRingS1", model: "prop_hokoragi_b", x: 2, z: 12.5, rotationY: 2.9 },
+  { id: "hokoragiRingS2", model: "prop_hokoragi_stump", x: -4, z: 12, rotationY: 3.8 },
 ];
 
 /**
@@ -443,6 +460,9 @@ function buildStructure(building: VillageBuilding): BuiltStructure {
  * シーンの`Fog`(近14・遠30)だと山の位置によっては完全に埋もれて
  * 見えなくなってしまうため、代わりに層ごとの不透明度で「霧をまとった
  * 遠景」を表現している。
+ *
+ * plan/models/village-surroundings.md「山頂の孤島」対応: 裾(y=0)を
+ * 地面に接地させる(以前は`height/2 - 1`で裾が地面より下に浮いていた)
  */
 function buildMountainBackdrop(): THREE.Group {
   const group = new THREE.Group();
@@ -465,11 +485,199 @@ function buildMountainBackdrop(): THREE.Group {
       const width = 14 + (i % 2) * 5;
       const peak = new THREE.Mesh(new THREE.ConeGeometry(width / 2, height, 4), material);
       peak.rotation.y = Math.PI / 4;
-      peak.position.set(x, height / 2 - 1, layer.z);
+      peak.position.set(x, height / 2, layer.z);
       group.add(peak);
     }
   }
   return group;
+}
+
+/**
+ * 頂点カラーで下から上へ2色をグラデーションさせる(共通処理)。
+ * `getMinMaxY`は色の補間に使う0〜1の高さを決める(ジオメトリのローカル
+ * 座標系での最小・最大Y)
+ */
+function applyVerticalGradient(
+  geometry: THREE.BufferGeometry,
+  low: number,
+  high: number,
+  minY: number,
+  maxY: number,
+): void {
+  const position = geometry.attributes.position;
+  const colors = new Float32Array(position.count * 3);
+  const lowColor = new THREE.Color(low);
+  const highColor = new THREE.Color(high);
+  const span = maxY - minY || 1;
+  for (let i = 0; i < position.count; i++) {
+    const t = THREE.MathUtils.clamp((position.getY(i) - minY) / span, 0, 1);
+    const c = lowColor.clone().lerp(highColor, t);
+    colors[i * 3] = c.r;
+    colors[i * 3 + 1] = c.g;
+    colors[i * 3 + 2] = c.b;
+  }
+  geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+}
+
+/**
+ * 中景の丘(plan/models/village-surroundings.mdの「2. 中景」)。
+ * 周辺リングの外に、緑〜黄緑のグラデーションを持つなだらかな丘の
+ * シルエットを数枚置き、地面から山の裾野へ地続きに見せる。北側
+ * (山側、-Z)は他より大きく・高くし、山影の裾と重なるようにしてある
+ */
+function buildHills(): THREE.Group {
+  const group = new THREE.Group();
+  const hills: ReadonlyArray<{ x: number; z: number; radius: number; height: number }> = [
+    // 北側(山の裾野。大きく高い)
+    { x: -14, z: -20, radius: 13, height: 7 },
+    { x: 4, z: -22, radius: 15, height: 8.5 },
+    { x: 20, z: -18, radius: 12, height: 6.5 },
+    { x: -22, z: -14, radius: 11, height: 6 },
+    // 東西南(村の外周を囲むなだらかな丘)
+    { x: 24, z: 2, radius: 10, height: 4.5 },
+    { x: 21, z: 14, radius: 9, height: 4 },
+    { x: -23, z: 4, radius: 10, height: 4.5 },
+    { x: -19, z: 15, radius: 9, height: 3.8 },
+    { x: 3, z: 20, radius: 11, height: 4.2 },
+    { x: -8, z: 21, radius: 9, height: 3.8 },
+  ];
+  for (const hill of hills) {
+    // 半球を扁平にしてドーム状の丘にする
+    const geometry = new THREE.SphereGeometry(hill.radius, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+    geometry.scale(1, hill.height / hill.radius, 1);
+    applyVerticalGradient(geometry, 0x3d5a34, 0x8ba852, 0, hill.radius);
+    const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 });
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.set(hill.x, 0, hill.z);
+    group.add(mesh);
+  }
+  return group;
+}
+
+/**
+ * 空のグラデーション(plan/models/village-surroundings.mdの「3. 遠景」)。
+ * 単色べたのシーン背景(`scene.background`)の代わりに、地平線際が
+ * 明るく天頂ほど濃い半球ドームを頂点カラーで描く。カメラを覆う内側から
+ * 見るので`side: THREE.BackSide`。フォグの影響は受けない(空自体が
+ * 遠景そのものなので、フォグで薄まると不自然になる)
+ */
+function buildSkyDome(horizon: number, zenith: number): THREE.Mesh {
+  const radius = 90;
+  const geometry = new THREE.SphereGeometry(radius, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2);
+  applyVerticalGradient(geometry, horizon, zenith, 0, radius);
+  const material = new THREE.MeshBasicMaterial({
+    vertexColors: true,
+    side: THREE.BackSide,
+    fog: false,
+    depthWrite: false,
+  });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.renderOrder = -10;
+  return mesh;
+}
+
+/** 空のドームの頂点カラーを昼/宵祭りの色へ差し替える(`setFestivalLighting`から呼ぶ) */
+function recolorSkyDome(mesh: THREE.Mesh, horizon: number, zenith: number): void {
+  applyVerticalGradient(mesh.geometry, horizon, zenith, 0, (mesh.geometry as THREE.SphereGeometry).parameters.radius);
+}
+
+/**
+ * 薄い雲(plan/models/village-surroundings.mdの「3. 遠景」)。平たく
+ * 引き伸ばした半透明の塊を高い位置に静止させて浮かべる(ゲンドの工房の
+ * 煙と同じ考え方の、動かないビルボード相当の表現)
+ */
+function buildClouds(): THREE.Group {
+  const group = new THREE.Group();
+  const material = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.55,
+    fog: false,
+    depthWrite: false,
+  });
+  const clouds: ReadonlyArray<{ x: number; y: number; z: number; scale: number }> = [
+    { x: -18, y: 22, z: -30, scale: 1.2 },
+    { x: 14, y: 26, z: -36, scale: 1.6 },
+    { x: -4, y: 20, z: 40, scale: 1.0 },
+  ];
+  for (const cloud of clouds) {
+    const puff = new THREE.Group();
+    for (const [dx, dz, r] of [[0, 0, 1], [0.7, 0.1, 0.7], [-0.6, -0.1, 0.65]] as const) {
+      const mesh = new THREE.Mesh(new THREE.SphereGeometry(r, 8, 6), material);
+      mesh.position.set(dx, 0, dz);
+      mesh.scale.set(1.8, 0.5, 1);
+      puff.add(mesh);
+    }
+    puff.position.set(cloud.x, cloud.y, cloud.z);
+    puff.scale.setScalar(cloud.scale);
+    group.add(puff);
+  }
+  return group;
+}
+
+/**
+ * 地平線際の遠霞(plan/models/village-surroundings.mdの「3. 遠景」、
+ * 「中景の丘との境を溶かす」)。丘のてっぺんあたりの高さに、内側を
+ * 向いた半透明の帯(円柱の側面)を1枚置くだけの簡単な表現にした
+ */
+function buildHorizonMist(): THREE.Mesh {
+  const geometry = new THREE.CylinderGeometry(70, 70, 10, 32, 1, true);
+  const material = new THREE.MeshBasicMaterial({
+    color: 0xe8f0f5,
+    transparent: true,
+    opacity: 0.4,
+    side: THREE.BackSide,
+    fog: false,
+    depthWrite: false,
+  });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.position.y = 6;
+  return mesh;
+}
+
+/**
+ * 畑のうね(plan/models/village-surroundings.mdの「1. 周辺リング」)。
+ * design/village-buildings.mdの生業の考証と矛盾しない範囲で、実装側の
+ * 裁量(未決事項)として倉庫寄りの東側に置いた。低い畝を並べただけの
+ * 簡単な表現
+ */
+function buildFieldFurrows(): THREE.Group {
+  const group = new THREE.Group();
+  const soil = new THREE.MeshStandardMaterial({ color: 0x4a3624, roughness: 1 });
+  for (let row = 0; row < 6; row++) {
+    const furrow = new THREE.Mesh(new THREE.BoxGeometry(6, 0.18, 0.5), soil);
+    furrow.position.set(-16, 0.09, -1 + row * 0.7);
+    group.add(furrow);
+  }
+  return group;
+}
+
+/**
+ * 村から山の口へ続く土の小道(plan/models/village-surroundings.mdの
+ * 「1. 周辺リング」)。洞窟の入口(cave、x:3, z:-6)からさらに山側
+ * (-Z方向)へ延ばした帯
+ */
+function buildPathToCave(): THREE.Mesh {
+  const geometry = new THREE.PlaneGeometry(2.2, 14);
+  const material = new THREE.MeshStandardMaterial({ color: 0x7a6446, roughness: 1 });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.rotation.x = -Math.PI / 2;
+  mesh.position.set(3, 0.01, -15);
+  return mesh;
+}
+
+/**
+ * 小川(plan/models/village-surroundings.mdの「1. 周辺リング」)。
+ * 細長い水色の帯でよい、という指定どおりの簡単な表現
+ */
+function buildStream(): THREE.Mesh {
+  const geometry = new THREE.PlaneGeometry(1.4, 26);
+  const material = new THREE.MeshStandardMaterial({ color: 0x5f97a8, roughness: 0.4, metalness: 0.1 });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.rotation.x = -Math.PI / 2;
+  mesh.rotation.z = 0.25;
+  mesh.position.set(15, 0.01, 4);
+  return mesh;
 }
 
 /**
@@ -487,6 +695,12 @@ interface VillageLightingPreset {
   sunIntensity: number;
   /** 窓・入口の明かりの強さ。昼は控えめ、宵祭りだけ強調する */
   windowGlowIntensity: number;
+  /**
+   * 空のグラデーション(plan/models/village-surroundings.mdの「3. 遠景」)。
+   * 地平線際(horizon)は明るく、天頂(zenith)ほど濃い色にする
+   */
+  skyHorizon: number;
+  skyZenith: number;
 }
 
 const DAYTIME_LIGHTING: VillageLightingPreset = {
@@ -497,6 +711,8 @@ const DAYTIME_LIGHTING: VillageLightingPreset = {
   sunColor: 0xfff4d8,
   sunIntensity: 1.5,
   windowGlowIntensity: 1.2,
+  skyHorizon: 0xdcf0fa,
+  skyZenith: 0x5da0d8,
 };
 
 const YOIMATSURI_LIGHTING: VillageLightingPreset = {
@@ -507,6 +723,8 @@ const YOIMATSURI_LIGHTING: VillageLightingPreset = {
   sunColor: 0xffa050,
   sunIntensity: 0.9,
   windowGlowIntensity: 3.0,
+  skyHorizon: 0xd88a5c,
+  skyZenith: 0x352050,
 };
 
 /**
@@ -573,26 +791,42 @@ export class VillageView {
   private readonly sunLight = new THREE.DirectionalLight();
   /** 建物ごとの窓明かり(`WINDOW_GLOW_BUILDINGS`のみ持つ)。`buildingId → PointLight` */
   private readonly windowGlowLights = new Map<string, THREE.PointLight>();
+  /** 空のグラデーション(`buildSkyDome`)。`setFestivalLighting`で塗り替える */
+  private readonly skyDome: THREE.Mesh;
 
   constructor(private readonly assets: Assets) {
     this.scene.background = new THREE.Color(DAYTIME_LIGHTING.background);
-    this.scene.fog = new THREE.Fog(DAYTIME_LIGHTING.fog, 14, 30);
+    // 遠景(丘・山)が奥35前後まで続くようになったので、フォグの遠距離を
+    // 30→44へ延ばし、丘が霧に埋もれて消えないようにした
+    this.scene.fog = new THREE.Fog(DAYTIME_LIGHTING.fog, 14, 44);
 
     this.scene.add(this.ambientLight);
     this.sunLight.position.set(6, 12, 4);
     this.scene.add(this.sunLight);
 
+    // 地面はプレイ可能範囲(VILLAGE_BOUNDS)の見た目そのままに、そこだけ
+    // 4倍の広さへ延長する(plan/models/village-surroundings.mdの
+    // 「山頂の孤島」対応。地面が急に途切れて見える問題を解消する)
+    const GROUND_EXTENSION_FACTOR = 4;
     const ground = new THREE.Mesh(
       new THREE.PlaneGeometry(
-        VILLAGE_BOUNDS.maxX - VILLAGE_BOUNDS.minX,
-        VILLAGE_BOUNDS.maxZ - VILLAGE_BOUNDS.minZ,
+        (VILLAGE_BOUNDS.maxX - VILLAGE_BOUNDS.minX) * GROUND_EXTENSION_FACTOR,
+        (VILLAGE_BOUNDS.maxZ - VILLAGE_BOUNDS.minZ) * GROUND_EXTENSION_FACTOR,
       ),
       new THREE.MeshStandardMaterial({ color: 0x2c3a2a, roughness: 1 }),
     );
     ground.rotation.x = -Math.PI / 2;
     this.scene.add(ground);
 
+    this.skyDome = buildSkyDome(DAYTIME_LIGHTING.skyHorizon, DAYTIME_LIGHTING.skyZenith);
+    this.scene.add(this.skyDome);
+    this.scene.add(buildClouds());
+    this.scene.add(buildHorizonMist());
+    this.scene.add(buildHills());
     this.scene.add(buildMountainBackdrop());
+    this.scene.add(buildFieldFurrows());
+    this.scene.add(buildPathToCave());
+    this.scene.add(buildStream());
 
     for (const building of VILLAGE_BUILDINGS) {
       const { group, primitive, windowGlow } = buildStructure(building);
@@ -616,7 +850,8 @@ export class VillageView {
     this.playerMesh.position.y = 0.75;
     this.scene.add(this.playerMesh);
 
-    this.camera = new THREE.PerspectiveCamera(48, 1, 0.1, 60);
+    // farは空のドーム(半径90)を映すのに十分な距離まで延ばした
+    this.camera = new THREE.PerspectiveCamera(48, 1, 0.1, 110);
     this.applyCameraTransform();
     // 既定は明るい昼(showTown側でsetFestivalLightingが呼ばれる前の保険でもある)
     this.setFestivalLighting(false);
@@ -648,6 +883,7 @@ export class VillageView {
     for (const glow of this.windowGlowLights.values()) {
       glow.intensity = preset.windowGlowIntensity;
     }
+    recolorSkyDome(this.skyDome, preset.skyHorizon, preset.skyZenith);
   }
 
   /** 拠点へ戻るたび(showTown())に、村の中の立ち位置を出発点へ戻す */
