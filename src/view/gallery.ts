@@ -1,6 +1,8 @@
 import * as THREE from "three";
 import type { Assets } from "./assets";
 import { ActorView } from "./actorView";
+import { currentInputMode } from "../ui/inputMode";
+import { interiorFilmOffset } from "./villageInterior";
 
 /** 手動操作(plan/gallery-interactive-camera.md)が無いまま、この秒数が経つと自動回転を再開する */
 const AUTO_ROTATE_RESUME_SEC = 5;
@@ -10,6 +12,16 @@ const ROTATE_STEP = Math.PI / 6;
 const ZOOM_SCALE_MIN = 0.55;
 const ZOOM_SCALE_MAX = 1.7;
 const ZOOM_STEP = 0.12;
+
+/**
+ * スマホ(pointer: coarse)だけ、視錐台を右へずらしてモデルを解説パネル
+ * (#gallery-info、画面左側)の反対側に寄せる(issue #838: パネルが
+ * 回転台の真上に重なり、モデルがほとんど見えなくなっていた)。デスクトップ
+ * は現状の中央パネルのままで問題が出ていないため、タッチ環境限定にする。
+ * `src/view/villageInterior.ts`の`INTERIOR_VIEW_SHIFT`と同じ
+ * `interiorFilmOffset`(絵が歪まない視錐台シフト)の手法を流用する
+ */
+const GALLERY_VIEW_SHIFT = 0.34;
 
 /**
  * 図鑑ギャラリー(plan/gallery-mode.md)。1体のモデルを待機モーションで
@@ -29,6 +41,7 @@ export class GalleryView {
   private readonly baseCameraPos = new THREE.Vector3(0, 1.5, 4.4);
   private zoomScale = 1;
   private idleSec = 0;
+  private aspect = 1;
 
   constructor(private readonly assets: Assets) {
     this.scene.background = new THREE.Color(0x090b16);
@@ -106,6 +119,17 @@ export class GalleryView {
   setAspect(aspect: number): void {
     if (this.camera.aspect === aspect) return;
     this.camera.aspect = aspect;
+    this.aspect = aspect;
+    this.applyProjection();
+  }
+
+  private applyProjection(): void {
+    // #gallery-infoを画面左に置く(index.htmlの@media (pointer: coarse))ぶん、
+    // タッチ環境だけモデルを右へ寄せる。デスクトップは中央のままで問題が
+    // 出ていないため変えない(issue #838)
+    if (currentInputMode() === "touch") {
+      this.camera.filmOffset = interiorFilmOffset(38, this.aspect, GALLERY_VIEW_SHIFT, this.camera.filmGauge);
+    }
     this.camera.updateProjectionMatrix();
   }
 }
