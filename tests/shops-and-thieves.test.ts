@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Game } from "../src/game";
-import { access } from "./helpers/access";
+import { access, attemptSteal as attemptStealVia } from "./helpers/access";
 import { Rng } from "../src/core/rng";
 import { generateFloor } from "../src/dungeon/generate";
 import { decideMonsterAction } from "../src/entities/ai";
@@ -314,11 +314,6 @@ describe("game.ts: スリガラスの盗み・逃走・討伐", () => {
     game.floor.actors = game.floor.actors.filter((a) => a.kind === "player");
     game.player.gold = 100;
     const thief = putActor(game, { ...game.player.pos, x: game.player.pos.x + 1 }, { aiKind: "thief" }) as MonsterActor;
-    const attemptSteal = (
-      game as unknown as {
-        attemptSteal: (thief: Actor, target: Actor, events: unknown[]) => void;
-      }
-    ).attemptSteal.bind(game);
 
     let succeeded = false;
     for (let seed = 1; seed <= 50 && !succeeded; seed++) {
@@ -326,7 +321,7 @@ describe("game.ts: スリガラスの盗み・逃走・討伐", () => {
       game.player.gold = 100;
       (game as unknown as { rng: Rng }).rng = new Rng(seed);
       const events: { type: string; text?: string }[] = [];
-      attemptSteal(thief, game.player, events);
+      attemptStealVia(game, thief, game.player, events);
       if (thief.stolenGold !== undefined) {
         succeeded = true;
         expect(game.player.gold).toBeLessThan(100);
@@ -342,13 +337,8 @@ describe("game.ts: スリガラスの盗み・逃走・討伐", () => {
     game.floor.actors = game.floor.actors.filter((a) => a.kind === "player");
     game.player.gold = 0;
     const thief = putActor(game, { ...game.player.pos, x: game.player.pos.x + 1 }, { aiKind: "thief" }) as MonsterActor;
-    const attemptSteal = (
-      game as unknown as {
-        attemptSteal: (thief: Actor, target: Actor, events: unknown[]) => void;
-      }
-    ).attemptSteal.bind(game);
     const events: { type: string; text?: string }[] = [];
-    attemptSteal(thief, game.player, events);
+    attemptStealVia(game, thief, game.player, events);
     expect(thief.stolenGold).toBeUndefined();
     expect(events.some((e) => e.type === "message" && e.text?.includes("何も盗めなかった"))).toBe(true);
   });

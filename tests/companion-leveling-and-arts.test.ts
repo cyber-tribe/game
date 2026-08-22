@@ -14,7 +14,7 @@ import { expForLevel } from "../src/entities/player";
 import { createAllyFromStored } from "../src/dungeon/populate";
 import { actorToStoredMonster, loadSave, type StoredMonster } from "../src/save";
 import { Game } from "../src/game";
-import { access } from "./helpers/access";
+import { access, executeMonsterAction } from "./helpers/access";
 import { withMockedLocalStorage } from "./helpers/localStorage";
 
 /**
@@ -353,14 +353,10 @@ describe("game.ts: 仲間の経験値(killActor経由)", () => {
 describe("game.ts: ゆめわざの実行(executeMonsterAction経由)", () => {
   function withExecuteMonsterAction(game: Game) {
     return (
-      game as unknown as {
-        executeMonsterAction: (
-          actor: AllyActor,
-          action: { type: "dreamArt"; id: DreamArtId; targetId?: number },
-          events: unknown[],
-        ) => boolean;
-      }
-    ).executeMonsterAction.bind(game);
+      actor: AllyActor,
+      action: { type: "dreamArt"; id: DreamArtId; targetId?: number },
+      events: unknown[],
+    ): boolean => executeMonsterAction(game, actor, action, events);
   }
 
   it("ねむりのうたは対象を眠らせ、クールダウンが設定される", () => {

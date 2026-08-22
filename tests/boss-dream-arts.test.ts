@@ -7,6 +7,7 @@ import { diggableWallNear, DREAM_ARTS, foesInRoom } from "../src/entities/dreamA
 import { SPECIES, speciesById } from "../src/entities/species";
 import { Rng } from "../src/core/rng";
 import { Game } from "../src/game";
+import { executeMonsterAction } from "./helpers/access";
 
 /**
  * ぬしのゆめわざ(plan/game/archive/boss-dream-arts.md)。地方ボス種専用の
@@ -150,14 +151,10 @@ describe("entities/dreamArts.ts: foesInRoom / diggableWallNear", () => {
 describe("game.ts: ゆめわざの実行(executeMonsterAction経由)", () => {
   function withExecuteMonsterAction(game: Game) {
     return (
-      game as unknown as {
-        executeMonsterAction: (
-          actor: AllyActor,
-          action: { type: "dreamArt"; id: DreamArtId; targetId?: number },
-          events: unknown[],
-        ) => boolean;
-      }
-    ).executeMonsterAction.bind(game);
+      actor: AllyActor,
+      action: { type: "dreamArt"; id: DreamArtId; targetId?: number },
+      events: unknown[],
+    ): boolean => executeMonsterAction(game, actor, action, events);
   }
 
   function monster(overrides: Partial<MonsterActor> = {}): MonsterActor {
