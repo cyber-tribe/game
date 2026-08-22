@@ -126,3 +126,44 @@ describe("view/actorView.ts: lunge の表示位置(#372再発)", () => {
     expect(view.root.position.z).toBeCloseTo(8, 5);
   });
 });
+
+/** 実際のAnimationClip/Actionを持つInstanceを作る(timeScaleを覗くため) */
+function instanceWithClips(names: string[]): { root: THREE.Group; mixer: THREE.AnimationMixer; actions: Map<string, THREE.AnimationAction> } {
+  const root = new THREE.Group();
+  const mixer = new THREE.AnimationMixer(root);
+  const actions = new Map<string, THREE.AnimationAction>();
+  for (const name of names) {
+    const clip = new THREE.AnimationClip(name, 1, []);
+    actions.set(name, mixer.clipAction(clip));
+  }
+  return { root, mixer, actions };
+}
+
+/** private な actions マップへ、このファイル内でだけ覗き見るための型付きキャスト */
+function actionTimeScale(view: ActorView, name: string): number {
+  const internals = view as unknown as { actions: Map<string, THREE.AnimationAction> };
+  return internals.actions.get(name)!.timeScale;
+}
+
+/**
+ * plan/models/archive/garudo-walk-motion.md「2. 足滑りの解消」: 村なか歩きは
+ * 連続移動なので、クリップの歩幅と移動速度が合っていないと足が滑って見える。
+ * 再生速度をコンストラクタの倍率で調整できるようにした
+ */
+describe("view/actorView.ts: 歩行(walk)の再生速度倍率", () => {
+  it("既定(倍率省略)ではwalkもidleも等倍で再生する", () => {
+    const view = new ActorView(instanceWithClips(["idle", "walk"]), { x: 0, y: 0 });
+    view.play("walk");
+    expect(actionTimeScale(view, "walk")).toBe(1);
+  });
+
+  it("walkSpeedMulを渡すと、walkクリップだけその倍率で再生する", () => {
+    const view = new ActorView(instanceWithClips(["idle", "walk"]), { x: 0, y: 0 }, 4, 1, 2.2);
+    view.play("walk");
+    expect(actionTimeScale(view, "walk")).toBeCloseTo(2.2);
+
+    // idleはwalkSpeedMulの影響を受けない
+    view.play("idle");
+    expect(actionTimeScale(view, "idle")).toBe(1);
+  });
+});

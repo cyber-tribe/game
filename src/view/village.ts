@@ -98,6 +98,18 @@ export const VILLAGE_INTERACT_PADDING = 1.3;
 /** 歩く速さ(1秒あたりの移動量)。ダンジョンと違いターン制ではなく、
  * 押しっぱなしでそのまま連続的に歩ける(plan/touch-controls.mdのInputをそのまま使う) */
 export const VILLAGE_MOVE_SPEED = 4.5;
+/**
+ * 歩行(walk)クリップの再生速度倍率(plan/models/archive/
+ * garudo-walk-motion.mdの「2. 足滑りの解消」)。村は連続移動なので、
+ * クリップの歩幅と`VILLAGE_MOVE_SPEED`が合っていないと足が地面を
+ * 滑って見える。歩幅から厳密に逆算すると等倍の十数倍という現実離れした
+ * 値になってしまう(この体格のクリップが前提にしている歩調とは
+ * そもそも速さの桁が違う)ため、正確な運動学的算出ではなく、実機で
+ * 足滑りが気にならない程度まで速める経験的な目安値にしてある
+ * (未決事項として実装時の裁量に委ねられている。将来、実機確認で
+ * 調整が必要になった場合はここだけ変えればよい)
+ */
+export const VILLAGE_WALK_TIME_SCALE = 2.2;
 
 export const VILLAGE_BOUNDS: VillageBounds = { minX: -9, maxX: 9, minZ: -9, maxZ: 9.5 };
 
@@ -1088,7 +1100,13 @@ export class VillageView {
   private ensurePlayerView(): void {
     if (this.playerView || !this.assets.has(VILLAGE_PLAYER_MODEL)) return;
     // 手前(カメラ側=+z)を向いて立たせる。dirDeltaの4が南(画面手前)
-    this.playerView = new ActorView(this.assets.instantiate(VILLAGE_PLAYER_MODEL), toActorPos(this.pos), 4);
+    this.playerView = new ActorView(
+      this.assets.instantiate(VILLAGE_PLAYER_MODEL),
+      toActorPos(this.pos),
+      4,
+      1,
+      VILLAGE_WALK_TIME_SCALE,
+    );
     if (this.costumeTint) this.playerView.applyTint(this.costumeTint);
     this.scene.add(this.playerView.root);
     this.playerMesh.visible = false;

@@ -138,12 +138,21 @@ export class ActorView {
    * だけで種族ごとの個性を出す
    */
   private readonly idleSpeedMul: number;
+  /**
+   * 歩行(walk)の再生速度に掛ける倍率(plan/models/archive/
+   * garudo-walk-motion.md)。ダンジョンは1マス移動の補間なので等倍のまま
+   * (既定値1)でよいが、村なか歩きは実際の移動速度(`VILLAGE_MOVE_SPEED`)
+   * に対してクリップの歩幅が合っていないと足が地面を滑って見えるため、
+   * 村の主人公のActorViewだけこの倍率を渡して再生速度を移動速度に同期させる
+   */
+  private readonly walkSpeedMul: number;
 
-  constructor(instance: Instance, pos: Vec2, facing: Dir = 4, idleSpeedMul = 1) {
+  constructor(instance: Instance, pos: Vec2, facing: Dir = 4, idleSpeedMul = 1, walkSpeedMul = 1) {
     this.root = instance.root;
     this.mixer = instance.mixer;
     this.actions = instance.actions;
     this.idleSpeedMul = idleSpeedMul;
+    this.walkSpeedMul = walkSpeedMul;
     // 位置・回転を乗せる前に測る(AABBがモデル本来のfootprintのままになる)
     const contactShadow = createContactShadow(this.root);
     if (contactShadow) this.root.add(contactShadow);
@@ -222,7 +231,7 @@ export class ActorView {
     }
     action.enabled = true;
     action.setEffectiveWeight(1);
-    action.timeScale = name === "idle" ? this.idleSpeedMul : 1;
+    action.timeScale = name === "idle" ? this.idleSpeedMul : name === "walk" ? this.walkSpeedMul : 1;
     action.fadeIn(0.09).play();
     if (previous && previous !== action) previous.fadeOut(0.09);
     this.current = name;
