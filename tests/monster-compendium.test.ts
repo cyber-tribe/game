@@ -25,6 +25,7 @@ import {
   type SaveData,
 } from "../src/save";
 import { withMockedLocalStorage } from "./helpers/localStorage";
+import { runActors as runActorsVia } from "./helpers/access";
 
 function makeOpenFloor(): FloorState {
   const width = 9;
@@ -178,11 +179,8 @@ describe("entities/ai.ts: burrow AI", () => {
     game.floor.actors.push(monster);
     const before = { ...monster.pos };
 
-    const runActors = (
-      game as unknown as { runActors: (events: { type: string; actorId?: number }[]) => void }
-    ).runActors.bind(game);
     const events: { type: string; actorId?: number; to?: unknown }[] = [];
-    runActors(events);
+    runActorsVia(game, events);
 
     expect(monster.pos).not.toEqual(before);
     expect(events.some((e) => e.type === "teleport" && e.actorId === monster.id)).toBe(true);

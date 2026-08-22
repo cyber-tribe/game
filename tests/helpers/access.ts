@@ -15,6 +15,7 @@ import {
 import {
   executeMonsterAction as domainExecuteMonsterAction,
   moveActor as domainMoveActor,
+  runActors as domainRunActors,
   type RunActorsArgs,
 } from "../../src/domain/turn/actorActions";
 
@@ -60,6 +61,10 @@ function runActorsArgs(game: Game, events: unknown[]): RunActorsArgs {
     buildBossMoveContext: (actor) => internals.bossMoveContext(actor, typedEvents),
     buildDreamArtContext: (actor) => internals.dreamArtContext(actor, typedEvents),
   };
+}
+
+export function runActors(game: Game, events: unknown[]): void {
+  domainRunActors(runActorsArgs(game, events));
 }
 
 export function executeMonsterAction(

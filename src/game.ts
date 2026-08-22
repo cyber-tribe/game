@@ -163,20 +163,10 @@ import {
   resolveEmptyBarrel as domainResolveEmptyBarrel,
 } from "./domain/barrel/barrelCapture";
 import { SPORE_SLEEP_CHANCE, SPORE_SLEEP_TURNS, type BossMoveContext } from "./systems/bossMoves";
-import {
-  tickArtCooldowns as domainTickArtCooldowns,
-  tickHunger as domainTickHunger,
-  tickRegen as domainTickRegen,
-  tickStatuses as domainTickStatuses,
-  tickTorch as domainTickTorch,
-} from "./domain/turn/statusTicks";
 import { damageActor as domainDamageActor, killActor as domainKillActor } from "./domain/turn/damage";
 import { attack as domainAttack } from "./domain/turn/attackResolution";
-import {
-  applyTorrentPush as domainApplyTorrentPush,
-  pushMonster as domainPushMonster,
-  runActors as domainRunActors,
-} from "./domain/turn/actorActions";
+import { applyTorrentPush as domainApplyTorrentPush, pushMonster as domainPushMonster } from "./domain/turn/actorActions";
+import { resolveTurn as domainResolveTurn, upkeep as domainUpkeep } from "./domain/turn/turnCycle";
 
 /** 双樽鉤(quickSingle)の会心率の上乗せ分 */
 const QUICK_SINGLE_CRIT_BONUS = 0.15;
@@ -1296,35 +1286,6 @@ export class Game {
   }
 
   /**
-   * プレイヤーと敵モンスターは同じマスに同時に存在しない、という不変条件の
-   * フェイルセーフ(plan/actor-overlap-failsafe.md)。根本原因(#180)を問わず、
-   * 万一重なりが起きた場合は毎ターン検知して後始末する。
-   * 味方(仲間)との重なりは対象外(README記載の入れ替え仕様のまま)。
-   */
-  private resolveActorOverlaps(events: GameEvent[], playerPosBeforeCommand: Vec2): void {
-    const player = this.player;
-    const overlapping = this.floor.actors.find(
-      (a) => a.alive && a.kind === "monster" && isHostile(player, a) && eq(a.pos, player.pos),
-    );
-    if (!overlapping) return;
-
-    const spot = this.adjacentFreeSpot(player.pos);
-    if (spot) {
-      const from = overlapping.pos;
-      overlapping.pos = spot;
-      events.push({ type: "move", actorId: overlapping.id, from, to: spot });
-      return;
-    }
-
-    // 退避先が一切見つからない極端な場合は、プレイヤー側を直前にいたマスへ1歩押し戻す
-    if (!eq(player.pos, playerPosBeforeCommand)) {
-      const from = player.pos;
-      player.pos = playerPosBeforeCommand;
-      events.push({ type: "move", actorId: player.id, from, to: playerPosBeforeCommand });
-    }
-  }
-
-  /**
    * タルを抱えたまま階段を使おうとした場合のフェイルセーフ(plan/barrel-stairs-safeguard.md):
    * 階段の上に居座らせず、隣接する空きマスへ押し戻す。「直前にいたマス」を
    * 厳密に追跡する仕組みは持たないため、actor-overlap-failsafeで導入した
@@ -1506,18 +1467,7 @@ export class Game {
     this.syncEquippedWeaponModel();
 
     if (consumedTurn && this.status === "playing") {
-      this.runActors(events);
-      // 第二地方(忘れ潮の湿地)固有ギミック(plan/wetland-quagmire.md): 実際に
-      // 移動して深みタイルへ足を踏み入れた直後だけ、モンスター行動をもう1手
-      // ぶん先に進める(「足を取られてワンテンポ遅れる」)。攻撃・アイテム
-      // 使用のような移動を伴わない行動には適用しない
-      const moved = !eq(posBeforeCommand, this.player.pos);
-      if (moved && tileAt(this.floor, this.player.pos)?.quagmire) {
-        this.runActors(events);
-      }
-      this.upkeep(events);
-      this.turnCount++;
-      if (this.status === "playing") this.resolveActorOverlaps(events, posBeforeCommand);
+      this.resolveTurn(events, posBeforeCommand);
     }
 
     // 視界の計算は全マス(48×36)を一度なめる。ターンが進まず、しかも
@@ -2962,8 +2912,8 @@ export class Game {
    * 距離場は陣営ごとに1本ずつ作って全員で使い回す。始点を「その陣営の敵全員」に
    * しておけば、各自が自然といちばん近い相手へ向かう。
    */
-  private runActors(events: GameEvent[]): void {
-    domainRunActors({
+  private resolveTurn(events: GameEvent[], posBeforeCommand: Vec2): void {
+    domainResolveTurn({
       floor: this.floor,
       rng: this.rng,
       player: this.player,
@@ -2978,6 +2928,11 @@ export class Game {
       damageActor: (target, dmg, crit) => this.damageActor(target, dmg, crit, events),
       buildBossMoveContext: (actor) => this.bossMoveContext(actor, events),
       buildDreamArtContext: (actor) => this.dreamArtContext(actor, events),
+      posBeforeCommand,
+      upkeep: () => this.upkeep(events),
+      incrementTurnCount: () => {
+        this.turnCount++;
+      },
     });
   }
 
@@ -2993,40 +2948,33 @@ export class Game {
   // ------------------------------------------------------------ 毎ターンの処理
 
   private upkeep(events: GameEvent[]): void {
-    domainTickStatuses({
+    this.torchTurnsLeft = domainUpkeep({
       floor: this.floor,
-      events,
-      damageActor: (target, dmg, crit) => this.damageActor(target, dmg, crit, events),
-      isPlaying: () => this.status === "playing",
-    });
-    domainTickHunger({
       player: this.player,
-      floor: this.floor,
+      events,
+      turnCount: this.turnCount,
       dungeonSatietyDrainMul: this.dungeon.satietyDrainMul,
       difficulty: this.difficulty,
-      turnCount: this.turnCount,
-      events,
+      hitThisTurn: this.hitThisTurn,
+      torchTurnsLeft: this.torchTurnsLeft,
       isPlaying: () => this.status === "playing",
       damageActor: (target, dmg, crit) => this.damageActor(target, dmg, crit, events),
+      tickDreamArts: () => this.tickDreamArts(events),
+      tickSporeRooms: () => this.tickSporeRooms(events),
+      tickSummonedTorrentTiles: () => this.tickSummonedTorrentTiles(),
+      tickBoneWalls: () => this.tickBoneWalls(),
+      tickMirrors: () => this.tickMirrors(events),
+      spawnIfDue: () => {
+        if (this.turnCount > 0 && this.turnCount % SPAWN_INTERVAL === 0) {
+          spawnWanderingMonster(this.rng, this.floor, this.ids, this.player.pos, this.dungeon.floorOffset ?? 0);
+        }
+      },
+      // 倒された者を取り除く。プレイヤーは死んでも参照が要るので残す
+      removeDead: () => {
+        this.floor.actors = this.floor.actors.filter((a) => a.alive || a.kind === "player");
+        this.allies = this.allies.filter((a) => a.alive);
+      },
     });
-    domainTickArtCooldowns(this.player);
-    this.tickDreamArts(events);
-    domainTickRegen({ floor: this.floor, turnCount: this.turnCount, hitThisTurn: this.hitThisTurn });
-    this.tickSporeRooms(events);
-    this.tickSummonedTorrentTiles();
-    this.tickBoneWalls();
-    this.tickMirrors(events);
-    this.torchTurnsLeft = domainTickTorch(this.torchTurnsLeft, events);
-
-    if (this.status !== "playing") return;
-
-    if (this.turnCount > 0 && this.turnCount % SPAWN_INTERVAL === 0) {
-      spawnWanderingMonster(this.rng, this.floor, this.ids, this.player.pos, this.dungeon.floorOffset ?? 0);
-    }
-
-    // 倒された者を取り除く。プレイヤーは死んでも参照が要るので残す
-    this.floor.actors = this.floor.actors.filter((a) => a.alive || a.kind === "player");
-    this.allies = this.allies.filter((a) => a.alive);
   }
 
   /**
