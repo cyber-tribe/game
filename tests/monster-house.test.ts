@@ -9,6 +9,7 @@ import {
   populateFloor,
 } from "../src/dungeon/populate";
 import { Game } from "../src/game";
+import { clearBossIfPresent } from "./helpers/bossFloor";
 
 function makeIds(): IdSource {
   let actorId = 0;
@@ -145,7 +146,9 @@ describe("モンスターハウスの警告(Game)", () => {
     for (let seed = 1; seed <= 500 && !found; seed++) {
       const game = new Game({ seed, maxDepth: 20 });
       // モンスターハウスのある階まで一息に潜る
-      while (game.depth < 20 && game.status === "playing") {
+      let guard = 0;
+      while (game.depth < 20 && game.status === "playing" && guard++ < 20) {
+        clearBossIfPresent(game);
         game.player.pos = { ...game.floor.stairs };
         game.command({ type: "descend" });
         if (game.floor.rooms.some((r) => r.kind === "monsterHouse")) break;

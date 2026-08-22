@@ -10,6 +10,7 @@ import {
   saveRunSnapshot,
 } from "../src/save";
 import { withMockedLocalStorage } from "./helpers/localStorage";
+import { clearBossIfPresent } from "./helpers/bossFloor";
 
 /** localStorage を経由して往復させる。JSON化できないフィールドが混ざれば壊れて検知できる */
 function roundTripThroughStorage(snapshot: RunSnapshot): RunSnapshot {
@@ -157,6 +158,7 @@ describe("タイル格子の畳み込み", () => {
     const game = new Game({ seed: 777, maxDepth: 48, startingItems: [] });
     let guard = 0;
     while (game.depth < depth && guard++ < 200) {
+      clearBossIfPresent(game);
       game.player.pos = { ...game.floor.stairs };
       game.command({ type: "descend" });
     }

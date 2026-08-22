@@ -1330,10 +1330,11 @@ export class Game {
         { id: 0, x: ante.x, y: ante.y, w: ante.w, h: ante.h },
         { id: 1, x: boss.x, y: boss.y, w: boss.w, h: boss.h },
       ],
-      // MVP: 撃破後に現れる演出はまだ無く、最初からボスの間の奥に置いてある
-      // (plan/game/dungeon-boss-rooms.mdの「撃破後に踏破の階段が現れる」は
-      // 別PRで詰める。受け入れ基準の核である前室・扉・固定ボスの間は満たす)
+      // 階段はボスの間の奥に最初から置いてあるが、ボスを撃破するまでは
+      // 壁と同じく通れない(plan/game/dungeon-boss-rooms.mdの「撃破後に
+      // 踏破の階段が現れる」。killActorの地方ボス撃破処理でfalseにする)
       stairs: { x: boss.x + boss.w - 2, y: boss.y + boss.h - 2 },
+      stairsBlocked: true,
       door: { pos: { x: doorX, y: corridorY }, open: false, bossSpeciesId },
       actors: [],
       items: [],
@@ -1766,6 +1767,12 @@ export class Game {
           return true;
         }
         if (!eq(player.pos, this.floor.stairs)) {
+          events.push({ type: "message", text: "ここには階段がない。" });
+          return false;
+        }
+        // ボスの間の階段(plan/game/dungeon-boss-rooms.md): 通常の移動では
+        // walkableAtがこの階段マスへの到達自体を防ぐが、念のため二重に守る
+        if (this.floor.stairsBlocked) {
           events.push({ type: "message", text: "ここには階段がない。" });
           return false;
         }
@@ -3394,6 +3401,12 @@ export class Game {
       for (const item of treasure) this.floor.items.push({ item, pos: { ...target.pos } });
       if (treasure.length > 0) {
         events.push({ type: "message", text: "ぬしの置き土産を見つけた!" });
+      }
+      // ボスの間の階段(plan/game/dungeon-boss-rooms.md): 撃破するまで壁と
+      // 同じく通れなかった階段が、ここで通れるようになる
+      if (this.floor.stairsBlocked) {
+        this.floor.stairsBlocked = false;
+        events.push({ type: "message", text: "奥に、踏破の階段が現れた!" });
       }
     }
     const exp = target.exp ?? 0;
