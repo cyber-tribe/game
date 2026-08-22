@@ -46,6 +46,7 @@ import {
   TILE_WALL,
   actorAt,
   barrelAt,
+  freeSpotNear,
   hasStatus,
   isFree,
   isHostile,
@@ -166,6 +167,12 @@ import {
   mitigateIncomingDamage,
   pickMutualGuardCoverer,
 } from "./domain/combat/damageModifier";
+import { liftOrPutBarrel } from "./domain/barrel/barrelLift";
+import { BARREL_RANGE, LIGHT_CARRY_RANGE_BONUS, traceThrow } from "./domain/barrel/barrelThrow";
+import {
+  dropBarrelNear as domainDropBarrelNear,
+  releaseFromBarrel as domainReleaseFromBarrel,
+} from "./domain/barrel/barrelDrop";
 import { BOSS_MOVES, SPORE_SLEEP_CHANCE, SPORE_SLEEP_TURNS, type BossMoveContext } from "./systems/bossMoves";
 
 /** 双樽鉤(quickSingle)の会心率の上乗せ分 */
@@ -435,8 +442,6 @@ const ENCOURAGEMENT_COOLDOWN_MULTIPLIER = 0.75;
 const APPRECIATION_HEAL_AMOUNT = 1;
 /** つれさりの心得: 捕獲確率への加算 */
 const CAPTURE_MASTERY_BONUS = 0.15;
-/** かるがる: タルの投げ射程への加算 */
-const LIGHT_CARRY_RANGE_BONUS = 2;
 /** かつぎばしり: タルを抱えている間、気づかれにくくなる確率(ねむタルと同じ形) */
 const STEALTH_CARRY_SUPPRESS_CHANCE = 0.3;
 
@@ -490,9 +495,6 @@ const TRUE_AWAKENING_CLOSING: readonly string[] = [
   "はじめの夢は、ふっと軽くなったように溶けて消えていった。",
   "山は、ゆっくりとした寝息に戻っていく。",
 ];
-
-/** タルの飛距離 */
-const BARREL_RANGE = 8;
 
 // ---- 元素タル(plan/game/archive/barrel-arts.md) ----
 /** 投げたときの威力(barrelThrowDamage()に掛ける倍率) */
@@ -1409,18 +1411,7 @@ export class Game {
 
   /** 指定位置の近くで、誰も立っていないマスを探す */
   private freeSpotNear(center: Vec2, maxRing = 3): Vec2 | null {
-    for (let ring = 1; ring <= maxRing; ring++) {
-      const candidates: Vec2[] = [];
-      for (let dy = -ring; dy <= ring; dy++) {
-        for (let dx = -ring; dx <= ring; dx++) {
-          if (Math.max(Math.abs(dx), Math.abs(dy)) !== ring) continue;
-          const p = { x: center.x + dx, y: center.y + dy };
-          if (isFree(this.floor, p)) candidates.push(p);
-        }
-      }
-      if (candidates.length > 0) return this.rng.pick(candidates);
-    }
-    return null;
+    return freeSpotNear(this.floor, this.rng, center, maxRing);
   }
 
   /**
@@ -1821,7 +1812,7 @@ export class Game {
       }
 
       case "liftBarrel":
-        return this.liftOrPutBarrel(events);
+        return liftOrPutBarrel({ floor: this.floor, rng: this.rng, player, events });
 
       case "throwBarrel": {
         const consumed = this.throwCarriedBarrel(events);
@@ -1932,54 +1923,10 @@ export class Game {
 
   // ------------------------------------------------------------ タル
 
-  /** 抱えていなければ持ち上げ、抱えていれば下ろす */
-  private liftOrPutBarrel(events: GameEvent[]): boolean {
-    const player = this.player;
-
-    if (player.carrying) {
-      const delta = dirDelta(player.facing);
-      const front = { x: player.pos.x + delta.x, y: player.pos.y + delta.y };
-      const spot = isFree(this.floor, front) ? front : this.freeSpotNear(player.pos, 1);
-      if (!spot) {
-        events.push({ type: "message", text: "タルを置く場所がない。" });
-        return false;
-      }
-      const barrel = player.carrying;
-      player.carrying = null;
-      barrel.pos = spot;
-      this.floor.barrels.push(barrel);
-      events.push({ type: "putBarrel", actorId: player.id, barrelId: barrel.id, pos: spot });
-      events.push({ type: "message", text: `${barrelDisplayName(barrel)}を置いた。` });
-      return true;
-    }
-
-    // 正面を優先し、無ければ足元を見る
-    const delta = dirDelta(player.facing);
-    const front = { x: player.pos.x + delta.x, y: player.pos.y + delta.y };
-    const barrel = barrelAt(this.floor, front) ?? barrelAt(this.floor, player.pos);
-    if (!barrel) {
-      events.push({ type: "message", text: "持ち上げられるタルがない。" });
-      return false;
-    }
-
-    // 第七地方(わすれられた祭りの跡)固有ギミック(plan/festival-mirage.md): 偽のタル
-    if (barrel.decoy) {
-      this.floor.barrels = this.floor.barrels.filter((b) => b.id !== barrel.id);
-      events.push({ type: "message", text: "――タルだと思ったが、幻だった。" });
-      return true;
-    }
-
-    this.floor.barrels = this.floor.barrels.filter((b) => b.id !== barrel.id);
-    player.carrying = barrel;
-    events.push({
-      type: "liftBarrel",
-      actorId: player.id,
-      barrelId: barrel.id,
-      kind: barrel.kind,
-    });
-    events.push({ type: "message", text: `${barrelDisplayName(barrel)}を持ち上げた。` });
-    events.push({ type: "tutorialTip", id: "barrel" });
-    return true;
+  /** タルを投げるときの射程(かるがる・樽比べの専用射程を反映) */
+  private barrelThrowRange(): number {
+    const lightCarryBonus = this.runSkills.includes("lightCarry") ? LIGHT_CARRY_RANGE_BONUS : 0;
+    return (this.dungeon.id === TARUKURABE_ID ? TARUKURABE_THROW_RANGE : BARREL_RANGE) + lightCarryBonus;
   }
 
   /**
@@ -1988,33 +1935,6 @@ export class Game {
    *   爆発タル      → その場で爆発し、周囲もろとも巻き込む
    *   モンスター入り → 中身が飛び出して仲間になる
    */
-  /**
-   * 抱えているタルを投げたときに、どこへ落ちて誰に当たるかを引く。
-   * 実際の投擲と、投げる前の見込み表示(captureOutlook)で同じ判定を使うために
-   * 切り出してある(plan/game/barrel-capture-clarity.md)
-   */
-  private traceThrow(pierce: boolean): { landing: Vec2; hits: Actor[] } {
-    const player = this.player;
-    let landing = player.pos;
-    const hits: Actor[] = [];
-    // スキル「かるがる」(plan/game/archive/run-build-skills.md): タルの投げ射程+2
-    const lightCarryBonus = this.runSkills.includes("lightCarry") ? LIGHT_CARRY_RANGE_BONUS : 0;
-    const throwRange =
-      (this.dungeon.id === TARUKURABE_ID ? TARUKURABE_THROW_RANGE : BARREL_RANGE) + lightCarryBonus;
-    for (const p of walkLine(this.floor, player.pos, player.facing, throwRange)) {
-      const blocker = barrelAt(this.floor, p);
-      if (blocker) break;
-      landing = p;
-      const actor = actorAt(this.floor, p);
-      if (actor && actor.id !== player.id) {
-        hits.push(actor);
-        // 「抱え投げの奥義」でなければ、最初に当たった相手で止まる
-        if (!pierce) break;
-      }
-    }
-    return { landing, hits };
-  }
-
   private throwCarriedBarrel(events: GameEvent[]): boolean {
     const player = this.player;
     const barrel = player.carrying;
@@ -2034,7 +1954,14 @@ export class Game {
 
     player.carrying = null;
     const from = player.pos;
-    const { landing, hits } = this.traceThrow(pierce);
+    const { landing, hits } = traceThrow(
+      this.floor,
+      player.pos,
+      player.facing,
+      this.barrelThrowRange(),
+      pierce,
+      player.id,
+    );
 
     events.push({
       type: "throwBarrel",
@@ -2318,6 +2245,11 @@ export class Game {
     return true;
   }
 
+  /** タルを着地点に置く。塞がっていれば近くの空きマスへ転がす */
+  private dropBarrelNear(barrel: Barrel, preferred: Vec2, events: GameEvent[]): boolean {
+    return domainDropBarrelNear({ floor: this.floor, rng: this.rng, barrel, preferred, events });
+  }
+
   private resolveEmptyBarrel(
     barrel: Barrel,
     landing: Vec2,
@@ -2447,34 +2379,24 @@ export class Game {
     events.push({ type: "gameOver", reason: this.endReason });
   }
 
-  /**
-   * タルを着地点に置く。塞がっていれば近くの空きマスへ転がす。
-   * 床に残せたらtrue、置き場所が無くて砕けたらfalseを返す(呼び出し側が
-   * 「拾い直せる」と言い切ってよいかの判断に使う)
-   */
-  private dropBarrelNear(barrel: Barrel, preferred: Vec2, events: GameEvent[]): boolean {
-    const spot = isFree(this.floor, preferred) ? preferred : this.freeSpotNear(preferred, 2);
-    if (!spot) {
-      // 置き場所が無ければ壊れたことにする。宙に浮かせるよりは筋が通る
-      events.push({ type: "barrelBreak", barrelId: barrel.id, pos: preferred });
-      events.push({ type: "message", text: `${barrelDisplayName(barrel)}は砕けてしまった。` });
-      return false;
-    }
-    barrel.pos = spot;
-    this.floor.barrels.push(barrel);
-    return true;
-  }
-
   /** 中身入りのタルを開けて、モンスターを仲間として盤面に出す */
   private releaseFromBarrel(barrel: Barrel, landing: Vec2, events: GameEvent[]): void {
-    events.push({ type: "barrelBreak", barrelId: barrel.id, pos: landing });
+    domainReleaseFromBarrel({
+      floor: this.floor,
+      rng: this.rng,
+      barrel,
+      landing,
+      events,
+      recruitFromBarrel: (b, spot) => this.recruitFromBarrel(b, spot, events),
+    });
+  }
 
+  /**
+   * 仲間化(パーティへの加入処理、Phase 5のParty domainの領分)。捕獲(タルから
+   * 中身が出てくるところ)とはreleaseFromBarrelの中で境界を切ってある
+   */
+  private recruitFromBarrel(barrel: Barrel, spot: Vec2, events: GameEvent[]): void {
     if (barrel.speciesId === undefined) return;
-    const spot = isFree(this.floor, landing) ? landing : this.freeSpotNear(landing, 2);
-    if (!spot) {
-      events.push({ type: "message", text: "出てくる場所がなかった……" });
-      return;
-    }
     if (this.allies.length >= MAX_ALLIES) {
       events.push({ type: "message", text: "これ以上は連れて歩けない。" });
       return;
@@ -4365,7 +4287,14 @@ export class Game {
   captureOutlook(): CaptureOutlook | null {
     const carrying = this.player.carrying;
     if (!carrying || carrying.kind !== "empty") return null;
-    const hits = this.traceThrow(this.player.pierceReady).hits;
+    const hits = traceThrow(
+      this.floor,
+      this.player.pos,
+      this.player.facing,
+      this.barrelThrowRange(),
+      this.player.pierceReady,
+      this.player.id,
+    ).hits;
     const target = hits[hits.length - 1];
     if (!target || !target.alive || target.kind !== "monster") return null;
     if (target.speciesId === undefined) return null;

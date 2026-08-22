@@ -5,6 +5,7 @@ import { rollRunSkillChoices, RUN_SKILLS } from "../src/entities/runSkills";
 import { speciesById } from "../src/entities/species";
 import { Rng } from "../src/core/rng";
 import { Game } from "../src/game";
+import { BARREL_RANGE, LIGHT_CARRY_RANGE_BONUS, traceThrow } from "../src/domain/barrel/barrelThrow";
 
 /**
  * レベルアップ時のスキル選択(plan/game/archive/run-build-skills.md)。
@@ -460,12 +461,22 @@ describe("game.ts: タル系統のスキル効果", () => {
     withoutSkill.command({ type: "face", dir: 2 });
 
     give(game, "lightCarry");
-    const traceWith = (
-      game as unknown as { traceThrow: (pierce: boolean) => { landing: { x: number; y: number } } }
-    ).traceThrow(false);
-    const traceWithout = (
-      withoutSkill as unknown as { traceThrow: (pierce: boolean) => { landing: { x: number; y: number } } }
-    ).traceThrow(false);
+    const traceWith = traceThrow(
+      game.floor,
+      game.player.pos,
+      game.player.facing,
+      BARREL_RANGE + LIGHT_CARRY_RANGE_BONUS,
+      false,
+      game.player.id,
+    );
+    const traceWithout = traceThrow(
+      withoutSkill.floor,
+      withoutSkill.player.pos,
+      withoutSkill.player.facing,
+      BARREL_RANGE,
+      false,
+      withoutSkill.player.id,
+    );
 
     expect(traceWith.landing.x - game.player.pos.x).toBeGreaterThan(
       traceWithout.landing.x - withoutSkill.player.pos.x,
