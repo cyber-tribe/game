@@ -14,6 +14,7 @@
     "models": "tools/venv/bin/python tools/build_models.py",
     "audio": "node tools/audio/build.ts",
     "playtest": "node tools/playtest.mjs",
+    "preview-engine": "node tools/preview_engine.mjs",
     "auto-tester": "node tools/auto-tester.mjs",
     "cap:sync": "npm run build && cap sync",
     "cap:add:android": "cap add android",
