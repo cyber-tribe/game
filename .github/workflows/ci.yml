@@ -221,3 +221,56 @@ jobs:
           path: playtest-shots/
           retention-days: 7
           if-no-files-found: warn
+
+  e2e:
+    name: 箱庭ダンジョンのE2Eテスト
+    # 実ブラウザを本物のUI・入力で操作する専用テスト(plan/game/test-dungeon-harness.md)。
+    # playtest ジョブと同じくブラウザ起動を伴うため、判定・タイムアウトの方針も揃える
+    needs: changes
+    if: |
+      !cancelled() && (
+        github.event_name == 'workflow_dispatch' || (
+          github.event_name == 'pull_request' && (
+            needs.changes.result != 'success' ||
+            needs.changes.outputs.code == 'true'
+          )
+        )
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PLAYWRIGHT_VERSION: "1.56.0"
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Chromium をキャッシュから戻す
+        id: pw-cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ env.PLAYWRIGHT_VERSION }}
+
+      # playwright は依存に入れていない(playtestジョブと同じ理由)。E2Eテストは
+      # tests/harness/browser.ts が動的importでこれを読む
+      - name: Chromium を用意する
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+        run: |
+          npm i --no-save playwright@${PLAYWRIGHT_VERSION}
+          if [ "${{ steps.pw-cache.outputs.cache-hit }}" != "true" ]; then
+            npx playwright install --with-deps chromium
+          else
+            echo "キャッシュから復元したので、ダウンロードは省略する"
+          fi
+
+      # tests/e2e/はVite devサーバーをmode: testでテストファイルごとに自前起動する
+      # (tests/harness/server.ts)ので、ここではビルド・プレビューサーバーの用意は不要
+      - name: E2Eテスト
+        run: npm run test:e2e
