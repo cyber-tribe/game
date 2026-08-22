@@ -32,7 +32,7 @@ import type { Rng } from "../core/rng";
 import { type IdSource, createMonster } from "../dungeon/populate";
 import { displayActorName } from "../entities/naming";
 import { speciesById } from "../entities/species";
-import { computeDamage } from "./combat";
+import { computeDamage } from "../domain/combat/damageCalculation";
 
 /**
  * 第三地方ボス(plan/region-boss-oomadoromi.md)の大技(aoeSleep)。
