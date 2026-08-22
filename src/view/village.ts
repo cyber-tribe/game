@@ -453,43 +453,85 @@ function buildStructure(building: VillageBuilding): BuiltStructure {
 }
 
 /**
+ * 低周波のなめらかな疑似ノイズ(plan/models/village-mountain-gradient.mdの
+ * 「稜線の輪郭に低周波のゆらぎを入れ、定規で引いた線に見せない」)。
+ * `Math.random`は使わず、周波数の異なる正弦の合成だけで確定的に波打たせる
+ */
+function ridgeNoise(x: number): number {
+  return Math.sin(x * 0.21) * 0.6 + Math.sin(x * 0.53 + 1.3) * 0.35 + Math.sin(x * 0.11 + 2.7) * 0.5;
+}
+
+/**
+ * ヨリシロ本体(眠る巨人の山、design/world.mdの考証)の「うずくまった
+ * 背中」(plan/models/village-mountain-gradient.md)。手前の稜線
+ * (z=-19、最も濃い層)にだけ、隣り合う2つの緩やかな山を足して、
+ * こぶのようなシルエットを作る。露骨な人型にはしない、「言われれば
+ * 見える」程度の起伏に留める
+ */
+function yorishiroHunch(x: number): number {
+  const shoulder = 6 * Math.exp(-((x + 3) ** 2) / 40);
+  const head = 4.5 * Math.exp(-((x - 5) ** 2) / 18);
+  return shoulder + head;
+}
+
+/**
  * ヨリシロの稜線を模した遠景の山影(plan/models/village-scene-redesign.md
  * 「山を背景に置く」)。村の奥(北=-Z側)に、霧がかった大きな山影を
- * 常に見せる。低ポリの四角錐を3層に重ね、奥ほど色を薄く・霧がかって
+ * 常に見せる。低ポリの四角錐を3層に重ね、奥ほど不透明度を下げて霧がかって
  * 見せることで遠近を表す。`material.fog = false`にしてあるのは、
- * シーンの`Fog`(近14・遠30)だと山の位置によっては完全に埋もれて
+ * シーンの`Fog`(近14・遠44)だと山の位置によっては完全に埋もれて
  * 見えなくなってしまうため、代わりに層ごとの不透明度で「霧をまとった
  * 遠景」を表現している。
  *
  * plan/models/village-surroundings.md「山頂の孤島」対応: 裾(y=0)を
- * 地面に接地させる(以前は`height/2 - 1`で裾が地面より下に浮いていた)
+ * 地面に接地させる(以前は`height/2 - 1`で裾が地面より下に浮いていた)。
+ *
+ * plan/models/village-mountain-gradient.md対応: 各峰は単色ベタをやめ、
+ * 裾(山肌)→頂(稜線の霞)の頂点カラーグラデーションにした。霧色は
+ * 昼/宵祭りで変わる(`recolorMountainBackdrop`)ので、稜線の峰
+ * (`THREE.Mesh`)を`peaks`として返し、`setFestivalLighting`から
+ * 塗り替えられるようにしてある。稜線の高さ・幅にも`ridgeNoise`で
+ * ゆらぎを足し、手前の層だけヨリシロの「背中のこぶ」を足す
  */
-function buildMountainBackdrop(): THREE.Group {
+function buildMountainBackdrop(bodyColor: number, hazeColor: number): { group: THREE.Group; peaks: THREE.Mesh[] } {
   const group = new THREE.Group();
-  const layers: ReadonlyArray<{ z: number; color: number; opacity: number }> = [
-    { z: -34, color: 0x2a3450, opacity: 0.5 },
-    { z: -26, color: 0x323f5e, opacity: 0.7 },
-    { z: -19, color: 0x3b4a6c, opacity: 0.92 },
+  const peaks: THREE.Mesh[] = [];
+  const layers: ReadonlyArray<{ z: number; opacity: number; nearest: boolean }> = [
+    { z: -34, opacity: 0.5, nearest: false },
+    { z: -26, opacity: 0.7, nearest: false },
+    { z: -19, opacity: 0.92, nearest: true },
   ];
+  const peakCount = 6;
   for (const layer of layers) {
-    const material = new THREE.MeshBasicMaterial({
-      color: layer.color,
-      transparent: true,
-      opacity: layer.opacity,
-      fog: false,
-    });
-    const peakCount = 6;
     for (let i = 0; i < peakCount; i++) {
       const x = -32 + (i / (peakCount - 1)) * 64 + (i % 2 === 0 ? -3 : 3);
-      const height = 10 + (i % 3) * 3.5;
-      const width = 14 + (i % 2) * 5;
-      const peak = new THREE.Mesh(new THREE.ConeGeometry(width / 2, height, 4), material);
+      const height =
+        10 + (i % 3) * 3.5 + ridgeNoise(x + layer.z) * 2 + (layer.nearest ? yorishiroHunch(x) : 0);
+      const width = Math.max(8, 14 + (i % 2) * 5 + ridgeNoise(x * 0.5) * 3);
+      const geometry = new THREE.ConeGeometry(width / 2, height, 4);
+      applyVerticalGradient(geometry, bodyColor, hazeColor, -height / 2, height / 2);
+      const material = new THREE.MeshBasicMaterial({
+        vertexColors: true,
+        transparent: true,
+        opacity: layer.opacity,
+        fog: false,
+      });
+      const peak = new THREE.Mesh(geometry, material);
       peak.rotation.y = Math.PI / 4;
       peak.position.set(x, height / 2, layer.z);
       group.add(peak);
+      peaks.push(peak);
     }
   }
-  return group;
+  return { group, peaks };
+}
+
+/** 山影の頂点カラーを昼/宵祭りの色へ差し替える(`setFestivalLighting`から呼ぶ) */
+function recolorMountainBackdrop(peaks: readonly THREE.Mesh[], bodyColor: number, hazeColor: number): void {
+  for (const peak of peaks) {
+    const height = (peak.geometry as THREE.ConeGeometry).parameters.height;
+    applyVerticalGradient(peak.geometry, bodyColor, hazeColor, -height / 2, height / 2);
+  }
 }
 
 /**
@@ -525,23 +567,24 @@ function applyVerticalGradient(
  * シルエットを数枚置き、地面から山の裾野へ地続きに見せる。北側
  * (山側、-Z)は他より大きく・高くし、山影の裾と重なるようにしてある
  */
+const MID_HILLS: ReadonlyArray<{ x: number; z: number; radius: number; height: number }> = [
+  // 北側(山の裾野。大きく高い)
+  { x: -14, z: -20, radius: 13, height: 7 },
+  { x: 4, z: -22, radius: 15, height: 8.5 },
+  { x: 20, z: -18, radius: 12, height: 6.5 },
+  { x: -22, z: -14, radius: 11, height: 6 },
+  // 東西南(村の外周を囲むなだらかな丘)
+  { x: 24, z: 2, radius: 10, height: 4.5 },
+  { x: 21, z: 14, radius: 9, height: 4 },
+  { x: -23, z: 4, radius: 10, height: 4.5 },
+  { x: -19, z: 15, radius: 9, height: 3.8 },
+  { x: 3, z: 20, radius: 11, height: 4.2 },
+  { x: -8, z: 21, radius: 9, height: 3.8 },
+];
+
 function buildHills(): THREE.Group {
   const group = new THREE.Group();
-  const hills: ReadonlyArray<{ x: number; z: number; radius: number; height: number }> = [
-    // 北側(山の裾野。大きく高い)
-    { x: -14, z: -20, radius: 13, height: 7 },
-    { x: 4, z: -22, radius: 15, height: 8.5 },
-    { x: 20, z: -18, radius: 12, height: 6.5 },
-    { x: -22, z: -14, radius: 11, height: 6 },
-    // 東西南(村の外周を囲むなだらかな丘)
-    { x: 24, z: 2, radius: 10, height: 4.5 },
-    { x: 21, z: 14, radius: 9, height: 4 },
-    { x: -23, z: 4, radius: 10, height: 4.5 },
-    { x: -19, z: 15, radius: 9, height: 3.8 },
-    { x: 3, z: 20, radius: 11, height: 4.2 },
-    { x: -8, z: 21, radius: 9, height: 3.8 },
-  ];
-  for (const hill of hills) {
+  for (const hill of MID_HILLS) {
     // 半球を扁平にしてドーム状の丘にする
     const geometry = new THREE.SphereGeometry(hill.radius, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2);
     geometry.scale(1, hill.height / hill.radius, 1);
@@ -549,6 +592,121 @@ function buildHills(): THREE.Group {
     const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 });
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(hill.x, 0, hill.z);
+    group.add(mesh);
+  }
+  return group;
+}
+
+/**
+ * その(x, z)地点での丘の表面の高さ(plan/models/village-mountain-gradient.md
+ * 「1. 樹層のグラデーション」の「裾野の斜面に木を...生やし」対応)。
+ * `buildHills`のドーム(扁平半球)の式をそのまま使い、複数の丘が重なる
+ * 場所は高い方を採る。丘の外なら0(平らな地面)。木をこの高さに乗せることで、
+ * 丘の内部に埋もれさせず、斜面を登っているように見せる
+ */
+function hillHeightAt(x: number, z: number): number {
+  let height = 0;
+  for (const hill of MID_HILLS) {
+    const dx = x - hill.x;
+    const dz = z - hill.z;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+    if (dist >= hill.radius) continue;
+    const h = hill.height * Math.sqrt(1 - (dist / hill.radius) ** 2);
+    if (h > height) height = h;
+  }
+  return height;
+}
+
+/**
+ * 山の裾に登る樹層(plan/models/village-mountain-gradient.mdの「1. 樹層の
+ * グラデーション」)。村の祠木の林(`VILLAGE_SCENERY`)と山影
+ * (`buildMountainBackdrop`)の間に質感と色の飛びがあった問題を、林を
+ * そのまま山の裾まで登らせることで繋ぐ。円錐+球ではなく円錐だけの
+ * 簡略LOD(遠景でシルエット化するので幹は要らない)を使い、非同期の
+ * GLTFに頼らないぶん(`VILLAGE_SCENERY`の祠木リングと違い)、素直に
+ * `InstancedMesh`へ束ねられる。遠いほど小さく・密に・色を深緑から
+ * 青みがかった深緑へ寄せてシルエット化する。`hillHeightAt`で丘の表面
+ * 高さに乗せ、丘の内部に埋もれさせない(=斜面を登っているように見せる)
+ */
+function buildForestSlope(): THREE.InstancedMesh {
+  const geometry = new THREE.ConeGeometry(0.4, 1.3, 6);
+  geometry.translate(0, 0.65, 0); // 底(y=0)を接地させる
+  const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 });
+
+  const bands: ReadonlyArray<{ zNear: number; zFar: number; rows: number; perRow: number; scale: number }> = [
+    { zNear: -14, zFar: -18, rows: 3, perRow: 14, scale: 1.0 },
+    { zNear: -18, zFar: -22, rows: 4, perRow: 18, scale: 0.7 },
+    { zNear: -22, zFar: -25, rows: 4, perRow: 22, scale: 0.45 },
+  ];
+  const trees: Array<{ x: number; z: number; y: number; scale: number; t: number }> = [];
+  for (const band of bands) {
+    for (let row = 0; row < band.rows; row++) {
+      const rowT = band.rows === 1 ? 0 : row / (band.rows - 1);
+      const z = band.zNear + (band.zFar - band.zNear) * rowT;
+      for (let i = 0; i < band.perRow; i++) {
+        // 裾は広く、頂へ向かうほど幅を絞って山なりのシルエットにする
+        const spread = 30 - Math.abs(z) * 0.3;
+        const x = -spread + (i / (band.perRow - 1)) * spread * 2 + ridgeNoise(i + row * 3) * 0.6;
+        const scale = band.scale * (0.85 + 0.15 * ((i + row) % 3));
+        const treeZ = z + ridgeNoise(x) * 0.4;
+        trees.push({ x, z: treeZ, y: hillHeightAt(x, treeZ), scale, t: Math.abs(z + 14) / 11 });
+      }
+    }
+  }
+
+  const mesh = new THREE.InstancedMesh(geometry, material, trees.length);
+  const matrix = new THREE.Matrix4();
+  const nearColor = new THREE.Color(0x3f6a34); // 村の林の深緑
+  const farColor = new THREE.Color(0x2c4550); // 裾野の樹層(青みがかった深緑)
+  trees.forEach((tree, i) => {
+    matrix.compose(
+      new THREE.Vector3(tree.x, tree.y, tree.z),
+      new THREE.Quaternion(),
+      new THREE.Vector3(tree.scale, tree.scale, tree.scale),
+    );
+    mesh.setMatrixAt(i, matrix);
+    mesh.setColorAt(i, nearColor.clone().lerp(farColor, THREE.MathUtils.clamp(tree.t, 0, 1)));
+  });
+  mesh.instanceMatrix.needsUpdate = true;
+  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  return mesh;
+}
+
+/**
+ * 木々の塊 → 森の輪郭への移行(plan/models/village-mountain-gradient.mdの
+ * 「1. 樹層のグラデーション」)。個々の木を描き分けるにはもう遠い距離に、
+ * 樹冠のもこもこした輪郭を持つ帯を2枚重ねる。上端だけをノイズで波打たせ、
+ * 定規で引いた直線に見せない。奥の帯ほど色を青灰へ寄せ、山肌の色へ繋ぐ。
+ * `hillHeightAt`で丘の稜線ぶんだけ底上げし、丘の内部に埋もれさせない
+ */
+function buildTreeCanopyFringe(): THREE.Group {
+  const group = new THREE.Group();
+  const bands: ReadonlyArray<{ z: number; height: number; width: number; color: number; opacity: number }> = [
+    { z: -24, height: 3.2, width: 60, color: 0x2c4550, opacity: 0.85 },
+    { z: -28, height: 4.2, width: 64, color: 0x33465a, opacity: 0.7 },
+  ];
+  for (const band of bands) {
+    const geometry = new THREE.PlaneGeometry(band.width, band.height, 40, 1);
+    const position = geometry.attributes.position;
+    for (let i = 0; i < position.count; i++) {
+      const x = position.getX(i);
+      const y = position.getY(i);
+      if (y <= 0) continue; // 下端はまっすぐのまま、手前の帯・地面と繋がるようにする
+      const wobble = (Math.sin(x * 0.35) * 0.5 + Math.sin(x * 0.9 + 1.7) * 0.25) * (band.height * 0.35);
+      position.setY(i, y + wobble);
+    }
+    position.needsUpdate = true;
+    geometry.computeVertexNormals();
+    const material = new THREE.MeshStandardMaterial({
+      color: band.color,
+      roughness: 1,
+      transparent: true,
+      opacity: band.opacity,
+    });
+    const mesh = new THREE.Mesh(geometry, material);
+    // 丘の稜線あたりの高さを何点かサンプルして、その帯の底上げ量にする
+    const crest = Math.max(hillHeightAt(-16, band.z), hillHeightAt(4, band.z), hillHeightAt(20, band.z));
+    mesh.position.set(0, crest + band.height / 2, band.z);
     group.add(mesh);
   }
   return group;
@@ -701,6 +859,12 @@ interface VillageLightingPreset {
    */
   skyHorizon: number;
   skyZenith: number;
+  /**
+   * 山肌の色(plan/models/village-mountain-gradient.mdの色階段
+   * 「山肌(青緑〜青灰)」)。稜線(頂)は`skyHorizon`と同じ色にして、
+   * 最遠の山と空の境を溶かす(`buildMountainBackdrop`/`recolorMountainBackdrop`)
+   */
+  mountainBody: number;
 }
 
 const DAYTIME_LIGHTING: VillageLightingPreset = {
@@ -713,6 +877,7 @@ const DAYTIME_LIGHTING: VillageLightingPreset = {
   windowGlowIntensity: 1.2,
   skyHorizon: 0xdcf0fa,
   skyZenith: 0x5da0d8,
+  mountainBody: 0x4a6a70,
 };
 
 const YOIMATSURI_LIGHTING: VillageLightingPreset = {
@@ -725,6 +890,7 @@ const YOIMATSURI_LIGHTING: VillageLightingPreset = {
   windowGlowIntensity: 3.0,
   skyHorizon: 0xd88a5c,
   skyZenith: 0x352050,
+  mountainBody: 0x453856,
 };
 
 /**
@@ -793,6 +959,8 @@ export class VillageView {
   private readonly windowGlowLights = new Map<string, THREE.PointLight>();
   /** 空のグラデーション(`buildSkyDome`)。`setFestivalLighting`で塗り替える */
   private readonly skyDome: THREE.Mesh;
+  /** 山影の峰(`buildMountainBackdrop`)。`setFestivalLighting`で塗り替える */
+  private readonly mountainPeaks: THREE.Mesh[];
 
   constructor(private readonly assets: Assets) {
     this.scene.background = new THREE.Color(DAYTIME_LIGHTING.background);
@@ -823,7 +991,11 @@ export class VillageView {
     this.scene.add(buildClouds());
     this.scene.add(buildHorizonMist());
     this.scene.add(buildHills());
-    this.scene.add(buildMountainBackdrop());
+    this.scene.add(buildForestSlope());
+    this.scene.add(buildTreeCanopyFringe());
+    const mountain = buildMountainBackdrop(DAYTIME_LIGHTING.mountainBody, DAYTIME_LIGHTING.skyHorizon);
+    this.mountainPeaks = mountain.peaks;
+    this.scene.add(mountain.group);
     this.scene.add(buildFieldFurrows());
     this.scene.add(buildPathToCave());
     this.scene.add(buildStream());
@@ -884,6 +1056,7 @@ export class VillageView {
       glow.intensity = preset.windowGlowIntensity;
     }
     recolorSkyDome(this.skyDome, preset.skyHorizon, preset.skyZenith);
+    recolorMountainBackdrop(this.mountainPeaks, preset.mountainBody, preset.skyHorizon);
   }
 
   /** 拠点へ戻るたび(showTown())に、村の中の立ち位置を出発点へ戻す */

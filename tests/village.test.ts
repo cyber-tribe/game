@@ -376,6 +376,62 @@ describe("view/village.ts: 村の周辺(village-surroundings)", () => {
 });
 
 /**
+ * plan/models/village-mountain-gradient.md: 村の林と山の間の質感・色の
+ * 飛びを、山の裾に登る樹層と稜線の頂点カラーグラデーションで繋ぐ
+ */
+describe("view/village.ts: 山の遠景(village-mountain-gradient)", () => {
+  it("山の裾に登る樹層(InstancedMesh)がシーンに積まれている", () => {
+    const view = new VillageView(emptyAssets());
+    const forest = view.scene.children.find((o): o is THREE.InstancedMesh => o instanceof THREE.InstancedMesh);
+    expect(forest).toBeDefined();
+    expect(forest!.count).toBeGreaterThan(50);
+  });
+
+  it("木々の塊から森の輪郭への移行帯(頂点カラーの帯メッシュ)がある", () => {
+    const view = new VillageView(emptyAssets());
+    const fringes = view.scene.children
+      .flatMap((o) => (o instanceof THREE.Group ? o.children : [o]))
+      .filter((o): o is THREE.Mesh => o instanceof THREE.Mesh && o.geometry instanceof THREE.PlaneGeometry);
+    // 地面・畑・小道・小川もPlaneGeometryなので、幅60前後の横長の帯を探す
+    const canopy = fringes.filter((m) => (m.geometry as THREE.PlaneGeometry).parameters.width > 50);
+    expect(canopy.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("山影の峰は単色ベタではなく、山肌→稜線の霞の頂点カラーを持つ", () => {
+    const view = new VillageView(emptyAssets());
+    // 建物の屋根もConeGeometryだが頂点カラーは持たないので、それで見分ける
+    const peak = view.scene.children
+      .flatMap((o) => (o instanceof THREE.Group ? o.children : [o]))
+      .find(
+        (o): o is THREE.Mesh =>
+          o instanceof THREE.Mesh && o.geometry instanceof THREE.ConeGeometry && !!o.geometry.attributes.color,
+      );
+    expect(peak).toBeDefined();
+    expect(peak!.geometry.attributes.color).toBeDefined();
+  });
+
+  it("昼/宵祭りの切り替えで山影の頂点カラーも変わる(空の地平線色に揃える)", () => {
+    const view = new VillageView(emptyAssets());
+    const peak = view.scene.children
+      .flatMap((o) => (o instanceof THREE.Group ? o.children : [o]))
+      .find(
+        (o): o is THREE.Mesh =>
+          o instanceof THREE.Mesh && o.geometry instanceof THREE.ConeGeometry && !!o.geometry.attributes.color,
+      )!;
+    const dayColor = (peak.geometry.attributes.color as THREE.BufferAttribute).array.slice();
+
+    view.setFestivalLighting(true);
+    const duskColor = (peak.geometry.attributes.color as THREE.BufferAttribute).array;
+    expect(Array.from(duskColor)).not.toEqual(Array.from(dayColor));
+
+    view.setFestivalLighting(false);
+    expect(Array.from((peak.geometry.attributes.color as THREE.BufferAttribute).array)).toEqual(
+      Array.from(dayColor),
+    );
+  });
+});
+
+/**
  * #446: 村なかのプレイヤーがカプセルのままで、主人公ガルドのモデルに
  * なっていなかった。モデルが読めているならそちらを使う
  */
