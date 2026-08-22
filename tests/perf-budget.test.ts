@@ -3,6 +3,7 @@ import { spawnWanderingMonster } from "../src/dungeon/populate";
 import { buildDistanceField } from "../src/entities/ai";
 import { Game } from "../src/game";
 import { saveRunSnapshot } from "../src/save";
+import { clearBossIfPresent } from "./helpers/bossFloor";
 
 // 距離場が1ターンに何本作られるかを数えたいので、本物を包んで差し替える。
 // game.ts 側の import もこの包んだものに差し替わる
@@ -72,6 +73,7 @@ function diveTo(depth: number): Game {
   const game = new Game({ seed: 4242, maxDepth: 48, startingItems: [] });
   let guard = 0;
   while (game.depth < depth && guard++ < 200) {
+    clearBossIfPresent(game);
     game.player.pos = { ...game.floor.stairs };
     game.command({ type: "descend" });
   }

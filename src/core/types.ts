@@ -842,6 +842,12 @@ export interface FloorState {
    */
   door?: FloorDoor;
   /**
+   * ボスの間の階段(plan/game/dungeon-boss-rooms.md)。trueのあいだは階段の
+   * マスも壁と同じく通れない(=素通りでの踏破を防ぐ)。地方ボスを撃破すると
+   * falseになり、通れるようになる。ボスの間以外のフロアではundefinedのまま
+   */
+  stairsBlocked?: boolean;
+  /**
    * 横穴(分岐ダンジョン、plan/game/dungeon-per-region.md)の入り口。低確率で
    * 特定の地方ダンジョンの特定階に生成される。踏んで確定すると短い分岐
    * ダンジョンへ移り、踏破すると元のこの階のこの位置へ戻ってくる
@@ -872,6 +878,10 @@ export function walkableAt(floor: FloorState, p: Vec2): boolean {
   if (t === undefined || !isWalkable(t.kind)) return false;
   // 閉じたボスの間の扉は、開けるまで壁と同じく通れない
   if (floor.door && !floor.door.open && floor.door.pos.x === p.x && floor.door.pos.y === p.y) {
+    return false;
+  }
+  // ボスの間の階段は、ボスを撃破するまで壁と同じく通れない
+  if (floor.stairsBlocked && floor.stairs.x === p.x && floor.stairs.y === p.y) {
     return false;
   }
   return true;

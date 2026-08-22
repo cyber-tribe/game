@@ -52,6 +52,12 @@ export class DungeonView {
    */
   private readonly doorGroup = new THREE.Group();
   /**
+   * ボスの間の階段(plan/game/dungeon-boss-rooms.md)。撃破するまでは扉と
+   * 同じ流儀で既存の壁モデルを塞ぎ物として流用し、階段モデル自体
+   * (stairsGroup)は隠しておく。撃破すると入れ替える
+   */
+  private readonly blockedStairsGroup = new THREE.Group();
+  /**
    * 横穴(plan/game/dungeon-per-region.md)の入り口。村の入洞口と同じ
    * cave_gate モデルを流用する(通路タイル自体は歩けるので、扉と違って
    * 覆い隠しはしない。目印として置くだけ)
@@ -73,6 +79,7 @@ export class DungeonView {
     this.group.add(
       this.stairsGroup,
       this.doorGroup,
+      this.blockedStairsGroup,
       this.branchEntranceGroup,
       this.itemGroup,
       this.trapGroup,
@@ -112,6 +119,12 @@ export class DungeonView {
     stairs.position.copy(toWorld(floor.stairs));
     this.stairsGroup.add(stairs);
 
+    if (floor.stairsBlocked) {
+      const blocker = this.assets.instantiate("wall").root;
+      blocker.position.copy(toWorld(floor.stairs));
+      this.blockedStairsGroup.add(blocker);
+    }
+
     if (floor.door) {
       const door = this.assets.instantiate("wall").root;
       door.position.copy(toWorld(floor.door.pos));
@@ -127,7 +140,9 @@ export class DungeonView {
     this.applyVisibility(this.floors, this.floorIndex, floor, this.floorState);
 
     const stairsTile = tileAt(floor, floor.stairs);
-    this.stairsGroup.visible = stairsTile?.explored ?? false;
+    const stairsExplored = stairsTile?.explored ?? false;
+    this.stairsGroup.visible = stairsExplored && !floor.stairsBlocked;
+    this.blockedStairsGroup.visible = stairsExplored && (floor.stairsBlocked ?? false);
 
     if (floor.door) {
       const doorTile = tileAt(floor, floor.door.pos);
@@ -385,6 +400,7 @@ export class DungeonView {
     this.floors = null;
     this.stairsGroup.clear();
     this.doorGroup.clear();
+    this.blockedStairsGroup.clear();
     this.branchEntranceGroup.clear();
     this.itemGroup.clear();
     this.trapGroup.clear();

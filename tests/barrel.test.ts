@@ -12,6 +12,7 @@ import {
   isHostile,
   walkableAt,
 } from "../src/core/types";
+import { clearBossIfPresent } from "./helpers/bossFloor";
 
 function newGame(seed = 42) {
   return new Game({ seed });
@@ -71,7 +72,9 @@ describe("タルの配置", () => {
       for (let seed = 1; seed <= 120; seed++) {
         const game = new Game({ seed: seed * 31, maxDepth: 20 });
         // 目的の階まで潜る
-        while (game.depth < depth && game.status === "playing") {
+        let guard = 0;
+        while (game.depth < depth && game.status === "playing" && guard++ < 20) {
+          clearBossIfPresent(game);
           game.player.pos = game.floor.stairs;
           game.command({ type: "descend" });
         }
