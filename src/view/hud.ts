@@ -4,7 +4,7 @@ import { displayActorName } from "../entities/naming";
 import { ALLY_STANCE_NAMES, BARREL_NAMES } from "../entities/displayNames";
 import { MAX_SATIETY, type PlayerState, expToNext } from "../entities/player";
 import { t, type LocaleKey } from "../i18n";
-import type { CaptureOutlook, CaptureTier } from "../game";
+import type { CaptureOutlook, CaptureTier } from "../domain/barrel/barrelCapture";
 import {
   BANNER_FADE_MS,
   bannerVisible,
