@@ -11,6 +11,8 @@ import { STATUS_SLEEP } from "../../core/types";
 export const WATER_BARREL_OPEN_RADIUS = 1;
 /** あける(周囲1マスの敵に眠りをばらまく)の持続ターン */
 export const SLEEP_BARREL_OPEN_TURNS = 3;
+/** あける(部屋全体を明るくする)の視界拡張・持続ターン。強化版は視界+1 */
+export const LIGHT_BARREL_OPEN_TURNS = 5;
 
 /** 水タルをあける: 周囲を水びたしの床(深みタイルと同じ扱い)にする */
 export function openWaterBarrel(
@@ -31,18 +33,18 @@ export function openWaterBarrel(
 
 export interface OpenWindBarrelArgs {
   floor: FloorState;
-  playerPos: Vec2;
+  center: Vec2;
   events: GameEvent[];
   pushMonster(dir: Dir, target: Actor, events: GameEvent[]): boolean;
 }
 
 /** 風タルをあける: 隣接する敵全員を1マス押し出す */
 export function openWindBarrel(args: OpenWindBarrelArgs): void {
-  const { floor, playerPos, events, pushMonster } = args;
+  const { floor, center, events, pushMonster } = args;
   for (const other of floor.actors) {
     if (!other.alive || other.kind !== "monster") continue;
-    if (chebyshev(playerPos, other.pos) !== 1) continue;
-    const dir = dirFromDelta(other.pos.x - playerPos.x, other.pos.y - playerPos.y);
+    if (chebyshev(center, other.pos) !== 1) continue;
+    const dir = dirFromDelta(other.pos.x - center.x, other.pos.y - center.y);
     pushMonster(dir, other, events);
   }
 }
@@ -60,18 +62,18 @@ export function openStoneBarrel(floor: FloorState, front: Vec2, events: GameEven
 
 export interface OpenSleepBarrelArgs {
   floor: FloorState;
-  playerPos: Vec2;
+  center: Vec2;
   enhanced: boolean;
   effectCtx: EffectContext;
 }
 
 /** ねむタルをあける: 周囲1マスの敵に眠りをばらまく */
 export function openSleepBarrel(args: OpenSleepBarrelArgs): void {
-  const { floor, playerPos, enhanced, effectCtx } = args;
+  const { floor, center, enhanced, effectCtx } = args;
   const turns = enhanced ? SLEEP_BARREL_OPEN_TURNS + 1 : SLEEP_BARREL_OPEN_TURNS;
   for (const other of floor.actors) {
     if (!other.alive || other.kind !== "monster") continue;
-    if (chebyshev(playerPos, other.pos) > 1) continue;
+    if (chebyshev(center, other.pos) > 1) continue;
     addStatus(effectCtx, other, STATUS_SLEEP, turns, "眠ってしまった");
   }
 }

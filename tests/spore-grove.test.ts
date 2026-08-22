@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Game } from "../src/game";
-import { access } from "./helpers/access";
+import { explode } from "./helpers/access";
 import { Rng } from "../src/core/rng";
 import { generateFloor } from "../src/dungeon/generate";
 import { placeSporeRooms } from "../src/dungeon/populate";
@@ -129,8 +129,7 @@ describe("game.ts: ばくはつタルで胞子部屋を無効化する", () => {
     const center = { ...roomCenter(room) };
     game.player.pos = center;
 
-    const explode = access(game).explode.bind(game);
-    explode(center, []);
+    explode(game, center, []);
 
     expect(room.spored).toBe(false);
   });
