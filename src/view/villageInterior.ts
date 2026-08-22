@@ -27,6 +27,23 @@ const ROOM_SIZE = 5.6;
 const WALL_HEIGHT = 2.5;
 
 /**
+ * 内装ベースの明るさ(plan/models/village-interior-brightness.md)。
+ * 内装は「暗い中に光源がある」ではなく「明るい部屋に、性格づけの光が
+ * 差している」を基準にする。目安は屋外の昼(`village-scene-redesign.md`
+ * archiveのDAYTIME_LIGHTING.ambientIntensity=1.9)の6〜7割。
+ * 色はニュートラル寄り(生活の明るさ)にし、部屋ごとの色(`def.ambient`)は
+ * 全体を染めない程度の薄いアクセントとして重ねるだけにする
+ */
+const INTERIOR_BASE_AMBIENT_COLOR = 0xfff4e6;
+const INTERIOR_BASE_INTENSITY = 1.3;
+/** ねむり小屋だけ、寝かしつけの場の考証で基準の1段下にする(対象外にはしない) */
+const SLEEP_HUT_BASE_INTENSITY = 0.95;
+/** 部屋ごとの色(`def.ambient`)を、全体を支配しない薄いアクセントへ落とす係数 */
+const ACCENT_AMBIENT_SCALE = 0.35;
+/** 性格づけの光源(炉・夜色・机上ランプ等)の届く範囲。周囲2〜3mのアクセントに絞る */
+const ACCENT_LIGHT_DISTANCE = 3;
+
+/**
  * カメラ。部屋の入口(手前=+z)から見た固定の斜め俯瞰。歩き回りはさせない
  * ので、建物が変わっても画角は変えない(内装ごとに変わるのは小道具と
  * 明かりの色だけ)
@@ -73,7 +90,11 @@ export interface VillageInteriorDef {
   /** 壁・床の色 */
   wall: number;
   floor: number;
-  /** 部屋を満たす明かりの色と強さ */
+  /**
+   * 部屋の性格づけの色と強さ。全体を照らす基準光ではなく、`buildShell`が
+   * 足す共通のベース光(`INTERIOR_BASE_AMBIENT_COLOR`)の上に薄く重ねる
+   * アクセントとして使う(plan/models/village-interior-brightness.md)
+   */
   ambient: number;
   ambientIntensity: number;
   /** 部屋の外の空気の色。シーンの背景に使う */
@@ -329,7 +350,7 @@ function hangingLamp(x: number, z: number, color: number, cordMaterial: THREE.Ma
   const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 8), glowMat(color, 1.4));
   bulb.position.y = WALL_HEIGHT - 0.92;
   group.add(bulb);
-  const light = new THREE.PointLight(color, 5, 6, 1.5);
+  const light = new THREE.PointLight(color, 5, ACCENT_LIGHT_DISTANCE, 1.5);
   light.position.y = WALL_HEIGHT - 0.98;
   group.add(light);
   group.position.set(x, 0, z);
@@ -381,8 +402,15 @@ function buildShell(def: VillageInteriorDef): THREE.Group {
   group.add(box(0.18, WALL_HEIGHT, ROOM_SIZE, -ROOM_SIZE / 2, WALL_HEIGHT / 2, 0, wallMat));
   group.add(box(0.18, WALL_HEIGHT, ROOM_SIZE, ROOM_SIZE / 2, WALL_HEIGHT / 2, 0, wallMat));
 
-  group.add(new THREE.AmbientLight(def.ambient, def.ambientIntensity));
-  const key = new THREE.DirectionalLight(0xfff2dc, 0.85);
+  // 基準の生活の明るさ(ニュートラル)。まずここで床・壁・小道具の輪郭が
+  // どこでも判別できる下限を作り、部屋の色(def.ambient)はその上に薄く
+  // 重ねるアクセントに留める(「暗い中に光源」から「明るい部屋に性格づけの
+  // 光」への転換。plan/models/village-interior-brightness.md)
+  const baseIntensity = def.buildingId === "sleepHut" ? SLEEP_HUT_BASE_INTENSITY : INTERIOR_BASE_INTENSITY;
+  group.add(new THREE.AmbientLight(INTERIOR_BASE_AMBIENT_COLOR, baseIntensity));
+  group.add(new THREE.AmbientLight(def.ambient, def.ambientIntensity * ACCENT_AMBIENT_SCALE));
+  // 昼光の差し込み(窓・戸口)。入口側(手前・上)から差すニュートラルな光
+  const key = new THREE.DirectionalLight(0xfff8ec, 1.1);
   key.position.set(3, 6, 5);
   group.add(key);
   return group;
@@ -418,7 +446,7 @@ function buildProps(def: VillageInteriorDef, assets: Assets): THREE.Group {
       // 炉。焚き口が暖色に光り、部屋をその色で照らす
       group.add(box(1.5, 1.4, 1.1, -0.9, 0.7, -2.1, mat(0x4a4038, 1)));
       group.add(box(0.75, 0.6, 0.1, -0.9, 0.65, -1.52, glowMat(0xff8a34, 1.6)));
-      const forge = new THREE.PointLight(0xff8a34, 10, 8, 1.4);
+      const forge = new THREE.PointLight(0xff8a34, 10, ACCENT_LIGHT_DISTANCE, 1.4);
       forge.position.set(-0.7, 0.95, -1.3);
       group.add(forge);
       group.add(box(0.5, 1.1, 0.5, -0.9, WALL_HEIGHT - 0.15, -2.1, mat(0x39322c, 1)));
@@ -465,7 +493,7 @@ function buildProps(def: VillageInteriorDef, assets: Assets): THREE.Group {
       group.add(box(5.2, 0.05, 3.2, 0, WALL_HEIGHT - 0.35, -0.5, canopy));
       group.add(box(5.2, 0.45, 0.05, 0, WALL_HEIGHT - 0.58, 1.1, canopy));
       // 夜色の薄明かり
-      const moon = new THREE.PointLight(0x8fa8ff, 5, 8, 1.5);
+      const moon = new THREE.PointLight(0x8fa8ff, 5, ACCENT_LIGHT_DISTANCE, 1.5);
       moon.position.set(0.8, WALL_HEIGHT - 0.75, 1.3);
       group.add(moon);
       break;
