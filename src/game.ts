@@ -137,7 +137,7 @@ import { HAJIME_NO_YUME_ID, REGION_BOSS_ORDER, speciesById } from "./entities/sp
 import { REGIONS, regionByIndex } from "./entities/regions";
 import { type BondStage, bondStage } from "./entities/companionBond";
 import { gainAllyExp } from "./entities/companionGrowth";
-import { dreamArtDef, knownBarrelArt } from "./entities/dreamArts";
+import { dreamArtDef } from "./entities/dreamArts";
 import { rollRunSkillChoices, runSkillDef } from "./entities/runSkills";
 import {
   DREAM_ART_EFFECTS,
@@ -180,12 +180,14 @@ import {
   applyElementalBarrelHit,
 } from "./domain/barrel/barrelElemental";
 import {
-  SLEEP_BARREL_OPEN_TURNS,
+  LIGHT_BARREL_OPEN_TURNS,
   openSleepBarrel,
   openStoneBarrel,
   openWaterBarrel,
   openWindBarrel,
 } from "./domain/barrel/barrelOpen";
+import { castBarrelArt as domainCastBarrelArt } from "./domain/barrel/barrelArt";
+import { burstBarrel as domainBurstBarrel, explode as domainExplode } from "./domain/barrel/barrelExplosion";
 import {
   type CaptureOutlook,
   captureOutlookFor,
@@ -513,9 +515,8 @@ const TRUE_AWAKENING_CLOSING: readonly string[] = [
 ];
 
 // ---- 元素タル(plan/game/archive/barrel-arts.md) ----
-/** あける(部屋全体を明るくする)の視界拡張・持続ターン。強化版は視界+1 */
+/** あける(部屋全体を明るくする)の視界拡張。強化版は視界+1 */
 const LIGHT_BARREL_OPEN_VISION = 2;
-const LIGHT_BARREL_OPEN_TURNS = 5;
 /** 頭上に持つ(光タル): 視界+2(ほのかなあかり等と同じ単純加算) */
 const LIGHT_BARREL_CARRY_VISION_BONUS = 2;
 /** 頭上に持つ(風タル): 罠を踏んでも発動しない確率 */
@@ -568,11 +569,8 @@ const TARUKURABE_TARGETS: readonly TarukurabeTargetLayout[] = [
 
 /** アイテムの飛距離 */
 const ITEM_THROW_RANGE = 10;
-/** 爆発タルの威力と巻き込む範囲 */
-const BOMB_DAMAGE = 22;
 /** スリガラス(plan/shops-and-thieves.md)が盗みを成功させる確率 */
 const THIEF_STEAL_CHANCE = 0.4;
-const BOMB_RADIUS = 1;
 
 /** 忘れ物蔵(plan/lost-and-found-vault.md)。隠し壁へバンプするたびに崩れる確率 */
 const SECRET_PASSAGE_REVEAL_CHANCE = 0.25;
@@ -1794,7 +1792,7 @@ export class Game {
         return this.openCarriedBarrel(events);
 
       case "castBarrelArt":
-        return this.castBarrelArt(cmd.allyId, events);
+        return domainCastBarrelArt({ player, allies: this.allies, allyId: cmd.allyId, events });
 
       case "setStance":
         return this.setAllyStance(cmd.allyId, cmd.stance, events);
@@ -1940,7 +1938,15 @@ export class Game {
 
     switch (barrel.kind) {
       case "bomb":
-        this.explode(landing, events, player.id);
+        domainExplode({
+          floor: this.floor,
+          rng: this.rng,
+          center: landing,
+          events,
+          throwerId: player.id,
+          damageActor: (target, dmg, crit) => this.damageActor(target, dmg, crit, events),
+          isPlaying: () => this.status === "playing",
+        });
         events.push({ type: "barrelBreak", barrelId: barrel.id, pos: landing });
         return true;
 
@@ -2117,7 +2123,15 @@ export class Game {
     events.push({ type: "message", text: `${barrelDisplayName(barrel)}をあけた!` });
     if (barrel.kind === "bomb") {
       player.carrying = null;
-      this.explode(center, events, player.id);
+      domainExplode({
+        floor: this.floor,
+        rng: this.rng,
+        center,
+        events,
+        throwerId: player.id,
+        damageActor: (target, dmg, crit) => this.damageActor(target, dmg, crit, events),
+        isPlaying: () => this.status === "playing",
+      });
       events.push({ type: "barrelBreak", barrelId: barrel.id, pos: center });
       return true;
     }
@@ -2138,7 +2152,7 @@ export class Game {
       case "wind":
         openWindBarrel({
           floor: this.floor,
-          playerPos: player.pos,
+          center: player.pos,
           events,
           pushMonster: (dir, target, evts) => this.pushMonster(dir, target, evts),
         });
@@ -2155,7 +2169,7 @@ export class Game {
       case "sleep":
         openSleepBarrel({
           floor: this.floor,
-          playerPos: player.pos,
+          center: player.pos,
           enhanced: barrel.enhanced ?? false,
           effectCtx: this.effectContext(events),
         });
@@ -2173,35 +2187,6 @@ export class Game {
     return true;
   }
 
-  /**
-   * タルわざ(plan/game/archive/barrel-arts.md): 空のタルを抱えた状態で、
-   * タルわざ持ちの仲間に変化を頼む。なじみが「すっかりなじんだ」段階以上の
-   * 仲間が作ると強化版(enhanced)になる
-   */
-  private castBarrelArt(allyId: number, events: GameEvent[]): boolean {
-    const player = this.player;
-    if (!player.carrying || player.carrying.kind !== "empty") {
-      events.push({ type: "message", text: "からのタルを持っていないと頼めない。" });
-      return false;
-    }
-    const ally = this.allies.find((a) => a.id === allyId && a.alive);
-    if (!ally) return false;
-    const art = knownBarrelArt(ally.dreamArts ?? []);
-    if (!art || !art.barrelKind) {
-      events.push({ type: "message", text: `${displayActorName(ally)}はタルわざを覚えていない。` });
-      return false;
-    }
-    const enhanced = bondStage(ally.bondSuccessCount ?? 0) === "close" || bondStage(ally.bondSuccessCount ?? 0) === "irreplaceable";
-    const barrel = player.carrying;
-    player.carrying = { ...barrel, kind: art.barrelKind, enhanced };
-    events.push({
-      type: "message",
-      text: `${displayActorName(ally)}が『${art.name}』でタルを変えた!`,
-    });
-    // タルわざ注入の音(plan/sound/archive/village-soundscape.md)
-    events.push({ type: "barrelArtCast", allyId: ally.id, kind: art.barrelKind });
-    return true;
-  }
 
   /**
    * 樽比べ(plan/tarukurabe-minigame.md): 的への命中を得点に変換する。ダメージ・
@@ -2272,70 +2257,6 @@ export class Game {
     events.push({ type: "message", text: t("msg.recruit", { name: ally.name }) });
     events.push({ type: "tutorialTip", id: "capture" });
     if (this.allies.length === 2) events.push({ type: "tutorialTip", id: "allyOrders" });
-  }
-
-  /**
-   * 爆発。中心とその周囲にいるものをまとめて巻き込む。
-   *
-   * 投げた本人だけはダメージを半分にしている。飛距離は壁までなので、
-   * 狭い通路では真横に落ちることがあり、満タンから一撃で倒れてしまうと
-   * 理不尽に感じる。半分でも十分痛いので、危険であることは伝わる。
-   */
-  private explode(center: Vec2, events: GameEvent[], throwerId?: number): void {
-    events.push({ type: "explosion", pos: center, radius: BOMB_RADIUS });
-    events.push({ type: "message", text: "タルが爆発した!" });
-
-    const caught = this.floor.actors.filter(
-      (a) => a.alive && chebyshev(a.pos, center) <= BOMB_RADIUS,
-    );
-    for (const actor of caught) {
-      const result = computeDamage(this.rng, BOMB_DAMAGE, actor.def);
-      const isThrower = actor.id === throwerId;
-      const damage = isThrower ? Math.max(1, Math.floor(result.damage / 2)) : result.damage;
-      events.push({
-        type: "message",
-        text: isThrower
-          ? `巻き込まれた! ${displayActorName(actor)}に${damage}のダメージ!`
-          : `${displayActorName(actor)}に${damage}のダメージ!`,
-      });
-      this.damageActor(actor, damage, result.critical, events);
-      if (this.status !== "playing") return;
-    }
-
-    // 巻き込まれたタルは誘爆させず、その場で壊れるだけにしておく。
-    // 連鎖させると1発で階が壊滅しかねない
-    const destroyed = this.floor.barrels.filter((b) => chebyshev(b.pos, center) <= BOMB_RADIUS);
-    for (const barrel of destroyed) {
-      events.push({ type: "barrelBreak", barrelId: barrel.id, pos: barrel.pos });
-    }
-    this.floor.barrels = this.floor.barrels.filter(
-      (b) => chebyshev(b.pos, center) > BOMB_RADIUS,
-    );
-
-    // 第三地方(まどろみの茸林)固有ギミック(plan/spore-grove.md): 爆心の部屋の
-    // 胞子を吹き飛ばして無効化する(そのフロア滞在中は解除されたまま)
-    const room = this.floor.rooms.find((r) => roomContains(r, center));
-    if (room?.spored) room.spored = false;
-
-    // 第三地方ボス(plan/region-boss-oomadoromi.md): 爆心と同じ部屋に予兆中の
-    // ボスがいれば、大技を解除する(クールダウンはそのまま消費済み扱い)
-    if (room) {
-      const chargingBoss = this.floor.actors.find(
-        (a): a is MonsterActor => a.alive && a.kind === "monster" && !!a.telegraphCharge && roomContains(room, a.pos),
-      );
-      if (chargingBoss) {
-        chargingBoss.telegraphCharge = false;
-        events.push({ type: "message", text: "大技の気配が霧散した!" });
-        // 地方ボス(plan/region-boss-horikuinonushi.md): 解除時、発動しないまま
-        // 残り続けてしまう部屋内のひび割れ予告も一緒に消す
-        for (let y = room.y; y < room.y + room.h; y++) {
-          for (let x = room.x; x < room.x + room.w; x++) {
-            const tile = tileAt(this.floor, { x, y });
-            if (tile) tile.crackWarning = false;
-          }
-        }
-      }
-    }
   }
 
   private movePlayer(dir: Dir, events: GameEvent[]): boolean {
@@ -2649,81 +2570,32 @@ export class Game {
     if (!hitAny && this.runSkills.includes("barrelBurst")) {
       const front = { x: player.pos.x + dirDelta(dir).x, y: player.pos.y + dirDelta(dir).y };
       const barrel = barrelAt(this.floor, front);
-      if (barrel) this.burstBarrel(barrel, events);
+      if (barrel) {
+        domainBurstBarrel({
+          floor: this.floor,
+          rng: this.rng,
+          player: this.player,
+          runSkills: this.runSkills,
+          oncePerRun: this.oncePerRun,
+          partyGuardTurns: this.partyGuardTurns,
+          barrel,
+          events,
+          throwerId: player.id,
+          effectCtx: this.effectContext(events),
+          isPlaying: () => this.status === "playing",
+          damageActor: (target, dmg, crit) => this.damageActor(target, dmg, crit, events),
+          pushMonster: (dir2, target, evts) => this.pushMonster(dir2, target, evts),
+          recruitFromBarrel: (b, spot) => this.recruitFromBarrel(b, spot, events),
+          setLightBarrelTurns: (turns) => {
+            this.lightBarrelTurns = Math.max(this.lightBarrelTurns, turns);
+          },
+        });
+      }
     }
 
     if (hitAny && pattern === "quickSingle") this.firstStrikeAvailable = false;
     if (hitAny && pattern === "heavySingle") {
       addStatus(this.effectContext(events), player, STATUS_RECOVER, HEAVY_RECOVER_TURNS, "隙ができた");
-    }
-  }
-
-  /**
-   * スキル「タルやぶり」。置かれたタルを攻撃で割り、中身の効果を発揮させる。
-   * 爆発タル・モンスター入りタルは従来どおり(自爆・解放)、元素タルは
-   * その場であける効果(openCarriedBarrelの各効果)を発揮する。からのタルは
-   * ただ壊れるだけ
-   */
-  private burstBarrel(barrel: Barrel, events: GameEvent[]): void {
-    events.push({ type: "message", text: `${barrelDisplayName(barrel)}を割った!` });
-    this.floor.barrels = this.floor.barrels.filter((b) => b.id !== barrel.id);
-    events.push({ type: "barrelBreak", barrelId: barrel.id, pos: barrel.pos });
-    switch (barrel.kind) {
-      case "bomb":
-        this.explode(barrel.pos, events, this.player.id);
-        return;
-      case "caught":
-        this.releaseFromBarrel(barrel, barrel.pos, events);
-        return;
-      case "water":
-        openWaterBarrel(this.floor, barrel.pos, barrel.enhanced ?? false, events);
-        return;
-      case "wind": {
-        for (const other of this.floor.actors) {
-          if (!other.alive || other.kind !== "monster") continue;
-          if (chebyshev(barrel.pos, other.pos) !== 1) continue;
-          const dir = dirFromDelta(other.pos.x - barrel.pos.x, other.pos.y - barrel.pos.y);
-          this.pushMonster(dir, other, events);
-        }
-        return;
-      }
-      case "light":
-        this.lightBarrelTurns = Math.max(
-          this.lightBarrelTurns,
-          barrel.enhanced ? LIGHT_BARREL_OPEN_TURNS + 2 : LIGHT_BARREL_OPEN_TURNS,
-        );
-        return;
-      case "stone":
-        // 割れた壁を作るのは筋が通らないので、代わりに直下の敵へダメージを与える
-        for (const other of this.floor.actors) {
-          if (!other.alive || other.kind !== "monster") continue;
-          if (chebyshev(barrel.pos, other.pos) > 1) continue;
-          const power = Math.round(barrelThrowDamage(this.player.inventory) * STONE_BARREL_DAMAGE_MULTIPLIER);
-          const finalDamage = mitigateIncomingDamage({
-            target: other,
-            damage: Math.max(1, power),
-            events,
-            rng: this.rng,
-            runSkills: this.runSkills,
-            player: this.player,
-            oncePerRun: this.oncePerRun,
-            partyGuardTurns: this.partyGuardTurns,
-          });
-          events.push({ type: "message", text: `${displayActorName(other)}に${finalDamage}のダメージ!` });
-          this.damageActor(other, finalDamage, false, events);
-        }
-        return;
-      case "sleep": {
-        const turns = barrel.enhanced ? SLEEP_BARREL_OPEN_TURNS + 1 : SLEEP_BARREL_OPEN_TURNS;
-        for (const other of this.floor.actors) {
-          if (!other.alive || other.kind !== "monster") continue;
-          if (chebyshev(barrel.pos, other.pos) > 1) continue;
-          addStatus(this.effectContext(events), other, STATUS_SLEEP, turns, "眠ってしまった");
-        }
-        return;
-      }
-      case "empty":
-        return;
     }
   }
 

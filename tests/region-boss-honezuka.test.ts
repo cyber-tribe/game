@@ -7,7 +7,7 @@ import { REGION_BOSS_ORDER, speciesById } from "../src/entities/species";
 import { Game } from "../src/game";
 import { REGION_DUNGEON_IDS, REGION_SIZE } from "../src/entities/dungeons";
 const bossRegionDungeonId = REGION_DUNGEON_IDS[3]!;
-import { access } from "./helpers/access";
+import { access, explode } from "./helpers/access";
 import { makeEmptyFloor } from "./helpers/floor";
 
 function bossActor(overrides: Partial<MonsterActor> = {}): MonsterActor {
@@ -180,9 +180,8 @@ describe("game.ts: ばくはつタルで大技(予兆)を解除する", () => {
     boss.telegraphCharge = true;
     boss.telegraphCooldown = 5;
 
-    const explode = access(game).explode.bind(game);
     const events: { type: string; text?: string }[] = [];
-    explode(boss.pos, events);
+    explode(game, boss.pos, events);
 
     expect(boss.telegraphCharge).toBe(false);
     expect(events.some((e) => e.type === "message" && e.text === "大技の気配が霧散した!")).toBe(true);

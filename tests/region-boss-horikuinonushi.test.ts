@@ -7,7 +7,7 @@ import { REGION_BOSS_ORDER, speciesById } from "../src/entities/species";
 import { Game } from "../src/game";
 import { REGION_DUNGEON_IDS, REGION_SIZE } from "../src/entities/dungeons";
 const bossRegionDungeonId = REGION_DUNGEON_IDS[7]!;
-import { access } from "./helpers/access";
+import { access, explode } from "./helpers/access";
 import { makeEmptyFloor } from "./helpers/floor";
 
 function bossActor(overrides: Partial<MonsterActor> = {}): MonsterActor {
@@ -217,9 +217,8 @@ describe("game.ts: ばくはつタルで大技(予兆)を解除すると、crack
     const tile = game.floor.tiles[warnedPos.y * game.floor.width + warnedPos.x]!;
     tile.crackWarning = true;
 
-    const explode = access(game).explode.bind(game);
     const events: { type: string; text?: string }[] = [];
-    explode(boss.pos, events);
+    explode(game, boss.pos, events);
 
     expect(boss.telegraphCharge).toBe(false);
     expect(tile.crackWarning).toBe(false);
