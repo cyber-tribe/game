@@ -159,6 +159,8 @@ import {
 } from "./items/inventory";
 import { attackOffsets } from "./domain/combat/attackPattern";
 import { computeDamage } from "./domain/combat/damageCalculation";
+import { resolveAttackModifiers } from "./domain/combat/criticalHit";
+import { tryEvade } from "./domain/combat/evasion";
 import { BOSS_MOVES, SPORE_SLEEP_CHANCE, SPORE_SLEEP_TURNS, type BossMoveContext } from "./systems/bossMoves";
 
 /** 双樽鉤(quickSingle)の会心率の上乗せ分 */
@@ -432,8 +434,6 @@ const BRACED_DAMAGE_MULTIPLIER = 2;
 /** すてみ: 与ダメージ・被ダメージの倍率(常時) */
 const ALL_IN_DAMAGE_MULTIPLIER = 1.5;
 const ALL_IN_TAKEN_MULTIPLIER = 1.25;
-/** とどめのさき: 対象のHP割合がこれ以下なら強制会心 */
-const FINISHER_HP_RATIO = 0.25;
 /** かばいあい: 身代わりが発動する確率 */
 const MUTUAL_GUARD_CHANCE = 0.4;
 /** はげましの声: 仲間のゆめわざクールダウンの倍率 */
@@ -2956,8 +2956,15 @@ export class Game {
       events.push({ type: "tutorialTip", id: "weakenThenThrow" });
     }
 
-    const { forceCrit, ambushStrike } = this.resolveAttackModifiers(attacker, target, events);
-    if (this.tryEvade(target, events)) return;
+    const { forceCrit, ambushStrike } = resolveAttackModifiers({
+      attacker,
+      target,
+      events,
+      runSkills: this.runSkills,
+      playerInventory: this.player.inventory,
+      oncePerRun: this.oncePerRun,
+    });
+    if (tryEvade(this.rng, target, events)) return;
 
     // ゆめわざ「かたやぶり」(plan/game/archive/companion-leveling-and-arts.md):
     // 消費型の自己強化なので、使ったらここで1回だけ効かせて消す
@@ -3012,53 +3019,6 @@ export class Game {
   }
 
   /**
-   * attackの前半: 会心を強制するかどうかに関わる特技・状態を判定し、
-   * 消費が必要なもの(1ラン1回・予兆的中で解除するもの)はここで消費する。
-   * ambushStrike(ダメージ+50%)は会心強制には関わらないが、同じタイミングで
-   * 消費判定するため、呼び出し側の実効威力計算に使えるよう一緒に返す
-   */
-  private resolveAttackModifiers(
-    attacker: Actor,
-    target: Actor,
-    events: GameEvent[],
-  ): { forceCrit: boolean; ambushStrike: boolean } {
-    // 不意打ち: まだ気づいていないモンスターへの攻撃は必ず会心になる
-    const sneakAttack = target.kind === "monster" && !target.aware;
-    if (sneakAttack) events.push({ type: "message", text: "不意打ち!" });
-
-    // 特技「ふいうち」(plan/monster-fusion.md)、またはガジリねずみの印
-    // (plan/equipment-forging.md): そのダイブで最初の1手は必ず会心
-    const hasQuickStartEffect =
-      (attacker.kind === "ally" && hasSkill(attacker, "quickStart")) ||
-      (attacker.kind === "player" && hasEquipEffect(this.player.inventory, "quickStrike"));
-    const quickStart = hasQuickStartEffect && !this.oncePerRun.hasUsed("quickStart", attacker.id);
-    if (hasQuickStartEffect) this.oncePerRun.markUsed("quickStart", attacker.id);
-
-    // ambush・mimic AI(plan/monster-compendium.md): 隣接されるまで潜んでいた
-    // モンスターが、気づいた直後の1撃で会心になる(ambushReadyを持てるのはmonster/allyだけ)
-    const ambushSurprise = attacker.kind === "monster" || attacker.kind === "ally" ? attacker.ambushReady === true : false;
-    if (attacker.kind === "monster" || attacker.kind === "ally") {
-      if (attacker.ambushReady) attacker.ambushReady = false;
-    }
-
-    // 特技「ふいのいちげき」(ambushStrike、plan/monster-compendium.md):
-    // そのランの最初の1撃のダメージ+50%
-    const hasAmbushStrikeEffect = attacker.kind === "ally" && hasSkill(attacker, "ambushStrike");
-    const ambushStrike = hasAmbushStrikeEffect && !this.oncePerRun.hasUsed("ambushStrike", attacker.id);
-    if (hasAmbushStrikeEffect) this.oncePerRun.markUsed("ambushStrike", attacker.id);
-
-    // スキル「とどめのさき」(plan/game/archive/run-build-skills.md):
-    // HP1/4以下の敵への攻撃が必ず急所に当たる
-    const finisherCrit =
-      attacker.kind === "player" &&
-      this.runSkills.includes("finisher") &&
-      target.maxHp > 0 &&
-      target.hp / target.maxHp <= FINISHER_HP_RATIO;
-
-    return { forceCrit: sneakAttack || quickStart || ambushSurprise || finisherCrit, ambushStrike };
-  }
-
-  /**
    * スキル「かばいあい」(plan/game/archive/run-build-skills.md): 隣接する
    * 仲間・自分への攻撃を、確率でどちらかが代わりに受ける。ダメージ計算より
    * 前(防御力を確定する前)に対象を差し替えるので、身代わり側の防御力で
@@ -3074,20 +3034,6 @@ export class Game {
     if (!coverer) return null;
     events.push({ type: "message", text: `${displayActorName(coverer)}が身代わりになった!` });
     return coverer;
-  }
-
-  /**
-   * 地方ごとの成熟系統(plan/companion-evolution-expansion.md): かすみウツボは
-   * 確率で攻撃をまるごと回避する。回避した場合はtrueを返し、呼び出し側は
-   * ダメージ計算そのものをスキップする
-   */
-  private tryEvade(target: Actor, events: GameEvent[]): boolean {
-    const targetSpeciesId = target.kind === "monster" || target.kind === "ally" ? target.speciesId : undefined;
-    const evadeChance = targetSpeciesId ? speciesById(targetSpeciesId).evadeChance ?? 0 : 0;
-    if (evadeChance <= 0 || !this.rng.chance(evadeChance)) return false;
-    events.push({ type: "message", text: `${displayActorName(target)}はひらりと攻撃をかわした!` });
-    if (target.kind === "monster") target.aware = true;
-    return true;
   }
 
   /**
