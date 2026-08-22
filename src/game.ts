@@ -9,7 +9,6 @@ import {
   dirDelta,
   dirFromDelta,
   eq,
-  isDiagonal,
 } from "./core/grid";
 import type { GameEvent } from "./core/events";
 import {
@@ -22,7 +21,6 @@ import {
   type AllyStance,
   type Barrel,
   type BarrelKind,
-  type FieldSkillId,
   type FloorGimmickKind,
   type FloorState,
   type Item,
@@ -32,7 +30,6 @@ import {
   type TargetActor,
   type Tile,
   type WeaponPattern,
-  TILE_CORRIDOR,
   TILE_ROOM,
   TILE_WALL,
   actorAt,
@@ -42,7 +39,6 @@ import {
   hpOwnerOf,
   isHostile,
   roomContains,
-  tileAt,
   walkableAt,
 } from "./core/types";
 import { type ArtId } from "./entities/arts";
@@ -69,7 +65,6 @@ import { DEFAULT_MOOD_ID, type MoodDef, type MoodId, moodDef } from "./entities/
 import type { StoredMonster } from "./entities/storedMonster";
 import { isVisible, updateVisibility } from "./domain/dungeon/visibility";
 import type { DifficultyMode } from "./entities/difficulty";
-import { HOKORA_DUST_DEF_ID, MARK_STONE_DEF_ID, MARKS } from "./entities/forging";
 import { sellPrice } from "./entities/shop";
 import {
   MAX_ALLIES,
@@ -79,7 +74,6 @@ import {
   createPlayer,
   totalAttack,
 } from "./entities/player";
-import { speciesById } from "./entities/species";
 import { type BondStage, bondStage } from "./entities/companionBond";
 import { HONOKA_NA_AKARI_VISION_EXTRA, type DreamArtContext } from "./domain/party/dreamArtEffects";
 import { itemDef } from "./entities/itemCatalog";
@@ -130,7 +124,8 @@ import {
 import type { BossMoveContext } from "./domain/dungeon/bossMoves";
 import { damageActor as domainDamageActor, killActor as domainKillActor } from "./domain/turn/damage";
 import { attack as domainAttack } from "./domain/turn/attackResolution";
-import { applyTorrentPush as domainApplyTorrentPush, pushMonster as domainPushMonster } from "./domain/turn/actorActions";
+import { pushMonster as domainPushMonster } from "./domain/turn/actorActions";
+import { movePlayer as domainMovePlayer } from "./domain/turn/movement";
 import { resolveTurn as domainResolveTurn, upkeep as domainUpkeep } from "./domain/turn/turnCycle";
 import {
   createSkillChoiceState,
@@ -383,18 +378,6 @@ const TARUKURABE_TARGETS: readonly TarukurabeTargetLayout[] = [
   { pos: { x: 8, y: 5 }, points: 2 }, // 中(東、距離6)
   { pos: { x: 2, y: 14 }, points: 3 }, // 遠(南、距離9)
 ];
-
-/** アイテムの飛距離 */
-/** 忘れ物蔵(plan/lost-and-found-vault.md)。隠し壁へバンプするたびに崩れる確率 */
-const SECRET_PASSAGE_REVEAL_CHANCE = 0.25;
-
-/** あうんの呼吸(plan/ally-field-gimmicks.md)。障害物の前で表示するヒント文言 */
-const FIELD_SKILL_HINTS: Record<FieldSkillId, string> = {
-  break: "力持ちの",
-  squeeze: "すばしっこい",
-  leap: "跳べる",
-  dig: "掘れる",
-};
 
 /**
  * 武器の系統id(plan/challenge-achievements.md)。基本形・上位形は同じ
@@ -1634,98 +1617,19 @@ export class Game {
 
 
   private movePlayer(dir: Dir, events: GameEvent[]): boolean {
-    const player = this.player;
-    const delta = dirDelta(dir);
-    const to = { x: player.pos.x + delta.x, y: player.pos.y + delta.y };
-
-    const target = actorAt(this.floor, to);
-    if (target && target.id !== player.id) {
-      if (isHostile(player, target)) {
-        return this.pushMonster(dir, target, events);
-      }
-      // 仲間とは位置を入れ替える。通せんぼで足止めされては連れ歩けない
-      const from = player.pos;
-      player.pos = to;
-      target.pos = from;
-      events.push({ type: "swap", aId: player.id, bId: target.id });
-      return true;
-    }
-
-    // 忘れ物蔵(plan/lost-and-found-vault.md)の隠し通路。壁の姿のまま
-    // バンプするたびに確率で崩れて通路になる。無関係な壁は素通り扱い
-    const secretPassage = this.floor.secretPassages.find((s) => eq(s.pos, to));
-    if (secretPassage && !walkableAt(this.floor, to)) {
-      events.push({ type: "bump", actorId: player.id, dir: delta });
-      if (this.rng.chance(SECRET_PASSAGE_REVEAL_CHANCE)) {
-        const tile = tileAt(this.floor, to);
-        if (tile) tile.kind = TILE_CORRIDOR;
-        events.push({ type: "message", text: "壁が崩れ、道ができた!" });
-        events.push({ type: "secretPassageFound", regionId: secretPassage.regionId });
-      } else {
-        events.push({ type: "message", text: "壁を崩せそうな手ごたえがあった……" });
-      }
-      return false;
-    }
-
-    if (!walkableAt(this.floor, to)) {
-      events.push({ type: "bump", actorId: player.id, dir: delta });
-      return false;
-    }
-
-    // タルは押しのけられない。持ち上げるか、回り込む
-    if (barrelAt(this.floor, to)) {
-      events.push({ type: "bump", actorId: player.id, dir: delta });
-      events.push({ type: "message", text: "タルが道をふさいでいる。" });
-      return false;
-    }
-    // あうんの呼吸(plan/ally-field-gimmicks.md): 対応する性質を持つ仲間を
-    // 連れていなければ通れない。連れていれば自動的に道が開く
-    const obstacle = this.floor.fieldObstacles.find((o) => !o.opened && eq(o.pos, to));
-    if (obstacle) {
-      const helper = this.allies.find(
-        (a) => a.alive && a.speciesId !== undefined && speciesById(a.speciesId).fieldSkill === obstacle.requires,
-      );
-      if (!helper) {
-        events.push({ type: "bump", actorId: player.id, dir: delta });
-        events.push({
-          type: "message",
-          text: `${FIELD_SKILL_HINTS[obstacle.requires]}仲間となら、ここを越えられそうだ。`,
-        });
-        return false;
-      }
-      obstacle.opened = true;
-      const materialIds = [HOKORA_DUST_DEF_ID, ...MARKS.map((m) => MARK_STONE_DEF_ID[m.id])];
-      const defId = this.rng.pick(materialIds);
-      this.floor.items.push({ item: createItem(this.ids.nextItemUid(), defId), pos: { ...obstacle.pos } });
-      events.push({
-        type: "message",
-        text: `${displayActorName(helper)}の力を借りて、道を切り開いた!`,
-      });
-    }
-    // 斜めの角抜けは禁止
-    if (isDiagonal(dir)) {
-      if (!walkableAt(this.floor, { x: player.pos.x, y: to.y })) {
-        events.push({ type: "bump", actorId: player.id, dir: delta });
-        return false;
-      }
-      if (!walkableAt(this.floor, { x: to.x, y: player.pos.y })) {
-        events.push({ type: "bump", actorId: player.id, dir: delta });
-        return false;
-      }
-    }
-
-    const from = player.pos;
-    player.pos = to;
-    events.push({ type: "move", actorId: player.id, from, to });
-    const landed = this.applyTorrentPush(player, events);
-
-    this.checkTrap(landed, events);
-    this.collectGold(landed, events);
-    this.checkShoplifting(from, landed, events);
-    this.announceGround(landed, events);
-    this.checkMonsterHouseWarning(landed, events);
-    this.checkSecretPassageHint(landed, events);
-    return true;
+    return domainMovePlayer(dir, events, {
+      player: this.player,
+      floor: this.floor,
+      rng: this.rng,
+      allies: this.allies,
+      ids: this.ids,
+      checkTrap: (pos, evts) => this.checkTrap(pos, evts),
+      collectGold: (pos, evts) => this.collectGold(pos, evts),
+      checkShoplifting: (from, to, evts) => this.checkShoplifting(from, to, evts),
+      announceGround: (pos, evts) => this.announceGround(pos, evts),
+      checkMonsterHouseWarning: (pos, evts) => this.checkMonsterHouseWarning(pos, evts),
+      checkSecretPassageHint: (pos, evts) => this.checkSecretPassageHint(pos, evts),
+    });
   }
 
   /**
@@ -2158,15 +2062,6 @@ export class Game {
         this.turnCount++;
       },
     });
-  }
-
-  /**
-   * 第五地方(なみだの滝つぼ)固有ギミック(plan/waterfall-torrent.md): 奔流タイルへ
-   * 移動すると、その向きへ連鎖的に押し流される(最大4マス)。壁・他アクター・タルが
-   * あれば手前で止まる。プレイヤー・仲間・モンスターの移動処理の末尾で共通に呼ぶ
-   */
-  private applyTorrentPush(actor: Actor, events: GameEvent[]): Vec2 {
-    return domainApplyTorrentPush(this.floor, actor, events);
   }
 
   // ------------------------------------------------------------ 毎ターンの処理
