@@ -534,11 +534,18 @@ export class VillageView {
   private costumeTint: readonly [number, number, number] | null = null;
   private pos: VillagePos = { ...VILLAGE_PLAYER_START };
   /**
-   * 追従カメラのヨー(ラジアン、0のとき主人公の南=画面手前にいる。
-   * これは旧来の俯瞰カメラの位置(pos.z+7)と同じ側なので、静止時の
-   * 見た目は変えていない)。移動した向きへ`update()`が滑らかに寄せる
+   * カメラのヨー(ラジアン、0のとき主人公の南=画面手前にいて、山(北)を
+   * 正面に見る。これは旧来の俯瞰カメラの位置(pos.z+7)と同じ側なので、
+   * 静止時の見た目は変えていない)。
+   *
+   * plan/models/village-camera-manual-rotate.mdにより、移動しても
+   * 勝手には変わらない(自動追従は廃止した)。`rotate()`(Q/E・
+   * 二本指回転、ダンジョンと同じ操作)でのみ90度単位の`targetYaw`が
+   * 動き、`yaw`はそこへ指数補間で滑らかに寄っていく
+   * (renderer.tsのyaw補間と同じ考え方)
    */
   private cameraYaw = 0;
+  private targetYaw = 0;
   /**
    * 屋外に立っている村人(plan/game/village-interiors.md)。モデルは
    * 起動時には読まれない(`essentialModelNames`に入っていない)ので、
@@ -647,6 +654,7 @@ export class VillageView {
   reset(): void {
     this.pos = { ...VILLAGE_PLAYER_START };
     this.cameraYaw = 0;
+    this.targetYaw = 0;
     this.applyCameraTransform();
     this.playerMesh.position.set(this.pos.x, 0.75, this.pos.z);
     this.ensurePlayerView();
@@ -764,15 +772,14 @@ export class VillageView {
   }
 
   /**
-   * 押されている方向に応じて歩かせる。`dir`は`Input.direction()`をそのまま渡す。
+   * 押されている方向に応じて歩かせる。`dir`は`Input.direction()`をそのまま渡す
+   * (村の`cameraQuadrant`で補正済みの、画面基準の入力)。
    *
-   * plan/models/village-scene-redesign.mdは入力もカメラ基準で解釈する方針を
-   * 挙げているが、これは見送った。`tools/playtest.mjs`の
-   * `walkToBuildingAndEnter`をはじめ、ワールド基準の方角(矢印キー=常に
-   * ワールドのその方角)を前提にした自動操作が複数あり、カメラが回り込んだ
-   * あとに世界の方角と画面の方角がずれると、狙った建物に正しく歩けなく
-   * なることを確認した(#758の実機での通しプレイで検出)。移動そのものは
-   * 引き続きワールド基準のまま、カメラだけが向いた方向を追いかける
+   * カメラの向きは`rotate()`を明示的に呼ばない限り変わらない
+   * (plan/models/village-camera-manual-rotate.md)。旧
+   * `village-scene-redesign.md`が挙げていた「移動方向へ自動で回り込む」
+   * 追従は、実機で向きが安定しないと分かったため廃止した。位置の追従
+   * (プレイヤーの後方に付いていく動き)だけは変わらず残っている
    */
   update(dt: number, dir: Dir | null): void {
     const before = this.pos;
@@ -785,13 +792,9 @@ export class VillageView {
     const dz = this.pos.z - before.z;
     const moving = dx !== 0 || dz !== 0;
 
-    // カメラは実際に動いた向きの後ろへ滑らかに回り込む(plan/models/
-    // village-scene-redesign.mdの「追従」)。止まっている間は最後の
-    // 向きのまま保つ(勝手に正面へ戻ったりしない)
-    if (moving) {
-      const desiredYaw = Math.atan2(-dx, -dz);
-      this.cameraYaw += shortestAngleDelta(this.cameraYaw, desiredYaw) * (1 - Math.exp(-dt * VILLAGE_CAMERA_YAW_SMOOTHING));
-    }
+    // カメラのヨーはrotate()が動かしたtargetYawへ滑らかに寄っていくだけ
+    // (renderer.tsのyaw補間と同じ考え方)。移動しても勝手には変わらない
+    this.cameraYaw += shortestAngleDelta(this.cameraYaw, this.targetYaw) * (1 - Math.exp(-dt * VILLAGE_CAMERA_YAW_SMOOTHING));
     this.applyCameraTransform();
     this.updateBuildingOcclusion();
 
@@ -810,6 +813,25 @@ export class VillageView {
   /** 確定キーで入れる建物があれば返す */
   nearBuilding(): VillageBuilding | null {
     return nearestVillageBuilding(this.pos);
+  }
+
+  /**
+   * カメラを90度単位で回す(plan/models/village-camera-manual-rotate.md、
+   * ダンジョンの`Renderer.rotate`と同じ操作・同じ考え方)。Q/E・二本指回転が
+   * ここへ届く(`main.ts`の`handleGlobalAction`参照)
+   */
+  rotate(steps: number): void {
+    this.targetYaw += (Math.PI / 2) * steps;
+  }
+
+  /**
+   * カメラの向きを90度単位で表した値(0〜3)。`Input.cameraQuadrant`に
+   * そのまま渡し、画面基準の移動入力をワールドの方角へ直すのに使う
+   * (`Renderer.cameraQuadrant`と同じ役割・同じ実装)
+   */
+  get cameraQuadrant(): number {
+    const steps = Math.round(this.targetYaw / (Math.PI / 2));
+    return ((steps % 4) + 4) % 4;
   }
 
   setAspect(aspect: number): void {
