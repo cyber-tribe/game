@@ -8,13 +8,12 @@ import type { OncePerRunTracker } from "../../core/oncePerRunTracker";
 import type { Inventory } from "../../items/inventory";
 import { hasEquipEffect } from "../../items/inventory";
 import type { PlayerState, TrainingFocus } from "../../entities/player";
-import { gainExp } from "../../entities/player";
 import { hasSkill } from "../../entities/skills";
 import { HAJIME_NO_YUME_ID, speciesById } from "../../entities/species";
 import { HOKORA_DUST_DEF_ID, MARKS, MARK_STONE_DEF_ID } from "../../entities/forging";
 import { rollBossTreasure } from "../../entities/bossTreasure";
 import { displayActorName } from "../../entities/naming";
-import { t } from "../../i18n";
+import { gainPlayerExpFromKill } from "../player/leveling";
 
 /** ねぎらい: 敵を倒すたびの仲間の回復量 */
 const APPRECIATION_HEAL_AMOUNT = 1;
@@ -227,16 +226,7 @@ export function killActor(args: KillActorArgs): void {
   }
   const exp = target.exp ?? 0;
   if (exp > 0) {
-    const levels = gainExp(player, exp, trainingFocus);
-    events.push({ type: "message", text: t("msg.expGained", { exp }) });
-    for (let i = 0; i < levels; i++) {
-      events.push({ type: "levelUp", actorId: player.id, level: player.level });
-      events.push({ type: "message", text: t("msg.levelUp", { level: player.level }) });
-    }
-    if (levels > 0) {
-      events.push({ type: "tutorialTip", id: "levelUp" });
-      onLevelUp(levels);
-    }
+    gainPlayerExpFromKill({ player, exp, trainingFocus, events, onLevelUp });
     // 仲間の経験値・レベルアップ(plan/game/archive/companion-leveling-and-arts.md):
     // ガルドが得る全量とは別に、生存して連れている仲間全員がそれぞれ50%を得る
     // (頭割りにしない。複数連れのパーティが不利にならないように)

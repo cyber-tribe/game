@@ -54,9 +54,9 @@ describe("game.ts: ボスの間の階段(plan/game/dungeon-boss-rooms.md)", () =
     // ボスの高い経験値でレベルアップし、run-build-skills.mdの3択提示が
     // 出ていることがある。提示中は他のコマンドを受け付けないため、
     // descendを試す前に解消しておく
-    const internals = game as unknown as { pendingSkillChoice: string[] | null };
-    while (internals.pendingSkillChoice) {
-      game.command({ type: "chooseSkill", id: internals.pendingSkillChoice[0] as never });
+    const pending = () => access(game).skillChoiceState.pendingSkillChoice;
+    while (pending()) {
+      game.command({ type: "chooseSkill", id: pending()![0] as never });
     }
 
     game.player.pos = { ...game.floor.stairs };
