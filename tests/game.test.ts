@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Game } from "../src/game";
 import { Rng } from "../src/core/rng";
-import { computeDamage } from "../src/systems/combat";
+import { computeDamage } from "../src/domain/combat/damageCalculation";
 import { MAX_LEVEL, createPlayer, expForLevel, gainExp, totalAttack } from "../src/entities/player";
 import { addItem, createInventory, equip, weaponBonus } from "../src/items/inventory";
 import { createItem } from "../src/dungeon/populate";

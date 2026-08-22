@@ -157,7 +157,8 @@ import {
   isFull,
   removeItem,
 } from "./items/inventory";
-import { attackOffsets, computeDamage } from "./systems/combat";
+import { attackOffsets } from "./domain/combat/attackPattern";
+import { computeDamage } from "./domain/combat/damageCalculation";
 import { BOSS_MOVES, SPORE_SLEEP_CHANCE, SPORE_SLEEP_TURNS, type BossMoveContext } from "./systems/bossMoves";
 
 /** 双樽鉤(quickSingle)の会心率の上乗せ分 */

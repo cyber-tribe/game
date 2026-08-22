@@ -11,7 +11,8 @@ import {
   type FloorState,
   type Tile,
 } from "../src/core/types";
-import { attackOffsets, computeDamage } from "../src/systems/combat";
+import { attackOffsets } from "../src/domain/combat/attackPattern";
+import { computeDamage } from "../src/domain/combat/damageCalculation";
 import { equip } from "../src/items/inventory";
 import { Game } from "../src/game";
 
