@@ -28,10 +28,7 @@ import {
   type MonsterActor,
   type RunSkillId,
   type TargetActor,
-  type Tile,
   type WeaponPattern,
-  TILE_ROOM,
-  TILE_WALL,
   actorAt,
   barrelAt,
   freeSpotNear,
@@ -65,7 +62,6 @@ import { DEFAULT_MOOD_ID, type MoodDef, type MoodId, moodDef } from "./entities/
 import type { StoredMonster } from "./entities/storedMonster";
 import { isVisible, updateVisibility } from "./domain/dungeon/visibility";
 import type { DifficultyMode } from "./entities/difficulty";
-import { sellPrice } from "./entities/shop";
 import {
   MAX_ALLIES,
   MAX_SATIETY,
@@ -126,6 +122,17 @@ import { damageActor as domainDamageActor, killActor as domainKillActor } from "
 import { attack as domainAttack } from "./domain/turn/attackResolution";
 import { pushMonster as domainPushMonster } from "./domain/turn/actorActions";
 import { movePlayer as domainMovePlayer } from "./domain/turn/movement";
+import {
+  type TarukurabeContext,
+  enterTarukurabeFloor as domainEnterTarukurabeFloor,
+  finishTarukurabeThrow as domainFinishTarukurabeThrow,
+  resolveTarukurabeHit as domainResolveTarukurabeHit,
+} from "./domain/tarukurabe/tarukurabe";
+import {
+  type ShopContext,
+  checkShoplifting as domainCheckShoplifting,
+  sellItem as domainSellItem,
+} from "./domain/dungeon/shop";
 import { resolveTurn as domainResolveTurn, upkeep as domainUpkeep } from "./domain/turn/turnCycle";
 import {
   createSkillChoiceState,
@@ -343,41 +350,12 @@ const LIGHT_BARREL_OPEN_VISION = 2;
 /** 頭上に持つ(光タル): 視界+2(ほのかなあかり等と同じ単純加算) */
 const LIGHT_BARREL_CARRY_VISION_BONUS = 2;
 // ---- plan/tarukurabe-minigame.md ----
-/** 持ち込めるタルの数(固定10個)。専用モード内で完結し、通常の倉庫は消費しない */
-const TARUKURABE_BARREL_COUNT = 10;
 /**
  * 遠の的(距離9)は通常のBARREL_RANGE(8)より遠いため、専用モードだけ
  * タルの飛距離を伸ばす(他のダイブの投擲距離には一切影響しない)
  */
 const TARUKURABE_THROW_RANGE = 9;
 export { TARUKURABE_PERFECT_SCORE };
-
-interface TarukurabeTargetLayout {
-  /** 部屋のローカル座標(プレイヤーの投擲台を基準にした相対値ではなく絶対値) */
-  pos: Vec2;
-  points: number;
-}
-
-/**
- * 樽比べの部屋。既存の乱数生成(generateFloor)は使わず、山の芯・真の目覚めの
- * 「短い固定進行」の方針をさらに一歩進めて、手作りの固定Floorを直接組み立てる
- * (座標を毎回同じにすることで「自己ベストを縮める」比較が成立する、という
- * 計画書の要件を、生成パラメータの調整ではなく確実に満たすため)。
- *
- * プレイヤーは部屋中央寄りの投擲台(TARUKURABE_PLAYER_POS)に立ち、以後移動
- * できない。的は北(近・距離3)・東(中・距離6)・南(遠・距離9)の3方向に
- * 1つずつ配置する。「大きい的ほど命中判定のマス数が広い」という計画書の
- * 表現は、この投擲(8方向・1マス単位の直線)の仕組みでは的の物理的な広さを
- * 増やす手段が無いため、距離と配点だけで難度カーブを表現する簡略化とした
- */
-const TARUKURABE_ROOM_WIDTH = 11;
-const TARUKURABE_ROOM_HEIGHT = 17;
-const TARUKURABE_PLAYER_POS: Vec2 = { x: 2, y: 5 };
-const TARUKURABE_TARGETS: readonly TarukurabeTargetLayout[] = [
-  { pos: { x: 2, y: 2 }, points: 1 }, // 近(北、距離3)
-  { pos: { x: 8, y: 5 }, points: 2 }, // 中(東、距離6)
-  { pos: { x: 2, y: 14 }, points: 3 }, // 遠(南、距離9)
-];
 
 /**
  * 武器の系統id(plan/challenge-achievements.md)。基本形・上位形は同じ
@@ -777,79 +755,35 @@ export class Game {
    * 配置にするため)。仲間・持ち込み品は盤面に出さない(専用モードは常にソロ)
    */
   private enterTarukurabeFloor(): void {
-    const width = TARUKURABE_ROOM_WIDTH;
-    const height = TARUKURABE_ROOM_HEIGHT;
-    const tiles: Tile[] = [];
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        const isWall = x === 0 || y === 0 || x === width - 1 || y === height - 1;
-        tiles.push({
-          kind: isWall ? TILE_WALL : TILE_ROOM,
-          roomId: isWall ? -1 : 0,
-          explored: false,
-          visible: false,
-        });
-      }
-    }
-
-    this.floor = {
+    const result = domainEnterTarukurabeFloor({
       depth: this.depth,
-      width,
-      height,
-      tiles,
-      rooms: [{ id: 0, x: 1, y: 1, w: width - 2, h: height - 2 }],
-      // 投擲台から動けないため、実際には誰も踏まない位置(降りる/区切るコマンドは
-      // 「ここには階段がない」で無害に弾かれる)
-      stairs: { x: width - 2, y: height - 2 },
-      actors: [],
-      items: [],
-      traps: [],
-      barrels: [],
-      goldPiles: [],
-      fieldObstacles: [],
-      secretPassages: [],
-    };
-
-    this.player.pos = { ...TARUKURABE_PLAYER_POS };
-    this.player.facing = 0; // 北(近の的)を向いて開始
-    this.player.carrying = null;
-    this.floor.actors.push(this.player);
-
-    for (const target of TARUKURABE_TARGETS) {
-      this.floor.actors.push({
-        id: this.ids.nextActorId(),
-        kind: "target",
-        name: "的",
-        // 専用の3Dモデルは新規に作らず、既存の空樽モデルを的として流用する
-        // (BarrelKindのempty用modelと同じ"barrel"。BARREL_MODELS定数は
-        // modelList.ts側にのみ定義されているため、ここでは直接値を書く)
-        model: "barrel",
-        pos: { ...target.pos },
-        facing: 0,
-        hp: 1,
-        maxHp: 1,
-        atk: 0,
-        def: 0,
-        level: 1,
-        statuses: [],
-        alive: true,
-        tarukurabePoints: target.points,
-      });
-    }
-
-    this.tarukurabeScore = 0;
-    this.tarukurabeBarrelsLeft = TARUKURABE_BARREL_COUNT;
-    this.tarukurabeScoredLanes.clear();
-    this.spawnTarukurabeBarrel();
-
-    updateVisibility(this.floor, this.player.pos, this.visionExtraRange());
+      ids: this.ids,
+      player: this.player,
+      scoredLanes: this.tarukurabeScoredLanes,
+      visionExtraRange: () => this.visionExtraRange(),
+    });
+    this.floor = result.floor;
+    this.tarukurabeScore = result.tarukurabeScore;
+    this.tarukurabeBarrelsLeft = result.tarukurabeBarrelsLeft;
   }
 
-  /** 樽比べ専用: 投擲台(プレイヤーの足元)に次の1個を供給する */
-  private spawnTarukurabeBarrel(): void {
-    this.floor.barrels.push(
-      createBarrel(this.ids.nextBarrelId(), "empty", { ...this.player.pos }),
-    );
+  /** resolveTarukurabeHit/finishTarukurabeThrow(domain/tarukurabe/tarukurabe.ts)に渡す、narrowなGameアクセス */
+  private tarukurabeContext(): TarukurabeContext {
+    return {
+      floor: this.floor,
+      player: this.player,
+      ids: this.ids,
+      getScore: () => this.tarukurabeScore,
+      setScore: (score) => {
+        this.tarukurabeScore = score;
+      },
+      getBarrelsLeft: () => this.tarukurabeBarrelsLeft,
+      setBarrelsLeft: (n) => {
+        this.tarukurabeBarrelsLeft = n;
+      },
+      scoredLanes: this.tarukurabeScoredLanes,
+      completeRun: (reason, events) => this.completeRun(reason, events),
+    };
   }
 
   /**
@@ -1572,15 +1506,7 @@ export class Game {
    * ため通常は再度ここへ来ないが、念のためのガードとして残す)
    */
   private resolveTarukurabeHit(hit: TargetActor, events: GameEvent[]): void {
-    const points = hit.tarukurabePoints ?? 0;
-    if (this.tarukurabeScoredLanes.has(points)) return;
-    this.tarukurabeScoredLanes.add(points);
-    this.tarukurabeScore += points;
-    hit.alive = false;
-    events.push({
-      type: "message",
-      text: `的に命中! ${points}点(合計${this.tarukurabeScore}点)。`,
-    });
+    domainResolveTarukurabeHit(hit, events, this.tarukurabeContext());
   }
 
   /**
@@ -1589,17 +1515,7 @@ export class Game {
    * 専用モードを終了する。満たしていなければ次の1個を投擲台に供給する
    */
   private finishTarukurabeThrow(events: GameEvent[]): void {
-    this.tarukurabeBarrelsLeft--;
-    const allTargetsHit = this.tarukurabeScoredLanes.size >= TARUKURABE_TARGETS.length;
-    if (!allTargetsHit && this.tarukurabeBarrelsLeft > 0) {
-      this.spawnTarukurabeBarrel();
-      return;
-    }
-    this.status = "cleared";
-    this.endReason = `樽比べ終了! 合計${this.tarukurabeScore}点。`;
-    events.push({ type: "tarukurabeFinished", score: this.tarukurabeScore });
-    events.push({ type: "message", text: this.endReason });
-    events.push({ type: "gameOver", reason: this.endReason });
+    domainFinishTarukurabeThrow(events, this.tarukurabeContext());
   }
 
   /** 中身入りのタルを開けて、モンスターを仲間として盤面に出す */
@@ -1656,24 +1572,20 @@ export class Game {
     domainCollectGold(this.floor, this.player, pos, events);
   }
 
-  /**
-   * 近道屋の出店(plan/shops-and-thieves.md)。未払いのまま持ち出した品を
-   * 持ったまま部屋の外へ出ると万引き扱いになり、店主が豹変する。
-   * 以後そのラン中は、新しく出会う出店すべてが最初から警戒状態(割高)になる
-   */
-  private checkShoplifting(from: Vec2, to: Vec2, events: GameEvent[]): void {
-    const shopRoom = this.floor.rooms.find((r) => r.kind === "shop");
-    if (!shopRoom || !roomContains(shopRoom, from) || roomContains(shopRoom, to)) return;
-    const hasUnpaid = this.player.inventory.items.some((i) => i.unpaid);
-    if (!hasUnpaid) return;
+  /** checkShoplifting/sellItem(domain/dungeon/shop.ts)に渡す、narrowなGameアクセス */
+  private shopContext(): ShopContext {
+    return {
+      floor: this.floor,
+      player: this.player,
+      getShopWary: () => this.shopWary,
+      setShopWary: (wary) => {
+        this.shopWary = wary;
+      },
+    };
+  }
 
-    for (const item of this.player.inventory.items) item.unpaid = false;
-    this.shopWary = true;
-    const keeper = this.floor.actors.find(
-      (a): a is MonsterActor => a.alive && a.kind === "monster" && a.aiKind === "shopkeeper" && roomContains(shopRoom, a.pos),
-    );
-    if (keeper) keeper.angry = true;
-    events.push({ type: "message", text: "万引きだ! 店主が豹変した!" });
+  private checkShoplifting(from: Vec2, to: Vec2, events: GameEvent[]): void {
+    domainCheckShoplifting(from, to, events, this.shopContext());
   }
 
   private announceGround(pos: Vec2, events: GameEvent[]): void {
@@ -2007,13 +1919,7 @@ export class Game {
 
   /** 店の部屋で「置く」を使うと売却になる(plan/item-selling.md) */
   private sellItem(uid: number, events: GameEvent[]): boolean {
-    const item = removeItem(this.player.inventory, uid);
-    if (!item) return false;
-    const def = itemDef(item.defId);
-    const price = sellPrice(def, item, this.shopWary);
-    this.player.gold += price;
-    events.push({ type: "message", text: `${def.name}を${price}ゴールドで売った。` });
-    return true;
+    return domainSellItem(uid, events, this.shopContext());
   }
 
   // ------------------------------------------------------------ 罠
