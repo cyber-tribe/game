@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { Game } from "../src/game";
 import { Rng } from "../src/core/rng";
-import type { Dir } from "../src/core/grid";
 import { generateFloor } from "../src/dungeon/generate";
 import { placeTorrentTiles } from "../src/dungeon/populate";
 import { TILE_ROOM, TILE_WALL, roomContains, type Actor } from "../src/core/types";
 import { REGION_DUNGEON_IDS } from "../src/entities/dungeons";
+import { moveActor as moveActorVia } from "./helpers/access";
 
 const region4 = REGION_DUNGEON_IDS[3]!;
 const region5 = REGION_DUNGEON_IDS[4]!;
@@ -191,11 +191,8 @@ describe("game.ts: 奔流タイルへ移動すると押し流される(applyTorr
     };
     game.floor.actors.push(monster);
 
-    const moveActor = (
-      game as unknown as { moveActor: (actor: Actor, dir: Dir, events: unknown[]) => void }
-    ).moveActor.bind(game);
     const events: { type: string; text?: string }[] = [];
-    moveActor(monster, 2, events);
+    moveActorVia(game, monster, 2, events);
 
     expect(monster.pos).toEqual({ x: 5, y });
     // モンスターが流されたことについての専用メッセージは出さない(プレイヤーのみ)

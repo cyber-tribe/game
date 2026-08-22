@@ -13,11 +13,9 @@ import {
 import type { GameEvent } from "./core/events";
 import {
   STATUS_CONFUSE,
-  STATUS_FLINCH,
   STATUS_INVISIBLE,
   STATUS_POISON,
   STATUS_RECOVER,
-  STATUS_ROOT,
   STATUS_SLEEP,
   type Actor,
   type AllyActor,
@@ -100,14 +98,6 @@ import { DEFAULT_MOOD_ID, type MoodDef, type MoodId, moodDef } from "./entities/
 import type { StoredMonster } from "./entities/storedMonster";
 import { isVisible, updateVisibility } from "./dungeon/visibility";
 import {
-  GUARD_COUNTER_BONUS,
-  type MonsterAction,
-  buildDistanceField,
-  canStep,
-  decideAllyAction,
-  decideMonsterAction,
-} from "./entities/ai";
-import {
   GIMMICK_CHANCE_MULTIPLIER,
   GOLD_REWARD_MULTIPLIER,
   MONSTER_ATK_MULTIPLIER,
@@ -124,7 +114,6 @@ import {
   type TrainingFocus,
   createPlayer,
   totalAttack,
-  totalDefense,
 } from "./entities/player";
 import { HAJIME_NO_YUME_ID, REGION_BOSS_ORDER, speciesById } from "./entities/species";
 import { REGIONS, regionByIndex } from "./entities/regions";
@@ -132,7 +121,7 @@ import { type BondStage, bondStage } from "./entities/companionBond";
 import { gainAllyExp } from "./entities/companionGrowth";
 import { dreamArtDef } from "./entities/dreamArts";
 import { rollRunSkillChoices, runSkillDef } from "./entities/runSkills";
-import { DREAM_ART_EFFECTS, HONOKA_NA_AKARI_VISION_EXTRA, type DreamArtContext } from "./systems/dreamArtEffects";
+import { HONOKA_NA_AKARI_VISION_EXTRA, type DreamArtContext } from "./systems/dreamArtEffects";
 import { itemDef } from "./items/catalog";
 import { type EffectContext, addStatus, applyEffect } from "./items/effects";
 import {
@@ -173,7 +162,7 @@ import {
   captureOutlookFor,
   resolveEmptyBarrel as domainResolveEmptyBarrel,
 } from "./domain/barrel/barrelCapture";
-import { BOSS_MOVES, SPORE_SLEEP_CHANCE, SPORE_SLEEP_TURNS, type BossMoveContext } from "./systems/bossMoves";
+import { SPORE_SLEEP_CHANCE, SPORE_SLEEP_TURNS, type BossMoveContext } from "./systems/bossMoves";
 import {
   tickArtCooldowns as domainTickArtCooldowns,
   tickHunger as domainTickHunger,
@@ -182,7 +171,12 @@ import {
   tickTorch as domainTickTorch,
 } from "./domain/turn/statusTicks";
 import { damageActor as domainDamageActor, killActor as domainKillActor } from "./domain/turn/damage";
-import { attack as domainAttack, attemptSteal as domainAttemptSteal } from "./domain/turn/attackResolution";
+import { attack as domainAttack } from "./domain/turn/attackResolution";
+import {
+  applyTorrentPush as domainApplyTorrentPush,
+  pushMonster as domainPushMonster,
+  runActors as domainRunActors,
+} from "./domain/turn/actorActions";
 
 /** 双樽鉤(quickSingle)の会心率の上乗せ分 */
 const QUICK_SINGLE_CRIT_BONUS = 0.15;
@@ -370,9 +364,6 @@ const SPAWN_INTERVAL = 45;
  */
 const SPORE_PULSE_INTERVAL = 8;
 
-/** 第五地方(なみだの滝つぼ)固有ギミック(plan/waterfall-torrent.md): 奔流タイルの連鎖上限 */
-const TORRENT_PUSH_LIMIT = 4;
-
 /** 第六地方(こだまの尾根)固有ギミック(plan/echoing-ridge.md): 物音を立てる行動で気づかせる範囲 */
 const ECHO_ALERT_RANGE = 6;
 
@@ -400,15 +391,6 @@ const REGION_GIMMICK_PLACERS: Readonly<
 
 /** 第四地方(骨積みの回廊)。モンスターハウス出現率の乗数は regions.ts のデータに持たせている */
 const BONEPILE_REGION = regionByIndex(4);
-
-/** ぬしのゆめわざ(plan/game/archive/boss-dream-arts.md): なじみ最高段階でのクールダウン短縮率(2割短縮) */
-const BOSS_DREAM_ART_BOND_COOLDOWN_MULTIPLIER = 0.8;
-
-// ---- レベルアップ時のスキル選択(plan/game/archive/run-build-skills.md) ----
-/** はげましの声: 仲間のゆめわざクールダウンの倍率 */
-const ENCOURAGEMENT_COOLDOWN_MULTIPLIER = 0.75;
-/** かつぎばしり: タルを抱えている間、気づかれにくくなる確率(ねむタルと同じ形) */
-const STEALTH_CARRY_SUPPRESS_CHANCE = 0.3;
 
 /** 松明(plan/region-darkness.md): 使うと持続する視界拡張の効果時間(ターン)。数値は初期案 */
 const TORCH_DURATION_TURNS = 20;
@@ -468,8 +450,6 @@ const LIGHT_BARREL_OPEN_VISION = 2;
 const LIGHT_BARREL_CARRY_VISION_BONUS = 2;
 /** 頭上に持つ(風タル): 罠を踏んでも発動しない確率 */
 const WIND_BARREL_CARRY_TRAP_SUPPRESS_CHANCE = 0.5;
-/** 頭上に持つ(ねむタル): 気づかれにくくなる確率(entities/ai.tsのattemptSightへ渡す) */
-const SLEEP_BARREL_CARRY_AWARE_SUPPRESS_CHANCE = 0.4;
 
 // ---- plan/tarukurabe-minigame.md ----
 /** 持ち込めるタルの数(固定10個)。専用モード内で完結し、通常の倉庫は消費しない */
@@ -1293,29 +1273,6 @@ export class Game {
    */
   private regionGimmickApplies(region: number): boolean {
     return regionIndexForDungeonId(this.dungeon.id) === region || this.mosaicRegions.includes(region);
-  }
-
-  /**
-   * 地方ボス(plan/region-boss-horikuinonushi.md): 大技(groundSpikes)の予兆。
-   * 対象の位置を中心とした十字型(中心+上下左右)のうち、部屋タイルにだけ
-   * crackWarningを立てる。実際に立てた位置を返す
-   */
-  private markGroundSpikeWarnings(center: Vec2): Vec2[] {
-    const candidates: Vec2[] = [
-      center,
-      { x: center.x - 1, y: center.y },
-      { x: center.x + 1, y: center.y },
-      { x: center.x, y: center.y - 1 },
-      { x: center.x, y: center.y + 1 },
-    ];
-    const marked: Vec2[] = [];
-    for (const pos of candidates) {
-      const tile = tileAt(this.floor, pos);
-      if (!tile || tile.kind !== TILE_ROOM) continue;
-      tile.crackWarning = true;
-      marked.push(pos);
-    }
-    return marked;
   }
 
   /** 指定位置の近くで、誰も立っていないマスを探す */
@@ -2312,12 +2269,7 @@ export class Game {
    * 注記に理由を記載)
    */
   private pushMonster(dir: Dir, target: Actor, events: GameEvent[]): boolean {
-    if (!canStep(this.floor, target.pos, dir)) {
-      events.push({ type: "bump", actorId: this.player.id, dir: dirDelta(dir) });
-      return false;
-    }
-    this.moveActor(target, dir, events);
-    return true;
+    return domainPushMonster(this.floor, this.player.id, dir, target, events);
   }
 
   /**
@@ -2419,20 +2371,6 @@ export class Game {
     const lightBarrelOpened = this.lightBarrelTurns > 0 ? LIGHT_BARREL_OPEN_VISION : 0;
     const lightBarrelCarried = this.player.carrying?.kind === "light" ? LIGHT_BARREL_CARRY_VISION_BONUS : 0;
     return headband + torch + lantern + lightBarrelOpened + lightBarrelCarried;
-  }
-
-  /**
-   * まだ気づいていないモンスターに見つからずに済む確率(entities/ai.tsの
-   * attemptSightへ渡す)。元素タル(plan/game/archive/barrel-arts.md)の
-   * ねむタルと、スキル「かつぎばしり」(plan/game/archive/run-build-skills.md)の
-   * どちらもタルを抱えている間だけの効果で、両方満たす間は高い方を使う
-   */
-  private playerStealthChance(): number {
-    if (!this.player.carrying) return 0;
-    let chance = 0;
-    if (this.player.carrying.kind === "sleep") chance = Math.max(chance, SLEEP_BARREL_CARRY_AWARE_SUPPRESS_CHANCE);
-    if (this.runSkills.includes("stealthCarry")) chance = Math.max(chance, STEALTH_CARRY_SUPPRESS_CHANCE);
-    return chance;
   }
 
   // ------------------------------------------------------------ 戦闘
@@ -2542,11 +2480,6 @@ export class Game {
     if (hitAny && pattern === "heavySingle") {
       addStatus(this.effectContext(events), player, STATUS_RECOVER, HEAVY_RECOVER_TURNS, "隙ができた");
     }
-  }
-
-  /** スリガラス(plan/shops-and-thieves.md)の盗み。成功率は控えめにし、盗む額もほどほどに留める */
-  private attemptSteal(thief: CombatantActor, target: Actor, events: GameEvent[]): void {
-    domainAttemptSteal({ thief, target, player: this.player, rng: this.rng, events });
   }
 
   private attack(
@@ -3030,245 +2963,22 @@ export class Game {
    * しておけば、各自が自然といちばん近い相手へ向かう。
    */
   private runActors(events: GameEvent[]): void {
-    const { towardsFriendly, towardsFoe, towardsLeader } = this.buildActionDistanceFields();
-
-    // 行動中に配列が変化しても安全なようにコピーしてから回す。
-    // target(樽比べ、plan/tarukurabe-minigame.md)はaiKindを持たない非戦闘
-    // アクターなので、モンスター/仲間と同じ枠で動かそうとしない
-    const movers = this.floor.actors.filter(
-      (a): a is MonsterActor | AllyActor => a.alive && a.kind !== "player" && a.kind !== "target",
-    );
-
-    for (const actor of movers) {
-      if (!actor.alive || this.status !== "playing") continue;
-      if (hasStatus(actor, STATUS_SLEEP)) continue;
-      // ゆめわざ「おどしなき」(plan/game/archive/companion-leveling-and-arts.md):
-      // 1手を丸ごと奪う。眠りと同じく行動そのものを試みさせない
-      if (hasStatus(actor, STATUS_FLINCH)) continue;
-
-      if (hasStatus(actor, STATUS_CONFUSE)) {
-        const options = ALL_DIRS.filter((d) => canStep(this.floor, actor.pos, d));
-        if (options.length > 0) this.moveActor(actor, this.rng.pick(options), events);
-        continue;
-      }
-
-      let action =
-        actor.kind === "ally"
-          ? decideAllyAction(
-              this.rng,
-              this.floor,
-              actor,
-              this.player,
-              towardsFoe ?? towardsLeader(),
-              towardsLeader(),
-            )
-          : decideMonsterAction(
-              this.rng,
-              this.floor,
-              actor,
-              this.player,
-              towardsFriendly,
-              this.mood.awareDistanceMul ?? 1,
-              this.playerStealthChance(),
-            );
-      // ゆめわざ「ねばりつき」: 移動だけを封じる。攻撃・遠隔等の他の行動は
-      // そのまま通す(隣接していれば反撃できる)ため、moveのときだけ差し替える
-      if (hasStatus(actor, STATUS_ROOT) && action.type === "move") action = { type: "wait" };
-
-      if (this.executeMonsterAction(actor, action, events)) return;
-      this.tickQuagmireInvisibility(actor);
-    }
-  }
-
-  /**
-   * runActorsが使う距離場をまとめて用意する。towardsLeaderだけ遅延評価に
-   * しているのは、プレイヤーへ向かう距離場は仲間だけが使い、仲間は最大2体で
-   * 連れていないことのほうが多いため、実際に必要になるまで作らないため
-   */
-  private buildActionDistanceFields(): {
-    towardsFriendly: Int32Array;
-    towardsFoe: Int32Array | null;
-    towardsLeader: () => Int32Array;
-  } {
-    const alive = (a: Actor) => a.alive;
-    // target(樽比べ)は敵でも味方でもない置物なので、モンスターの追跡先候補
-    // (friendlyPositions)には含めない
-    const friendlyPositions = this.floor.actors
-      .filter((a) => alive(a) && a.kind !== "monster" && a.kind !== "target")
-      .map((a) => a.pos);
-    const foePositions = this.floor.actors
-      .filter((a) => alive(a) && a.kind === "monster")
-      .map((a) => a.pos);
-
-    const towardsFriendly = buildDistanceField(this.floor, friendlyPositions);
-    const towardsFoe =
-      foePositions.length > 0 ? buildDistanceField(this.floor, foePositions) : null;
-    let leaderField: Int32Array | null = null;
-    const towardsLeader = (): Int32Array =>
-      (leaderField ??= buildDistanceField(this.floor, this.player.pos));
-
-    return { towardsFriendly, towardsFoe, towardsLeader };
-  }
-
-  /**
-   * runActorsの1アクターぶんの行動実行。決定済みのMonsterActionを実際の
-   * イベント・状態変化に変換する。戻り値trueは、大技でゲームオーバーに
-   * なったなどの理由でrunActors自体を即座に打ち切るべきことを示す
-   * (呼び出し側でreturnする)
-   */
-  private executeMonsterAction(actor: MonsterActor | AllyActor, action: MonsterAction, events: GameEvent[]): boolean {
-    switch (action.type) {
-      case "wait":
-        break;
-      case "move":
-        this.moveActor(actor, action.dir, events);
-        // スリガラス(plan/shops-and-thieves.md): 盗んだあと、プレイヤーの
-        // 視界から外れると、盗んだ金ごと消える
-        if (
-          actor.alive &&
-          actor.aiKind === "thief" &&
-          actor.stolenGold !== undefined &&
-          !isVisible(this.floor, actor.pos)
-        ) {
-          actor.alive = false;
-          this.floor.actors = this.floor.actors.filter((a) => a.id !== actor.id);
-        }
-        break;
-      case "attack": {
-        const target = this.floor.actors.find((a) => a.id === action.targetId && a.alive);
-        if (!target) break;
-        if (actor.aiKind === "thief" && actor.stolenGold === undefined) {
-          this.attemptSteal(actor, target, events);
-        } else {
-          // 地方ボス(plan/region-bosses.md): 予兆を消費した一撃は大技として、
-          // 通常のダメージ計算にmultiplierを掛けたぶんだけ底上げする
-          const bossTelegraph =
-            action.empowered && actor.speciesId ? speciesById(actor.speciesId).bossTelegraph : undefined;
-          // guard(plan/monster-compendium.md): 隣接されたときの反撃力が高い
-          const attackPower = bossTelegraph
-            ? Math.round(actor.atk * bossTelegraph.multiplier)
-            : actor.aiKind === "guard"
-              ? Math.round(actor.atk * GUARD_COUNTER_BONUS)
-              : actor.atk;
-          this.attack(actor, target, attackPower, events);
-          if (bossTelegraph) {
-            events.push({ type: "message", text: `${displayActorName(actor)}の大技が炸裂した!` });
-          }
-        }
-        break;
-      }
-      case "telegraph": {
-        // 地方ボス(plan/region-bosses.md): この手は攻撃せず、警告メッセージだけ出す。
-        // 既存のGameEvent(message)の枠組みで実装し、新規UIは増やさない
-        const target = this.floor.actors.find((a) => a.id === action.targetId && a.alive);
-        const telegraph = actor.speciesId ? speciesById(actor.speciesId).bossTelegraph : undefined;
-        if (target && telegraph) {
-          actor.facing = dirFromDelta(target.pos.x - actor.pos.x, target.pos.y - actor.pos.y);
-          events.push({ type: "message", text: `${displayActorName(actor)}は${telegraph.message}――!` });
-          // 地方ボス(plan/region-boss-horikuinonushi.md): groundSpikesだけは、
-          // 予兆ターンの時点で床にひび割れ(crackWarning)を立てて危険地帯を可視化する
-          if (telegraph.effect === "groundSpikes") {
-            const positions = this.markGroundSpikeWarnings(target.pos);
-            if (positions.length > 0) events.push({ type: "crackWarning", positions });
-          }
-        }
-        break;
-      }
-      case "ranged": {
-        const target = this.floor.actors.find((a) => a.id === action.targetId && a.alive);
-        if (!target) break;
-        actor.facing = dirFromDelta(target.pos.x - actor.pos.x, target.pos.y - actor.pos.y);
-        events.push({ type: "attack", attackerId: actor.id, targetId: target.id });
-        events.push({ type: "message", text: `${displayActorName(actor)}が つぶてを投げた!` });
-        const defense =
-          target.kind === "player" ? totalDefense(this.player) : target.def;
-        const { damage, critical } = computeDamage(this.rng, actor.atk, defense);
-        const finalDamage = mitigateIncomingDamage({
-      target,
-      damage,
-      events,
+    domainRunActors({
+      floor: this.floor,
       rng: this.rng,
-      runSkills: this.runSkills,
       player: this.player,
+      allies: this.allies,
+      runSkills: this.runSkills,
       oncePerRun: this.oncePerRun,
+      mood: this.mood,
+      events,
+      echoAttackTurns: this.echoAttackTurns,
       partyGuardTurns: this.partyGuardTurns,
+      isPlaying: () => this.status === "playing",
+      damageActor: (target, dmg, crit) => this.damageActor(target, dmg, crit, events),
+      buildBossMoveContext: (actor) => this.bossMoveContext(actor, events),
+      buildDreamArtContext: (actor) => this.dreamArtContext(actor, events),
     });
-        events.push({ type: "message", text: `${displayActorName(target)}に${finalDamage}のダメージ!` });
-        this.damageActor(target, finalDamage, critical, events);
-        break;
-      }
-      case "bossMove": {
-        // 地方ボス(plan/region-bosses.md): 予兆を消費した大技本体。種類ごとの
-        // 実装は systems/bossMoves.ts の BOSS_MOVES レジストリに集約している
-        // (大技はdecideMonsterActionだけが生成するため、実際にはactorは常にmonster)
-        if (actor.kind !== "monster") break;
-        BOSS_MOVES[action.moveId].execute(this.bossMoveContext(actor, events));
-        if (this.status !== "playing") return true;
-        break;
-      }
-      case "burrowSurface": {
-        // burrow(plan/monster-compendium.md): 潜伏から地上へ現れる。teleportイベントを
-        // 出さずに座標だけ書き換えると、表示側(ActorView)が古い位置のまま取り残され、
-        // 次に動いたときに離れた本来の位置まで一気に「飛ぶ」ように見えてしまう(#180)
-        const from = actor.pos;
-        actor.pos = action.to;
-        events.push({ type: "teleport", actorId: actor.id, from, to: action.to });
-        break;
-      }
-      case "dreamArt": {
-        // ゆめわざ(plan/game/archive/companion-leveling-and-arts.md): 種類ごとの
-        // 実装は systems/dreamArtEffects.ts の DREAM_ART_EFFECTS レジストリにある
-        if (actor.kind !== "ally") break;
-        DREAM_ART_EFFECTS[action.id].execute(this.dreamArtContext(actor, events), action.targetId);
-        const def = dreamArtDef(action.id);
-        // ぬしのゆめわざ(plan/game/archive/boss-dream-arts.md): なじみ最高段階では
-        // クールダウンを2割短縮する(通常種のゆめわざは対象外)
-        let cooldown =
-          def.isBossExclusive && bondStage(actor.bondSuccessCount ?? 0) === "irreplaceable"
-            ? Math.round(def.cooldownTurns * BOSS_DREAM_ART_BOND_COOLDOWN_MULTIPLIER)
-            : def.cooldownTurns;
-        // スキル「はげましの声」(plan/game/archive/run-build-skills.md): 仲間の
-        // ゆめわざのクールダウン-25%(なじみ短縮とは別枠で重ねて掛かる)
-        if (this.runSkills.includes("encouragement")) {
-          cooldown = Math.round(cooldown * ENCOURAGEMENT_COOLDOWN_MULTIPLIER);
-        }
-        actor.dreamArtCooldowns ??= {};
-        actor.dreamArtCooldowns[action.id] = cooldown;
-        break;
-      }
-    }
-    return false;
-  }
-
-  /**
-   * 地方ボス(plan/region-boss-nushigaeru.md): 深みタイルの上にいる間、毎ターン
-   * STATUS_INVISIBLEを付与し直す。深みタイルを離れれば次のupkeepで自然にturnsが尽きて解ける
-   */
-  private tickQuagmireInvisibility(actor: MonsterActor | AllyActor): void {
-    if (
-      !actor.alive ||
-      !actor.speciesId ||
-      !speciesById(actor.speciesId).hidesInQuagmire ||
-      !tileAt(this.floor, actor.pos)?.quagmire
-    ) {
-      return;
-    }
-    // upkeepのtickStatusesが同じcommand内で直後に走りturnsを1減らすため、
-    // 2を設定して次ターン開始時点でも生存させる(1だとその場で0になり消える)
-    const existing = actor.statuses.find((s) => s.kind === STATUS_INVISIBLE);
-    if (existing) existing.turns = 2;
-    else actor.statuses.push({ kind: STATUS_INVISIBLE, turns: 2 });
-  }
-
-  private moveActor(actor: Actor, dir: Dir, events: GameEvent[]): void {
-    if (!canStep(this.floor, actor.pos, dir)) return;
-    const delta = dirDelta(dir);
-    const from = actor.pos;
-    const to = { x: from.x + delta.x, y: from.y + delta.y };
-    actor.pos = to;
-    actor.facing = dir;
-    events.push({ type: "move", actorId: actor.id, from, to });
-    this.applyTorrentPush(actor, events);
   }
 
   /**
@@ -3277,26 +2987,7 @@ export class Game {
    * あれば手前で止まる。プレイヤー・仲間・モンスターの移動処理の末尾で共通に呼ぶ
    */
   private applyTorrentPush(actor: Actor, events: GameEvent[]): Vec2 {
-    const start = actor.pos;
-    let current = start;
-    for (let i = 0; i < TORRENT_PUSH_LIMIT; i++) {
-      const tile = tileAt(this.floor, current);
-      if (!tile?.torrent) break;
-      const delta = dirDelta(tile.torrent);
-      const next = { x: current.x + delta.x, y: current.y + delta.y };
-      if (!walkableAt(this.floor, next) || barrelAt(this.floor, next)) break;
-      const occupant = actorAt(this.floor, next);
-      if (occupant && occupant.id !== actor.id) break;
-      current = next;
-    }
-    if (!eq(current, start)) {
-      actor.pos = current;
-      events.push({ type: "move", actorId: actor.id, from: start, to: current });
-      if (actor.kind === "player") {
-        events.push({ type: "message", text: "奔流に押し流された!" });
-      }
-    }
-    return current;
+    return domainApplyTorrentPush(this.floor, actor, events);
   }
 
   // ------------------------------------------------------------ 毎ターンの処理
