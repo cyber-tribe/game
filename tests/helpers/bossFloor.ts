@@ -23,8 +23,8 @@ export function clearBossIfPresent(game: Game): void {
   // 地方ボスの高い経験値でレベルアップし、run-build-skills.mdの3択提示が
   // 出ていることがある。提示中はchooseSkill以外のコマンドを受け付けない
   // ため、直後にdescendするテストが巻き添えで止まらないよう解消しておく
-  const internals = game as unknown as { pendingSkillChoice: string[] | null };
-  while (internals.pendingSkillChoice) {
-    game.command({ type: "chooseSkill", id: internals.pendingSkillChoice[0] as never });
+  const pending = () => access(game).skillChoiceState.pendingSkillChoice;
+  while (pending()) {
+    game.command({ type: "chooseSkill", id: pending()![0] as never });
   }
 }

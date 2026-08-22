@@ -6,6 +6,7 @@ import { speciesById } from "../src/entities/species";
 import { Rng } from "../src/core/rng";
 import { Game } from "../src/game";
 import { BARREL_RANGE, LIGHT_CARRY_RANGE_BONUS, traceThrow } from "../src/domain/barrel/barrelThrow";
+import { access } from "./helpers/access";
 
 /**
  * レベルアップ時のスキル選択(plan/game/archive/run-build-skills.md)。
@@ -147,9 +148,7 @@ describe("game.ts: レベルアップ時のスキル選択の進行", () => {
     // 上がらせないことで、この後の「1回だけ選んで通常進行に戻る」確認がしやすくなる
     const monster = putMonster(game, { x: 0, y: 0 }, { exp: 10, hp: 1, maxHp: 1 });
 
-    const killActor = (
-      game as unknown as { killActor: (target: MonsterActor, events: unknown[]) => void }
-    ).killActor.bind(game);
+    const killActor = access(game).killActor.bind(game);
     const events: { type: string; candidates?: string[] }[] = [];
     killActor(monster, events);
 
@@ -178,12 +177,10 @@ describe("game.ts: レベルアップ時のスキル選択の進行", () => {
     const game = newGame(1);
     game.floor.actors = game.floor.actors.filter((a) => a.kind === "player");
     const monster = putMonster(game, { x: 0, y: 0 }, { exp: 99999, hp: 1, maxHp: 1 });
-    const killActor = (
-      game as unknown as { killActor: (target: MonsterActor, events: unknown[]) => void }
-    ).killActor.bind(game);
+    const killActor = access(game).killActor.bind(game);
     killActor(monster, []);
 
-    const pending = (game as unknown as { pendingSkillChoice: RunSkillId[] | null }).pendingSkillChoice!;
+    const pending = access(game).skillChoiceState.pendingSkillChoice!;
     const notOffered = (Object.keys(RUN_SKILLS) as RunSkillId[]).find((id) => !pending.includes(id))!;
     const before = game.runSkills.length;
     game.command({ type: "chooseSkill", id: notOffered });
@@ -197,9 +194,7 @@ describe("game.ts: レベルアップ時のスキル選択の進行", () => {
     game.player.level = 1;
     game.player.exp = 0;
     const monster = putMonster(game, { x: 0, y: 0 }, { exp: 999999999, hp: 1, maxHp: 1 });
-    const killActor = (
-      game as unknown as { killActor: (target: MonsterActor, events: unknown[]) => void }
-    ).killActor.bind(game);
+    const killActor = access(game).killActor.bind(game);
     const events: { type: string; candidates?: string[] }[] = [];
     killActor(monster, events);
     const levelsGained = game.player.level - 1;
@@ -207,7 +202,7 @@ describe("game.ts: レベルアップ時のスキル選択の進行", () => {
 
     let offeredCount = 0;
     for (let i = 0; i < levelsGained; i++) {
-      const pending = (game as unknown as { pendingSkillChoice: RunSkillId[] | null }).pendingSkillChoice;
+      const pending = access(game).skillChoiceState.pendingSkillChoice;
       if (!pending) break;
       offeredCount++;
       game.command({ type: "chooseSkill", id: pending[0]! });
@@ -369,9 +364,7 @@ describe("game.ts: 支援系統のスキル効果", () => {
     const ally = addAlly(game, { hp: 5, maxHp: 20, pos: { x: 50, y: 50 } });
     const monster = putMonster(game, { x: 0, y: 0 }, { hp: 1, maxHp: 1, exp: 1 });
 
-    const killActor = (
-      game as unknown as { killActor: (target: MonsterActor, events: unknown[]) => void }
-    ).killActor.bind(game);
+    const killActor = access(game).killActor.bind(game);
     killActor(monster, []);
 
     expect(ally.hp).toBe(6);

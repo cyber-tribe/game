@@ -6,6 +6,7 @@ import type { MoodDef } from "../../src/entities/moods";
 import type { MonsterAction } from "../../src/entities/ai";
 import type { BossMoveContext } from "../../src/systems/bossMoves";
 import type { DreamArtContext } from "../../src/systems/dreamArtEffects";
+import type { SkillChoiceState } from "../../src/domain/player/runSkills";
 import type { Game } from "../../src/game";
 import { explode as domainExplode } from "../../src/domain/barrel/barrelExplosion";
 import {
@@ -35,6 +36,7 @@ export interface GameInternals {
   mood: MoodDef;
   bossMoveContext: (actor: MonsterActor, events: GameEvent[]) => BossMoveContext;
   dreamArtContext: (actor: AllyActor, events: GameEvent[]) => DreamArtContext;
+  skillChoiceState: SkillChoiceState;
 }
 
 export function access(game: Game): GameInternals {

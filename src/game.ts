@@ -120,7 +120,6 @@ import { REGIONS, regionByIndex } from "./entities/regions";
 import { type BondStage, bondStage } from "./entities/companionBond";
 import { gainAllyExp } from "./entities/companionGrowth";
 import { dreamArtDef } from "./entities/dreamArts";
-import { rollRunSkillChoices, runSkillDef } from "./entities/runSkills";
 import { HONOKA_NA_AKARI_VISION_EXTRA, type DreamArtContext } from "./systems/dreamArtEffects";
 import { itemDef } from "./items/catalog";
 import { type EffectContext, addStatus, applyEffect } from "./items/effects";
@@ -167,6 +166,13 @@ import { damageActor as domainDamageActor, killActor as domainKillActor } from "
 import { attack as domainAttack } from "./domain/turn/attackResolution";
 import { applyTorrentPush as domainApplyTorrentPush, pushMonster as domainPushMonster } from "./domain/turn/actorActions";
 import { resolveTurn as domainResolveTurn, upkeep as domainUpkeep } from "./domain/turn/turnCycle";
+import {
+  createSkillChoiceState,
+  isAwaitingSkillChoice,
+  offerNextSkillChoice as domainOfferNextSkillChoice,
+  resolveSkillChoice as domainResolveSkillChoice,
+  type SkillChoiceState,
+} from "./domain/player/runSkills";
 
 /** 双樽鉤(quickSingle)の会心率の上乗せ分 */
 const QUICK_SINGLE_CRIT_BONUS = 0.15;
@@ -577,10 +583,8 @@ export class Game {
   // ---- plan/game/archive/run-build-skills.md ----
   /** そのダイブ限りで身につけたスキル。SaveDataには持たせない(ダイブ限り) */
   runSkills: RunSkillId[] = [];
-  /** 提示中の3択。nullなら提示していない。この間はchooseSkill以外のコマンドを受け付けない */
-  private pendingSkillChoice: RunSkillId[] | null = null;
-  /** まだ選択肢を出せていないレベルアップの残数(1手で複数レベル上がった場合に順番に出す) */
-  private pendingLevelUpChoices = 0;
+  /** 提示中の3択の状態(domain/player/runSkills.ts)。nullなら提示していない */
+  private skillChoiceState: SkillChoiceState = createSkillChoiceState();
 
   // ---- plan/tarukurabe-minigame.md ----
   /** このセッションの合計得点 */
@@ -729,8 +733,10 @@ export class Game {
       // run-build-skills.md導入前のスナップショットには無いフィールドなので、
       // 欠けていても壊れないようにする
       this.runSkills = s.runSkills ?? [];
-      this.pendingSkillChoice = s.pendingSkillChoice ?? null;
-      this.pendingLevelUpChoices = s.pendingLevelUpChoices ?? 0;
+      this.skillChoiceState = {
+        pendingSkillChoice: s.pendingSkillChoice ?? null,
+        pendingLevelUpChoices: s.pendingLevelUpChoices ?? 0,
+      };
 
       // JSON化を経由すると、本来は同じオブジェクトを指していたはずの
       // player/allies と floor.actors 内の対応する要素が別オブジェクトに
@@ -807,8 +813,10 @@ export class Game {
       tarukurabeBarrelsLeft: this.tarukurabeBarrelsLeft,
       tarukurabeScoredLanes: [...this.tarukurabeScoredLanes],
       runSkills: [...this.runSkills],
-      pendingSkillChoice: this.pendingSkillChoice ? [...this.pendingSkillChoice] : null,
-      pendingLevelUpChoices: this.pendingLevelUpChoices,
+      pendingSkillChoice: this.skillChoiceState.pendingSkillChoice
+        ? [...this.skillChoiceState.pendingSkillChoice]
+        : null,
+      pendingLevelUpChoices: this.skillChoiceState.pendingLevelUpChoices,
     };
   }
 
@@ -1456,7 +1464,7 @@ export class Game {
 
     // レベルアップ時のスキル選択(plan/game/archive/run-build-skills.md):
     // 提示中は選ぶまでゲームが一切進まない。chooseSkill以外のコマンドは無視する
-    if (this.pendingSkillChoice) {
+    if (isAwaitingSkillChoice(this.skillChoiceState)) {
       if (cmd.type === "chooseSkill") this.resolveSkillChoice(cmd.id, events);
       return events;
     }
@@ -2510,7 +2518,7 @@ export class Game {
       onLevelUp: (levels) => {
         // レベルアップ時のスキル選択(plan/game/archive/run-build-skills.md):
         // 1手で複数レベル上がっても、選択肢は1レベルぶんずつ順番に出す
-        this.pendingLevelUpChoices += levels;
+        this.skillChoiceState.pendingLevelUpChoices += levels;
         this.offerNextSkillChoice(events);
       },
     });
@@ -2549,24 +2557,18 @@ export class Game {
    * 習得済みで1件も引けなければ(全18件習得済み)、その分は静かに消費する
    */
   private offerNextSkillChoice(events: GameEvent[]): void {
-    if (this.pendingLevelUpChoices <= 0) return;
-    const candidates = rollRunSkillChoices(this.rng, this.runSkills);
-    if (candidates.length === 0) {
-      this.pendingLevelUpChoices = 0;
-      return;
-    }
-    this.pendingSkillChoice = candidates;
-    events.push({ type: "skillChoiceOffered", candidates });
+    domainOfferNextSkillChoice({ state: this.skillChoiceState, rng: this.rng, runSkills: this.runSkills, events });
   }
 
   /** 提示中の3択から1つ選ぶ。候補外のidは無視する(不正な選択・二重送信対策) */
   private resolveSkillChoice(id: RunSkillId, events: GameEvent[]): void {
-    if (!this.pendingSkillChoice?.includes(id)) return;
-    this.runSkills.push(id);
-    this.pendingSkillChoice = null;
-    this.pendingLevelUpChoices = Math.max(0, this.pendingLevelUpChoices - 1);
-    events.push({ type: "message", text: `『${runSkillDef(id).name}』を身につけた!` });
-    this.offerNextSkillChoice(events);
+    domainResolveSkillChoice({
+      state: this.skillChoiceState,
+      id,
+      runSkills: this.runSkills,
+      rng: this.rng,
+      events,
+    });
   }
 
   // ------------------------------------------------------------ アイテム
