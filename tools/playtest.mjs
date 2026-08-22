@@ -162,9 +162,15 @@ await page.screenshot({ path: `${OUT}/00-village.png` });
  */
 async function enterNearestVillageBuilding(key = "ArrowUp") {
   await page.keyboard.down(key);
+  // タイムアウトは元々5秒だったが、CIの遅いソフトウェア描画下ではメインループの
+  // dtクランプ(main.tsのMath.min(0.05, this.clock.getDelta()))により村なかの
+  // 移動も実時間に対して遅くなることがあり、まれに間に合わないことが分かった
+  // (walkToBuildingAndEnterで先に見つかったのと同種の「CIの遅い描画」由来の
+  // タイムアウト)。移動そのものには問題が無いため、待つ時間を広げて確実に
+  // 間に合わせる
   await page
     .waitForFunction(() => globalThis.__app?.debugVillageNearBuildingId?.() !== null, {
-      timeout: 5_000,
+      timeout: 20_000,
     })
     .catch(() => {});
   await page.keyboard.up(key);
