@@ -16,7 +16,7 @@ import type { PlayerState } from "../../entities/player";
 import { SATIETY_RATE_MULTIPLIER, type DifficultyMode } from "../../entities/difficulty";
 import { speciesById } from "../../entities/species";
 import { hasSkill } from "../../entities/skills";
-import { hasEquipEffect } from "../../items/inventory";
+import { hasEquipEffect } from "../item/inventory";
 
 /** 毒が1ターンごとに削るHP */
 const POISON_DAMAGE_PER_TURN = 2;

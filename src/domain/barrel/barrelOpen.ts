@@ -3,8 +3,8 @@ import type { Dir, Vec2 } from "../../core/grid";
 import type { Actor, FloorState } from "../../core/types";
 import { TILE_WALL, actorAt, barrelAt, tileAt, walkableAt } from "../../core/types";
 import type { GameEvent } from "../../core/events";
-import type { EffectContext } from "../../items/effects";
-import { addStatus } from "../../items/effects";
+import type { EffectContext } from "../item/effects";
+import { addStatus } from "../item/effects";
 import { STATUS_SLEEP } from "../../core/types";
 
 /** あける(周囲を水びたしにする)の範囲(半径、マス)。強化版は+1 */

@@ -48,7 +48,7 @@ import {
 import { HAJIME_NO_YUME_ID, REGION_BOSS_ORDER, speciesById } from "../../entities/species";
 import { REGIONS, regionByIndex } from "../../entities/regions";
 import type { MoodDef } from "../../entities/moods";
-import { hasEquipEffect } from "../../items/inventory";
+import { hasEquipEffect } from "../item/inventory";
 
 /**
  * 図鑑コンプリート(plan/monster-compendium.md)時、かがやきの夢のかけらの

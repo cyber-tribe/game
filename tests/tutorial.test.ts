@@ -11,7 +11,7 @@ import {
   markTutorialTipSeen,
   recordRun,
 } from "../src/save";
-import { ITEMS } from "../src/items/catalog";
+import { ITEMS } from "../src/entities/itemCatalog";
 
 function newGame(seed = 1) {
   return new Game({ seed });

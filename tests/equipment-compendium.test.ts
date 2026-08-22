@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MAX_PLUS } from "../src/entities/forging";
-import { ITEMS } from "../src/items/catalog";
+import { ITEMS } from "../src/entities/itemCatalog";
 import {
   checkAchievements,
   checkEquipmentCompendium,

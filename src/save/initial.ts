@@ -13,7 +13,7 @@ import { VILLAGE_NPCS, type VillageStage } from "../entities/village";
 import { MAX_RECENT_FUSION_MATERIALS } from "../entities/evolution";
 import { SKILLS } from "../entities/skills";
 import { SPECIES } from "../entities/species";
-import { ITEMS } from "../items/catalog";
+import { ITEMS } from "../entities/itemCatalog";
 import type { StoredMonster } from "../entities/storedMonster";
 import {
   type ArenaRecord,

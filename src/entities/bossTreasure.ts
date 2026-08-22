@@ -1,6 +1,6 @@
 import type { Rng } from "../core/rng";
 import type { Item, ItemDef } from "../core/types";
-import { itemsForDepth } from "../items/catalog";
+import { itemsForDepth } from "./itemCatalog";
 import { HOKORA_DUST_DEF_ID, MARK_STONE_DEF_ID, MARKS } from "./forging";
 
 /** 「ぬしの置き土産」の強化値の幅。高強化値の武器/盾を引いたときだけ使う */

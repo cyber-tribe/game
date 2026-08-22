@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
 import { Game } from "../src/game";
-import { addItem, createInventory, equip, equippedWeaponModel } from "../src/items/inventory";
+import { addItem, createInventory, equip, equippedWeaponModel } from "../src/domain/item/inventory";
 import { ActorView } from "../src/view/actorView";
 
 describe("items/inventory.ts: equippedWeaponModel", () => {

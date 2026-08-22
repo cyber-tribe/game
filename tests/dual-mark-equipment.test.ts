@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { Game } from "../src/game";
 import { MAX_MARK_SLOTS, MAX_PLUS, OVERLAY_STONE_DEF_ID } from "../src/entities/forging";
-import { addItem, createInventory, equip, weaponMarkIds } from "../src/items/inventory";
+import { addItem, createInventory, equip, weaponMarkIds } from "../src/domain/item/inventory";
 import { isFree, type Actor } from "../src/core/types";
 import { checkAchievements, checkEquipmentCompendium, initialSave, toStored, type SaveData } from "../src/save";
-import { itemDef } from "../src/items/catalog";
+import { itemDef } from "../src/entities/itemCatalog";
 
 /** プレイヤーの正面が空くように向きを選ぶ。見つかればその方向を向かせる */
 function faceOpenDirection(game: Game) {

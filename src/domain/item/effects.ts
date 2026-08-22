@@ -1,6 +1,6 @@
-import type { Rng } from "../core/rng";
-import { ALL_DIRS, type Dir, type Vec2, dirDelta } from "../core/grid";
-import type { GameEvent } from "../core/events";
+import type { Rng } from "../../core/rng";
+import { ALL_DIRS, type Dir, type Vec2, dirDelta } from "../../core/grid";
+import type { GameEvent } from "../../core/events";
 import {
   STATUS_CONFUSE,
   STATUS_FEAR,
@@ -16,10 +16,10 @@ import {
   tileAt,
   walkableAt,
   walkLine,
-} from "../core/types";
-import { buildDistanceField } from "../entities/ai";
-import { MAX_SATIETY, type PlayerState } from "../entities/player";
-import { speciesById } from "../entities/species";
+} from "../../core/types";
+import { buildDistanceField } from "../../entities/ai";
+import { MAX_SATIETY, type PlayerState } from "../../entities/player";
+import { speciesById } from "../../entities/species";
 import { hasEquipEffect } from "./inventory";
 
 /** 樽守りの笠(plan/protagonist-equipment.md)の眠り耐性 */

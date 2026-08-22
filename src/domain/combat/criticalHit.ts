@@ -2,8 +2,8 @@ import type { OncePerRunTracker } from "../../core/oncePerRunTracker";
 import type { GameEvent } from "../../core/events";
 import type { Rng } from "../../core/rng";
 import type { Actor, RunSkillId } from "../../core/types";
-import type { Inventory } from "../../items/inventory";
-import { hasEquipEffect } from "../../items/inventory";
+import type { Inventory } from "../item/inventory";
+import { hasEquipEffect } from "../item/inventory";
 import { hasSkill } from "../../entities/skills";
 import type { DamageOptions } from "./types";
 

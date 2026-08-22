@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FESTIVAL_SHOP_OFFERS, isYoimatsuri } from "../src/entities/festivals";
-import { itemDef } from "../src/items/catalog";
+import { itemDef } from "../src/entities/itemCatalog";
 import { buyFestivalItem, initialSave } from "../src/save";
 
 describe("entities/festivals.ts: isYoimatsuri", () => {

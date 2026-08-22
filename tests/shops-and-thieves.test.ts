@@ -5,7 +5,7 @@ import { Rng } from "../src/core/rng";
 import { generateFloor } from "../src/domain/dungeon/generate";
 import { decideMonsterAction } from "../src/entities/ai";
 import { shopPrice, WARY_PRICE_MULTIPLIER } from "../src/entities/shop";
-import { itemDef } from "../src/items/catalog";
+import { itemDef } from "../src/entities/itemCatalog";
 import {
   roomCenter,
   roomContains,

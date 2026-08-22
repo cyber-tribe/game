@@ -5,8 +5,8 @@ import type { GameEvent } from "../../core/events";
 import type { PlayerState } from "../../entities/player";
 import { isCheckpointFloor, regionIndexForDungeonId } from "../../entities/dungeons";
 import { speciesById } from "../../entities/species";
-import { hasEquipEffect } from "../../items/inventory";
-import { itemDef } from "../../items/catalog";
+import { hasEquipEffect } from "../item/inventory";
+import { itemDef } from "../../entities/itemCatalog";
 import { GIMMICK_MESSAGES } from "./gimmicks";
 import { t } from "../../i18n";
 

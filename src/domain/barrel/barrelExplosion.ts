@@ -6,7 +6,7 @@ import type { GameEvent } from "../../core/events";
 import type { Rng } from "../../core/rng";
 import type { OncePerRunTracker } from "../../core/oncePerRunTracker";
 import type { PlayerState } from "../../entities/player";
-import type { EffectContext } from "../../items/effects";
+import type { EffectContext } from "../item/effects";
 import { computeDamage } from "../combat/damageCalculation";
 import { barrelThrowDamage, mitigateIncomingDamage } from "../combat/damageModifier";
 import { displayActorName } from "../../entities/naming";

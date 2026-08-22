@@ -9,7 +9,7 @@ import {
   isWalkable,
   tileAt,
 } from "../core/types";
-import { itemDef } from "../items/catalog";
+import { itemDef } from "../entities/itemCatalog";
 import { BARREL_MODELS, TRAP_MODELS } from "../modelList";
 
 /** 見えているマス / 記憶しているだけのマス の明るさ */

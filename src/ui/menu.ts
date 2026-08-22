@@ -1,8 +1,8 @@
 import type { Command } from "../game";
 import type { PlayerState } from "../entities/player";
 import { t } from "../i18n";
-import { itemDef } from "../items/catalog";
-import { displayName, isEquipped } from "../items/inventory";
+import { itemDef } from "../entities/itemCatalog";
+import { displayName, isEquipped } from "../domain/item/inventory";
 import { createMenuDesc, createMenuHint, createMenuList, createMenuTitle, wrap } from "./util";
 
 type Choice = { label: string; run: () => void };
