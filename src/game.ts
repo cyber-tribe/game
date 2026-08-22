@@ -18,7 +18,6 @@ import {
   STATUS_POISON,
   STATUS_RECOVER,
   STATUS_ROOT,
-  STATUS_SEAL,
   STATUS_SLEEP,
   type Actor,
   type AllyActor,
@@ -51,13 +50,11 @@ import {
   isFree,
   isHostile,
   roomContains,
-  roomOf,
   tileAt,
   walkableAt,
   walkLine,
 } from "./core/types";
 import { type ArtId, artDef } from "./entities/arts";
-import { hasSkill } from "./entities/skills";
 import { generateFloor } from "./dungeon/generate";
 import { t } from "./i18n";
 import { GIMMICK_MESSAGES, pickFloorGimmick } from "./dungeon/gimmicks";
@@ -135,12 +132,7 @@ import { type BondStage, bondStage } from "./entities/companionBond";
 import { gainAllyExp } from "./entities/companionGrowth";
 import { dreamArtDef } from "./entities/dreamArts";
 import { rollRunSkillChoices, runSkillDef } from "./entities/runSkills";
-import {
-  DREAM_ART_EFFECTS,
-  HONOKA_NA_AKARI_VISION_EXTRA,
-  KODAMA_NO_OTAKEBI_ECHO_MULTIPLIER,
-  type DreamArtContext,
-} from "./systems/dreamArtEffects";
+import { DREAM_ART_EFFECTS, HONOKA_NA_AKARI_VISION_EXTRA, type DreamArtContext } from "./systems/dreamArtEffects";
 import { itemDef } from "./items/catalog";
 import { type EffectContext, addStatus, applyEffect } from "./items/effects";
 import {
@@ -155,15 +147,7 @@ import {
 } from "./items/inventory";
 import { attackOffsets } from "./domain/combat/attackPattern";
 import { computeDamage } from "./domain/combat/damageCalculation";
-import { resolveAttackModifiers } from "./domain/combat/criticalHit";
-import { tryEvade } from "./domain/combat/evasion";
-import {
-  barrelThrowDamage,
-  effectiveAttackPower,
-  effectiveDefense,
-  mitigateIncomingDamage,
-  pickMutualGuardCoverer,
-} from "./domain/combat/damageModifier";
+import { barrelThrowDamage, mitigateIncomingDamage } from "./domain/combat/damageModifier";
 import { liftOrPutBarrel } from "./domain/barrel/barrelLift";
 import { BARREL_RANGE, LIGHT_CARRY_RANGE_BONUS, traceThrow } from "./domain/barrel/barrelThrow";
 import { releaseFromBarrel as domainReleaseFromBarrel } from "./domain/barrel/barrelDrop";
@@ -198,6 +182,7 @@ import {
   tickTorch as domainTickTorch,
 } from "./domain/turn/statusTicks";
 import { damageActor as domainDamageActor, killActor as domainKillActor } from "./domain/turn/damage";
+import { attack as domainAttack, attemptSteal as domainAttemptSteal } from "./domain/turn/attackResolution";
 
 /** 双樽鉤(quickSingle)の会心率の上乗せ分 */
 const QUICK_SINGLE_CRIT_BONUS = 0.15;
@@ -207,20 +192,7 @@ const HEAVY_RECOVER_TURNS = 2;
 /** 毒罠にかかったときの持続ターン数 */
 const POISON_TRAP_TURNS = 8;
 
-/** attacker.inflicts で状態異常を付与したときのメッセージ */
-const STATUS_INFLICT_MESSAGES: Partial<Record<StatusKind, string>> = {
-  [STATUS_SLEEP]: "眠ってしまった",
-  [STATUS_CONFUSE]: "混乱した",
-  [STATUS_SEAL]: "封じられた",
-};
-
 // ---- plan/monster-compendium.md: 新しい特技・特性の各種係数 ----
-/** 特技「みだしのつめ」が混乱を付与する確率 */
-const CONFUSING_CLAW_CHANCE = 0.15;
-/** 特技「ふうじのキバ」が封じを付与する確率 */
-const SEAL_BITE_CHANCE = 0.15;
-/** 夢あわせで得た付与系特技(みだしのつめ・ふうじのキバ)が状態異常を持続させるターン数 */
-const INHERITED_INFLICT_TURNS = 3;
 /**
  * 図鑑コンプリート(plan/monster-compendium.md)時、かがやきの夢のかけらの
  * 出現確率に掛かる倍率。基準の確率自体は dungeon/populate.ts 側で定義する
@@ -429,9 +401,6 @@ const REGION_GIMMICK_PLACERS: Readonly<
 /** 第四地方(骨積みの回廊)。モンスターハウス出現率の乗数は regions.ts のデータに持たせている */
 const BONEPILE_REGION = regionByIndex(4);
 
-/** 地方ごとの成熟系統(plan/companion-evolution-expansion.md): こだまぎつねの反響攻撃の最大追加回数 */
-const ECHO_ATTACK_MAX = 2;
-
 /** ぬしのゆめわざ(plan/game/archive/boss-dream-arts.md): なじみ最高段階でのクールダウン短縮率(2割短縮) */
 const BOSS_DREAM_ART_BOND_COOLDOWN_MULTIPLIER = 0.8;
 
@@ -547,8 +516,6 @@ const TARUKURABE_TARGETS: readonly TarukurabeTargetLayout[] = [
 
 /** アイテムの飛距離 */
 const ITEM_THROW_RANGE = 10;
-/** スリガラス(plan/shops-and-thieves.md)が盗みを成功させる確率 */
-const THIEF_STEAL_CHANCE = 0.4;
 
 /** 忘れ物蔵(plan/lost-and-found-vault.md)。隠し壁へバンプするたびに崩れる確率 */
 const SECRET_PASSAGE_REVEAL_CHANCE = 0.25;
@@ -2579,17 +2546,7 @@ export class Game {
 
   /** スリガラス(plan/shops-and-thieves.md)の盗み。成功率は控えめにし、盗む額もほどほどに留める */
   private attemptSteal(thief: CombatantActor, target: Actor, events: GameEvent[]): void {
-    thief.facing = dirFromDelta(target.pos.x - thief.pos.x, target.pos.y - thief.pos.y);
-    events.push({ type: "attack", attackerId: thief.id, targetId: target.id });
-    const gold = this.player.gold;
-    if (gold <= 0 || !this.rng.chance(THIEF_STEAL_CHANCE)) {
-      events.push({ type: "message", text: `${displayActorName(thief)}は何も盗めなかった。` });
-      return;
-    }
-    const stolen = Math.max(1, Math.round(gold * this.rng.float(0.2, 0.5)));
-    this.player.gold -= stolen;
-    thief.stolenGold = stolen;
-    events.push({ type: "message", text: `${displayActorName(thief)}に${stolen}ゴールド盗まれた!` });
+    domainAttemptSteal({ thief, target, player: this.player, rng: this.rng, events });
   }
 
   private attack(
@@ -2599,183 +2556,22 @@ export class Game {
     events: GameEvent[],
     combatOpts?: { critBonus?: number; forceCrit?: boolean },
   ): void {
-    target =
-      pickMutualGuardCoverer({
-        attacker,
-        target,
-        events,
-        rng: this.rng,
-        runSkills: this.runSkills,
-        party: [this.player, ...this.allies],
-      }) ?? target;
-    attacker.facing = dirFromDelta(target.pos.x - attacker.pos.x, target.pos.y - attacker.pos.y);
-    events.push({ type: "attack", attackerId: attacker.id, targetId: target.id });
-    events.push({ type: "message", text: `${displayActorName(attacker)}のこうげき!` });
-    if (attacker.kind === "player" && target.kind === "monster") {
-      events.push({ type: "tutorialTip", id: "weakenThenThrow" });
-    }
-
-    const { forceCrit, ambushStrike } = resolveAttackModifiers({
+    domainAttack({
       attacker,
       target,
-      events,
-      runSkills: this.runSkills,
-      playerInventory: this.player.inventory,
-      oncePerRun: this.oncePerRun,
-    });
-    if (tryEvade(this.rng, target, events)) return;
-
-    const defense = effectiveDefense({ attacker, target, events, player: this.player });
-    const effectivePower = effectiveAttackPower({
-      attacker,
       attackPower,
-      ambushStrike,
-      sporedRoom: roomOf(this.floor, attacker.pos)?.spored === true,
-      runSkills: this.runSkills,
-      consumeBraced: () => {
-        if (this.player.bracedReady) {
-          this.player.bracedReady = false;
-          return true;
-        }
-        return false;
-      },
-    });
-    const { damage, critical } = computeDamage(this.rng, effectivePower, defense, {
-      ...combatOpts,
-      forceCrit: combatOpts?.forceCrit || forceCrit,
-    });
-    if (critical) events.push({ type: "message", text: "会心の一撃!" });
-
-    this.applyAttackDamage(attacker, target, damage, critical, events);
-
-    // 攻撃してきた相手には気づく
-    if (target.kind === "monster") target.aware = true;
-
-    this.applyOnHitStatuses(attacker, target, events);
-    this.applyEchoAttacks(attacker, target, effectivePower, events);
-  }
-
-  /**
-   * attackの本体: 確定した基礎ダメージを実際に適用する。オイテケボシ
-   * (drainsSatiety)は例外で、HPではなくプレイヤーの満腹度を削って終わる
-   * (ヨロイオイテケの反撃ダメージも適用しない)
-   */
-  private applyAttackDamage(attacker: Actor, target: Actor, damage: number, critical: boolean, events: GameEvent[]): void {
-    // オイテケボシ(drainsSatiety、plan/monster-compendium.md): HPではなく
-    // プレイヤーの満腹度を削る特殊効果。防御・軽減の計算はそのまま流用する
-    const attackerSpeciesId = attacker.kind === "monster" || attacker.kind === "ally" ? attacker.speciesId : undefined;
-    const drainsSatiety =
-      target.kind === "player" && attackerSpeciesId !== undefined && speciesById(attackerSpeciesId).drainsSatiety;
-    if (drainsSatiety) {
-      const drained = Math.max(1, Math.round(damage / 2));
-      this.player.satiety = Math.max(0, this.player.satiety - drained);
-      events.push({ type: "message", text: t("msg.satietyDrained", { amount: drained }) });
-      return;
-    }
-
-    const finalDamage = mitigateIncomingDamage({
-      target,
-      damage,
       events,
+      combatOpts,
       rng: this.rng,
-      runSkills: this.runSkills,
+      floor: this.floor,
       player: this.player,
-      oncePerRun: this.oncePerRun,
-      partyGuardTurns: this.partyGuardTurns,
-    });
-    events.push({ type: "message", text: `${displayActorName(target)}に${finalDamage}のダメージ!` });
-    this.damageActor(target, finalDamage, critical, events);
-
-    // 地方ごとの成熟系統(plan/companion-evolution-expansion.md): ヨロイオイテケは
-    // 被弾するたび、受けたダメージの一部を攻撃者に返す。プランの原案は
-    // 「相手の満腹度を削り返す」だったが、満腹度はプレイヤー専用のステータスで
-    // 攻撃者(モンスター)には存在しないため、ダメージ反射に差し替えた
-    const targetSpeciesId = target.kind === "monster" || target.kind === "ally" ? target.speciesId : undefined;
-    const counterRatio = targetSpeciesId ? speciesById(targetSpeciesId).counterDamageRatio ?? 0 : 0;
-    if (counterRatio > 0 && attacker.alive) {
-      const counter = Math.max(1, Math.round(finalDamage * counterRatio));
-      events.push({ type: "message", text: `${displayActorName(target)}が身を固めて${counter}のダメージを返した!` });
-      this.damageActor(attacker, counter, false, events);
-    }
-
-    // ゆめわざ「こだまがえし」(plan/game/archive/companion-leveling-and-arts.md):
-    // 消費型の自己強化。counterDamageRatioと同じ仕組みで、受けた1撃の半分を返す
-    if (target.kind === "ally" && target.reflectNextHit) {
-      target.reflectNextHit = false;
-      if (attacker.alive && finalDamage > 0) {
-        const reflected = Math.max(1, Math.round(finalDamage * 0.5));
-        events.push({ type: "message", text: `${displayActorName(target)}が『こだまがえし』で${reflected}のダメージを返した!` });
-        this.damageActor(attacker, reflected, false, events);
-      }
-    }
-  }
-
-  /** attackの後半: 命中した攻撃者側の特技による状態異常の追加付与を判定する */
-  private applyOnHitStatuses(attacker: Actor, target: Actor, events: GameEvent[]): void {
-    // 特技「ねむりごな」、またはマドロミダケの印(plan/equipment-forging.md):
-    // 隣接する敵への攻撃に、眠り付与の確率+10%を上乗せする
-    const hasDrowsyEffect =
-      (attacker.kind === "ally" && hasSkill(attacker, "drowsyBreath")) ||
-      (attacker.kind === "player" && hasEquipEffect(this.player.inventory, "drowsyBonus"));
-    const drowsyBonus = hasDrowsyEffect ? 0.1 : 0;
-    const inflicts = attacker.kind === "monster" || attacker.kind === "ally" ? attacker.inflicts : undefined;
-    const inflictChance = (inflicts?.chance ?? 0) + drowsyBonus;
-    // かなしばりの杖で封じられている間は、特技(状態異常の追加付与)が出せない
-    const sealed = hasStatus(attacker, STATUS_SEAL);
-    if (target.alive && inflictChance > 0 && !sealed && this.rng.chance(inflictChance)) {
-      const kind = inflicts?.kind ?? STATUS_SLEEP;
-      const turns = inflicts?.turns ?? 4;
-      addStatus(this.effectContext(events), target, kind, turns, STATUS_INFLICT_MESSAGES[kind] ?? "様子がおかしくなった");
-    }
-
-    // 特技「みだしのつめ」「ふうじのキバ」(plan/monster-compendium.md): 種族の
-    // 素の inflicts を持たない個体でも、夢あわせで得た特技ぶんは独立して付与を狙える
-    if (target.alive && !sealed) {
-      if (hasSkill(attacker, "confusingClaw") && this.rng.chance(CONFUSING_CLAW_CHANCE)) {
-        addStatus(this.effectContext(events), target, STATUS_CONFUSE, INHERITED_INFLICT_TURNS, "混乱した");
-      }
-      if (target.alive && hasSkill(attacker, "sealBite") && this.rng.chance(SEAL_BITE_CHANCE)) {
-        addStatus(this.effectContext(events), target, STATUS_SEAL, INHERITED_INFLICT_TURNS, "封じられた");
-      }
-    }
-  }
-
-  /**
-   * 地方ごとの成熟系統(plan/companion-evolution-expansion.md): こだまぎつねは
-   * 命中のたび確率で追加の1撃を同じ相手に放つ(最大2回まで反響)
-   */
-  private applyEchoAttacks(attacker: Actor, target: Actor, effectivePower: number, events: GameEvent[]): void {
-    // ぬしのゆめわざ「こだまのおたけび」(plan/game/archive/boss-dream-arts.md):
-    // 次の数ターン、仲間全員の攻撃に確率に関わらず半減ダメージの追加1撃を保証する。
-    // 種族特性echoAttackChance(確率式・こだまぎつね系)とは別枠で、両方乗りうる
-    if (attacker.kind === "ally" && this.echoAttackTurns > 0 && target.alive) {
-      this.echoHit(attacker, target, Math.round(effectivePower * KODAMA_NO_OTAKEBI_ECHO_MULTIPLIER), events);
-    }
-    const attackerSpeciesId = attacker.kind === "monster" || attacker.kind === "ally" ? attacker.speciesId : undefined;
-    const echoChance = attackerSpeciesId ? speciesById(attackerSpeciesId).echoAttackChance ?? 0 : 0;
-    if (echoChance <= 0) return;
-    for (let echo = 0; echo < ECHO_ATTACK_MAX && target.alive && this.rng.chance(echoChance); echo++) {
-      this.echoHit(attacker, target, effectivePower, events);
-    }
-  }
-
-  /** applyEchoAttacksの1回ぶんの追加攻撃(種族特性・こだまのおたけびで共有) */
-  private echoHit(attacker: Actor, target: Actor, power: number, events: GameEvent[]): void {
-    events.push({ type: "message", text: `${displayActorName(attacker)}のこうげきがこだました!` });
-    const echoDefense = target.kind === "player" ? totalDefense(this.player) : target.def;
-    const { damage, critical } = computeDamage(this.rng, power, echoDefense);
-    const finalDamage = mitigateIncomingDamage({
-      target,
-      damage,
-      events,
-      rng: this.rng,
+      allies: this.allies,
       runSkills: this.runSkills,
-      player: this.player,
       oncePerRun: this.oncePerRun,
+      echoAttackTurns: this.echoAttackTurns,
       partyGuardTurns: this.partyGuardTurns,
+      damageActor: (target2, dmg, crit) => this.damageActor(target2, dmg, crit, events),
     });
-    events.push({ type: "message", text: `${displayActorName(target)}に${finalDamage}のダメージ!` });
-    this.damageActor(target, finalDamage, critical, events);
   }
 
   private damageActor(target: Actor, damage: number, critical: boolean, events: GameEvent[]): void {
