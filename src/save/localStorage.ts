@@ -1,6 +1,7 @@
 import type { FloorState, Tile } from "../core/types";
 import type { RunSnapshot, RunStatus, SaveData, SaveSlotSummary } from "./types";
 import { SAVE_FIELDS, VALID_TRAINING_FOCI, buildSaveData, initialSave, type SaveFieldSpec } from "./initial";
+import type { SaveRepository } from "./repository";
 
 const LEGACY_KEY = "garudo-dungeon/v1";
 const LEGACY_SNAPSHOT_KEY = "garudo-dungeon/v1/run-snapshot";
@@ -38,79 +39,19 @@ export function migrateLegacySaveIfNeeded(): void {
   }
 }
 
-/** スロット選択画面に並べる、全スロットぶんの要約を返す */
-export function listSaveSlotSummaries(): SaveSlotSummary[] {
-  const summaries: SaveSlotSummary[] = [];
-  for (let slot = 0; slot < SAVE_SLOT_COUNT; slot++) {
-    const raw = (() => {
-      try {
-        return localStorage.getItem(slotKey(slot));
-      } catch {
-        return null;
-      }
-    })();
-    if (raw === null) {
-      summaries.push({ slot, exists: false, deepest: 0, villageStage: 1 });
-      continue;
-    }
-    const data = loadSave(slot);
-    summaries.push({
-      slot,
-      exists: true,
-      deepest: data.deepest,
-      villageStage: data.villageStage,
-      lastPlayedAt: data.lastPlayedAt,
-    });
-  }
-  return summaries;
-}
-
-/** スロットの削除(やり直し)。本編セーブ・ダイブ中スナップショットの両方を消す */
-export function deleteSaveSlot(slot: number): void {
-  try {
-    localStorage.removeItem(slotKey(slot));
-    localStorage.removeItem(slotSnapshotKey(slot));
-  } catch {
-    // 消せなくても遊べはするので握りつぶす
-  }
-}
-
-/** @param slot セーブ枠(plan/save-slots.md)。省略時は現在のアクティブ枠 */
-export function loadSave(slot: number = activeSlot): SaveData {
-  try {
-    const raw = localStorage.getItem(slotKey(slot));
-    if (!raw) return initialSave();
-    const parsed = JSON.parse(raw) as Partial<SaveData>;
-    return buildSaveData((key) => (SAVE_FIELDS[key] as SaveFieldSpec<unknown>).sanitize(parsed));
-  } catch {
-    // 壊れた保存データで起動できなくなるほうが困るので、黙って初期値に戻す
-    return initialSave();
-  }
-}
-
 /**
  * セーブ枠(plan/save-slots.md)。現在アクティブな枠番号。既存の
  * loadSave()/saveData()/saveRunSnapshot()/loadRunSnapshot()/clearRunSnapshot()の
  * 呼び出し側(記録まわりの各関数・main.ts・既存テスト)は、枠を意識せずに
  * 呼べば自動的にこの枠を読み書きする。main.tsはスロット選択直後に
- * setActiveSlot()を1回呼ぶだけでよい
+ * setActiveSlot()を1回呼ぶだけでよい。
+ *
+ * SaveRepository interface導入後も、実際に使う実装は常にこの既定の
+ * LocalStorageSaveRepositoryインスタンス1つだけなので、モジュール共有の
+ * 状態のままにしている(インスタンスごとに分ける意味のある複数同時利用は
+ * 想定しない。テストでの差し替えは、この実装まるごとを別実装に置き換える形になる)。
  */
 let activeSlot = 0;
-
-export function setActiveSlot(slot: number): void {
-  activeSlot = slot;
-}
-
-/** @param slot セーブ枠(plan/save-slots.md)。省略時は現在のアクティブ枠 */
-export function saveData(data: SaveData, slot: number = activeSlot): void {
-  if (batchDepth > 0) {
-    // まとめ書きの最中。最後の1つだけが本物なので、上書きしていく
-    pendingSave = data;
-    pendingSlot = slot;
-    return;
-  }
-  writeSave(data, slot);
-}
 
 function writeSave(data: SaveData, slot: number): void {
   try {
@@ -154,39 +95,6 @@ export function batchSaves<T>(run: () => T): T {
 }
 
 // ---------------------------------------------------------------- ダイブ中オートセーブ
-
-/**
- * ダイブ中の状態をまるごと書き出す。プレイヤーの入力で1ターンが解決する
- * たびに呼ぶ想定(README「core が1ターン分を即座に解決する」の直後)。
- */
-export function saveRunSnapshot(snapshot: RunSnapshot, slot: number = activeSlot): void {
-  try {
-    localStorage.setItem(slotSnapshotKey(slot), JSON.stringify(packSnapshot(snapshot)));
-  } catch {
-    // オートセーブが書き込めなくても遊べはするので、失敗は握りつぶす
-  }
-}
-
-/**
- * 残っているスナップショットを読む。壊れている・形が合わない場合は
- * 復帰できるものが無かったものとして null を返す(1回限りの保証なので、
- * 中途半端な状態を無理に復元するより諦めた方が安全)。
- *
- * 保存形式が変わったあとに残っていた古いスナップショットも、ここで
- * 「形が合わないもの」として捨てられる。ダイブ中の一時状態なので、
- * 移行を書くより拠点から始め直してもらう方が安全で単純。
- */
-export function loadRunSnapshot(slot: number = activeSlot): RunSnapshot | null {
-  try {
-    const raw = localStorage.getItem(slotSnapshotKey(slot));
-    if (!raw) return null;
-    const unpacked = unpackSnapshot(JSON.parse(raw) as PackedSnapshot);
-    if (!unpacked) return null;
-    return isValidSnapshot(unpacked) ? unpacked : null;
-  } catch {
-    return null;
-  }
-}
 
 // ---- スナップショットの保存形式 ----
 //
@@ -311,15 +219,6 @@ function unpackSnapshot(packed: PackedSnapshot | null): RunSnapshot | null {
   return { ...packed, floor: { ...floor, tiles } } as RunSnapshot;
 }
 
-/** 復帰した瞬間、または通常の終了(全滅・踏破・区切り)で消費する */
-export function clearRunSnapshot(slot: number = activeSlot): void {
-  try {
-    localStorage.removeItem(slotSnapshotKey(slot));
-  } catch {
-    // 消せなくても致命的ではない
-  }
-}
-
 const VALID_RUN_STATUSES: readonly RunStatus[] = ["playing", "dead", "cleared"];
 
 function isValidSnapshot(value: Partial<RunSnapshot>): value is RunSnapshot {
@@ -342,4 +241,156 @@ function isValidSnapshot(value: Partial<RunSnapshot>): value is RunSnapshot {
     typeof value.trainingFocus === "string" &&
     (VALID_TRAINING_FOCI as readonly string[]).includes(value.trainingFocus)
   );
+}
+
+/**
+ * localStorageへの直接アクセスを隔離する`SaveRepository`実装
+ * (plan/game/ddd-phase7-save-boundary.md PR2)。挙動はPR1以前のsave.tsと
+ * 1ビットも変えていない――既存のモジュール関数が使っていたのと同じ
+ * ヘルパー・同じ共有状態(activeSlot・batchDepth等)をそのまま使う。
+ */
+export class LocalStorageSaveRepository implements SaveRepository {
+  load(slot: number = activeSlot): SaveData {
+    try {
+      const raw = localStorage.getItem(slotKey(slot));
+      if (!raw) return initialSave();
+      const parsed = JSON.parse(raw) as Partial<SaveData>;
+      return buildSaveData((key) => (SAVE_FIELDS[key] as SaveFieldSpec<unknown>).sanitize(parsed));
+    } catch {
+      // 壊れた保存データで起動できなくなるほうが困るので、黙って初期値に戻す
+      return initialSave();
+    }
+  }
+
+  save(data: SaveData, slot: number = activeSlot): void {
+    if (batchDepth > 0) {
+      // まとめ書きの最中。最後の1つだけが本物なので、上書きしていく
+      pendingSave = data;
+      pendingSlot = slot;
+      return;
+    }
+    writeSave(data, slot);
+  }
+
+  delete(slot: number): void {
+    try {
+      localStorage.removeItem(slotKey(slot));
+      localStorage.removeItem(slotSnapshotKey(slot));
+    } catch {
+      // 消せなくても遊べはするので握りつぶす
+    }
+  }
+
+  /** スロット選択画面に並べる、全スロットぶんの要約を返す */
+  listSummaries(): SaveSlotSummary[] {
+    const summaries: SaveSlotSummary[] = [];
+    for (let slot = 0; slot < SAVE_SLOT_COUNT; slot++) {
+      const raw = (() => {
+        try {
+          return localStorage.getItem(slotKey(slot));
+        } catch {
+          return null;
+        }
+      })();
+      if (raw === null) {
+        summaries.push({ slot, exists: false, deepest: 0, villageStage: 1 });
+        continue;
+      }
+      const data = this.load(slot);
+      summaries.push({
+        slot,
+        exists: true,
+        deepest: data.deepest,
+        villageStage: data.villageStage,
+        lastPlayedAt: data.lastPlayedAt,
+      });
+    }
+    return summaries;
+  }
+
+  setActiveSlot(slot: number): void {
+    activeSlot = slot;
+  }
+
+  /**
+   * ダイブ中の状態をまるごと書き出す。プレイヤーの入力で1ターンが解決する
+   * たびに呼ぶ想定(README「core が1ターン分を即座に解決する」の直後)。
+   * snapshotにnullを渡すと、復帰した瞬間・通常の終了(全滅・踏破・区切り)で
+   * 消費するとき(旧clearRunSnapshot)と同じ動作になる。
+   */
+  saveRunSnapshot(snapshot: RunSnapshot | null, slot: number = activeSlot): void {
+    if (snapshot === null) {
+      try {
+        localStorage.removeItem(slotSnapshotKey(slot));
+      } catch {
+        // 消せなくても致命的ではない
+      }
+      return;
+    }
+    try {
+      localStorage.setItem(slotSnapshotKey(slot), JSON.stringify(packSnapshot(snapshot)));
+    } catch {
+      // オートセーブが書き込めなくても遊べはするので、失敗は握りつぶす
+    }
+  }
+
+  /**
+   * 残っているスナップショットを読む。壊れている・形が合わない場合は
+   * 復帰できるものが無かったものとして null を返す(1回限りの保証なので、
+   * 中途半端な状態を無理に復元するより諦めた方が安全)。
+   *
+   * 保存形式が変わったあとに残っていた古いスナップショットも、ここで
+   * 「形が合わないもの」として捨てられる。ダイブ中の一時状態なので、
+   * 移行を書くより拠点から始め直してもらう方が安全で単純。
+   */
+  loadRunSnapshot(slot: number = activeSlot): RunSnapshot | null {
+    try {
+      const raw = localStorage.getItem(slotSnapshotKey(slot));
+      if (!raw) return null;
+      const unpacked = unpackSnapshot(JSON.parse(raw) as PackedSnapshot);
+      if (!unpacked) return null;
+      return isValidSnapshot(unpacked) ? unpacked : null;
+    } catch {
+      return null;
+    }
+  }
+}
+
+const defaultRepository = new LocalStorageSaveRepository();
+
+/** @param slot セーブ枠(plan/save-slots.md)。省略時は現在のアクティブ枠 */
+export function loadSave(slot: number = activeSlot): SaveData {
+  return defaultRepository.load(slot);
+}
+
+/** @param slot セーブ枠(plan/save-slots.md)。省略時は現在のアクティブ枠 */
+export function saveData(data: SaveData, slot: number = activeSlot): void {
+  defaultRepository.save(data, slot);
+}
+
+/** スロットの削除(やり直し)。本編セーブ・ダイブ中スナップショットの両方を消す */
+export function deleteSaveSlot(slot: number): void {
+  defaultRepository.delete(slot);
+}
+
+/** スロット選択画面に並べる、全スロットぶんの要約を返す */
+export function listSaveSlotSummaries(): SaveSlotSummary[] {
+  return defaultRepository.listSummaries();
+}
+
+export function setActiveSlot(slot: number): void {
+  defaultRepository.setActiveSlot(slot);
+}
+
+export function saveRunSnapshot(snapshot: RunSnapshot, slot: number = activeSlot): void {
+  defaultRepository.saveRunSnapshot(snapshot, slot);
+}
+
+export function loadRunSnapshot(slot: number = activeSlot): RunSnapshot | null {
+  return defaultRepository.loadRunSnapshot(slot);
+}
+
+/** 復帰した瞬間、または通常の終了(全滅・踏破・区切り)で消費する */
+export function clearRunSnapshot(slot: number = activeSlot): void {
+  defaultRepository.saveRunSnapshot(null, slot);
 }
