@@ -48,7 +48,33 @@ const TOON_GRADIENT = (() => {
  * 顔まわりの造形を潰さない」太さとして選んだ値。
  */
 const OUTLINE_THICKNESS = 0.012;
+/**
+ * 輪郭線に色が無いモデル向けの既定値(plan/models/visual-quality-uplift.md
+ * 施策C「純黒をやめ、各モデルの基色を暗く濁した色にする」)。通常は
+ * `outlineColorFor`がモデル本体の色から導くので、この値が直接出るのは
+ * `MeshToonMaterial.color`が拾えなかった場合の保険だけ
+ */
 const OUTLINE_COLOR = 0x0a0a0c;
+/** 輪郭線の明度(HSLのL)。低いほど黒に近く、モデルごとの色相だけがうっすら乗る */
+const OUTLINE_LIGHTNESS = 0.06;
+/** 輪郭線の彩度を基色の何倍に抑えるか(そのままだと派手すぎるため濁す) */
+const OUTLINE_SATURATION_SCALE = 0.6;
+
+/**
+ * モデル本体の色から、暗く濁した輪郭線の色を作る(plan/models/
+ * visual-quality-uplift.md施策C)。色相はそのまま、彩度を落として
+ * 明度を大きく下げるので、赤いモンスターは暗い臙脂、青いキャラは
+ * 暗い紺の輪郭になる(一律の黒よりモデルに馴染む)。`MeshToonMaterial.color`
+ * を拾えない(発光のみ等)ときは既定の`OUTLINE_COLOR`にフォールバックする
+ */
+export function outlineColorFor(material: THREE.Material | THREE.Material[]): THREE.Color {
+  const first = Array.isArray(material) ? material[0] : material;
+  const base = (first as THREE.MeshToonMaterial | undefined)?.color;
+  if (!base) return new THREE.Color(OUTLINE_COLOR);
+  const hsl = { h: 0, s: 0, l: 0 };
+  base.getHSL(hsl);
+  return new THREE.Color().setHSL(hsl.h, hsl.s * OUTLINE_SATURATION_SCALE, OUTLINE_LIGHTNESS);
+}
 
 /**
  * リムライト(逆光の縁光、plan/game/archive/rim-light-and-contact-shadow.md)。
@@ -135,9 +161,9 @@ function addRimLight(material: THREE.MeshToonMaterial): void {
  * スキニング適用前のローカル法線でオフセットすると、ボーンが回転した
  * 状態で押し出し方向がずれる。
  */
-function makeOutlineMaterial(): THREE.MeshBasicMaterial {
+function makeOutlineMaterial(color: THREE.Color): THREE.MeshBasicMaterial {
   const material = new THREE.MeshBasicMaterial({
-    color: OUTLINE_COLOR,
+    color,
     side: THREE.BackSide,
   });
   material.onBeforeCompile = (shader) => {
@@ -160,7 +186,7 @@ function makeOutlineMaterial(): THREE.MeshBasicMaterial {
  * 複数のSkinnedMeshが同じスケルトンを共有する構成を正しく扱う)。
  */
 function addOutlineMesh(mesh: THREE.SkinnedMesh): void {
-  const outline = new THREE.SkinnedMesh(mesh.geometry, makeOutlineMaterial());
+  const outline = new THREE.SkinnedMesh(mesh.geometry, makeOutlineMaterial(outlineColorFor(mesh.material)));
   outline.name = `${mesh.name}__outline`;
   outline.bind(mesh.skeleton, mesh.bindMatrix);
   outline.castShadow = false;
