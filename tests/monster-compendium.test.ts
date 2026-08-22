@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { Game } from "../src/game";
 import { Rng } from "../src/core/rng";
+import type { GameEvent } from "../src/core/events";
+import type { OncePerRunTracker } from "../src/core/oncePerRunTracker";
+import { mitigateIncomingDamage as domainMitigateIncomingDamage } from "../src/domain/combat/damageModifier";
 import { decideMonsterAction, GUARD_COUNTER_BONUS } from "../src/entities/ai";
 import { createMonster } from "../src/dungeon/populate";
 import { speciesById, speciesForDepth, SPECIES } from "../src/entities/species";
@@ -350,12 +353,19 @@ describe("game.ts: 夢あわせで得た付与系特技(みだしのつめ・ふ
 
 describe("game.ts: はねひらり・とんずら", () => {
   it("はねひらり持ちの仲間は、確率で被弾を完全に無効化する", () => {
-    const mitigate = (game: Game, target: Actor, damage: number, events: unknown[]) =>
-      (
-        game as unknown as {
-          mitigateIncomingDamage: (t: Actor, d: number, e: unknown[]) => number;
-        }
-      ).mitigateIncomingDamage(target, damage, events);
+    const mitigate = (game: Game, target: Actor, damage: number, events: unknown[]) => {
+      const internals = game as unknown as { oncePerRun: OncePerRunTracker; partyGuardTurns: number };
+      return domainMitigateIncomingDamage({
+        target,
+        damage,
+        events: events as GameEvent[],
+        rng: game.rng,
+        runSkills: game.runSkills,
+        player: game.player,
+        oncePerRun: internals.oncePerRun,
+        partyGuardTurns: internals.partyGuardTurns,
+      });
+    };
 
     for (let seed = 1; seed <= 60; seed++) {
       const game = new Game({ seed });
@@ -402,12 +412,18 @@ describe("game.ts: はねひらり・とんずら", () => {
       alive: true,
       skills: ["burrowEscape"],
     };
+    const internals = game as unknown as { oncePerRun: OncePerRunTracker; partyGuardTurns: number };
     const mitigate = (t: Actor, d: number, e: unknown[]) =>
-      (
-        game as unknown as {
-          mitigateIncomingDamage: (t: Actor, d: number, e: unknown[]) => number;
-        }
-      ).mitigateIncomingDamage(t, d, e);
+      domainMitigateIncomingDamage({
+        target: t,
+        damage: d,
+        events: e as GameEvent[],
+        rng: game.rng,
+        runSkills: game.runSkills,
+        player: game.player,
+        oncePerRun: internals.oncePerRun,
+        partyGuardTurns: internals.partyGuardTurns,
+      });
 
     // maxHpの3割を大きく超える一撃で「瀕死」を発生させる
     const events1: unknown[] = [];
