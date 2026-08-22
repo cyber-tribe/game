@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { chebyshev, eq } from "../src/core/grid";
 import { STATUS_SLEEP, TILE_ROOM, TILE_WALL, type Actor, type TileKind } from "../src/core/types";
+import type { GameEvent } from "../src/core/events";
 import { Game } from "../src/game";
+import { resolveActorOverlaps } from "../src/domain/turn/turnCycle";
 
 function monster(overrides: Partial<Actor> = {}): Actor {
   return {
@@ -111,13 +113,8 @@ describe("game.ts: プレイヤーと敵モンスターの重なりフェイル�
     const foe = monster({ pos: { x: 5, y: 5 } });
     game.floor.actors.push(foe);
 
-    const resolve = (
-      game as unknown as {
-        resolveActorOverlaps: (events: unknown[], playerPosBeforeCommand: { x: number; y: number }) => void;
-      }
-    ).resolveActorOverlaps.bind(game);
-    const events: { type: string }[] = [];
-    resolve(events, { x: 4, y: 4 });
+    const events: GameEvent[] = [];
+    resolveActorOverlaps(game.floor, events, game.player, { x: 4, y: 4 });
 
     expect(game.player.pos).toEqual({ x: 4, y: 4 });
     expect(foe.pos).toEqual({ x: 5, y: 5 }); // モンスター自体は動かせなかったのでそのまま
