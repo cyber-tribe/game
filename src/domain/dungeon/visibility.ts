@@ -1,5 +1,5 @@
-import type { Vec2 } from "../core/grid";
-import { type FloorState, roomOf, tileAt } from "../core/types";
+import type { Vec2 } from "../../core/grid";
+import { type FloorState, roomOf, tileAt } from "../../core/types";
 
 /** 「くらやみの階」ギミック中、部屋にいても viewer からこの距離までしか見えない */
 const DARKNESS_RADIUS = 2;

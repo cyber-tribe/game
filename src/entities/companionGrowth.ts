@@ -28,7 +28,7 @@ export function allyExpForLevel(level: number, multiplier = 1): number {
 
 /**
  * 種族基礎値・レベル・なじみから、仲間のmaxHp/atk/defを計算し直す。
- * dungeon/populate.tsのcreateAllyFromStored(ねむり小屋から連れ出すとき)と
+ * domain/dungeon/populate.tsのcreateAllyFromStored(ねむり小屋から連れ出すとき)と
  * ダイブ中のレベルアップ(game.ts)の両方が、この1つの式を共有する
  * (計算式が2箇所に分かれてズレることを防ぐ)
  */

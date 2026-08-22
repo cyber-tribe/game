@@ -1,8 +1,8 @@
 import type { Vec2 } from "../../core/grid";
 import type { AllyActor, Barrel, FloorState } from "../../core/types";
 import type { GameEvent } from "../../core/events";
-import type { IdSource } from "../../dungeon/populate";
-import { createAlly } from "../../dungeon/populate";
+import type { IdSource } from "../dungeon/populate";
+import { createAlly } from "../dungeon/populate";
 import { MAX_ALLIES } from "../../entities/player";
 import { speciesById } from "../../entities/species";
 import { t } from "../../i18n";

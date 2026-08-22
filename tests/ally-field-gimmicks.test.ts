@@ -8,7 +8,7 @@ import {
   type Tile,
 } from "../src/core/types";
 import { Game } from "../src/game";
-import { populateFloor, type IdSource } from "../src/dungeon/populate";
+import { populateFloor, type IdSource } from "../src/domain/dungeon/populate";
 import { speciesById } from "../src/entities/species";
 
 function makeIds(): IdSource {

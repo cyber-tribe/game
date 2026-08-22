@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Rng } from "../src/core/rng";
-import { generateFloor } from "../src/dungeon/generate";
+import { generateFloor } from "../src/domain/dungeon/generate";
 import {
   DUNGEONS,
   NIGHTLY_DREAM_ID,

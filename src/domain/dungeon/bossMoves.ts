@@ -29,7 +29,7 @@ import {
 import type { GameEvent } from "../../core/events";
 import { type Vec2, dirFromDelta } from "../../core/grid";
 import type { Rng } from "../../core/rng";
-import { type IdSource, createMonster } from "../../dungeon/populate";
+import { type IdSource, createMonster } from "./populate";
 import { displayActorName } from "../../entities/naming";
 import { speciesById } from "../../entities/species";
 import { computeDamage } from "../combat/damageCalculation";

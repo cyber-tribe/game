@@ -20,7 +20,7 @@ import {
   tileAt,
   walkableAt,
 } from "../core/types";
-import { canSee } from "../dungeon/visibility";
+import { canSee } from "../domain/dungeon/visibility";
 import { DREAM_ARTS } from "./dreamArts";
 import { hasSkill } from "./skills";
 import { speciesById } from "./species";

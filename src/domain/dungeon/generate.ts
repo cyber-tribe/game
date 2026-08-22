@@ -1,5 +1,5 @@
-import type { Rng } from "../core/rng";
-import { type Vec2, vec } from "../core/grid";
+import type { Rng } from "../../core/rng";
+import { type Vec2, vec } from "../../core/grid";
 import {
   TILE_CORRIDOR,
   TILE_ROOM,
@@ -10,7 +10,7 @@ import {
   type Tile,
   isWalkable,
   roomCenter,
-} from "../core/types";
+} from "../../core/types";
 
 export interface GenerateOptions {
   depth: number;

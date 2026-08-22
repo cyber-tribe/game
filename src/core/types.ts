@@ -355,7 +355,7 @@ interface ActorBase {
 
 /**
  * モンスター・仲間に共通するフィールド(plan外のリファクタリング、
- * Martin Fowler PR15)。仲間はdungeon/populate.tsのcreateAllyが
+ * Martin Fowler PR15)。仲間はdomain/dungeon/populate.tsのcreateAllyが
  * createMonsterの戻り値を土台にkindだけ差し替えて作るため、実行時の形は
  * 元からほぼ同じだった。この共通部分をCombatantActorとして型でも表す
  */

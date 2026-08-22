@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 import { Rng } from "../src/core/rng";
 import { ALL_DIRS, dirDelta, dirFromDelta } from "../src/core/grid";
 import { isFree, isWalkable, roomContains, walkableAt, type MonsterActor } from "../src/core/types";
-import { generateFloor, reachableFrom, validate } from "../src/dungeon/generate";
+import { generateFloor, reachableFrom, validate } from "../src/domain/dungeon/generate";
 import {
   type IdSource,
   choosePlayerStart,
   populateFloor,
-} from "../src/dungeon/populate";
+} from "../src/domain/dungeon/populate";
 import { Game } from "../src/game";
 import { clearBossIfPresent } from "./helpers/bossFloor";
 

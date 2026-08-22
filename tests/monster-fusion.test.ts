@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Game } from "../src/game";
 import { fullSkillSet } from "../src/entities/skills";
-import { createAllyFromStored } from "../src/dungeon/populate";
+import { createAllyFromStored } from "../src/domain/dungeon/populate";
 import type { Actor } from "../src/core/types";
 import type { GameEvent } from "../src/core/events";
 import {

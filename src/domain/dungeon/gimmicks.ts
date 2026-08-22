@@ -1,5 +1,5 @@
-import type { Rng } from "../core/rng";
-import type { FloorGimmickKind } from "../core/types";
+import type { Rng } from "../../core/rng";
+import type { FloorGimmickKind } from "../../core/types";
 
 /** フロア生成のたびにギミックが乗る確率 */
 const GIMMICK_CHANCE = 0.3;

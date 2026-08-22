@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { Game } from "../src/game";
 import { Rng } from "../src/core/rng";
-import { generateFloor } from "../src/dungeon/generate";
-import { placeQuagmireTiles } from "../src/dungeon/populate";
+import { generateFloor } from "../src/domain/dungeon/generate";
+import { placeQuagmireTiles } from "../src/domain/dungeon/populate";
 import { dirFromDelta } from "../src/core/grid";
 import { TILE_ROOM } from "../src/core/types";
 import { REGION_DUNGEON_IDS } from "../src/entities/dungeons";

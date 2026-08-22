@@ -2,8 +2,8 @@ import type { Actor, FloorState, MonsterActor, RunSkillId } from "../../core/typ
 import { STATUS_SLEEP, hpOwnerOf } from "../../core/types";
 import type { GameEvent } from "../../core/events";
 import type { Rng } from "../../core/rng";
-import type { IdSource } from "../../dungeon/populate";
-import { createItem } from "../../dungeon/populate";
+import type { IdSource } from "../dungeon/populate";
+import { createItem } from "../dungeon/populate";
 import type { OncePerRunTracker } from "../../core/oncePerRunTracker";
 import type { Inventory } from "../../items/inventory";
 import { hasEquipEffect } from "../../items/inventory";

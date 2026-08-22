@@ -4,7 +4,7 @@ import { Rng } from "../src/core/rng";
 import { computeDamage } from "../src/domain/combat/damageCalculation";
 import { MAX_LEVEL, createPlayer, expForLevel, gainExp, totalAttack } from "../src/entities/player";
 import { addItem, createInventory, equip, weaponBonus } from "../src/items/inventory";
-import { createItem } from "../src/dungeon/populate";
+import { createItem } from "../src/domain/dungeon/populate";
 import { type Dir, dirDelta } from "../src/core/grid";
 import { STATUS_SLEEP, hasStatus, walkableAt } from "../src/core/types";
 

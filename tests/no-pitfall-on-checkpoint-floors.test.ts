@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { Rng } from "../src/core/rng";
-import { generateFloor } from "../src/dungeon/generate";
-import { pickFloorGimmick } from "../src/dungeon/gimmicks";
-import { type IdSource, populateFloor } from "../src/dungeon/populate";
+import { generateFloor } from "../src/domain/dungeon/generate";
+import { pickFloorGimmick } from "../src/domain/dungeon/gimmicks";
+import { type IdSource, populateFloor } from "../src/domain/dungeon/populate";
 import { REGION_DUNGEON_IDS, isCheckpointFloor } from "../src/entities/dungeons";
 
 const region1 = REGION_DUNGEON_IDS[0];

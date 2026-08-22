@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { LOST_AND_FOUND_VAULT_ID, dungeonById, isDungeonUnlocked } from "../src/entities/dungeons";
-import { placeSecretPassage } from "../src/dungeon/populate";
+import { placeSecretPassage } from "../src/domain/dungeon/populate";
 import { Rng } from "../src/core/rng";
-import { generateFloor } from "../src/dungeon/generate";
+import { generateFloor } from "../src/domain/dungeon/generate";
 import { Game } from "../src/game";
 import { addFoundVaultPassage, initialSave } from "../src/save";
 import { dirFromDelta } from "../src/core/grid";

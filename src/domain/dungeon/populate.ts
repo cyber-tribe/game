@@ -1,5 +1,5 @@
-import type { Rng } from "../core/rng";
-import { type Dir, type Vec2, chebyshev, eq } from "../core/grid";
+import type { Rng } from "../../core/rng";
+import { type Dir, type Vec2, chebyshev, eq } from "../../core/grid";
 import {
   type Actor,
   type AllyActor,
@@ -22,13 +22,13 @@ import {
   roomContains,
   roomOf,
   tileAt,
-} from "../core/types";
-import { computeAllyStats } from "../entities/companionGrowth";
-import { shopPrice } from "../entities/shop";
-import { fullSkillSet } from "../entities/skills";
-import { speciesById, speciesForDepth } from "../entities/species";
-import type { StoredMonster } from "../entities/storedMonster";
-import { itemsForDepth } from "../items/catalog";
+} from "../../core/types";
+import { computeAllyStats } from "../../entities/companionGrowth";
+import { shopPrice } from "../../entities/shop";
+import { fullSkillSet } from "../../entities/skills";
+import { speciesById, speciesForDepth } from "../../entities/species";
+import type { StoredMonster } from "../../entities/storedMonster";
+import { itemsForDepth } from "../../items/catalog";
 import { randomTileInRoom } from "./generate";
 
 export interface IdSource {

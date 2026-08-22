@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Game } from "../src/game";
-import { populateFloor, type IdSource } from "../src/dungeon/populate";
-import { updateVisibility, isVisible } from "../src/dungeon/visibility";
+import { populateFloor, type IdSource } from "../src/domain/dungeon/populate";
+import { updateVisibility, isVisible } from "../src/domain/dungeon/visibility";
 import {
   addItem,
   charmDefId,

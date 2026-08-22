@@ -5,7 +5,7 @@ import type { GameEvent } from "../src/core/events";
 import type { OncePerRunTracker } from "../src/core/oncePerRunTracker";
 import { mitigateIncomingDamage as domainMitigateIncomingDamage } from "../src/domain/combat/damageModifier";
 import { decideMonsterAction, GUARD_COUNTER_BONUS } from "../src/entities/ai";
-import { createMonster } from "../src/dungeon/populate";
+import { createMonster } from "../src/domain/dungeon/populate";
 import { speciesById, speciesForDepth, SPECIES } from "../src/entities/species";
 import {
   hasStatus,

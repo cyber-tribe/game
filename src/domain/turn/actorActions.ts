@@ -25,7 +25,7 @@ import { bondStage } from "../../entities/companionBond";
 import { dreamArtDef } from "../../entities/dreamArts";
 import { totalDefense } from "../../entities/player";
 import { displayActorName } from "../../entities/naming";
-import { isVisible } from "../../dungeon/visibility";
+import { isVisible } from "../dungeon/visibility";
 import { DREAM_ART_EFFECTS, type DreamArtContext } from "../party/dreamArtEffects";
 import { BOSS_MOVES, type BossMoveContext } from "../dungeon/bossMoves";
 import { computeDamage } from "../combat/damageCalculation";

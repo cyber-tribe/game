@@ -7,7 +7,7 @@ import { isCheckpointFloor, regionIndexForDungeonId } from "../../entities/dunge
 import { speciesById } from "../../entities/species";
 import { hasEquipEffect } from "../../items/inventory";
 import { itemDef } from "../../items/catalog";
-import { GIMMICK_MESSAGES } from "../../dungeon/gimmicks";
+import { GIMMICK_MESSAGES } from "./gimmicks";
 import { t } from "../../i18n";
 
 /**

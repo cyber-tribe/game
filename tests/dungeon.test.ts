@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Rng } from "../src/core/rng";
-import { generateFloor, reachableFrom, validate } from "../src/dungeon/generate";
-import { updateVisibility } from "../src/dungeon/visibility";
+import { generateFloor, reachableFrom, validate } from "../src/domain/dungeon/generate";
+import { updateVisibility } from "../src/domain/dungeon/visibility";
 import { TILE_WALL, isWalkable, roomCenter, tileAt } from "../src/core/types";
 
 describe("フロア生成", () => {

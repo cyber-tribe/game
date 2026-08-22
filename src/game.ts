@@ -53,7 +53,7 @@ import {
   createItem,
   findFreeTile,
   spawnWanderingMonster,
-} from "./dungeon/populate";
+} from "./domain/dungeon/populate";
 import { displayActorName } from "./entities/naming";
 import { ALLY_STANCE_NAMES, barrelDisplayName } from "./entities/displayNames";
 import {
@@ -66,7 +66,7 @@ import {
 } from "./entities/dungeons";
 import { DEFAULT_MOOD_ID, type MoodDef, type MoodId, moodDef } from "./entities/moods";
 import type { StoredMonster } from "./entities/storedMonster";
-import { isVisible, updateVisibility } from "./dungeon/visibility";
+import { isVisible, updateVisibility } from "./domain/dungeon/visibility";
 import type { DifficultyMode } from "./entities/difficulty";
 import { HOKORA_DUST_DEF_ID, MARK_STONE_DEF_ID, MARKS } from "./entities/forging";
 import { sellPrice } from "./entities/shop";

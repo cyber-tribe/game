@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AllyActor } from "../src/core/types";
 import { bondBonus, bondStage, bondStageLabel } from "../src/entities/companionBond";
-import { createAllyFromStored } from "../src/dungeon/populate";
+import { createAllyFromStored } from "../src/domain/dungeon/populate";
 import { actorToStoredMonster, fuseMonsters, initialSave, loadSave, type StoredMonster } from "../src/save";
 import { withMockedLocalStorage } from "./helpers/localStorage";
 
