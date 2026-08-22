@@ -46,56 +46,28 @@ import {
   walkLine,
 } from "./core/types";
 import { type ArtId, artDef } from "./entities/arts";
-import { generateFloor } from "./dungeon/generate";
-import { pickFloorGimmick } from "./dungeon/gimmicks";
 import {
   type IdSource,
-  choosePlayerStart,
   createAllyFromStored,
   createBarrel,
   createItem,
-  createMonster,
   findFreeTile,
-  placeChapter3CollapseObstacle,
-  placeDecoyBarrels,
-  placeDecoyStairs,
-  placeQuagmireTiles,
-  placeSecretPassage,
-  placeSporeRooms,
-  placeTorrentTiles,
-  populateFloor,
   spawnWanderingMonster,
 } from "./dungeon/populate";
 import { displayActorName } from "./entities/naming";
 import { ALLY_STANCE_NAMES, barrelDisplayName } from "./entities/displayNames";
 import {
   isCheckpointFloor,
-  isChapter3CollapseFloor,
   type DungeonDef,
-  HINATA_ID,
   MOUNTAIN_CORE_ID,
-  NIGHTLY_DREAM_ID,
   REGION_DUNGEON_IDS,
   TARUKURABE_ID,
-  TRIAL_CHAMBER_ID,
-  TRUE_AWAKENING_ID,
-  branchDungeonSpecFor,
   dungeonById,
-  nightlyDreamStatMultiplier,
-  regionIndexForDungeonId,
 } from "./entities/dungeons";
-import { storyChapter } from "./entities/story";
 import { DEFAULT_MOOD_ID, type MoodDef, type MoodId, moodDef } from "./entities/moods";
 import type { StoredMonster } from "./entities/storedMonster";
 import { isVisible, updateVisibility } from "./dungeon/visibility";
-import {
-  GIMMICK_CHANCE_MULTIPLIER,
-  GOLD_REWARD_MULTIPLIER,
-  MONSTER_ATK_MULTIPLIER,
-  MONSTER_HOUSE_CHANCE_MULTIPLIER,
-  SHINING_CHANCE_DIFFICULTY_MULTIPLIER,
-  type DifficultyMode,
-} from "./entities/difficulty";
+import type { DifficultyMode } from "./entities/difficulty";
 import { HOKORA_DUST_DEF_ID, MARK_STONE_DEF_ID, MARKS } from "./entities/forging";
 import { sellPrice } from "./entities/shop";
 import {
@@ -106,8 +78,7 @@ import {
   createPlayer,
   totalAttack,
 } from "./entities/player";
-import { HAJIME_NO_YUME_ID, REGION_BOSS_ORDER, speciesById } from "./entities/species";
-import { REGIONS, regionByIndex } from "./entities/regions";
+import { speciesById } from "./entities/species";
 import { type BondStage, bondStage } from "./entities/companionBond";
 import { HONOKA_NA_AKARI_VISION_EXTRA, type DreamArtContext } from "./domain/party/dreamArtEffects";
 import { itemDef } from "./items/catalog";
@@ -185,25 +156,18 @@ import {
   openDoor as domainOpenDoor,
   regionGimmickApplies as domainRegionGimmickApplies,
 } from "./domain/dungeon/progression";
+import {
+  beginBranchDungeon as domainBeginBranchDungeon,
+  endBranchDungeon as domainEndBranchDungeon,
+  enterFloor as domainEnterFloor,
+  findBranchEntranceDungeonId as domainFindBranchEntranceDungeonId,
+  type HostDungeonContext,
+} from "./domain/dungeon/floorEntry";
 
 /** 双樽鉤(quickSingle)の会心率の上乗せ分 */
 const QUICK_SINGLE_CRIT_BONUS = 0.15;
 /** 主の大槌(heavySingle)の反動。1ターン分の行動を失わせる(既存の状態異常と同じ off-by-one 消化) */
 const HEAVY_RECOVER_TURNS = 2;
-
-// ---- plan/monster-compendium.md: 新しい特技・特性の各種係数 ----
-/**
- * 図鑑コンプリート(plan/monster-compendium.md)時、かがやきの夢のかけらの
- * 出現確率に掛かる倍率。基準の確率自体は dungeon/populate.ts 側で定義する
- */
-const COMPENDIUM_COMPLETE_SHINING_MULTIPLIER = 1.5;
-/**
- * 真の目覚め(plan/true-awakening.md)達成後の恒久ボーナス。図鑑コンプリート
- * の1.5倍からさらに+0.5%(基準1%換算)上乗せし、合計2倍にする。
- * 達成には図鑑コンプリートが前提条件のひとつなので、この倍率は
- * COMPENDIUM_COMPLETE_SHINING_MULTIPLIERの代わりに使う(掛け合わせない)
- */
-const TRUE_AWAKENING_SHINING_MULTIPLIER = 2;
 
 export type Command =
   /** 移動、または進んだ先に敵がいれば1マス押し出す(plan/attack-button.md) */
@@ -362,31 +326,6 @@ const HERB_SATIETY_BONUS = 5;
 /** このターンごとにモンスターが1体湧く */
 const SPAWN_INTERVAL = 45;
 
-/** 第八地方(めざめの前庭)固有ギミック(plan/dream-garden-mosaic.md): 抽選対象の地方番号(第二〜第七地方) */
-const MOSAIC_CANDIDATE_REGIONS = [2, 3, 4, 5, 6, 7];
-
-/**
- * 地方固有の地形ギミック配置フック(plan/wetland-quagmire.md・plan/spore-grove.md・
- * plan/waterfall-torrent.md・plan/festival-mirage.md)。地方番号→フロア生成後に
- * 呼ぶ配置関数。フックを持たない地方(第一・第四・第六・第八)はここには現れない
- * (第四地方はモンスターハウス倍率のみ、第六地方は別メソッドの物音ギミック、
- * 第八地方はモザイク抽選そのもの)
- */
-const REGION_GIMMICK_PLACERS: Readonly<
-  Record<number, (rng: Rng, floor: FloorState, ids: IdSource) => void>
-> = {
-  2: (rng, floor) => placeQuagmireTiles(rng, floor),
-  3: (rng, floor) => placeSporeRooms(rng, floor),
-  5: (rng, floor) => placeTorrentTiles(rng, floor),
-  7: (rng, floor, ids) => {
-    placeDecoyStairs(rng, floor);
-    placeDecoyBarrels(rng, floor, ids);
-  },
-};
-
-/** 第四地方(骨積みの回廊)。モンスターハウス出現率の乗数は regions.ts のデータに持たせている */
-const BONEPILE_REGION = regionByIndex(4);
-
 /** 松明(plan/region-darkness.md): 使うと持続する視界拡張の効果時間(ターン)。数値は初期案 */
 const TORCH_DURATION_TURNS = 20;
 
@@ -507,24 +446,6 @@ const FIELD_SKILL_HINTS: Record<FieldSkillId, string> = {
  */
 function weaponKindOf(defId: string): string {
   return itemDef(defId).attackPattern ?? "basic";
-}
-
-/**
- * 横穴(分岐ダンジョン、plan/game/dungeon-per-region.md)に入っているあいだ、
- * 元いた地方ダンジョン側の状態を退避しておく入れ物。返ってきたときに
- * そのまま復元する(プレイヤー・仲間・所持品・ターン数などダイブ全体に
- * かかる状態はいじらず、「どのダンジョンの何階を今表示しているか」だけを
- * 一時的に差し替える)
- */
-interface HostDungeonContext {
-  dungeon: DungeonDef;
-  maxDepth: number;
-  depth: number;
-  floor: FloorState;
-  previousGimmick?: FloorGimmickKind;
-  mosaicRegions: number[];
-  monsterHouseWarned: boolean;
-  shopSeenThisRun: boolean;
 }
 
 export class Game {
@@ -823,148 +744,34 @@ export class Game {
       this.enterTarukurabeFloor();
       return;
     }
-    // ひなたの寝穴(plan/game/tutorial-dungeon.md): 通常のフロア生成を経由せず、
-    // 階ごとに手作りの固定Floorを直接組み立てる(tarukurabeと同じ考え方)。
-    // 罠・ギミック・モンスターハウスは一切乗らず、出現はぷるんだけになる
-    if (this.dungeon.id === HINATA_ID) {
-      this.enterHinataFloor(depth);
-      return;
-    }
-    // 地方ボス(plan/region-bosses.md): 地方ダンジョンのボス階には、通常の野生モンスターも
-    // フロアギミックも乗せない(ボス以外の変数を減らす、本文どおりの方針)。
-    // 腕試しの間(plan/hidden-dungeon.md)は、全階がボス階の再戦だけで構成される
-    const dungeonRegionIndex = regionIndexForDungeonId(this.dungeon.id);
-    const bossSpeciesId =
-      dungeonRegionIndex !== undefined && depth === this.dungeon.maxDepth
-        ? regionByIndex(dungeonRegionIndex).bossSpeciesId
-        : this.dungeon.id === TRIAL_CHAMBER_ID
-          ? REGION_BOSS_ORDER[depth - 1]
-          : // 真の目覚め(plan/true-awakening.md): 最終階にだけ「はじめの夢」を配置する
-            this.dungeon.id === TRUE_AWAKENING_ID && depth === this.maxDepth
-            ? HAJIME_NO_YUME_ID
-            : undefined;
 
-    // ボスの間(plan/game/dungeon-boss-rooms.md): 地方ダンジョンのボス階だけ、通常の
-    // フロア生成(generateFloor)を経由せず、前室→扉→ボスの間の固定構造を組む。
-    // 腕試しの間・真の目覚めは対象外(docの対象外どおり。それぞれ既存の
-    // generateFloor経由の挙動のまま)
-    if (dungeonRegionIndex !== undefined && bossSpeciesId) {
-      this.enterBossFloor(depth, bossSpeciesId);
-      return;
-    }
-
-    // 第八地方(めざめの前庭)固有ギミック(plan/dream-garden-mosaic.md): 第八地方
-    // ダンジョンの各階は、第二〜第七地方の固有ギミックのうち1〜2種類を
-    // ランダムに選んで、そのフロアだけに適用する
-    this.mosaicRegions =
-      dungeonRegionIndex === 8 ? this.rng.shuffled(MOSAIC_CANDIDATE_REGIONS).slice(0, this.rng.int(1, 2)) : [];
-    const gimmick = bossSpeciesId
-      ? undefined
-      : pickFloorGimmick(
-          this.rng,
-          depth,
-          this.previousGimmick,
-          GIMMICK_CHANCE_MULTIPLIER[this.difficulty] * (this.mood.floorGimmickRateMul ?? 1),
-          dungeonRegionIndex,
-          isCheckpointFloor(this.dungeon.id, depth),
-        );
-    this.previousGimmick = gimmick;
-    this.floor = generateFloor(this.rng, {
-      depth,
-      gimmick,
-      monsterHouseChanceMultiplier: bossSpeciesId
-        ? 0
-        : MONSTER_HOUSE_CHANCE_MULTIPLIER[this.difficulty] *
-          (this.dungeon.monsterHouseRateMul ?? 1) *
-          (this.mood.monsterHouseRateMul ?? 1) *
-          // 第四地方(骨積みの回廊)固有ギミック(plan/bonepile-corridor.md): モンスターハウスが
-          // 出やすい。骨積みの回廊ダンジョン自身の分はDungeonDef.monsterHouseRateMul
-          // (dungeons.tsでregions.tsのデータをそのまま流用)で既にかかっているため、
-          // ここでは第八地方のモザイク抽選で骨積みの回廊が選ばれた場合だけ追加で掛ける
-          (this.mosaicRegions.includes(BONEPILE_REGION.index) ? (BONEPILE_REGION.monsterHouseRateMul ?? 1) : 1),
-      shopChanceMultiplier: bossSpeciesId
-        ? 0
-        : (this.dungeon.shopRateMul ?? 1) * (this.mood.shopRateMul ?? 1),
-      forceShop:
-        !bossSpeciesId &&
-        this.dungeon.shopRateMul !== undefined &&
-        depth === this.maxDepth &&
-        !this.shopSeenThisRun,
-    });
-    const start = choosePlayerStart(this.rng, this.floor);
-    this.player.pos = start;
-    this.floor.actors.push(this.player);
-    if (this.floor.rooms.some((r) => r.kind === "shop")) this.shopSeenThisRun = true;
-    const boostedItemDefId = hasEquipEffect(this.player.inventory, "dustLureBoost") ? "hokoraDust" : undefined;
-    const shiningChanceMultiplier =
-      (this.trueAwakeningCleared
-        ? TRUE_AWAKENING_SHINING_MULTIPLIER
-        : this.compendiumComplete
-          ? COMPENDIUM_COMPLETE_SHINING_MULTIPLIER
-          : 1) *
-      SHINING_CHANCE_DIFFICULTY_MULTIPLIER[this.difficulty] *
-      (this.mood.rareSpawnRateMul ?? 1);
-    populateFloor(this.rng, this.floor, this.ids, start, {
-      boostedItemDefId,
+    const result = domainEnterFloor(depth, {
+      rng: this.rng,
+      ids: this.ids,
+      dungeonId: this.dungeon.id,
+      dungeonMaxDepth: this.dungeon.maxDepth,
+      dungeonMonsterHouseRateMul: this.dungeon.monsterHouseRateMul,
+      dungeonShopRateMul: this.dungeon.shopRateMul,
+      dungeonMonsterCountMul: this.dungeon.monsterCountMul,
+      dungeonFloorOffset: this.dungeon.floorOffset,
+      maxDepth: this.maxDepth,
+      difficulty: this.difficulty,
+      mood: this.mood,
+      player: this.player,
+      allies: this.allies,
+      trueAwakeningCleared: this.trueAwakeningCleared,
+      compendiumComplete: this.compendiumComplete,
       shopWary: this.shopWary,
-      shiningChanceMultiplier,
-      monsterAtkMultiplier: MONSTER_ATK_MULTIPLIER[this.difficulty] * (this.mood.monsterAtkMulAfterAware ?? 1),
-      goldRewardMultiplier: GOLD_REWARD_MULTIPLIER[this.difficulty] * (this.mood.goldRateMul ?? 1),
-      speciesDepthOffset: this.dungeon.floorOffset ?? 0,
-      bossSpeciesId,
-      checkpointFloor: isCheckpointFloor(this.dungeon.id, depth),
-      monsterCountMultiplier: this.dungeon.monsterCountMul ?? 1,
-      // 夜ごとの夢のモンスター強化カーブ(plan/nightly-dream-scaling.md)
-      statMultiplier: this.dungeon.id === NIGHTLY_DREAM_ID ? nightlyDreamStatMultiplier(depth) : 1,
-      // ヨリシロの気分(plan/yorishiro-moods.md)
-      itemCountMultiplier: this.mood.dropRateMul ?? 1,
-      thiefWeightMultiplier: this.mood.thiefRateMul ?? 1,
+      shopSeenThisRun: this.shopSeenThisRun,
+      mosaicRegions: this.mosaicRegions,
+      previousGimmick: this.previousGimmick,
+      defeatedRegionBossCountAtStart: this.defeatedRegionBossCountAtStart,
+      visionExtraRange: this.visionExtraRange(),
     });
-
-    // 忘れ物蔵(plan/lost-and-found-vault.md): 地方ダンジョンの2階目にだけ、
-    // 隠し通路の候補を1本配置する
-    if (dungeonRegionIndex !== undefined && depth === 2) {
-      placeSecretPassage(this.rng, this.floor, `region${dungeonRegionIndex}`);
-    }
-
-    // 横穴(分岐ダンジョン、plan/game/dungeon-per-region.md): 特定の地方ダンジョンの
-    // 特定階にだけ、低確率で入り口を生成する
-    const branchSpec = branchDungeonSpecFor(this.dungeon.id, depth);
-    if (branchSpec && this.rng.chance(branchSpec.chance)) {
-      const pos = findFreeTile(this.rng, this.floor, { roomsOnly: true, avoid: [start] });
-      if (pos) this.floor.branchEntrance = { pos, dungeonId: branchSpec.branchDungeonId };
-    }
-
-    // 地方固有の地形ギミック(plan/wetland-quagmire.md 等): 自分の地方ダンジョンか、
-    // 第八地方のモザイク抽選(plan/dream-garden-mosaic.md)でその地方番号が選ばれていれば、
-    // REGION_GIMMICK_PLACERS に登録された地方ごとの配置フックを呼ぶ
-    if (dungeonRegionIndex !== undefined) {
-      for (const region of REGIONS) {
-        const place = REGION_GIMMICK_PLACERS[region.index];
-        if (place && this.regionGimmickApplies(region.index)) {
-          place(this.rng, this.floor, this.ids);
-        }
-      }
-    }
-
-    // 第三章「仲間探し」の崩落イベント(plan/chapter3-collapse-event.md): 骨積みの
-    // 回廊(第四地方)最終階の階段部屋の出口に、瓦礫の崩落を固定配置する。
-    // 既にdeepest>=30(章立て上の第三章)まで進んだあとの「戻り」のダイブ
-    // でだけ発生させる(初回プレイヤーがこの階で足止めされないように)
-    if (isChapter3CollapseFloor(this.dungeon.id, depth) && storyChapter(this.defeatedRegionBossCountAtStart, false) >= 3) {
-      placeChapter3CollapseObstacle(this.floor);
-    }
-
-    // 仲間は階段について来る。プレイヤーの周りの空いたマスに並べる
-    for (const ally of this.allies) {
-      const spot = this.freeSpotNear(start);
-      if (!spot) continue;
-      ally.pos = spot;
-      ally.aware = true;
-      this.floor.actors.push(ally);
-    }
-
-    updateVisibility(this.floor, this.player.pos, this.visionExtraRange());
+    this.floor = result.floor;
+    this.mosaicRegions = result.mosaicRegions;
+    this.previousGimmick = result.previousGimmick;
+    this.shopSeenThisRun = result.shopSeenThisRun;
   }
 
   /**
@@ -974,8 +781,9 @@ export class Game {
    * ターン数・気分・難易度などダイブ全体にかかる状態はいじらない
    */
   private enterBranchDungeon(branchDungeonId: string, events: GameEvent[]): boolean {
-    if (this.hostContext) return false; // 横穴の中からさらに横穴には入れない(入れ子なし)
-    this.hostContext = {
+    const result = domainBeginBranchDungeon({
+      branchDungeonId,
+      alreadyInBranch: this.hostContext !== null,
       dungeon: this.dungeon,
       maxDepth: this.maxDepth,
       depth: this.depth,
@@ -984,15 +792,14 @@ export class Game {
       mosaicRegions: this.mosaicRegions,
       monsterHouseWarned: this.monsterHouseWarned,
       shopSeenThisRun: this.shopSeenThisRun,
-    };
-    this.dungeon = dungeonById(branchDungeonId);
-    this.maxDepth = this.dungeon.maxDepth ?? Number.POSITIVE_INFINITY;
-    this.previousGimmick = undefined;
-    this.mosaicRegions = [];
-    // 横穴自体はshopRateMul未設定でforceShop抽選の対象外だが、万一の出店
-    // 出現がホスト側のshopSeenThisRunを誤って上書きしないよう、横穴の中では
-    // 一旦falseから始める(戻るときにホスト側の値を必ず復元する)
-    this.shopSeenThisRun = false;
+    });
+    if (!result) return false; // 横穴の中からさらに横穴には入れない(入れ子なし)
+    this.hostContext = result.hostContext;
+    this.dungeon = result.dungeon;
+    this.maxDepth = result.maxDepth;
+    this.previousGimmick = result.previousGimmick;
+    this.mosaicRegions = result.mosaicRegions;
+    this.shopSeenThisRun = result.shopSeenThisRun;
     this.enterFloor(1);
     events.push({ type: "message", text: `${this.dungeon.name}へ入った。` });
     return true;
@@ -1008,20 +815,20 @@ export class Game {
     const host = this.hostContext;
     if (!host) return;
     this.hostContext = null;
-    this.dungeon = host.dungeon;
-    this.maxDepth = host.maxDepth;
-    this.depth = host.depth;
-    this.floor = host.floor;
-    this.previousGimmick = host.previousGimmick;
-    this.mosaicRegions = host.mosaicRegions;
-    this.monsterHouseWarned = host.monsterHouseWarned;
-    this.shopSeenThisRun = host.shopSeenThisRun;
-    // 入ってきた入り口のマスへ戻す。横穴は1階につき一度きりなので、
-    // 戻ったら入り口自体は消す
-    if (this.floor.branchEntrance) this.player.pos = { ...this.floor.branchEntrance.pos };
-    this.floor.branchEntrance = undefined;
-    updateVisibility(this.floor, this.player.pos, this.visionExtraRange());
-    events.push({ type: "message", text: `${host.dungeon.name}へ戻ってきた。` });
+    const result = domainEndBranchDungeon({
+      hostContext: host,
+      player: this.player,
+      visionExtraRange: this.visionExtraRange(),
+      events,
+    });
+    this.dungeon = result.dungeon;
+    this.maxDepth = result.maxDepth;
+    this.depth = result.depth;
+    this.floor = result.floor;
+    this.previousGimmick = result.previousGimmick;
+    this.mosaicRegions = result.mosaicRegions;
+    this.monsterHouseWarned = result.monsterHouseWarned;
+    this.shopSeenThisRun = result.shopSeenThisRun;
   }
 
   /**
@@ -1094,154 +901,6 @@ export class Game {
     this.tarukurabeBarrelsLeft = TARUKURABE_BARREL_COUNT;
     this.tarukurabeScoredLanes.clear();
     this.spawnTarukurabeBarrel();
-
-    updateVisibility(this.floor, this.player.pos, this.visionExtraRange());
-  }
-
-  /**
-   * ひなたの寝穴(plan/game/tutorial-dungeon.md)。1部屋だけの小さな固定Floorを
-   * 直接組み立てる(enterTarukurabeFloorと同じ考え方)。区画割り・通路の
-   * generateFloorを経由しないため、罠・地形ギミック・モンスターハウス・
-   * 野生湧きは一切乗らない。出現・設置物はぷるんと必要な道具だけを階ごとに
-   * 手で置く(1階: 攻撃を覚える的にぷるん1体。2階: タル投げ・捕獲を覚える
-   * 空のタル1個+ぷるん1体。3階: 道具・満腹度を覚えるいやしの葉+かたパン、
-   * 番人のぷるん2体、最奥にめざめの階段)
-   */
-  private enterHinataFloor(depth: number): void {
-    const width = 13;
-    const height = 7;
-    const tiles: Tile[] = [];
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        const isWall = x === 0 || y === 0 || x === width - 1 || y === height - 1;
-        tiles.push({ kind: isWall ? TILE_WALL : TILE_ROOM, roomId: isWall ? -1 : 0, explored: false, visible: false });
-      }
-    }
-
-    this.floor = {
-      depth,
-      width,
-      height,
-      tiles,
-      rooms: [{ id: 0, x: 1, y: 1, w: width - 2, h: height - 2 }],
-      stairs: { x: width - 2, y: 3 },
-      actors: [],
-      items: [],
-      traps: [],
-      barrels: [],
-      goldPiles: [],
-      fieldObstacles: [],
-      secretPassages: [],
-    };
-
-    this.player.pos = { x: 1, y: 3 };
-    this.player.carrying = null;
-    this.floor.actors.push(this.player);
-
-    const purun = speciesById("purun");
-    if (depth === 1) {
-      this.floor.actors.push(createMonster(this.ids.nextActorId(), purun, { x: 5, y: 3 }));
-    } else if (depth === 2) {
-      this.floor.barrels.push(createBarrel(this.ids.nextBarrelId(), "empty", { x: 5, y: 2 }));
-      this.floor.actors.push(createMonster(this.ids.nextActorId(), purun, { x: 5, y: 4 }));
-    } else {
-      this.floor.items.push({ item: createItem(this.ids.nextItemUid(), "healLeaf"), pos: { x: 4, y: 2 } });
-      this.floor.items.push({ item: createItem(this.ids.nextItemUid(), "hardBread"), pos: { x: 4, y: 4 } });
-      this.floor.actors.push(createMonster(this.ids.nextActorId(), purun, { x: 9, y: 2 }));
-      this.floor.actors.push(createMonster(this.ids.nextActorId(), purun, { x: 9, y: 4 }));
-    }
-
-    updateVisibility(this.floor, this.player.pos, this.visionExtraRange());
-  }
-
-  /**
-   * ボスの間(plan/game/dungeon-boss-rooms.md)。手作りの固定Floorを直接
-   * 組み立てる(enterTarukurabeFloorと同じ考え方)。「前室(安全地帯)
-   * ─通路─扉─ボスの間(大部屋)」の一本道にし、ボス以外の湧きモンスター・
-   * 地形ギミックは乗せない。ボス自体の配置はpopulateFloorの既存の
-   * bossSpeciesId分岐(部屋タイル・プレイヤーから距離6以上)にそのまま
-   * 委ねる――ボスAI・強さの計算式を一切変えずに済ませるため
-   */
-  private enterBossFloor(depth: number, bossSpeciesId: string): void {
-    const ante = { x: 1, y: 3, w: 5, h: 5 };
-    const boss = { x: 14, y: 1, w: 13, h: 9 };
-    const corridorY = ante.y + Math.floor(ante.h / 2);
-    const corridorStartX = ante.x + ante.w;
-    const doorX = corridorStartX + Math.floor((boss.x - corridorStartX) / 2);
-    const width = boss.x + boss.w + 1;
-    const height = Math.max(ante.y + ante.h, boss.y + boss.h) + 1;
-
-    const tiles: Tile[] = [];
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        tiles.push({ kind: TILE_WALL, roomId: -1, explored: false, visible: false });
-      }
-    }
-    const carve = (x: number, y: number, kind: typeof TILE_ROOM | typeof TILE_CORRIDOR, roomId: number) => {
-      tiles[y * width + x] = { kind, roomId, explored: false, visible: false };
-    };
-    for (let y = ante.y; y < ante.y + ante.h; y++) {
-      for (let x = ante.x; x < ante.x + ante.w; x++) carve(x, y, TILE_ROOM, 0);
-    }
-    for (let y = boss.y; y < boss.y + boss.h; y++) {
-      for (let x = boss.x; x < boss.x + boss.w; x++) carve(x, y, TILE_ROOM, 1);
-    }
-    for (let x = corridorStartX; x < boss.x; x++) {
-      carve(x, corridorY, TILE_CORRIDOR, -1);
-    }
-
-    const start: Vec2 = { x: ante.x + Math.floor(ante.w / 2), y: corridorY };
-    this.floor = {
-      depth,
-      width,
-      height,
-      tiles,
-      rooms: [
-        { id: 0, x: ante.x, y: ante.y, w: ante.w, h: ante.h },
-        { id: 1, x: boss.x, y: boss.y, w: boss.w, h: boss.h },
-      ],
-      // 階段はボスの間の奥に最初から置いてあるが、ボスを撃破するまでは
-      // 壁と同じく通れない(plan/game/dungeon-boss-rooms.mdの「撃破後に
-      // 踏破の階段が現れる」。killActorの地方ボス撃破処理でfalseにする)
-      stairs: { x: boss.x + boss.w - 2, y: boss.y + boss.h - 2 },
-      stairsBlocked: true,
-      door: { pos: { x: doorX, y: corridorY }, open: false, bossSpeciesId },
-      actors: [],
-      items: [],
-      traps: [],
-      barrels: [],
-      goldPiles: [],
-      fieldObstacles: [],
-      secretPassages: [],
-    };
-
-    this.player.pos = start;
-    this.floor.actors.push(this.player);
-
-    populateFloor(this.rng, this.floor, this.ids, start, {
-      bossSpeciesId,
-      monsterAtkMultiplier: MONSTER_ATK_MULTIPLIER[this.difficulty] * (this.mood.monsterAtkMulAfterAware ?? 1),
-      goldRewardMultiplier: GOLD_REWARD_MULTIPLIER[this.difficulty] * (this.mood.goldRateMul ?? 1),
-      speciesDepthOffset: this.dungeon.floorOffset ?? 0,
-      itemCountMultiplier: this.mood.dropRateMul ?? 1,
-      thiefWeightMultiplier: this.mood.thiefRateMul ?? 1,
-    });
-
-    // 第三章「仲間探し」の崩落イベント(plan/chapter3-collapse-event.md):
-    // 骨積みの回廊(第四地方)最終階=24階は、ボスの間でもある。ボスの間の
-    // 固定構造に置き換えても、この階固有の物語イベントは消さない
-    // (通常のenterFloorと同じ条件のまま、ボスの間側でも呼ぶ)
-    if (isChapter3CollapseFloor(this.dungeon.id, depth) && storyChapter(this.defeatedRegionBossCountAtStart, false) >= 3) {
-      placeChapter3CollapseObstacle(this.floor);
-    }
-
-    for (const ally of this.allies) {
-      const spot = this.freeSpotNear(start);
-      if (!spot) continue;
-      ally.pos = spot;
-      ally.aware = true;
-      this.floor.actors.push(ally);
-    }
 
     updateVisibility(this.floor, this.player.pos, this.visionExtraRange());
   }
@@ -1407,12 +1066,12 @@ export class Game {
    * 確定したときに呼ぶ。入り口のマスに立っていなければ弾く
    */
   private enterBranchTile(events: GameEvent[]): boolean {
-    const entrance = this.floor.branchEntrance;
-    if (!entrance || !eq(this.player.pos, entrance.pos)) {
+    const branchDungeonId = domainFindBranchEntranceDungeonId(this.floor, this.player.pos);
+    if (!branchDungeonId) {
       events.push({ type: "message", text: "ここに横穴はない。" });
       return false;
     }
-    return this.enterBranchDungeon(entrance.dungeonId, events);
+    return this.enterBranchDungeon(branchDungeonId, events);
   }
 
   // ------------------------------------------------------------ コマンド処理
