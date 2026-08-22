@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { Game, type Command, type RunSnapshot } from "./application/dungeonRun/game";
+import { Game, type Command, type RunSnapshot, type TestFloorInjection } from "./application/dungeonRun/game";
 import { knownBarrelArt } from "./entities/dreamArts";
 import type { GameEvent } from "./core/events";
 import { splitEventsAtRecruits } from "./core/events";
@@ -143,6 +143,15 @@ const RETURN_TO_TOWN_HINT: TextVariant = {
 type SubmitEventHandlers = {
   [K in GameEvent["type"]]: (event: Extract<GameEvent, { type: K }>) => void;
 };
+
+/**
+ * テスト用の箱庭(plan/game/test-dungeon-harness.md)。MODE==="test"の
+ * ときだけ`window.__testHarness`として生える。Playwrightのテストが
+ * これ経由でASCIIマップ由来のFloorStateを注入してダイブを開始する
+ */
+interface TestHarness {
+  startInjectedRun: (injection: TestFloorInjection) => void;
+}
 
 class App {
   private readonly renderer: Renderer;
@@ -738,6 +747,25 @@ class App {
       // 「移動と攻撃」だけは特定のGameEventに紐づかないので、ここで直接出す
       this.showTutorialTip("moveAndAttack");
     }
+  }
+
+  /**
+   * テスト用の箱庭(plan/game/test-dungeon-harness.md)。スロット選択画面を
+   * 待たず、注入されたFloorStateでいきなりダイブを開始する。
+   * `window.__testHarness`(main.ts末尾、MODE==="test"のときだけ生える)
+   * 経由でのみ呼ばれる
+   */
+  startInjectedTestRun(injection: TestFloorInjection): void {
+    this.slotSelect.hide();
+    this.diveDefeats = 0;
+    this.diveCaptures = 0;
+    this.diveHuntKills = {};
+    this.diveNewlySeenCount = 0;
+    this.mountainCoreClearedThisRun = false;
+    this.trueAwakeningClearedThisRun = false;
+    this.diveReachedDepths = [];
+    this.game = new Game({ seed: 0, testFloorInjection: injection });
+    this.presentFloor();
   }
 
   /**
@@ -1935,6 +1963,17 @@ class App {
 
 const app = new App();
 (globalThis as unknown as { __app: App }).__app = app;
+
+// テスト用の箱庭(plan/game/test-dungeon-harness.md)。MODE==="test"のとき
+// だけwindowへ生やす。本番ビルドはMODEがリテラル文字列"production"に
+// 置き換わるため、このブロックごとdead code除去され、注入口が残らない
+// (通常プレイのUIからもここへ辿る導線は無い)
+if (import.meta.env.MODE === "test") {
+  (globalThis as unknown as { __testHarness: TestHarness }).__testHarness = {
+    startInjectedRun: (injection: TestFloorInjection) => app.startInjectedTestRun(injection),
+  };
+}
+
 app.start().catch((error: unknown) => {
   const loading = document.querySelector<HTMLElement>("#loading");
   if (loading) {
