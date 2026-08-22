@@ -54,6 +54,11 @@ export const ja: Record<string, string> = {
   "ui.settings.descTips": "Enterでこれまでの操作説明を一覧できる。",
   "ui.settings.descKeys": "Enterでキー配置を一覧できる(再割り当てはできない)。",
   "ui.settings.descLocale": "Enterでげんごを切り替える(現在は日本語のみ選べる)。",
+  // セーブデータの管理(plan/game/save-delete-touch.md)
+  "ui.settings.saveManagement": "セーブデータの管理",
+  "ui.settings.saveManagementLocked": "セーブデータの管理(拠点でのみ)",
+  "ui.settings.descSaveManagement": "Enterでセーブ枠の削除画面を開く。",
+  "ui.settings.descSaveManagementLocked": "拠点でのみ使える。ダイブ中は開けない。",
   "ui.settings.hint": "← 列を移る / ↑↓ 選ぶ / Enter 切り替え・一覧を見る / Space もぐる",
   "ui.settings.hintSubView": "Enter / Esc でもどる",
 
