@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { TOON_GRADIENT_STEPS } from "../src/view/assets";
 
 /**
- * トゥーンシェーディングの階調マップ(plan/game/archive/toon-shading-pipeline.md)。
+ * トゥーンシェーディングの階調マップ(plan/game/archive/toon-shading-pipeline.md、
+ * plan/models/visual-quality-uplift.md施策C)。
  *
  * 上下どちらに振っても絵が壊れる値なので、両側の境界をテストで留めておく。
  *
@@ -11,11 +12,11 @@ import { TOON_GRADIENT_STEPS } from "../src/view/assets";
  *    暗めに出る)向けに調整されており、ランバート系のMeshToonMaterialが同じ
  *    光量を受けると255段では飛ぶ
  *  - 下げすぎ: 陰の面が黒く潰れてモンスターの配色が読めなくなる(最暗部を
- *    90まで持ち上げてあるのはこのため)
+ *    85まで持ち上げてあるのはこのため)
  */
 describe("view/assets.ts: トゥーンの階調マップ", () => {
-  it("影・中間・ハイライトの3階調", () => {
-    expect(TOON_GRADIENT_STEPS).toHaveLength(3);
+  it("影・暗め中間・明るめ中間・ハイライトの4階調(visual-quality-uplift.md)", () => {
+    expect(TOON_GRADIENT_STEPS).toHaveLength(4);
   });
 
   it("暗いほうから順に並んでいる(NearestFilterで段として読まれる)", () => {

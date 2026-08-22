@@ -8,12 +8,18 @@ export interface ModelAsset {
 }
 
 /**
- * トゥーンシェーディングの階調マップ(plan/game/archive/toon-shading-pipeline.md)。
- * 影 / 中間 / ハイライトの3階調。全マテリアル共通で使い回すのでモジュール
- * スコープで1回だけ作る。
+ * トゥーンシェーディングの階調マップ(plan/game/archive/toon-shading-pipeline.md、
+ * plan/models/visual-quality-uplift.md施策C)。影 / 暗め中間 / 明るめ中間 /
+ * ハイライトの4階調。全マテリアル共通で使い回すのでモジュールスコープで
+ * 1回だけ作る。
+ *
+ * 元は3階調([90, 150, 215])だった。中間が1段しかなく、大きな面が
+ * のっぺり単調に見える一因になっていたため、中間を2段に割って4階調へ
+ * 広げた(visual-quality-uplift.md「トゥーン階調を3段→4〜5段」)。
+ * 両端の理由は元のままなので変えていない:
  *
  * 最暗部を0にすると陰の面がほぼ黒く潰れてモンスターの配色が読めなくなったため、
- * 90まで持ち上げてある。NearestFilterは必須(線形補間だと階調が滑らかにボケて
+ * 85まで持ち上げてある。NearestFilterは必須(線形補間だと階調が滑らかにボケて
  * トゥーンにならない)。
  *
  * ハイライト段を255から215へ下げてある(issue #484)。既存のライト強度は
@@ -23,9 +29,8 @@ export interface ModelAsset {
  * キャラクター周辺で測ると、輝度0.9超の画素が3.51%→0.85%、0.98超が
  * 0.015%→0%になり、白飛びが解消する。さらに下げても0.9超は0.85%前後で
  * 頭打ちになり、絵全体が暗くなるだけだったのでここで止めている。
- * 最暗部の90は上記の理由があるのでそのまま。
  */
-export const TOON_GRADIENT_STEPS = [90, 150, 215] as const;
+export const TOON_GRADIENT_STEPS = [85, 130, 175, 215] as const;
 
 const TOON_GRADIENT = (() => {
   const data = new Uint8Array(TOON_GRADIENT_STEPS);
