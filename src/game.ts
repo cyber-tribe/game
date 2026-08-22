@@ -141,7 +141,6 @@ import {
   DREAM_ART_EFFECTS,
   HONOKA_NA_AKARI_VISION_EXTRA,
   KODAMA_NO_OTAKEBI_ECHO_MULTIPLIER,
-  YUME_NO_KAKEBUTON_DAMAGE_REDUCTION,
   type DreamArtContext,
 } from "./systems/dreamArtEffects";
 import { itemDef } from "./items/catalog";
@@ -160,7 +159,13 @@ import { attackOffsets } from "./domain/combat/attackPattern";
 import { computeDamage } from "./domain/combat/damageCalculation";
 import { resolveAttackModifiers } from "./domain/combat/criticalHit";
 import { tryEvade } from "./domain/combat/evasion";
-import { effectiveAttackPower, effectiveDefense } from "./domain/combat/damageModifier";
+import {
+  barrelThrowDamage,
+  effectiveAttackPower,
+  effectiveDefense,
+  mitigateIncomingDamage,
+  pickMutualGuardCoverer,
+} from "./domain/combat/damageModifier";
 import { BOSS_MOVES, SPORE_SLEEP_CHANCE, SPORE_SLEEP_TURNS, type BossMoveContext } from "./systems/bossMoves";
 
 /** 双樽鉤(quickSingle)の会心率の上乗せ分 */
@@ -172,9 +177,6 @@ const HEAVY_RECOVER_TURNS = 2;
 const POISON_TRAP_TURNS = 8;
 /** 毒が1ターンごとに削るHP */
 const POISON_DAMAGE_PER_TURN = 2;
-
-/** 身構え(足踏み直後)による被ダメージ軽減率 */
-const GUARD_DAMAGE_REDUCTION = 0.2;
 
 /** 状態異常が明けたときにプレイヤーへ表示するメッセージ */
 const STATUS_END_MESSAGES: Record<StatusKind, string> = {
@@ -206,8 +208,6 @@ const CONFUSING_CLAW_CHANCE = 0.15;
 const SEAL_BITE_CHANCE = 0.15;
 /** 夢あわせで得た付与系特技(みだしのつめ・ふうじのキバ)が状態異常を持続させるターン数 */
 const INHERITED_INFLICT_TURNS = 3;
-/** 特技「はねひらり」が被弾を完全にかわす確率 */
-const FLUTTER_DODGE_CHANCE = 0.2;
 /** regenIfUnhit(うるみぐま)・特技「しずけさのいやし」が回復させるHP */
 const REGEN_IF_UNHIT_AMOUNT = 2;
 /**
@@ -429,10 +429,6 @@ const ECHO_ATTACK_MAX = 2;
 const BOSS_DREAM_ART_BOND_COOLDOWN_MULTIPLIER = 0.8;
 
 // ---- レベルアップ時のスキル選択(plan/game/archive/run-build-skills.md) ----
-/** すてみ: 被ダメージの倍率(常時)。与ダメージぶんはdomain/combat/damageModifier.tsへ移した */
-const ALL_IN_TAKEN_MULTIPLIER = 1.25;
-/** かばいあい: 身代わりが発動する確率 */
-const MUTUAL_GUARD_CHANCE = 0.4;
 /** はげましの声: 仲間のゆめわざクールダウンの倍率 */
 const ENCOURAGEMENT_COOLDOWN_MULTIPLIER = 0.75;
 /** ねぎらい: 敵を倒すたびの仲間の回復量 */
@@ -566,8 +562,6 @@ const TARUKURABE_TARGETS: readonly TarukurabeTargetLayout[] = [
 
 /** アイテムの飛距離 */
 const ITEM_THROW_RANGE = 10;
-/** タルをぶつけたときの基本ダメージ */
-const BARREL_DAMAGE = 8;
 /** 爆発タルの威力と巻き込む範囲 */
 const BOMB_DAMAGE = 22;
 /** スリガラス(plan/shops-and-thieves.md)が盗みを成功させる確率 */
@@ -2064,7 +2058,7 @@ export class Game {
       case "empty": {
         // 貫通で複数体に当たった場合、手前の相手には通過ダメージだけを与え、
         // 最後に当たった相手にだけダメージ+捕獲判定を行う(タルは1体しか収まらない)
-        const barrelDamage = this.barrelThrowDamage();
+        const barrelDamage = barrelThrowDamage(this.player.inventory);
         for (const passThrough of hits.slice(0, -1)) {
           if (!passThrough.alive) continue;
           // 樽比べ(plan/tarukurabe-minigame.md): 的は貫通されても通過ダメージの
@@ -2100,8 +2094,17 @@ export class Game {
       // 命中した最後の1体にだけ効果を発揮し、当たったところで砕ける(ばくはつタルと同じ、使い切り)
       case "water":
         this.applyElementalBarrelHit(barrel, landing, hits, events, (target) => {
-          const power = Math.round(this.barrelThrowDamage() * WATER_BARREL_DAMAGE_MULTIPLIER);
-          const finalDamage = this.mitigateIncomingDamage(target, Math.max(1, power), events);
+          const power = Math.round(barrelThrowDamage(this.player.inventory) * WATER_BARREL_DAMAGE_MULTIPLIER);
+          const finalDamage = mitigateIncomingDamage({
+            target,
+            damage: Math.max(1, power),
+            events,
+            rng: this.rng,
+            runSkills: this.runSkills,
+            player: this.player,
+            oncePerRun: this.oncePerRun,
+            partyGuardTurns: this.partyGuardTurns,
+          });
           events.push({ type: "message", text: `${displayActorName(target)}に${finalDamage}のダメージ!` });
           this.damageActor(target, finalDamage, false, events);
         });
@@ -2126,8 +2129,17 @@ export class Game {
 
       case "stone":
         this.applyElementalBarrelHit(barrel, landing, hits, events, (target) => {
-          const power = Math.round(this.barrelThrowDamage() * STONE_BARREL_DAMAGE_MULTIPLIER);
-          const finalDamage = this.mitigateIncomingDamage(target, Math.max(1, power), events);
+          const power = Math.round(barrelThrowDamage(this.player.inventory) * STONE_BARREL_DAMAGE_MULTIPLIER);
+          const finalDamage = mitigateIncomingDamage({
+            target,
+            damage: Math.max(1, power),
+            events,
+            rng: this.rng,
+            runSkills: this.runSkills,
+            player: this.player,
+            oncePerRun: this.oncePerRun,
+            partyGuardTurns: this.partyGuardTurns,
+          });
           events.push({ type: "message", text: `${displayActorName(target)}に${finalDamage}のダメージ!` });
           this.damageActor(target, finalDamage, false, events);
         });
@@ -2327,7 +2339,7 @@ export class Game {
 
     const rolled = computeDamage(
       this.rng,
-      this.barrelThrowDamage(),
+      barrelThrowDamage(this.player.inventory),
       hit.def,
       critForced ? { forceCrit: true } : undefined,
     );
@@ -2903,8 +2915,17 @@ export class Game {
         for (const other of this.floor.actors) {
           if (!other.alive || other.kind !== "monster") continue;
           if (chebyshev(barrel.pos, other.pos) > 1) continue;
-          const power = Math.round(this.barrelThrowDamage() * STONE_BARREL_DAMAGE_MULTIPLIER);
-          const finalDamage = this.mitigateIncomingDamage(other, Math.max(1, power), events);
+          const power = Math.round(barrelThrowDamage(this.player.inventory) * STONE_BARREL_DAMAGE_MULTIPLIER);
+          const finalDamage = mitigateIncomingDamage({
+            target: other,
+            damage: Math.max(1, power),
+            events,
+            rng: this.rng,
+            runSkills: this.runSkills,
+            player: this.player,
+            oncePerRun: this.oncePerRun,
+            partyGuardTurns: this.partyGuardTurns,
+          });
           events.push({ type: "message", text: `${displayActorName(other)}に${finalDamage}のダメージ!` });
           this.damageActor(other, finalDamage, false, events);
         }
@@ -2945,7 +2966,15 @@ export class Game {
     events: GameEvent[],
     combatOpts?: { critBonus?: number; forceCrit?: boolean },
   ): void {
-    target = this.applyMutualGuard(attacker, target, events) ?? target;
+    target =
+      pickMutualGuardCoverer({
+        attacker,
+        target,
+        events,
+        rng: this.rng,
+        runSkills: this.runSkills,
+        party: [this.player, ...this.allies],
+      }) ?? target;
     attacker.facing = dirFromDelta(target.pos.x - attacker.pos.x, target.pos.y - attacker.pos.y);
     events.push({ type: "attack", attackerId: attacker.id, targetId: target.id });
     events.push({ type: "message", text: `${displayActorName(attacker)}のこうげき!` });
@@ -2994,24 +3023,6 @@ export class Game {
   }
 
   /**
-   * スキル「かばいあい」(plan/game/archive/run-build-skills.md): 隣接する
-   * 仲間・自分への攻撃を、確率でどちらかが代わりに受ける。ダメージ計算より
-   * 前(防御力を確定する前)に対象を差し替えるので、身代わり側の防御力で
-   * 正しく計算される
-   */
-  private applyMutualGuard(attacker: Actor, target: Actor, events: GameEvent[]): Actor | null {
-    if (!this.runSkills.includes("mutualGuard")) return null;
-    if (!isHostile(attacker, target)) return null;
-    if (target.kind !== "player" && target.kind !== "ally") return null;
-    if (!this.rng.chance(MUTUAL_GUARD_CHANCE)) return null;
-    const party: Actor[] = [this.player, ...this.allies];
-    const coverer = party.find((a) => a.alive && a.id !== target.id && chebyshev(a.pos, target.pos) === 1);
-    if (!coverer) return null;
-    events.push({ type: "message", text: `${displayActorName(coverer)}が身代わりになった!` });
-    return coverer;
-  }
-
-  /**
    * attackの本体: 確定した基礎ダメージを実際に適用する。オイテケボシ
    * (drainsSatiety)は例外で、HPではなくプレイヤーの満腹度を削って終わる
    * (ヨロイオイテケの反撃ダメージも適用しない)
@@ -3029,7 +3040,16 @@ export class Game {
       return;
     }
 
-    const finalDamage = this.mitigateIncomingDamage(target, damage, events);
+    const finalDamage = mitigateIncomingDamage({
+      target,
+      damage,
+      events,
+      rng: this.rng,
+      runSkills: this.runSkills,
+      player: this.player,
+      oncePerRun: this.oncePerRun,
+      partyGuardTurns: this.partyGuardTurns,
+    });
     events.push({ type: "message", text: `${displayActorName(target)}に${finalDamage}のダメージ!` });
     this.damageActor(target, finalDamage, critical, events);
 
@@ -3111,80 +3131,18 @@ export class Game {
     events.push({ type: "message", text: `${displayActorName(attacker)}のこうげきがこだました!` });
     const echoDefense = target.kind === "player" ? totalDefense(this.player) : target.def;
     const { damage, critical } = computeDamage(this.rng, power, echoDefense);
-    const finalDamage = this.mitigateIncomingDamage(target, damage, events);
+    const finalDamage = mitigateIncomingDamage({
+      target,
+      damage,
+      events,
+      rng: this.rng,
+      runSkills: this.runSkills,
+      player: this.player,
+      oncePerRun: this.oncePerRun,
+      partyGuardTurns: this.partyGuardTurns,
+    });
     events.push({ type: "message", text: `${displayActorName(target)}に${finalDamage}のダメージ!` });
     this.damageActor(target, finalDamage, critical, events);
-  }
-
-  /**
-   * 被ダメージへの軽減を適用する。プレイヤーには樽受け身(全無効・最優先)、
-   * 身構え(2割軽減)、ぷるんの印(plan/equipment-forging.md、5割の確率で1割軽減)、
-   * 仲間には特技「みをまもる」(5割の確率で1割軽減)を適用する。
-   */
-  private mitigateIncomingDamage(target: Actor, damage: number, events: GameEvent[]): number {
-    if (target.kind === "player") {
-      // スキル「すてみ」(plan/game/archive/run-build-skills.md): 被ダメージ+25%
-      // (常時。他の軽減より先に、素の被弾量に掛ける)
-      const incoming = this.runSkills.includes("allIn")
-        ? Math.round(damage * ALL_IN_TAKEN_MULTIPLIER)
-        : damage;
-      if (this.player.ukemiReady) {
-        this.player.ukemiReady = false;
-        events.push({ type: "message", text: "樽受け身で衝撃を受け流した!" });
-        return 0;
-      }
-      if (this.player.guarding) {
-        this.player.guarding = false;
-        events.push({ type: "message", text: "身構えていたので、ダメージをおさえた!" });
-        return Math.max(1, Math.floor(incoming * (1 - GUARD_DAMAGE_REDUCTION)));
-      }
-      if (hasEquipEffect(this.player.inventory, "damageReduction") && this.rng.chance(0.5)) {
-        events.push({ type: "message", text: "印の力で衝撃をやわらげた!" });
-        return Math.max(1, Math.floor(incoming * 0.9));
-      }
-      return incoming;
-    }
-
-    if (target.kind === "ally") {
-      // 特技「はねひらり」(flutterDodge、plan/monster-compendium.md): 確率で被弾を完全にかわす
-      if (hasSkill(target, "flutterDodge") && this.rng.chance(FLUTTER_DODGE_CHANCE)) {
-        events.push({ type: "message", text: `${displayActorName(target)}はひらりとかわした!` });
-        return 0;
-      }
-      // 特技「とんずら」(burrowEscape、plan/monster-compendium.md): 瀕死になる一撃を
-      // 1ラン1回だけ、とっさに離脱して避ける
-      if (
-        hasSkill(target, "burrowEscape") &&
-        !this.oncePerRun.hasUsed("burrowEscape", target.id) &&
-        target.hp - damage <= target.maxHp * 0.3
-      ) {
-        this.oncePerRun.markUsed("burrowEscape", target.id);
-        events.push({ type: "message", text: `${displayActorName(target)}はとっさに離脱してダメージを避けた!` });
-        return 0;
-      }
-    }
-
-    if (target.kind === "ally" && hasSkill(target, "steadfastBody")) {
-      // 特技「ゆるがぬからだ」(plan/companion-evolution.md): 「みをまもる」の常時発動版
-      events.push({ type: "message", text: `${displayActorName(target)}は衝撃をやわらげた!` });
-      return Math.max(1, Math.floor(damage * 0.9));
-    }
-    if (target.kind === "ally" && hasSkill(target, "softBody") && this.rng.chance(0.5)) {
-      // 特技「みをまもる」: 確率5割で被弾ダメージを1割軽減する
-      events.push({ type: "message", text: `${displayActorName(target)}は衝撃をやわらげた!` });
-      return Math.max(1, Math.floor(damage * 0.9));
-    }
-    // ゆめわざ「ゆめのかけぶとん」(plan/game/archive/companion-leveling-and-arts.md):
-    // 仲間全員の被弾を1ターンだけ1割軽減する(誰が使ったかによらず一律)
-    if (target.kind === "ally" && this.partyGuardTurns > 0) {
-      return Math.max(1, Math.floor(damage * (1 - YUME_NO_KAKEBUTON_DAMAGE_REDUCTION)));
-    }
-    return damage;
-  }
-
-  /** タルを投げたときの基礎ダメージ。ツブテガエルの印(plan/equipment-forging.md)で+2 */
-  private barrelThrowDamage(): number {
-    return BARREL_DAMAGE + (hasEquipEffect(this.player.inventory, "barrelDamageBonus") ? 2 : 0);
   }
 
   private damageActor(target: Actor, damage: number, critical: boolean, events: GameEvent[]): void {
@@ -3914,7 +3872,16 @@ export class Game {
         const defense =
           target.kind === "player" ? totalDefense(this.player) : target.def;
         const { damage, critical } = computeDamage(this.rng, actor.atk, defense);
-        const finalDamage = this.mitigateIncomingDamage(target, damage, events);
+        const finalDamage = mitigateIncomingDamage({
+      target,
+      damage,
+      events,
+      rng: this.rng,
+      runSkills: this.runSkills,
+      player: this.player,
+      oncePerRun: this.oncePerRun,
+      partyGuardTurns: this.partyGuardTurns,
+    });
         events.push({ type: "message", text: `${displayActorName(target)}に${finalDamage}のダメージ!` });
         this.damageActor(target, finalDamage, critical, events);
         break;
@@ -4319,7 +4286,17 @@ export class Game {
       events,
       addStatus: (target, kind, turns, verb) => addStatus(this.effectContext(events), target, kind, turns, verb),
       damageActor: (target, damage, critical, evts) => this.damageActor(target, damage, critical, evts),
-      mitigateIncomingDamage: (target, damage, evts) => this.mitigateIncomingDamage(target, damage, evts),
+      mitigateIncomingDamage: (target, damage, evts) =>
+        mitigateIncomingDamage({
+          target,
+          damage,
+          events: evts,
+          rng: this.rng,
+          runSkills: this.runSkills,
+          player: this.player,
+          oncePerRun: this.oncePerRun,
+          partyGuardTurns: this.partyGuardTurns,
+        }),
       pushMonster: (dir, target, evts) => this.pushMonster(dir, target, evts),
       extendLanternGlow: (turns) => {
         this.lanternGlowTurns = Math.max(this.lanternGlowTurns, turns);
@@ -4393,7 +4370,7 @@ export class Game {
     if (!target || !target.alive || target.kind !== "monster") return null;
     if (target.speciesId === undefined) return null;
 
-    const expected = Math.max(1, Math.floor(this.barrelThrowDamage() - target.def / 2));
+    const expected = Math.max(1, Math.floor(barrelThrowDamage(this.player.inventory) - target.def / 2));
     const hpAfter = Math.max(1, this.hpOwnerOf(target).hp - expected);
     const bonus = target.captureBonus ?? 0;
     const charmBonus = hasEquipEffect(this.player.inventory, "barrelKinship") ? 0.1 : 0;
