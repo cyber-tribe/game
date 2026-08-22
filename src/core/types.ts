@@ -914,6 +914,13 @@ export function isFree(floor: FloorState, p: Vec2): boolean {
   return walkableAt(floor, p) && !actorAt(floor, p) && !barrelAt(floor, p);
 }
 
+/** 分身と本体でHPを共有する仕掛け向け。実際にHPが増減する側のActorを返す */
+export function hpOwnerOf(floor: FloorState, actor: Actor): Actor {
+  const sharesHpWith = actor.kind === "monster" || actor.kind === "ally" ? actor.sharesHpWith : undefined;
+  if (sharesHpWith === undefined) return actor;
+  return floor.actors.find((a) => a.id === sharesHpWith) ?? actor;
+}
+
 /** center を中心に、近い輪から順に空いているマスを探す。無ければnull */
 export function freeSpotNear(floor: FloorState, rng: Rng, center: Vec2, maxRing = 3): Vec2 | null {
   for (let ring = 1; ring <= maxRing; ring++) {

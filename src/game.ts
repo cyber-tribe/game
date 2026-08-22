@@ -48,6 +48,7 @@ import {
   barrelAt,
   freeSpotNear,
   hasStatus,
+  hpOwnerOf,
   isFree,
   isHostile,
   roomContains,
@@ -169,10 +170,7 @@ import {
 } from "./domain/combat/damageModifier";
 import { liftOrPutBarrel } from "./domain/barrel/barrelLift";
 import { BARREL_RANGE, LIGHT_CARRY_RANGE_BONUS, traceThrow } from "./domain/barrel/barrelThrow";
-import {
-  dropBarrelNear as domainDropBarrelNear,
-  releaseFromBarrel as domainReleaseFromBarrel,
-} from "./domain/barrel/barrelDrop";
+import { releaseFromBarrel as domainReleaseFromBarrel } from "./domain/barrel/barrelDrop";
 import {
   LIGHT_BARREL_CONFUSE_TURNS,
   SLEEP_BARREL_SLEEP_TURNS,
@@ -188,6 +186,11 @@ import {
   openWaterBarrel,
   openWindBarrel,
 } from "./domain/barrel/barrelOpen";
+import {
+  type CaptureOutlook,
+  captureOutlookFor,
+  resolveEmptyBarrel as domainResolveEmptyBarrel,
+} from "./domain/barrel/barrelCapture";
 import { BOSS_MOVES, SPORE_SLEEP_CHANCE, SPORE_SLEEP_TURNS, type BossMoveContext } from "./systems/bossMoves";
 
 /** 双樽鉤(quickSingle)の会心率の上乗せ分 */
@@ -455,8 +458,6 @@ const BOSS_DREAM_ART_BOND_COOLDOWN_MULTIPLIER = 0.8;
 const ENCOURAGEMENT_COOLDOWN_MULTIPLIER = 0.75;
 /** ねぎらい: 敵を倒すたびの仲間の回復量 */
 const APPRECIATION_HEAL_AMOUNT = 1;
-/** つれさりの心得: 捕獲確率への加算 */
-const CAPTURE_MASTERY_BONUS = 0.15;
 /** かつぎばしり: タルを抱えている間、気づかれにくくなる確率(ねむタルと同じ形) */
 const STEALTH_CARRY_SUPPRESS_CHANCE = 0.3;
 
@@ -589,44 +590,6 @@ function isNearRoom(room: Room, pos: Vec2, range: number): boolean {
   const dx = Math.max(room.x - pos.x, 0, pos.x - (room.x + room.w - 1));
   const dy = Math.max(room.y - pos.y, 0, pos.y - (room.y + room.h - 1));
   return Math.max(dx, dy) <= range;
-}
-
-/**
- * 空のタルでモンスターを吸い込める確率。
- * 満タンの相手にはめったに効かず、瀕死ならほぼ確実に入る。
- * 「弱らせてから捕まえる」が自然な手順になるように振ってある。
- */
-export function captureChance(target: Actor): number {
-  return captureChanceAt(target.hp, target.maxHp);
-}
-
-/** captureChanceの中身。見込み表示(captureOutlook)が「当てた後のHP」で試算するために切り出してある */
-function captureChanceAt(hp: number, maxHp: number): number {
-  const wounded = 1 - hp / maxHp;
-  return Math.min(0.85, 0.12 + 0.68 * wounded);
-}
-
-/**
- * 入りやすさの3段階(plan/game/barrel-capture-clarity.md)。
- * design/balance-philosophy.md の「数値を見せすぎない」方針に沿って、
- * 厳密な%は出さずにこの3つへ丸めてHUDに出す。
- */
-export type CaptureTier = "likely" | "even" | "hard";
-
-/** 3段階のしきい値。計画書の未決事項への回答として、例示された0.6/0.3をそのまま採る */
-const CAPTURE_TIER_LIKELY = 0.6;
-const CAPTURE_TIER_EVEN = 0.3;
-
-export function captureTier(chance: number): CaptureTier {
-  if (chance >= CAPTURE_TIER_LIKELY) return "likely";
-  if (chance >= CAPTURE_TIER_EVEN) return "even";
-  return "hard";
-}
-
-/** 捕獲の見込み(HUD表示用)。相手の名前と3段階だけを渡し、確率そのものは見せない */
-export interface CaptureOutlook {
-  name: string;
-  tier: CaptureTier;
 }
 
 /**
@@ -2011,13 +1974,24 @@ export class Game {
           if (this.status !== "playing") return true;
         }
         const last = hits[hits.length - 1];
-        return this.resolveEmptyBarrel(
+        const emptyHit = last && last.alive ? last : null;
+        return domainResolveEmptyBarrel({
+          floor: this.floor,
+          rng: this.rng,
+          playerInventory: this.player.inventory,
+          playerPos: this.player.pos,
+          runSkills: this.runSkills,
+          alliesCount: this.allies.length,
           barrel,
           landing,
-          last && last.alive ? last : null,
+          hit: emptyHit,
+          hitCurrentHp: emptyHit ? this.hpOwnerOf(emptyHit).hp : 0,
+          throwDamage: barrelThrowDamage(this.player.inventory),
           events,
           critForced,
-        );
+          resolveTarukurabeHit: (hit) => this.resolveTarukurabeHit(hit, events),
+          damageActor: (target, dmg, crit) => this.damageActor(target, dmg, crit, events),
+        });
       }
 
       // ---- 元素タル(plan/game/archive/barrel-arts.md) ----
@@ -2226,103 +2200,6 @@ export class Game {
     });
     // タルわざ注入の音(plan/sound/archive/village-soundscape.md)
     events.push({ type: "barrelArtCast", allyId: ally.id, kind: art.barrelKind });
-    return true;
-  }
-
-  /** タルを着地点に置く。塞がっていれば近くの空きマスへ転がす */
-  private dropBarrelNear(barrel: Barrel, preferred: Vec2, events: GameEvent[]): boolean {
-    return domainDropBarrelNear({ floor: this.floor, rng: this.rng, barrel, preferred, events });
-  }
-
-  private resolveEmptyBarrel(
-    barrel: Barrel,
-    landing: Vec2,
-    hit: Actor | null,
-    events: GameEvent[],
-    critForced = false,
-  ): boolean {
-    if (!hit) {
-      this.dropBarrelNear(barrel, landing, events);
-      return true;
-    }
-
-    // 樽比べ(plan/tarukurabe-minigame.md): 的はダメージ計算にも捕獲判定にも
-    // 乗らない、得点処理だけの専用フロー
-    if (hit.kind === "target") {
-      this.resolveTarukurabeHit(hit, events);
-      return true;
-    }
-
-    const rolled = computeDamage(
-      this.rng,
-      barrelThrowDamage(this.player.inventory),
-      hit.def,
-      critForced ? { forceCrit: true } : undefined,
-    );
-    // 空のタルは捕獲道具であって武器ではない(plan/game/barrel-capture-clarity.md)。
-    // 捕獲判定に進む相手(=最後に当たった1体)だけは、命中ダメージでHPが1未満に
-    // ならないよう止める。まぶたむしのような低HP種が「弱らせる前に死ぬ」ために
-    // 捕獲が事実上不可能になっていた矛盾を、仕様として取り除く。
-    // 貫通(抱え投げの奥義)の通過ダメージは従来どおり倒してよい(上の呼び出し元)
-    //
-    // スキル「いたわり投げ」(plan/game/archive/run-build-skills.md): 上の保険を
-    // 強化し、余らせずに必ずHP1ちょうどまで削る(通常はロール次第でそれより残る)
-    const damage = this.runSkills.includes("gentleThrow")
-      ? Math.max(0, this.hpOwnerOf(hit).hp - 1)
-      : Math.max(0, Math.min(rolled.damage, this.hpOwnerOf(hit).hp - 1));
-    if (damage > 0) {
-      events.push({ type: "message", text: `${hit.name}に${damage}のダメージ!` });
-      this.damageActor(hit, damage, rolled.critical, events);
-    }
-
-    // 仲間にできるのはモンスターだけ。すでに手一杯なら吸い込まない
-    if (hit.kind !== "monster" || hit.speciesId === undefined) {
-      this.dropBarrelNear(barrel, landing, events);
-      return true;
-    }
-    if (this.allies.length >= MAX_ALLIES) {
-      events.push({ type: "message", text: "これ以上は連れて歩けない。" });
-      this.dropBarrelNear(barrel, landing, events);
-      return true;
-    }
-
-    // 「なだめの手つき」で受けた弱らせ(captureBonus)は、この判定で消費する
-    const bonus = hit.captureBonus ?? 0;
-    hit.captureBonus = 0;
-    // 樽なじみの腕輪(plan/protagonist-equipment.md): 捕獲確率+10%
-    const charmBonus = hasEquipEffect(this.player.inventory, "barrelKinship") ? 0.1 : 0;
-    // スキル「つれさりの心得」(plan/game/archive/run-build-skills.md): 捕獲確率+15%
-    const captureSkillBonus = this.runSkills.includes("captureMastery") ? CAPTURE_MASTERY_BONUS : 0;
-    const captured =
-      critForced ||
-      this.rng.chance(Math.min(0.9, captureChance(hit) + bonus + charmBonus + captureSkillBonus));
-    if (!captured) {
-      // 失敗の演出(plan/game/barrel-capture-clarity.md): 相手がタルを弾く
-      // ノックバックと専用SFXのために、弾かれた向き(投げた側)も渡す。
-      // 文言は「タルが落ちて拾い直せる」ところまで伝えるが、置き場所が
-      // 無くて砕けた場合(dropBarrelNearがfalseを返す)は嘘にならない側を出す
-      events.push({
-        type: "captureFailed",
-        actorId: hit.id,
-        name: hit.name,
-        from: this.player.pos,
-      });
-      const dropped = this.dropBarrelNear(barrel, landing, events);
-      events.push({
-        type: "message",
-        text: t(dropped ? "msg.captureFailed" : "msg.captureFailedBarrelLost", { name: hit.name }),
-      });
-      return true;
-    }
-
-    // 吸い込み成功。モンスターは盤面から消え、タルが中身入りになって落ちる
-    hit.alive = false;
-    this.floor.actors = this.floor.actors.filter((a) => a.id !== hit.id);
-    barrel.kind = "caught";
-    barrel.speciesId = hit.speciesId;
-    events.push({ type: "capture", actorId: hit.id, barrelId: barrel.id, name: hit.name });
-    events.push({ type: "message", text: t("msg.captureSuccess", { name: hit.name }) });
-    this.dropBarrelNear(barrel, hit.pos, events);
     return true;
   }
 
@@ -3105,9 +2982,7 @@ export class Game {
 
   /** 地方ボス(plan/region-boss-kodamanonushi.md): 分身が紐づく本体を返す。紐づいていなければそのまま(sharesHpWithを持てるのはmonster/allyだけ) */
   private hpOwnerOf(actor: Actor): Actor {
-    const sharesHpWith = actor.kind === "monster" || actor.kind === "ally" ? actor.sharesHpWith : undefined;
-    if (sharesHpWith === undefined) return actor;
-    return this.floor.actors.find((a) => a.id === sharesHpWith) ?? actor;
+    return hpOwnerOf(this.floor, actor);
   }
 
   /** 本体のhpを、紐づく分身全員のhpフィールドへミラーする(表示用。増減判定には使わない) */
@@ -4280,15 +4155,13 @@ export class Game {
       this.player.id,
     ).hits;
     const target = hits[hits.length - 1];
-    if (!target || !target.alive || target.kind !== "monster") return null;
-    if (target.speciesId === undefined) return null;
-
-    const expected = Math.max(1, Math.floor(barrelThrowDamage(this.player.inventory) - target.def / 2));
-    const hpAfter = Math.max(1, this.hpOwnerOf(target).hp - expected);
-    const bonus = target.captureBonus ?? 0;
-    const charmBonus = hasEquipEffect(this.player.inventory, "barrelKinship") ? 0.1 : 0;
-    const chance = Math.min(0.9, captureChanceAt(hpAfter, target.maxHp) + bonus + charmBonus);
-    return { name: target.name, tier: captureTier(chance) };
+    if (!target) return null;
+    return captureOutlookFor(
+      target,
+      this.hpOwnerOf(target).hp,
+      this.player.inventory,
+      barrelThrowDamage(this.player.inventory),
+    );
   }
 
   /** 連れている仲間(表示や判定の入口) */
