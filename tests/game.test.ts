@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 import { Rng } from "../src/core/rng";
 import { computeDamage } from "../src/domain/combat/damageCalculation";
 import { MAX_LEVEL, createPlayer, expForLevel, gainExp, totalAttack } from "../src/entities/player";

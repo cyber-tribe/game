@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DUNGEONS, TARUKURABE_ID, dungeonById } from "../src/entities/dungeons";
 import { isTarukurabeDay } from "../src/entities/festivals";
 import { ACHIEVEMENTS, achievementDef } from "../src/entities/achievements";
-import { Game, TARUKURABE_PERFECT_SCORE } from "../src/game";
+import { Game, TARUKURABE_PERFECT_SCORE } from "../src/application/dungeonRun/game";
 import { initialSave, recordTarukurabeResult } from "../src/save";
 
 describe("entities/festivals.ts: isTarukurabeDay(plan/tarukurabe-minigame.md)", () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 import { MAX_MARK_SLOTS, MAX_PLUS, OVERLAY_STONE_DEF_ID } from "../src/entities/forging";
 import { addItem, createInventory, equip, weaponMarkIds } from "../src/domain/item/inventory";
 import { isFree, type Actor } from "../src/core/types";

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 
 /**
  * 草は葉っぱを食べている(plan/game/herb-satiety-bonus.md)。

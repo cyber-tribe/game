@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AllyActor, MonsterActor } from "../src/core/types";
 import { isFree } from "../src/core/types";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 
 /**
  * DDD Phase 2(plan/game/ddd-phase2-combat-rules.md)のゴールデンテスト。

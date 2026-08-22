@@ -8,7 +8,7 @@ import {
   choosePlayerStart,
   populateFloor,
 } from "../src/domain/dungeon/populate";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 import { clearBossIfPresent } from "./helpers/bossFloor";
 
 function makeIds(): IdSource {

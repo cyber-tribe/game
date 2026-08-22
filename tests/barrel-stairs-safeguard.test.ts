@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { eq } from "../src/core/grid";
 import { TILE_ROOM, type TileKind } from "../src/core/types";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 
 function forceRoomTiles(game: Game, positions: { x: number; y: number }[], kind: TileKind = TILE_ROOM): void {
   for (const p of positions) {

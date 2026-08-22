@@ -6,7 +6,7 @@ import { allyExpForLevel, gainAllyExp } from "../src/entities/companionGrowth";
 import { diggableWallNear, DREAM_ARTS, foesInRoom } from "../src/entities/dreamArts";
 import { SPECIES, speciesById } from "../src/entities/species";
 import { Rng } from "../src/core/rng";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 import { executeMonsterAction } from "./helpers/access";
 
 /**

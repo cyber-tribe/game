@@ -3,7 +3,7 @@ import { Rng } from "../src/core/rng";
 import { computeDamage } from "../src/domain/combat/damageCalculation";
 import { MAX_CRIT_RATE } from "../src/domain/combat/criticalHit";
 import { isFree, type Actor } from "../src/core/types";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 
 describe("会心率の上限", () => {
   it("critBonusをいくら積んでも上限(20%)を超えない", () => {

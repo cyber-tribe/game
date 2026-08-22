@@ -4,7 +4,7 @@ import { isFree } from "../src/core/types";
 import { rollRunSkillChoices, RUN_SKILLS } from "../src/entities/runSkills";
 import { speciesById } from "../src/entities/species";
 import { Rng } from "../src/core/rng";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 import { BARREL_RANGE, LIGHT_CARRY_RANGE_BONUS, traceThrow } from "../src/domain/barrel/barrelThrow";
 import { access } from "./helpers/access";
 

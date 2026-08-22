@@ -6,7 +6,7 @@ import {
   hasStatus,
 } from "../src/core/types";
 import { addStatus, type EffectContext } from "../src/domain/item/effects";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 
 function newGame(seed = 1) {
   return new Game({ seed });

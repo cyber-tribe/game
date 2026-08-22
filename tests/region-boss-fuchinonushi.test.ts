@@ -4,7 +4,7 @@ import type { FloorState, MonsterActor, PlayerActor } from "../src/core/types";
 import { roomContains } from "../src/core/types";
 import { decideMonsterAction } from "../src/entities/ai";
 import { REGION_BOSS_ORDER, speciesById } from "../src/entities/species";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 import { REGION_DUNGEON_IDS, REGION_SIZE } from "../src/entities/dungeons";
 const bossRegionDungeonId = REGION_DUNGEON_IDS[4]!;
 import { access, explode } from "./helpers/access";

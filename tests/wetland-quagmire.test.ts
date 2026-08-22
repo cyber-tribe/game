@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 import { Rng } from "../src/core/rng";
 import { generateFloor } from "../src/domain/dungeon/generate";
 import { placeQuagmireTiles } from "../src/domain/dungeon/populate";

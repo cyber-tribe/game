@@ -13,7 +13,7 @@ import { Rng } from "../src/core/rng";
 import { expForLevel } from "../src/entities/player";
 import { createAllyFromStored } from "../src/domain/dungeon/populate";
 import { actorToStoredMonster, loadSave, type StoredMonster } from "../src/save";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 import { access, executeMonsterAction } from "./helpers/access";
 import { withMockedLocalStorage } from "./helpers/localStorage";
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { REGION_CHECKPOINT_FLOOR } from "../src/entities/dungeons";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 
 describe("出発地点(startDepth)", () => {
   it("省略時は1階から始まる", () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Rng } from "../src/core/rng";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 import { generateFloor } from "../src/domain/dungeon/generate";
 import { type IdSource, populateFloor } from "../src/domain/dungeon/populate";
 import { pickFloorGimmick } from "../src/domain/dungeon/gimmicks";

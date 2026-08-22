@@ -1,16 +1,15 @@
-import { Rng } from "./core/rng";
-import { OncePerRunTracker } from "./core/oncePerRunTracker";
-import { TARUKURABE_PERFECT_SCORE, type RunSnapshot, type RunStatus } from "./core/runSnapshot";
+import { Rng } from "../../core/rng";
+import { OncePerRunTracker } from "../../core/oncePerRunTracker";
+import { TARUKURABE_PERFECT_SCORE, type RunSnapshot, type RunStatus } from "../../core/runSnapshot";
 import {
-  ALL_DIRS,
   type Dir,
   type Vec2,
   chebyshev,
   dirDelta,
   dirFromDelta,
   eq,
-} from "./core/grid";
-import type { GameEvent } from "./core/events";
+} from "../../core/grid";
+import type { GameEvent } from "../../core/events";
 import {
   STATUS_CONFUSE,
   STATUS_INVISIBLE,
@@ -37,9 +36,9 @@ import {
   isHostile,
   roomContains,
   walkableAt,
-} from "./core/types";
-import { type ArtId } from "./entities/arts";
-import { useArt as domainUseArt } from "./domain/player/arts";
+} from "../../core/types";
+import { type ArtId } from "../../entities/arts";
+import { useArt as domainUseArt } from "../../domain/player/arts";
 import {
   type IdSource,
   createAllyFromStored,
@@ -47,20 +46,20 @@ import {
   createItem,
   findFreeTile,
   spawnWanderingMonster,
-} from "./domain/dungeon/populate";
-import { displayActorName } from "./entities/naming";
-import { ALLY_STANCE_NAMES, barrelDisplayName } from "./entities/displayNames";
+} from "../../domain/dungeon/populate";
+import { displayActorName } from "../../entities/naming";
+import { ALLY_STANCE_NAMES, barrelDisplayName } from "../../entities/displayNames";
 import {
   isCheckpointFloor,
   type DungeonDef,
   REGION_DUNGEON_IDS,
   TARUKURABE_ID,
   dungeonById,
-} from "./entities/dungeons";
-import { DEFAULT_MOOD_ID, type MoodDef, type MoodId, moodDef } from "./entities/moods";
-import type { StoredMonster } from "./entities/storedMonster";
-import { isVisible, updateVisibility } from "./domain/dungeon/visibility";
-import type { DifficultyMode } from "./entities/difficulty";
+} from "../../entities/dungeons";
+import { DEFAULT_MOOD_ID, type MoodDef, type MoodId, moodDef } from "../../entities/moods";
+import type { StoredMonster } from "../../entities/storedMonster";
+import { isVisible, updateVisibility } from "../../domain/dungeon/visibility";
+import type { DifficultyMode } from "../../entities/difficulty";
 import {
   MAX_ALLIES,
   MAX_SATIETY,
@@ -68,15 +67,15 @@ import {
   type TrainingFocus,
   createPlayer,
   totalAttack,
-} from "./entities/player";
-import { HONOKA_NA_AKARI_VISION_EXTRA, type DreamArtContext } from "./domain/party/dreamArtEffects";
-import { itemDef } from "./entities/itemCatalog";
-import { type EffectContext, addStatus } from "./domain/item/effects";
+} from "../../entities/player";
+import { HONOKA_NA_AKARI_VISION_EXTRA, type DreamArtContext } from "../../domain/party/dreamArtEffects";
+import { itemDef } from "../../entities/itemCatalog";
+import { type EffectContext, addStatus } from "../../domain/item/effects";
 import {
   type ItemActionContext,
   throwItem as domainThrowItem,
   useItem as domainUseItem,
-} from "./domain/item/itemActions";
+} from "../../domain/item/itemActions";
 import {
   addItem,
   displayName,
@@ -86,13 +85,12 @@ import {
   hasEquipEffect,
   isFull,
   removeItem,
-} from "./domain/item/inventory";
-import { attackOffsets } from "./domain/combat/attackPattern";
-import { computeDamage } from "./domain/combat/damageCalculation";
-import { barrelThrowDamage, mitigateIncomingDamage } from "./domain/combat/damageModifier";
-import { liftOrPutBarrel } from "./domain/barrel/barrelLift";
-import { BARREL_RANGE, LIGHT_CARRY_RANGE_BONUS, traceThrow } from "./domain/barrel/barrelThrow";
-import { releaseFromBarrel as domainReleaseFromBarrel } from "./domain/barrel/barrelDrop";
+} from "../../domain/item/inventory";
+import { attackOffsets } from "../../domain/combat/attackPattern";
+import { computeDamage } from "../../domain/combat/damageCalculation";
+import { barrelThrowDamage, mitigateIncomingDamage } from "../../domain/combat/damageModifier";
+import { BARREL_RANGE, LIGHT_CARRY_RANGE_BONUS, traceThrow } from "../../domain/barrel/barrelThrow";
+import { releaseFromBarrel as domainReleaseFromBarrel } from "../../domain/barrel/barrelDrop";
 import {
   LIGHT_BARREL_CONFUSE_TURNS,
   SLEEP_BARREL_SLEEP_TURNS,
@@ -100,52 +98,52 @@ import {
   WATER_BARREL_DAMAGE_MULTIPLIER,
   WIND_BARREL_PUSH_DISTANCE,
   applyElementalBarrelHit,
-} from "./domain/barrel/barrelElemental";
+} from "../../domain/barrel/barrelElemental";
 import {
   LIGHT_BARREL_OPEN_TURNS,
   openSleepBarrel,
   openStoneBarrel,
   openWaterBarrel,
   openWindBarrel,
-} from "./domain/barrel/barrelOpen";
-import { castBarrelArt as domainCastBarrelArt } from "./domain/barrel/barrelArt";
-import { burstBarrel as domainBurstBarrel, explode as domainExplode } from "./domain/barrel/barrelExplosion";
+} from "../../domain/barrel/barrelOpen";
+import { burstBarrel as domainBurstBarrel, explode as domainExplode } from "../../domain/barrel/barrelExplosion";
 import {
   type CaptureOutlook,
   captureOutlookFor,
   resolveEmptyBarrel as domainResolveEmptyBarrel,
-} from "./domain/barrel/barrelCapture";
-import type { BossMoveContext } from "./domain/dungeon/bossMoves";
-import { damageActor as domainDamageActor, killActor as domainKillActor } from "./domain/turn/damage";
-import { attack as domainAttack } from "./domain/turn/attackResolution";
-import { pushMonster as domainPushMonster } from "./domain/turn/actorActions";
-import { movePlayer as domainMovePlayer } from "./domain/turn/movement";
+} from "../../domain/barrel/barrelCapture";
+import type { BossMoveContext } from "../../domain/dungeon/bossMoves";
+import { damageActor as domainDamageActor, killActor as domainKillActor } from "../../domain/turn/damage";
+import { attack as domainAttack } from "../../domain/turn/attackResolution";
+import { pushMonster as domainPushMonster } from "../../domain/turn/actorActions";
+import { movePlayer as domainMovePlayer } from "../../domain/turn/movement";
 import {
   type TarukurabeContext,
   enterTarukurabeFloor as domainEnterTarukurabeFloor,
   finishTarukurabeThrow as domainFinishTarukurabeThrow,
   resolveTarukurabeHit as domainResolveTarukurabeHit,
-} from "./domain/tarukurabe/tarukurabe";
+} from "../../domain/tarukurabe/tarukurabe";
 import {
   type ShopContext,
   checkShoplifting as domainCheckShoplifting,
   sellItem as domainSellItem,
-} from "./domain/dungeon/shop";
+} from "../../domain/dungeon/shop";
 import {
   type StoryMomentsContext,
   maybePlayMountainCoreEnding as domainMaybePlayMountainCoreEnding,
   trueAwakeningEnding as domainTrueAwakeningEnding,
-} from "./application/dungeonRun/storyMoments";
-import { resolveTurn as domainResolveTurn, upkeep as domainUpkeep } from "./domain/turn/turnCycle";
+} from "./storyMoments";
+import { resolveCommandDispatch } from "./commands";
+import { resolveTurn as domainResolveTurn, upkeep as domainUpkeep } from "../../domain/turn/turnCycle";
 import {
   createSkillChoiceState,
   isAwaitingSkillChoice,
   offerNextSkillChoice as domainOfferNextSkillChoice,
   resolveSkillChoice as domainResolveSkillChoice,
   type SkillChoiceState,
-} from "./domain/player/runSkills";
-import { recruitFromBarrel as domainRecruitFromBarrel } from "./domain/party/recruit";
-import { tickAllyDreamArts as domainTickAllyDreamArts } from "./domain/party/dreamArts";
+} from "../../domain/player/runSkills";
+import { recruitFromBarrel as domainRecruitFromBarrel } from "../../domain/party/recruit";
+import { tickAllyDreamArts as domainTickAllyDreamArts } from "../../domain/party/dreamArts";
 import {
   adjacentFreeSpot as domainAdjacentFreeSpot,
   applyRoomWideStatus as domainApplyRoomWideStatus,
@@ -155,8 +153,8 @@ import {
   tickMirrors as domainTickMirrors,
   tickSporeRooms as domainTickSporeRooms,
   tickSummonedTorrentTiles as domainTickSummonedTorrentTiles,
-} from "./domain/dungeon/floorGimmicks";
-import { alertNearbyMonsters as domainAlertNearbyMonsters, checkTrap as domainCheckTrap } from "./domain/dungeon/traps";
+} from "../../domain/dungeon/floorGimmicks";
+import { alertNearbyMonsters as domainAlertNearbyMonsters, checkTrap as domainCheckTrap } from "../../domain/dungeon/traps";
 import {
   announceGround as domainAnnounceGround,
   bankRun as domainBankRun,
@@ -166,14 +164,14 @@ import {
   descend as domainDescend,
   openDoor as domainOpenDoor,
   regionGimmickApplies as domainRegionGimmickApplies,
-} from "./domain/dungeon/progression";
+} from "../../domain/dungeon/progression";
 import {
   beginBranchDungeon as domainBeginBranchDungeon,
   endBranchDungeon as domainEndBranchDungeon,
   enterFloor as domainEnterFloor,
   findBranchEntranceDungeonId as domainFindBranchEntranceDungeonId,
   type HostDungeonContext,
-} from "./domain/dungeon/floorEntry";
+} from "../../domain/dungeon/floorEntry";
 
 /** 双樽鉤(quickSingle)の会心率の上乗せ分 */
 const QUICK_SINGLE_CRIT_BONUS = 0.15;
@@ -294,7 +292,7 @@ export interface RunOptions {
   moodOverride?: MoodId;
 }
 
-export type { RunSnapshot, RunStatus } from "./core/runSnapshot";
+export type { RunSnapshot, RunStatus } from "../../core/runSnapshot";
 
 /** このターンごとにモンスターが1体湧く */
 const SPAWN_INTERVAL = 45;
@@ -429,7 +427,7 @@ export class Game {
   private difficulty: DifficultyMode = "normal";
 
   /** 潜っているダンジョン(plan/multiple-dungeons.md) */
-  private dungeon: DungeonDef = dungeonById(REGION_DUNGEON_IDS[0]);
+  dungeon: DungeonDef = dungeonById(REGION_DUNGEON_IDS[0]);
 
   /**
    * 横穴(分岐ダンジョン、plan/game/dungeon-per-region.md)に入っているあいだだけ
@@ -764,7 +762,7 @@ export class Game {
    * 厳密に追跡する仕組みは持たないため、actor-overlap-failsafeで導入した
    * adjacentFreeSpotを再利用し、直近の空きマスへ最小移動させる
    */
-  private pushBackFromStairs(events: GameEvent[]): void {
+  pushBackFromStairs(events: GameEvent[]): void {
     const player = this.player;
     const spot = domainAdjacentFreeSpot(this.floor, player.pos);
     if (!spot) return;
@@ -802,7 +800,7 @@ export class Game {
     domainTrueAwakeningEnding(target, events, this.storyMomentsContext());
   }
 
-  private descend(events: GameEvent[]): void {
+  descend(events: GameEvent[]): void {
     domainDescend({
       depth: this.depth,
       maxDepth: this.maxDepth,
@@ -840,7 +838,7 @@ export class Game {
    * (plan/checkpoint-select.md)。持ち物・仲間・所持金を持ち帰れる点は
    * 通常の踏破と同じ。以後の深い階は次回以降のダイブに持ち越す。
    */
-  private bankRun(events: GameEvent[]): boolean {
+  bankRun(events: GameEvent[]): boolean {
     return domainBankRun({
       playerPos: this.player.pos,
       stairs: this.floor.stairs,
@@ -860,7 +858,7 @@ export class Game {
    * main.ts側に伝える。開閉そのものはターンを消費しない(仕度を挟める、
    * というdocの意図どおり)
    */
-  private openDoor(events: GameEvent[]): boolean {
+  openDoor(events: GameEvent[]): boolean {
     return domainOpenDoor(this.floor.door, this.player.pos, events);
   }
 
@@ -868,7 +866,7 @@ export class Game {
    * 横穴(分岐ダンジョン、plan/game/dungeon-per-region.md)の入り口に立って
    * 確定したときに呼ぶ。入り口のマスに立っていなければ弾く
    */
-  private enterBranchTile(events: GameEvent[]): boolean {
+  enterBranchTile(events: GameEvent[]): boolean {
     const branchDungeonId = domainFindBranchEntranceDungeonId(this.floor, this.player.pos);
     if (!branchDungeonId) {
       events.push({ type: "message", text: "ここに横穴はない。" });
@@ -953,145 +951,13 @@ export class Game {
       return false;
     }
 
-    switch (cmd.type) {
-      case "face":
-        player.facing = cmd.dir;
-        events.push({ type: "face", actorId: player.id, dir: cmd.dir });
-        return false;
-
-      case "wait":
-        player.guarding = true;
-        // スキル「がまんのかまえ」(plan/game/archive/run-build-skills.md):
-        // 足踏みの直後1撃だけ与ダメージ2倍
-        if (this.runSkills.includes("braced")) player.bracedReady = true;
-        return true;
-
-      case "move": {
-        let dir = cmd.dir;
-        if (hasStatus(player, STATUS_CONFUSE) && this.rng.chance(0.6)) {
-          dir = this.rng.pick(ALL_DIRS);
-          events.push({ type: "message", text: "足元がおぼつかない!" });
-        }
-        player.facing = dir;
-        return this.movePlayer(dir, events);
-      }
-
-      // 攻撃専用キー(plan/attack-button.md)。移動キーで敵の方向へ進んだ場合は
-      // 「押し出し」になる(movePlayer参照)ため、実際にダメージを与える経路は
-      // ここ一本に絞られる。空振り(敵がいない・不可視 等)でもターンは消費する
-      case "attack":
-        this.resolvePlayerAttack(player.facing, events);
-        return true;
-
-      case "pickup":
-        return this.pickUp(events);
-
-      case "descend": {
-        // 第七地方(わすれられた祭りの跡)固有ギミック(plan/festival-mirage.md): 偽の階段
-        const decoyIdx = this.floor.decoyStairsPositions?.findIndex((p) => eq(p, player.pos)) ?? -1;
-        if (decoyIdx >= 0) {
-          this.floor.decoyStairsPositions!.splice(decoyIdx, 1);
-          events.push({ type: "message", text: "――幻だったらしい。" });
-          return true;
-        }
-        if (!eq(player.pos, this.floor.stairs)) {
-          events.push({ type: "message", text: "ここには階段がない。" });
-          return false;
-        }
-        // ボスの間の階段(plan/game/dungeon-boss-rooms.md): 通常の移動では
-        // walkableAtがこの階段マスへの到達自体を防ぐが、念のため二重に守る
-        if (this.floor.stairsBlocked) {
-          events.push({ type: "message", text: "ここには階段がない。" });
-          return false;
-        }
-        // タルを抱えたままの階段降りを禁止する(plan/barrel-stairs-safeguard.md)
-        if (player.carrying) {
-          events.push({ type: "message", text: "タルを抱えたままでは降りられない。" });
-          this.pushBackFromStairs(events);
-          return true;
-        }
-        this.descend(events);
-        return true;
-      }
-
-      case "bank":
-        return this.bankRun(events);
-
-      case "openDoor":
-        return this.openDoor(events);
-
-      case "enterBranch":
-        return this.enterBranchTile(events);
-
-      case "use":
-        return this.useItem(cmd.uid, events);
-
-      case "throw":
-        return this.throwItem(cmd.uid, events);
-
-      case "drop":
-        return this.dropItem(cmd.uid, events);
-
-      case "equip": {
-        const item = findItem(player.inventory, cmd.uid);
-        if (!item) return false;
-        const def = itemDef(item.defId);
-        // 実績帳「挑戦」カテゴリ(plan/challenge-achievements.md): 武器の
-        // 持ち替えを記録する。装備中の武器を「はずす」操作(トグルの逆方向)
-        // は持ち替えに数えない。素手・未装備からの初回装備も系統を記録する
-        // だけで持ち替えに数えない
-        if (def.category === "weapon" && player.inventory.weaponUid !== cmd.uid) {
-          const kind = weaponKindOf(item.defId);
-          if (this.weaponKindThisRun !== undefined && this.weaponKindThisRun !== kind) {
-            this.usedMultipleWeaponsThisRun = true;
-          }
-          this.weaponKindThisRun = kind;
-        }
-        equip(player.inventory, cmd.uid);
-        events.push({ type: "equip", actorId: player.id, itemUid: cmd.uid, name: def.name });
-        events.push({
-          type: "message",
-          text: `${displayName(player.inventory, item)}を装備した。`,
-        });
-        return true;
-      }
-
-      case "liftBarrel":
-        return liftOrPutBarrel({ floor: this.floor, rng: this.rng, player, events });
-
-      case "throwBarrel": {
-        const consumed = this.throwCarriedBarrel(events);
-        // 樽比べ(plan/tarukurabe-minigame.md): 実際に1投消費した場合だけ、
-        // 残りタル数・終了条件を進める(「タルを持っていない」等の不発は数えない)
-        if (consumed && this.dungeon.id === TARUKURABE_ID && this.status === "playing") {
-          this.finishTarukurabeThrow(events);
-        }
-        return consumed;
-      }
-
-      case "openBarrel":
-        return this.openCarriedBarrel(events);
-
-      case "castBarrelArt":
-        return domainCastBarrelArt({ player, allies: this.allies, allyId: cmd.allyId, events });
-
-      case "setStance":
-        return this.setAllyStance(cmd.allyId, cmd.stance, events);
-
-      case "useArt":
-        return this.useArt(cmd.id, events);
-
-      // レベルアップ時のスキル選択(plan/game/archive/run-build-skills.md):
-      // 提示中はcommand()の先頭で丸ごと横取りするため、ここには来ない
-      case "chooseSkill":
-        return false;
-    }
+    return resolveCommandDispatch(this, cmd, events);
   }
 
   // ------------------------------------------------------------ 仲間への指示
 
   /** 構えを設定する。指示そのものはターンを消費しない */
-  private setAllyStance(
+  setAllyStance(
     allyId: number | "all",
     stance: AllyStance,
     events: GameEvent[],
@@ -1121,7 +987,7 @@ export class Game {
    * 「目覚ましの一喝」は地方ボス(plan/region-bosses.md、未実装)専用の
    * 切り返しのため、現状は不発のメッセージだけを返す。
    */
-  private useArt(id: ArtId, events: GameEvent[]): boolean {
+  useArt(id: ArtId, events: GameEvent[]): boolean {
     return domainUseArt(id, events, { player: this.player, floor: this.floor });
   }
 
@@ -1139,7 +1005,7 @@ export class Game {
    *   爆発タル      → その場で爆発し、周囲もろとも巻き込む
    *   モンスター入り → 中身が飛び出して仲間になる
    */
-  private throwCarriedBarrel(events: GameEvent[]): boolean {
+  throwCarriedBarrel(events: GameEvent[]): boolean {
     const player = this.player;
     const barrel = player.carrying;
     if (!barrel) {
@@ -1345,7 +1211,7 @@ export class Game {
    * 意味のまま「あける」で使える(自爆・解放)。あけると中身は失われ、
    * 空のタルに戻る(爆発・モンスター入りは従来どおり消費されて無くなる)
    */
-  private openCarriedBarrel(events: GameEvent[]): boolean {
+  openCarriedBarrel(events: GameEvent[]): boolean {
     const player = this.player;
     const barrel = player.carrying;
     if (!barrel) {
@@ -1443,7 +1309,7 @@ export class Game {
    * 終了条件(全ての的に命中済み、またはタルを使い切った)を満たしていれば
    * 専用モードを終了する。満たしていなければ次の1個を投擲台に供給する
    */
-  private finishTarukurabeThrow(events: GameEvent[]): void {
+  finishTarukurabeThrow(events: GameEvent[]): void {
     domainFinishTarukurabeThrow(events, this.tarukurabeContext());
   }
 
@@ -1461,7 +1327,7 @@ export class Game {
   }
 
 
-  private movePlayer(dir: Dir, events: GameEvent[]): boolean {
+  movePlayer(dir: Dir, events: GameEvent[]): boolean {
     return domainMovePlayer(dir, events, {
       player: this.player,
       floor: this.floor,
@@ -1562,7 +1428,7 @@ export class Game {
    * 「dir 方向へ体当たりして初めて発動する」という既存の操作感は変えず、
    * 当たり判定の形だけを武器ごとに変える。
    */
-  private resolvePlayerAttack(dir: Dir, events: GameEvent[]): void {
+  resolvePlayerAttack(dir: Dir, events: GameEvent[]): void {
     const player = this.player;
     const weapon = this.equippedWeaponDef();
     let pattern: WeaponPattern = weapon?.attackPattern ?? "single";
@@ -1761,7 +1627,7 @@ export class Game {
 
   // ------------------------------------------------------------ アイテム
 
-  private pickUp(events: GameEvent[]): boolean {
+  pickUp(events: GameEvent[]): boolean {
     if (this.player.carrying) {
       events.push({ type: "message", text: "タルで手がふさがっている。" });
       return false;
@@ -1822,15 +1688,40 @@ export class Game {
     };
   }
 
-  private useItem(uid: number, events: GameEvent[]): boolean {
+  useItem(uid: number, events: GameEvent[]): boolean {
     return domainUseItem(uid, events, this.itemActionContext());
   }
 
-  private throwItem(uid: number, events: GameEvent[]): boolean {
+  equipItem(uid: number, events: GameEvent[]): boolean {
+    const player = this.player;
+    const item = findItem(player.inventory, uid);
+    if (!item) return false;
+    const def = itemDef(item.defId);
+    // 実績帳「挑戦」カテゴリ(plan/challenge-achievements.md): 武器の
+    // 持ち替えを記録する。装備中の武器を「はずす」操作(トグルの逆方向)
+    // は持ち替えに数えない。素手・未装備からの初回装備も系統を記録する
+    // だけで持ち替えに数えない
+    if (def.category === "weapon" && player.inventory.weaponUid !== uid) {
+      const kind = weaponKindOf(item.defId);
+      if (this.weaponKindThisRun !== undefined && this.weaponKindThisRun !== kind) {
+        this.usedMultipleWeaponsThisRun = true;
+      }
+      this.weaponKindThisRun = kind;
+    }
+    equip(player.inventory, uid);
+    events.push({ type: "equip", actorId: player.id, itemUid: uid, name: def.name });
+    events.push({
+      type: "message",
+      text: `${displayName(player.inventory, item)}を装備した。`,
+    });
+    return true;
+  }
+
+  throwItem(uid: number, events: GameEvent[]): boolean {
     return domainThrowItem(uid, events, this.itemActionContext());
   }
 
-  private dropItem(uid: number, events: GameEvent[]): boolean {
+  dropItem(uid: number, events: GameEvent[]): boolean {
     const pos = this.player.pos;
     const shopRoom = this.floor.rooms.find((r) => r.kind === "shop" && roomContains(r, pos));
     if (shopRoom) return this.sellItem(uid, events);

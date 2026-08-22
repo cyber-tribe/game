@@ -9,7 +9,7 @@ import {
   type Tile,
 } from "../src/core/types";
 import { buildDistanceField, decideAllyAction } from "../src/entities/ai";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 import { type Dir, dirDelta } from "../src/core/grid";
 
 /** 壁のない、全マス歩ける正方形のフロア。AIの分岐を狙って検証するための最小構成 */

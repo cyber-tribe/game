@@ -10,7 +10,7 @@ import {
   isDungeonUnlocked,
 } from "../src/entities/dungeons";
 import { REGION_BOSS_ORDER } from "../src/entities/regions";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 import { initialSave, recordRun } from "../src/save";
 
 const region1 = REGION_DUNGEON_IDS[0];

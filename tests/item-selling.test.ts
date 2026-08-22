@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 import { access } from "./helpers/access";
 import { shopPrice, sellPrice, WARY_PRICE_MULTIPLIER } from "../src/entities/shop";
 import { itemDef } from "../src/entities/itemCatalog";

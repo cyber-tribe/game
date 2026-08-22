@@ -7,7 +7,7 @@ import type { MonsterAction } from "../../src/entities/ai";
 import type { BossMoveContext } from "../../src/domain/dungeon/bossMoves";
 import type { DreamArtContext } from "../../src/domain/party/dreamArtEffects";
 import type { SkillChoiceState } from "../../src/domain/player/runSkills";
-import type { Game } from "../../src/game";
+import type { Game } from "../../src/application/dungeonRun/game";
 import { explode as domainExplode } from "../../src/domain/barrel/barrelExplosion";
 import {
   attemptSteal as domainAttemptSteal,

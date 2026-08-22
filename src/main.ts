@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { Game, type Command, type RunSnapshot } from "./game";
+import { Game, type Command, type RunSnapshot } from "./application/dungeonRun/game";
 import { knownBarrelArt } from "./entities/dreamArts";
 import type { GameEvent } from "./core/events";
 import { splitEventsAtRecruits } from "./core/events";

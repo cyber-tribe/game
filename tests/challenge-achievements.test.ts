@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 import { NIGHTLY_DREAM_ID, REGION_DUNGEON_IDS, REGION_SIZE } from "../src/entities/dungeons";
 import { achievementDef } from "../src/entities/achievements";
 import { initialSave, recordRun } from "../src/save";

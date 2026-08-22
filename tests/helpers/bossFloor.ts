@@ -1,5 +1,5 @@
 import type { MonsterActor } from "../../src/core/types";
-import type { Game } from "../../src/game";
+import type { Game } from "../../src/application/dungeonRun/game";
 import { speciesById } from "../../src/entities/species";
 import { access } from "./access";
 

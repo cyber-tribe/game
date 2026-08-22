@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 import { fullSkillSet } from "../src/entities/skills";
 import { createAllyFromStored } from "../src/domain/dungeon/populate";
 import type { Actor } from "../src/core/types";

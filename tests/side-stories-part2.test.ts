@@ -3,7 +3,7 @@ import type { Actor } from "../src/core/types";
 import { COSTUMES } from "../src/entities/costumes";
 import { SIDE_STORIES, sideStoryFor } from "../src/entities/sideStories";
 import { SPECIES } from "../src/entities/species";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 import { itemDef } from "../src/entities/itemCatalog";
 import { addItem } from "../src/domain/item/inventory";
 import { initialSave, refreshUnlockedCostumes, talkToNpc } from "../src/save";

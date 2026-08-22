@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { spawnWanderingMonster } from "../src/domain/dungeon/populate";
 import { buildDistanceField } from "../src/entities/ai";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 import { saveRunSnapshot } from "../src/save";
 import { clearBossIfPresent } from "./helpers/bossFloor";
 

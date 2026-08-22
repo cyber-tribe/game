@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Rng } from "../src/core/rng";
 import { pickFloorGimmick } from "../src/domain/dungeon/gimmicks";
-import { Game } from "../src/game";
+import { Game } from "../src/application/dungeonRun/game";
 import { itemDef } from "../src/entities/itemCatalog";
 
 describe("dungeon/gimmicks.ts: 暗さを地方の個性にする(plan/region-darkness.md)", () => {
