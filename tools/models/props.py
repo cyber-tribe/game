@@ -171,7 +171,7 @@ BARREL_HEIGHT = 0.52
 BARREL_RADIUS = 0.245
 
 
-def _barrel_body(name: str, wood, iron, height: float = BARREL_HEIGHT,
+def barrel_body(name: str, wood, iron, height: float = BARREL_HEIGHT,
                  radius: float = BARREL_RADIUS):
     """
     タルの胴。中央を膨らませた樽形にする。
@@ -201,13 +201,14 @@ def _barrel_body(name: str, wood, iron, height: float = BARREL_HEIGHT,
     return objs
 
 
-def _barrel_lid(name: str, color, lift: float = 0.0, tilt: float = 0.0):
+def barrel_lid(name: str, color, lift: float = 0.0, tilt: float = 0.0,
+                height: float = BARREL_HEIGHT, radius: float = BARREL_RADIUS):
     """
     上蓋。胴の縁より少しだけ外に張り出させて、上から見ても閉じていると分かるようにする。
     胴の中に沈めると、真上から覗いたときに口の開いた樽に見えてしまう。
     """
-    lid = C.cylinder(f"{name}_lid", (0.0, 0.0, BARREL_HEIGHT + 0.022 + lift),
-                     BARREL_RADIUS + 0.012, 0.044, segments=12, smooth=False)
+    lid = C.cylinder(f"{name}_lid", (0.0, 0.0, height + 0.022 + lift),
+                     radius + 0.012, 0.044, segments=12, smooth=False)
     if tilt:
         lid.rotation_euler = (math.radians(tilt), 0.0, math.radians(tilt * 0.7))
     C.assign_material(lid, C.make_material(f"{name}_lid_m", color, roughness=0.9))
@@ -216,15 +217,15 @@ def _barrel_lid(name: str, color, lift: float = 0.0, tilt: float = 0.0):
 
 def build_barrel():
     """空のタル。持ち上げて投げられる、この作品の看板になる道具。"""
-    objs = _barrel_body("barrel", BARREL_WOOD, BARREL_IRON)
-    objs.append(_barrel_lid("barrel", (0.46, 0.30, 0.17)))
+    objs = barrel_body("barrel", BARREL_WOOD, BARREL_IRON)
+    objs.append(barrel_lid("barrel", (0.46, 0.30, 0.17)))
     return [C.join(objs, "barrel")]
 
 
 def build_barrel_bomb():
     """爆発タル。黒く塗った胴に導火線を立て、火花を灯しておく。"""
-    objs = _barrel_body("barrelbomb", BARREL_WOOD_DARK, (0.52, 0.22, 0.19))
-    objs.append(_barrel_lid("barrelbomb", (0.20, 0.16, 0.14)))
+    objs = barrel_body("barrelbomb", BARREL_WOOD_DARK, (0.52, 0.22, 0.19))
+    objs.append(barrel_lid("barrelbomb", (0.20, 0.16, 0.14)))
 
     # 導火線。少し斜めに立てる
     fuse = C.cylinder("barrelbomb_fuse", (0.0, 0.0, 0.615), 0.020, 0.14, segments=8)
@@ -247,7 +248,7 @@ def build_barrel_caught():
     モンスターを吸い込んだタル。蓋が浮いて隙間から光が漏れている状態にして、
     空のタルと一目で見分けられるようにする。
     """
-    objs = _barrel_body("barrelcaught", (0.46, 0.34, 0.26), (0.40, 0.38, 0.30))
+    objs = barrel_body("barrelcaught", (0.46, 0.34, 0.26), (0.40, 0.38, 0.30))
 
     # 蓋を押し上げている隙間の光。蓋より下に置いて、縁からこぼれるように見せる
     glow = C.cylinder("barrelcaught_glow", (0.0, 0.0, BARREL_HEIGHT + 0.030),
@@ -256,7 +257,7 @@ def build_barrel_caught():
                                             roughness=0.2, emission=3.5))
     objs.append(glow)
 
-    objs.append(_barrel_lid("barrelcaught", (0.46, 0.30, 0.17), lift=0.055, tilt=10.0))
+    objs.append(barrel_lid("barrelcaught", (0.46, 0.30, 0.17), lift=0.055, tilt=10.0))
     return [C.join(objs, "barrel_caught")]
 
 
@@ -516,7 +517,7 @@ def build_bonfire():
         objs.append(log)
 
     # タルの腰掛け。空のタルよりずっと低く切った胴に鉄輪を1本だけ巻く
-    # (_barrel_bodyの3本輪をそのまま流用すると、この高さでは輪同士が
+    # (barrel_bodyの3本輪をそのまま流用すると、この高さでは輪同士が
     # 近すぎて木部がほとんど隠れてしまうため、専用の低い形にする)
     wood_mat = C.make_material("bonfire_wood", BARREL_WOOD, roughness=0.85)
     for i in range(3):
@@ -720,7 +721,7 @@ def build_house_storage():
     # 壁沿いに伏せた古タルの列。倉庫の棚はすべて伏せたタルを転用したもの
     for i in range(4):
         x = -1.05 + i * 0.70
-        barrel_objs = _barrel_body(f"storage_oldbarrel{i}", BARREL_WOOD_DARK, BARREL_IRON,
+        barrel_objs = barrel_body(f"storage_oldbarrel{i}", BARREL_WOOD_DARK, BARREL_IRON,
                                    height=0.50, radius=0.235)
         for piece in barrel_objs:
             piece.rotation_euler = (0.0, math.radians(90.0), 0.0)
@@ -790,7 +791,7 @@ def build_house_garudo():
     objs.append(doorway)
 
     # 戸口の奥にちらりと見える、支度用の小さなタル
-    prep_barrel_objs = _barrel_body("garudo_prepbarrel", BARREL_WOOD, BARREL_IRON,
+    prep_barrel_objs = barrel_body("garudo_prepbarrel", BARREL_WOOD, BARREL_IRON,
                                     height=0.34, radius=0.16)
     for piece in prep_barrel_objs:
         piece.location = Vector((0.0, 0.50, 0.0))
@@ -1239,7 +1240,7 @@ def build_prop_barrel_bed():
     # 横倒しのタル。胴・鉄輪は原点で組んでから90度倒して配置する
     # (胴・鉄輪はタルの底が原点に来るよう組まれているので、この順で
     # 倒すと底を軸に転がした位置関係のまま横たわる)
-    barrel_objs = _barrel_body("barrelbed", BARREL_WOOD_DARK, BARREL_IRON, height=height,
+    barrel_objs = barrel_body("barrelbed", BARREL_WOOD_DARK, BARREL_IRON, height=height,
                                radius=radius)
     for piece in barrel_objs:
         piece.rotation_euler = (0.0, math.radians(90.0), 0.0)
