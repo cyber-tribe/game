@@ -253,6 +253,25 @@ def uv_sphere(name: str, center, radius: float, segments: int = 24, rings: int =
     return obj
 
 
+def gem(name: str, center, radius: float, subdivisions: int = 1,
+       scale=(1.0, 1.0, 1.0)) -> bpy.types.Object:
+    """
+    正二十面体ベースの結晶。面取りせずフラットシェードのまま使うと、
+    丸い体表面に角のある硬い面を作る記号になる
+    (plan/models/archive/silhouette-hard-surface-parts.md)。
+    """
+    mesh = bpy.data.meshes.new(name)
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj)
+    bm = bmesh.new()
+    bmesh.ops.create_icosphere(bm, subdivisions=subdivisions, radius=radius)
+    bmesh.ops.scale(bm, vec=Vector(scale), verts=bm.verts)
+    bmesh.ops.translate(bm, vec=Vector(center), verts=bm.verts)
+    bm.to_mesh(mesh)
+    bm.free()
+    return obj
+
+
 # --------------------------------------------------------------------------- 小物の造形
 
 def box(name: str, center, size, bevel: float = 0.0, bevel_segments: int = 2,
