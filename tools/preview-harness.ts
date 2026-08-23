@@ -78,6 +78,7 @@ async function main(): Promise<void> {
 
   scene.add(new THREE.AmbientLight(AMBIENT_LIGHT_COLOR, AMBIENT_LIGHT_INTENSITY));
   const key = new THREE.DirectionalLight(KEY_LIGHT_COLOR, KEY_LIGHT_INTENSITY);
+  key.position.set(2.5, 4, 2);
   scene.add(key);
 
   // まず素の(x:0)状態で1体だけ作り、大きさ(建物・キャラ・小道具で桁違いに

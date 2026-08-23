@@ -59,6 +59,17 @@ def srgb_to_linear(c: float) -> float:
     return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
 
 
+def linear_to_srgb(c: float) -> float:
+    """`srgb_to_linear`の逆関数。`bake_ao_to_texture`が使う: `make_material`が
+    Base Colorに保持しているのはリニア値だが、ベイクしたテクスチャの
+    ピクセルバッファはBlenderの保存/glTF書き出し時にsRGB符号化として
+    そのまま扱われる(再エンコードされない)。リニア値のまま掛け合わせると、
+    書き出し後にglTFローダー側でsRGB→リニアのデコードがもう一段掛かり、
+    二重にガンマがかかって暗部が破綻する(実機playtestで発覚)。"""
+    c = max(0.0, min(1.0, c))
+    return c * 12.92 if c <= 0.0031308 else 1.055 * (c ** (1 / 2.4)) - 0.055
+
+
 def make_material(name: str, color, roughness: float = 0.7, metallic: float = 0.0,
                   emission: float = 0.0) -> bpy.types.Material:
     """Principled BSDF のマテリアルを1つ作る。color は 0〜1 の sRGB。"""
@@ -557,12 +568,86 @@ def bake_ao_to_vertex_colors(obj: bpy.types.Object, samples: int = 64, distance:
     bpy.ops.object.bake(type="AO")
 
 
+def bake_ao_to_texture(obj: bpy.types.Object, size: int = 24, samples: int = 64,
+                       distance: float = 0.25) -> None:
+    """
+    AOをテクスチャに焼く(plan/models/archive/texture-pipeline-adoption.md)。
+    `bake_ao_to_vertex_colors`のテクスチャ版で、UVアンラップが要る。
+
+    obj が持つマテリアルスロットすべてに、それぞれ専用の小さい画像
+    (size×size)を1枚ずつ割り当てる。bake()は1回の呼び出しで、面ごとの
+    マテリアル割り当てに応じて対応する画像へ書き分けてくれるため、
+    ガルドの`assign_materials_by_region`のような1枚のメッシュを
+    複数マテリアルで塗り分けた構成でも、マテリアルの数だけbakeを
+    繰り返す必要はない。
+
+    焼いたAOは白黒そのまま(頂点カラー版と同じ)なので、各マテリアルの
+    元のBase Color値を直接ここでピクセル単位に掛け合わせ、
+    「色×AO」を1枚のテクスチャに合成してからBase Colorへ繋ぎ直す
+    (three.js側で頂点カラーが`material.color`に掛かるのと同じ多重合成を、
+    ここではBlender側で先に計算してしまう。three.jsのmapは
+    material.colorに掛かるので、そちらは白(1,1,1)のBase Colorを保ち、
+    テクスチャに色・陰影のすべてを持たせる)。
+    """
+    mesh = obj.data
+    if len(mesh.uv_layers) == 0:
+        activate(obj)
+        bpy.ops.object.mode_set(mode="EDIT")
+        bpy.ops.mesh.select_all(action="SELECT")
+        bpy.ops.uv.smart_project(angle_limit=66.0, island_margin=0.03)
+        bpy.ops.object.mode_set(mode="OBJECT")
+
+    baked: list[tuple[bpy.types.Material, bpy.types.Image, tuple[float, float, float]]] = []
+    for slot in obj.material_slots:
+        mat = slot.material
+        if mat is None or mat in [m for m, _, _ in baked]:
+            continue
+        bsdf = mat.node_tree.nodes["Principled BSDF"]
+        # Base Colorはリニア値(make_material参照)。ベイク画像のピクセルは
+        # sRGB符号化として書き出されるため、掛け合わせる前にsRGBへ戻す
+        base_color = tuple(linear_to_srgb(c) for c in bsdf.inputs["Base Color"].default_value[:3])
+        image = bpy.data.images.new(f"{mat.name}_tex", width=size, height=size, alpha=False)
+        tex_node = mat.node_tree.nodes.new("ShaderNodeTexImage")
+        tex_node.image = image
+        mat.node_tree.nodes.active = tex_node
+        tex_node.select = True
+        baked.append((mat, image, base_color))
+
+    scene = bpy.context.scene
+    scene.render.engine = "CYCLES"
+    scene.cycles.samples = samples
+    scene.render.bake.target = "IMAGE_TEXTURES"
+    scene.render.bake.margin = max(2, size // 8)
+    scene.world.light_settings.distance = distance
+
+    bpy.ops.object.select_all(action="DESELECT")
+    activate(obj)
+    bpy.ops.object.bake(type="AO")
+
+    for mat, image, base_color in baked:
+        pixels = list(image.pixels[:])
+        r, g, b = base_color
+        for i in range(0, len(pixels), 4):
+            pixels[i] *= r
+            pixels[i + 1] *= g
+            pixels[i + 2] *= b
+        image.pixels[:] = pixels
+
+        bsdf = mat.node_tree.nodes["Principled BSDF"]
+        bsdf.inputs["Base Color"].default_value = (1.0, 1.0, 1.0, 1.0)
+        tex_node = next(n for n in mat.node_tree.nodes if n.type == "TEX_IMAGE" and n.image is image)
+        mat.node_tree.links.new(tex_node.outputs["Color"], bsdf.inputs["Base Color"])
+
+
 def export_glb(name: str, objs: Sequence[bpy.types.Object]) -> str:
     os.makedirs(MODEL_DIR, exist_ok=True)
     path = os.path.join(MODEL_DIR, f"{name}.glb")
 
     for o in objs:
-        if o.type == "MESH":
+        # bake_ao_to_textureを通した(UVを持つ)メッシュは既にAOを合成
+        # 済みのテクスチャがBase Colorに繋がっているため、頂点カラーの
+        # AOを重ねて焼くと二重に暗くなる。UVの有無で判別する
+        if o.type == "MESH" and len(o.data.uv_layers) == 0:
             bake_ao_to_vertex_colors(o)
 
     bpy.ops.object.select_all(action="DESELECT")

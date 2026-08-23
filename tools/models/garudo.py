@@ -256,6 +256,10 @@ def build() -> tuple[list, object]:
                                   scale=0.95, rotation=(-22.0, 0.0, 6.0))
 
     mesh = C.join([body] + extras, NAME)
+    # 頂点カラーオンリー方針を終え、テクスチャへ移行するパイロット
+    # (plan/models/archive/texture-pipeline-adoption.md)。UVアンラップ+
+    # マテリアルごとの専用テクスチャにAO×基色を焼き込む
+    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature(NAME, JOINTS, BONES, mesh, root="hip")
     for eye in eyes:
         C.parent_to_bone(eye, armature, "neck-head")
