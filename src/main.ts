@@ -2007,6 +2007,21 @@ class App {
       visibleTiles: floor.tiles.filter((t) => t.visible).length,
       drawCalls: this.renderer.renderer.info.render.calls,
       triangles: this.renderer.renderer.info.render.triangles,
+      // 縦持ちでの強制横向き(plan/game/archive/forced-landscape.md)の診断用
+      // (issue #874・#877)。出先デバッグパネル(?debug=1、src/ui/debug-panel.ts)
+      // のスナップショット・Issue作成にそのまま乗るため、実機で再現した
+      // その場でこれらの値を確認・報告できる
+      orientation: {
+        forcedLandscapeClass: document.body.classList.contains("forced-landscape"),
+        pointerCoarse: matchMedia("(pointer: coarse)").matches,
+        orientationPortrait: matchMedia("(orientation: portrait)").matches,
+        innerWidth: window.innerWidth,
+        innerHeight: window.innerHeight,
+        safeTop: getComputedStyle(document.body).getPropertyValue("--safe-top").trim(),
+        safeRight: getComputedStyle(document.body).getPropertyValue("--safe-right").trim(),
+        safeBottom: getComputedStyle(document.body).getPropertyValue("--safe-bottom").trim(),
+        safeLeft: getComputedStyle(document.body).getPropertyValue("--safe-left").trim(),
+      },
     };
   }
 }
