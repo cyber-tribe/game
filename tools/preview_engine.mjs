@@ -1,11 +1,14 @@
 /**
  * モデルのエンジン内スナップショット(plan/models/archive/
- * engine-preview-snapshots.md)。
+ * engine-preview-snapshots.md、plan/models/archive/
+ * preview-animation-gif.md)。
  *
  * `public/models/*.glb` を1体ずつ、実際のゲームと同じ描画スタック
  * (Three.js + トゥーンマテリアル + 背面ハル輪郭線 + ACES + ブルーム +
  * 色調グレーディング。tools/preview-harness.ts/htmlが実体)で
- * ヘッドレスChromiumに描かせ、tools/preview/<名前>.png に保存する。
+ * ヘッドレスChromiumに描かせる。アニメーションクリップを持つモデルは
+ * idle→walk→attack→hit→dieを繋いだ1本の tools/preview/<名前>.gif に、
+ * 持たないモデル(静止物)は従来どおり tools/preview/<名前>.png に保存する。
  * 最後に一覧ページ tools/preview/README.md も作り直す。
  *
  *   npm run dev &
@@ -18,7 +21,7 @@
  *   MODELS           カンマ区切りで対象を絞る(既定は全モデル)
  */
 import { createRequire } from "node:module";
-import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -67,20 +70,36 @@ const failures = [];
 const shot = [];
 
 for (const model of targetModels()) {
-  const target = `${SITE_URL}tools/preview-harness.html?model=${encodeURIComponent(model)}&attack=1`;
+  const target = `${SITE_URL}tools/preview-harness.html?model=${encodeURIComponent(model)}`;
   try {
     await page.goto(target, { waitUntil: "load" });
     await page.waitForFunction(
       () => window.__previewReady === true || typeof window.__previewError === "string",
-      { timeout: 20_000 },
+      // GIF撮影(idle→walk→attack→hit→dieを繋いだ数十コマ)は
+      // 静止画1枚より時間が掛かる
+      { timeout: 30_000 },
     );
     const error = await page.evaluate(() => window.__previewError);
     if (error) throw new Error(error);
-    const path = join(OUT_DIR, `${model}.png`);
-    // ページ全体ではなくcanvas要素だけを撮る(ビューポートの余白を含めない)
-    await page.locator("canvas").screenshot({ path });
-    shot.push(model);
-    console.log(`撮影: ${model}`);
+
+    // クリップを持つモデルはtools/preview-harness.tsがGIFを
+    // window.__gifDataUrlに用意する(plan/models/archive/
+    // preview-animation-gif.md)。持たないモデルは従来どおり
+    // canvasのスクリーンショットをPNGとして保存する
+    const gifDataUrl = await page.evaluate(() => window.__gifDataUrl ?? null);
+    let ext;
+    if (gifDataUrl) {
+      const base64 = gifDataUrl.slice(gifDataUrl.indexOf(",") + 1);
+      writeFileSync(join(OUT_DIR, `${model}.gif`), Buffer.from(base64, "base64"));
+      rmSync(join(OUT_DIR, `${model}.png`), { force: true }); // 旧PNGが残っていたら消す
+      ext = "gif";
+    } else {
+      await page.locator("canvas").screenshot({ path: join(OUT_DIR, `${model}.png`) });
+      rmSync(join(OUT_DIR, `${model}.gif`), { force: true });
+      ext = "png";
+    }
+    shot.push({ model, ext });
+    console.log(`撮影: ${model} (.${ext})`);
   } catch (e) {
     failures.push({ model, error: e instanceof Error ? e.message : String(e) });
     console.error(`失敗: ${model} — ${e instanceof Error ? e.message : e}`);
@@ -89,9 +108,10 @@ for (const model of targetModels()) {
 
 await browser.close();
 
-// 一覧ページ(GitHub上でこの1ページを開けば全キャラを見渡せる)
+// 一覧ページ(GitHub上でこの1ページを開けば全キャラを見渡せる。
+// GitHubはmarkdown内の.gifをそのままアニメーション表示する)
 const rows = shot
-  .map((name) => `| ${name} | ![${name}](./${name}.png) |`)
+  .map(({ model, ext }) => `| ${model} | ![${model}](./${model}.${ext}) |`)
   .join("\n");
 const readme = `# モデルのエンジン内プレビュー
 

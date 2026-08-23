@@ -1,15 +1,19 @@
 /**
- * モデルのエンジン内プレビュー(plan/models/archive/engine-preview-snapshots.md)。
+ * モデルのエンジン内プレビュー(plan/models/archive/engine-preview-snapshots.md、
+ * plan/models/archive/preview-animation-gif.md)。
  *
  * `preview_engine.mjs`がPlaywrightで開くだけの、確認専用の最小シーン。
  * `Assets`(実際のゲームと同じGLTFLoader→トゥーンマテリアル変換→輪郭線
  * 追加のパイプライン)でモデルを読み、`renderConfig.ts`(ダンジョンの
- * `Renderer`と共有)の光源・ポストプロセス設定で1フレーム描画する。
+ * `Renderer`と共有)の光源・ポストプロセス設定で描画する。
+ *
+ * アニメーションクリップを持つモデルは、idle→walk→attack→hit→dieを
+ * 順番に繋いだ1本のGIFにする(歩行・被弾・消滅を含む一連の動きの
+ * 品質をGitHub上で確認できるようにする)。クリップを持たないモデル
+ * (静止物・非スキンメッシュ)は、従来どおり1枚のPNGにする。
  *
  * URLクエリ:
  *   ?model=<名前>       必須。public/models/<名前>.glb を読む
- *   &attack=1           そのモデルがattackクリップを持つなら、
- *                        idleと並べて2コマの構図にする
  */
 import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
@@ -18,8 +22,9 @@ import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js"
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { SMAAPass } from "three/addons/postprocessing/SMAAPass.js";
+import { GIFEncoder, quantize, applyPalette } from "gifenc";
 import { Assets } from "../src/view/assets";
-import { ActorView } from "../src/view/actorView";
+import { ActorView, type ClipName } from "../src/view/actorView";
 import {
   AMBIENT_LIGHT_COLOR,
   AMBIENT_LIGHT_INTENSITY,
@@ -36,13 +41,42 @@ declare global {
   interface Window {
     __previewReady?: boolean;
     __previewError?: string;
+    /** アニメーション付きモデルのみ。base64のdata URL(image/gif) */
+    __gifDataUrl?: string;
   }
+}
+
+/** 確認用途なので画質より軽さを優先する(plan/models/archive/preview-animation-gif.md) */
+const SIZE = 256;
+const FPS = 12;
+const DT = 1 / FPS;
+const DELAY_MS = Math.round(1000 / FPS);
+const IDLE_SECONDS = 1.5;
+const WALK_SECONDS = 1.5;
+
+/** WebGLのreadPixelsは下から上の順で返るため、上下反転して通常の画像の並びに直す */
+function flipY(src: Uint8Array, width: number, height: number): Uint8Array {
+  const dst = new Uint8Array(src.length);
+  const rowBytes = width * 4;
+  for (let y = 0; y < height; y++) {
+    const srcStart = (height - 1 - y) * rowBytes;
+    dst.set(src.subarray(srcStart, srcStart + rowBytes), y * rowBytes);
+  }
+  return dst;
+}
+
+async function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error ?? new Error("FileReaderが失敗した"));
+    reader.readAsDataURL(blob);
+  });
 }
 
 async function main(): Promise<void> {
   const params = new URLSearchParams(location.search);
   const model = params.get("model");
-  const wantAttackPose = params.get("attack") === "1";
   if (!model) throw new Error("?model=<名前> が要る");
 
   const assets = new Assets();
@@ -52,17 +86,13 @@ async function main(): Promise<void> {
   await assets.ready([model], "/models");
 
   const canvas = document.querySelector("canvas") as HTMLCanvasElement;
-  const hasAttack = assets.get(model).animations.some((clip) => clip.name === "attack");
-  const showAttack = wantAttackPose && hasAttack;
-  const width = showAttack ? 900 : 512;
-  const height = 512;
-  canvas.width = width;
-  canvas.height = height;
-  canvas.style.width = `${width}px`;
-  canvas.style.height = `${height}px`;
+  canvas.width = SIZE;
+  canvas.height = SIZE;
+  canvas.style.width = `${SIZE}px`;
+  canvas.style.height = `${SIZE}px`;
 
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-  renderer.setSize(width, height, false);
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(SIZE, SIZE, false);
   renderer.toneMapping = TONE_MAPPING;
   renderer.toneMappingExposure = TONE_MAPPING_EXPOSURE;
 
@@ -81,41 +111,20 @@ async function main(): Promise<void> {
   key.position.set(2.5, 4, 2);
   scene.add(key);
 
-  // まず素の(x:0)状態で1体だけ作り、大きさ(建物・キャラ・小道具で桁違いに
-  // 違う)を測ってから、その大きさに応じてidle/attackの間隔とカメラを
-  // 決める。先に間隔を決め打ちすると、小道具では余白だらけ、建物では
+  // まず素の状態で1体作り、大きさ(建物・キャラ・小道具で桁違いに違う)を
+  // 測ってからカメラを決める。決め打ちだと小道具では余白だらけ、建物では
   // カメラが埋まって何も見えなくなる(実際にhouse_*系で発生した)
-  const probe = new THREE.Box3().setFromObject(assets.instantiate(model).root);
-  const size = probe.isEmpty() ? new THREE.Vector3(1, 1, 1) : probe.getSize(new THREE.Vector3());
-  const radius = Math.max(size.x, size.y, size.z, 0.2);
-  const gap = showAttack ? radius * 0.7 : 0;
+  const view = new ActorView(assets.instantiate(model), { x: 0, y: 0 });
+  scene.add(view.root);
+  view.update(0);
 
-  const idleView = new ActorView(assets.instantiate(model), { x: -gap / 2, y: 0 });
-  scene.add(idleView.root);
-  idleView.update(0);
-
-  let attackView: ActorView | undefined;
-  if (showAttack) {
-    // attackクリップの見せ場(タメ→ツメ)あたりで静止させる。クリップは
-    // 24fps・frame1始まりで作られており(tools/models/*.pyのanimations()参照)、
-    // ツメの山はおおむねframe7前後にあるので、そこに合わせて時間を選ぶ
-    // (0.14ではまだ振りかぶりの入り口で、idleとの差がほぼ見えなかった)
-    attackView = new ActorView(assets.instantiate(model), { x: gap / 2, y: 0 });
-    scene.add(attackView.root);
-    attackView.play("attack");
-    attackView.update(0.26);
-  }
-
-  // 実際に置いた2体(または1体)ぶんのAABBに収まる距離を、画角から逆算する
-  const bounds = new THREE.Box3();
-  bounds.setFromObject(idleView.root);
-  if (attackView) bounds.expandByObject(attackView.root);
+  const bounds = new THREE.Box3().setFromObject(view.root);
   const center = new THREE.Vector3();
   bounds.getCenter(center);
   const boundsSize = bounds.getSize(new THREE.Vector3());
-  const boundsRadius = Math.max(boundsSize.x, boundsSize.y, boundsSize.z) / 2 || 0.5;
+  const boundsRadius = Math.max(boundsSize.x, boundsSize.y, boundsSize.z, 0.4) / 2;
 
-  const camera = new THREE.PerspectiveCamera(CAMERA_FOV, width / height, 0.05, 500);
+  const camera = new THREE.PerspectiveCamera(CAMERA_FOV, 1, 0.05, 500);
   const fitDistance = (boundsRadius * 1.5) / Math.tan((CAMERA_FOV * Math.PI) / 360);
   camera.position.set(center.x, center.y + boundsSize.y * 0.15, center.z + fitDistance);
   camera.lookAt(center.x, center.y, center.z);
@@ -128,9 +137,69 @@ async function main(): Promise<void> {
   composer.addPass(new ShaderPass(GRADE_SHADER));
   composer.addPass(new SMAAPass());
   composer.addPass(new OutputPass());
-  composer.setSize(width, height);
+  composer.setSize(SIZE, SIZE);
 
-  composer.render();
+  const clipNames = new Set(assets.get(model).animations.map((clip) => clip.name));
+
+  if (clipNames.size === 0) {
+    // クリップを持たないモデル(静止物・非スキンメッシュ)は従来どおり1枚のPNG
+    composer.render();
+    window.__previewReady = true;
+    return;
+  }
+
+  const gl = renderer.getContext();
+  const frames: { rgba: Uint8Array; delayMs: number }[] = [];
+
+  function captureFrame(delayMs: number): void {
+    composer.render();
+    const raw = new Uint8Array(SIZE * SIZE * 4);
+    gl.readPixels(0, 0, SIZE, SIZE, gl.RGBA, gl.UNSIGNED_BYTE, raw);
+    frames.push({ rgba: flipY(raw, SIZE, SIZE), delayMs });
+  }
+
+  function playAndCapture(clip: ClipName, seconds: number): void {
+    view.play(clip);
+    const steps = Math.max(1, Math.round(seconds * FPS));
+    for (let i = 0; i < steps; i++) {
+      view.update(DT);
+      captureFrame(DELAY_MS);
+    }
+  }
+
+  // idle→walk→attack→hit→die の順に繋いだ1本のループにする。die の
+  // 終わりで待たず即座にidleへ再生し直す(死亡→復活を自然な区切りとして
+  // 許容する。プレビュー用途なのでループの分かりやすさを優先する)
+  playAndCapture("idle", IDLE_SECONDS);
+  if (clipNames.has("walk")) playAndCapture("walk", WALK_SECONDS);
+  for (const clip of ["attack", "hit", "die"] as const) {
+    if (!clipNames.has(clip)) continue;
+    const duration = assets.get(model).animations.find((c) => c.name === clip)?.duration ?? 1;
+    playAndCapture(clip, duration);
+  }
+
+  // パレットは全クリップの色を拾えるよう、数コマおきに間引いたサンプルから作る
+  // (idleの1枚だけだと被弾フラッシュ等の一瞬の色が量子化から漏れる)
+  const sampleStride = Math.max(1, Math.floor(frames.length / 12));
+  const sampleBytes = frames.filter((_, i) => i % sampleStride === 0)
+    .reduce((total, f) => total + f.rgba.length, 0);
+  const sample = new Uint8Array(sampleBytes);
+  let offset = 0;
+  for (let i = 0; i < frames.length; i += sampleStride) {
+    sample.set(frames[i].rgba, offset);
+    offset += frames[i].rgba.length;
+  }
+  const palette = quantize(sample, 128);
+
+  const gif = GIFEncoder();
+  frames.forEach((frame, i) => {
+    const index = applyPalette(frame.rgba, palette);
+    gif.writeFrame(index, SIZE, SIZE, { palette, delay: frame.delayMs, first: i === 0, repeat: 0 });
+  });
+  gif.finish();
+
+  const gifBytes: Uint8Array<ArrayBuffer> = new Uint8Array(gif.bytes());
+  window.__gifDataUrl = await blobToDataUrl(new Blob([gifBytes], { type: "image/gif" }));
   window.__previewReady = true;
 }
 
