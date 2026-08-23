@@ -82,3 +82,42 @@ def build_shield(origin=(0.0, 0.0, 0.0), scale: float = 1.0) -> list:
     for part in parts:
         part.location = o
     return parts
+
+
+# --------------------------------------------------------------------------- 部位カタログ
+#
+# シルエットの記号(plan/models/archive/silhouette-hard-surface-parts.md)。
+# build_skinned() は関節+半径のなだらかな1枚皮しか作れず、黒塗り
+# シルエットにすると服の切り替えも分からない一本の棒になる。ここの
+# 部品はどれもbmeshの面取り形状で、体表面に角・段差を作る記号として
+# 使う。マテリアルは意匠がキャラごとに異なるため、ここでは割り当てず
+# 呼び出し側に委ねる(build_hatchet/build_shieldと違い、色が
+# キャラクター固有の意匠になるため)。曲げの大きい関節付近に置く場合は
+# `common.mark_for_pin` → armature構築 → `common.pin_weight_to_bone`
+# の順で単一ボーンへ固定すること(自動ウェイトのブレンドで歪まないため)。
+
+def build_pauldron(name: str, origin=(0.0, 0.0, 0.0), size=(0.052, 0.048, 0.034),
+                   bevel: float = 0.010, rotation=(0.0, 0.0, 0.0)) -> object:
+    """肩当て。丸い肩の上に段差を作る面取り箱。"""
+    obj = C.box(name, (0.0, 0.0, 0.0), size, bevel=bevel, bevel_segments=2)
+    obj.rotation_euler = Euler([math.radians(a) for a in rotation])
+    obj.location = Vector(origin)
+    return obj
+
+
+def build_shin_guard(name: str, origin=(0.0, 0.0, 0.0), size=(0.034, 0.018, 0.075),
+                     bevel: float = 0.007, rotation=(0.0, 0.0, 0.0)) -> object:
+    """膝当て・すね当て。縦長の面取り角柱。"""
+    obj = C.box(name, (0.0, 0.0, 0.0), size, bevel=bevel, bevel_segments=2)
+    obj.rotation_euler = Euler([math.radians(a) for a in rotation])
+    obj.location = Vector(origin)
+    return obj
+
+
+def build_collar_fold(name: str, origin=(0.0, 0.0, 0.0), size=(0.095, 0.020, 0.012),
+                      bevel: float = 0.004, rotation=(0.0, 0.0, 0.0)) -> object:
+    """襟・裾の折り返し。薄い面取り板。"""
+    obj = C.box(name, (0.0, 0.0, 0.0), size, bevel=bevel, bevel_segments=2)
+    obj.rotation_euler = Euler([math.radians(a) for a in rotation])
+    obj.location = Vector(origin)
+    return obj

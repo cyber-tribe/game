@@ -420,6 +420,53 @@ def parent_to_bone(obj: bpy.types.Object, armature: bpy.types.Object, bone: str)
     bpy.ops.object.parent_set(type="BONE", keep_transform=True)
 
 
+def mark_for_pin(obj: bpy.types.Object, group_name: str | None = None) -> str:
+    """
+    新しく作った硬い部品のオブジェクトに、印用の頂点グループを1つ付ける
+    (plan/models/archive/silhouette-hard-surface-parts.md)。本体へjoin()
+    すると自動ウェイト計算で複数ボーンに割れてしまう恐れがある部品(肩・膝
+    など可動域の大きい位置)に使う。join()後、この印を頼りに
+    `pin_weight_to_bone` が頂点を特定できる。
+
+    group_name省略時は obj.name をそのまま使う。戻り値はグループ名
+    (join()後にそのまま`pin_weight_to_bone`へ渡せる)。
+    """
+    name = group_name or obj.name
+    vg = obj.vertex_groups.new(name=name)
+    vg.add(range(len(obj.data.vertices)), 1.0, "REPLACE")
+    return name
+
+
+def pin_weight_to_bone(obj: bpy.types.Object, group_name: str, bone_name: str) -> None:
+    """
+    `mark_for_pin`で印を付けた頂点を、単一ボーンへウェイト1.0で固定する
+    (plan/models/archive/silhouette-hard-surface-parts.md)。join()後の
+    自動ウェイト計算は、関節をまたぐ位置にある頂点が複数ボーンにブレンド
+    され、曲げたときに硬い部品自体がゴム的に歪む恐れがある。この関数は
+    build_armature()(自動ウェイト計算)の"後"に呼ぶこと。印用の頂点グループ
+    自体は用済みになるのでここで削除する。
+    """
+    marker = obj.vertex_groups.get(group_name)
+    if marker is None:
+        return
+    marker_index = marker.index
+    target = [v.index for v in obj.data.vertices
+             if any(g.group == marker_index and g.weight > 0 for g in v.groups)]
+
+    bone_group = obj.vertex_groups.get(bone_name)
+    if bone_group is None:
+        bone_group = obj.vertex_groups.new(name=bone_name)
+
+    for vidx in target:
+        for g in list(obj.data.vertices[vidx].groups):
+            group = obj.vertex_groups[g.group]
+            if group.name != bone_name:
+                group.remove([vidx])
+        bone_group.add([vidx], 1.0, "REPLACE")
+
+    obj.vertex_groups.remove(marker)
+
+
 # --------------------------------------------------------------------------- アニメーション
 
 # 1クリップぶんのキーフレーム。
