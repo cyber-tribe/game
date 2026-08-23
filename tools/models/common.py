@@ -394,6 +394,21 @@ def bone_name(parent: str, child: str) -> str:
     return f"{parent}-{child}"
 
 
+def parent_to_bone(obj: bpy.types.Object, armature: bpy.types.Object, bone: str) -> None:
+    """
+    obj をアーマチュアの特定ボーンへ剛体で追従させる(スキンウェイトを持たない
+    「ボーンへの親化」)。目のような、変形せず頭の動きにそのまま追従するだけの
+    部品に使う(plan/models/archive/eye-blink-liveliness.md)。現在のワールド
+    変換は保たれる(keep_transform)。
+    """
+    bpy.ops.object.select_all(action="DESELECT")
+    obj.select_set(True)
+    armature.select_set(True)
+    bpy.context.view_layer.objects.active = armature
+    armature.data.bones.active = armature.data.bones[bone]
+    bpy.ops.object.parent_set(type="BONE", keep_transform=True)
+
+
 # --------------------------------------------------------------------------- アニメーション
 
 # 1クリップぶんのキーフレーム。
@@ -568,6 +583,10 @@ def export_glb(name: str, objs: Sequence[bpy.types.Object]) -> str:
         # vertexColors)に回すだけでBlenderのマテリアルには繋いでいないため、
         # アクティブなカラー属性を無条件で書き出す"ACTIVE"にする
         export_vertex_color="ACTIVE",
+        # カスタムプロパティ(parent_to_boneで付けるまばたき対象の印など)を
+        # glTFのextrasとして書き出す(plan/models/archive/eye-blink-liveliness.md)。
+        # 既定はFalseで、今のところ付けているモデルは無いので実害はない
+        export_extras=True,
     )
     return path
 

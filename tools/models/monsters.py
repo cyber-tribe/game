@@ -20,8 +20,15 @@ EYE_WHITE = (0.95, 0.95, 0.92)
 
 
 def eyeball(name: str, center, radius: float, look=(0.0, -1.0, 0.0),
-            white=EYE_WHITE, dark=EYE_DARK, squash=1.0) -> list:
-    """白目と瞳を1組作る。look は瞳を寄せる向き。"""
+            white=EYE_WHITE, dark=EYE_DARK, squash=1.0, blink: bool = False) -> list:
+    """
+    白目と瞳を1組作る。look は瞳を寄せる向き。
+
+    blink=True にすると、まばたき対象の印(カスタムプロパティ)を付ける
+    (plan/models/archive/eye-blink-liveliness.md)。呼び出し側で join() の
+    対象から外し、armature構築後に common.parent_to_bone で頭の骨へ
+    直接つなぐこと(この関数はまだarmatureを知らないのでここでは繋げない)。
+    """
     c = Vector(center)
     direction = Vector(look).normalized()
     w = C.uv_sphere(f"{name}_w", c, radius, segments=16, rings=12,
@@ -30,6 +37,9 @@ def eyeball(name: str, center, radius: float, look=(0.0, -1.0, 0.0),
     p = C.uv_sphere(f"{name}_p", c + direction * radius * 0.62, radius * 0.52,
                     segments=14, rings=10)
     C.assign_material(p, C.make_material(f"{name}_pm", dark, roughness=0.2))
+    if blink:
+        w["blink"] = "white"
+        p["blink"] = "pupil"
     return [w, p]
 
 
@@ -384,15 +394,19 @@ def build_mabutamushi():
     # (tsubuteの背/腹の塗り分けと同じ、高さだけで切る手法)
     C.assign_materials_by_region(body, [shade, dust], lambda c: 1 if c.z > 0.05 else 0)
 
-    extras = []
+    # まばたき対象(plan/models/archive/eye-blink-liveliness.md)。join()の
+    # 対象から外し、armature構築後に頭の骨(body-head)へ直接つなぐ
+    eyes = []
     for side in (-1.0, 1.0):
-        extras += eyeball(f"mabuta_eye{side}", (0.022 * side, -0.083, 0.060), 0.014,
-                          look=(0.2 * side, -1.0, 0.0),
-                          white=(0.97, 0.92, 0.80), dark=(0.34, 0.20, 0.12))
+        eyes += eyeball(f"mabuta_eye{side}", (0.022 * side, -0.083, 0.060), 0.014,
+                        look=(0.2 * side, -1.0, 0.0),
+                        white=(0.97, 0.92, 0.80), dark=(0.34, 0.20, 0.12), blink=True)
 
-    mesh = C.join([body] + extras, "mabutamushi")
+    mesh = C.join([body], "mabutamushi")
     armature = C.build_armature("mabutamushi", joints, bones, mesh, root="body")
-    return [mesh, armature], armature
+    for eye in eyes:
+        C.parent_to_bone(eye, armature, "body-head")
+    return [mesh, armature] + eyes, armature
 
 
 def mabutamushi_animations():
@@ -502,11 +516,15 @@ def build_tsubute():
         lambda c: 1 if (c.z < 0.105 and abs(c.x) < 0.14) else 0,
     )
 
-    extras = []
+    # まばたき対象(plan/models/archive/eye-blink-liveliness.md)。join()の
+    # 対象から外し、armature構築後に頭の骨(chest-head)へ直接つなぐ
+    eyes = []
     for side in (-1.0, 1.0):
         # 目は頭の上に半分飛び出させる
-        extras += eyeball(f"tsubute_eye{side}", (0.088 * side, -0.215, 0.278), 0.062,
-                          look=(0.25 * side, -0.8, 0.25))
+        eyes += eyeball(f"tsubute_eye{side}", (0.088 * side, -0.215, 0.278), 0.062,
+                        look=(0.25 * side, -0.8, 0.25), blink=True)
+
+    extras = []
     mouth = C.box("tsubute_mouth", (0.0, -0.300, 0.145), (0.19, 0.045, 0.020), bevel=0.009)
     C.assign_material(mouth, C.make_material("tsubute_mouth_m", (0.22, 0.30, 0.16), roughness=0.5))
     extras.append(mouth)
@@ -519,7 +537,9 @@ def build_tsubute():
 
     mesh = C.join([body] + extras, "tsubute")
     armature = C.build_armature("tsubute", joints, bones, mesh, root="chest")
-    return [mesh, armature], armature
+    for eye in eyes:
+        C.parent_to_bone(eye, armature, "chest-head")
+    return [mesh, armature] + eyes, armature
 
 
 def tsubute_animations():
