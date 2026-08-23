@@ -81,3 +81,29 @@ visual-quality-uplift.md` 施策D「すべてのシーンをキー+フィル+
 - フィルの強度比率(キーの30〜40%はたたき台。シーンごとに
   エンジン内プレビューで調整する)
 - `village.ts`/`villageInterior.ts` のフィル色の具体値
+
+## 実装状況
+
+3シーンすべてに実装した(`gallery.ts`は対象外方針どおり手を付けず)。
+
+- **`renderer.ts`(ダンジョン)**: `fill`フィールドを追加。キー
+  (`(focus.x+6, 14, focus.z+4)`)の反対側`(focus.x-6, 8, focus.z-4)`に
+  キーと同じ`FILL_LIGHT_COLOR`(寒色)・強度はキーの35%
+  (`FILL_LIGHT_INTENSITY = KEY_LIGHT_INTENSITY * 0.35`)を置いた。
+  キーの視錐台更新と同じタイミング(`shadowAnchor`が1マス以上
+  動いたとき)で追従させる。影は持たせない。
+- **`village.ts`**: `VillageLightingPreset`に`fillColor`/
+  `fillIntensity`を追加し、`DAYTIME_LIGHTING`(空色寄り、強度0.5/
+  昼の`sunIntensity`1.5に対し約33%)・`YOIMATSURI_LIGHTING`
+  (寒色寄りの紫、強度0.3/宵の`sunIntensity`0.9に対し約33%)双方に
+  値を持たせ、`setFestivalLighting`で切り替える。
+- **`villageInterior.ts`**: 部屋ごとの`buildRoomShell`に、既存の
+  `key`(入口側)の反対側(奥)から弱い寒色`0x8fa8d9`・強度0.35の
+  フィルを追加した。
+- 受け入れ基準2(意図的な色設計を壊さない)は新旧比較
+  スクリーンショットで確認した(ダンジョンの寒色沈み・村の暖色日中光・
+  屋内の生活の明るさ、いずれもフィル追加後も維持)。受け入れ基準3
+  (輝度計測)は自動化された計測を持たないため、目視確認に留めた
+  (既存の`ci.yml`にも輝度計測ジョブは無い)。受け入れ基準4
+  (60fps)は影を持たない指向性ライト1灯の追加のみのため実測は
+  行っていない(コスト増の要因が無い)。

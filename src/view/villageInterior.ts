@@ -413,6 +413,12 @@ function buildShell(def: VillageInteriorDef): THREE.Group {
   const key = new THREE.DirectionalLight(0xfff8ec, 1.1);
   key.position.set(3, 6, 5);
   group.add(key);
+  // フィル光(plan/models/archive/scene-fill-light-discipline.md)。
+  // keyの反対側(奥)から弱い寒色を当て、「明るい生活の光」の意図を
+  // 壊さないごく弱い強度に留める。影は落とさない
+  const fill = new THREE.DirectionalLight(0x8fa8d9, 0.35);
+  fill.position.set(-3, 3, -5);
+  group.add(fill);
   return group;
 }
 
