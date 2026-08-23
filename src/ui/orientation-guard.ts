@@ -9,6 +9,14 @@ import { shouldForceLandscape } from "../entities/orientation";
  * (OS側の画面回転ロックで`orientation: portrait`が変わらないままでも、
  * 端末を物理的に横へ持ち替えればCSSの回転でそのまま正位置になる)。
  *
+ * `matchMedia`の`change`だけには頼らない(issue #874: iOS Safariでは
+ * 回転後もこのイベントが発火しない・発火してもクラスの反映が遅れる癖が
+ * 実機で報告された。`src/view/renderer.ts`のresize()が同じiOS Safariの
+ * 回転タイミングの癖に対してResizeObserverをフォールバックに使っている
+ * のと同じ考え方で、`document.documentElement`のボックスサイズが
+ * 実際に変わった時点でも再判定する。change自体が届いていれば二重に
+ * 呼ぶだけなので害はない)。
+ *
  * `src/ui/touch-controls.ts`同様、DOM前提でありUI層のためvitestの対象外
  * (判定ロジック自体は`src/entities/orientation.ts`側でテスト済み)。
  */
@@ -22,6 +30,9 @@ export class OrientationGuard {
     const update = (): void => this.update();
     this.pointerCoarse.addEventListener("change", update);
     this.orientationPortrait.addEventListener("change", update);
+    if (typeof ResizeObserver !== "undefined") {
+      new ResizeObserver(update).observe(document.documentElement);
+    }
     this.update();
   }
 
