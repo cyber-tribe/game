@@ -95,6 +95,14 @@ const SHADOW_HALF_SPAN = 12;
  */
 export const PLAYER_LIGHT = { intensity: 30, distance: 13, decay: 2, height: 3.0 } as const;
 
+/**
+ * フィル光(plan/models/archive/scene-fill-light-discipline.md)。
+ * キーと同じ寒色系(洞窟の底を沈ませる意図を壊さない)、強さはキーの
+ * 約35%(受け入れ基準3の白飛び・黒潰れの目安「30〜40%」の中間)
+ */
+const FILL_LIGHT_COLOR = 0xaec2f5;
+const FILL_LIGHT_INTENSITY = KEY_LIGHT_INTENSITY * 0.35;
+
 export class Renderer {
   readonly scene = new THREE.Scene();
   readonly camera: THREE.PerspectiveCamera;
@@ -110,6 +118,15 @@ export class Renderer {
   private readonly bloomPass: UnrealBloomPass;
   /** 影を落とす唯一の光。注視点に合わせて動かす */
   private readonly key: THREE.DirectionalLight;
+  /**
+   * フィル光(plan/models/archive/scene-fill-light-discipline.md)。
+   * キーの反対側から弱く当て、影の中にもうっすら形が見えるようにする
+   * (アンビエントは無指向性で陰に方向性の締まりを作れない)。「洞窟の底は
+   * 寒色に沈め、プレイヤー周りだけ松明で暖める」という既存の意図(#855)を
+   * 壊さないよう、キーと同じ寒色系・低強度にする(暖色を混ぜない)。
+   * 影は落とさない(コスト増を避ける。対象外方針)
+   */
+  private readonly fill: THREE.DirectionalLight;
   /** 気分の視覚演出(plan/mood-visual-effects.md)で色・強度を差し替える対象 */
   private readonly fog: THREE.Fog;
   private readonly ambient: THREE.AmbientLight;
@@ -177,6 +194,14 @@ export class Renderer {
     this.scene.add(key);
     this.scene.add(key.target);
     this.key = key;
+
+    // フィル光。キーの反対側(水平方向)・低めの角度から弱く当てる。
+    // 影は落とさない(castShadowを付けない。対象外方針)
+    const fill = new THREE.DirectionalLight(FILL_LIGHT_COLOR, FILL_LIGHT_INTENSITY);
+    fill.position.set(-6, 8, -4);
+    this.scene.add(fill);
+    this.scene.add(fill.target);
+    this.fill = fill;
 
     // 松明の代わり。プレイヤーに付いてまわる暖色の光
     this.playerLight = new THREE.PointLight(
@@ -308,6 +333,9 @@ export class Renderer {
       this.key.position.set(this.focus.x + 6, 14, this.focus.z + 4);
       this.key.target.position.set(this.focus.x, 0, this.focus.z);
       this.key.target.updateMatrixWorld();
+      this.fill.position.set(this.focus.x - 6, 8, this.focus.z - 4);
+      this.fill.target.position.set(this.focus.x, 0, this.focus.z);
+      this.fill.target.updateMatrixWorld();
       this.requestShadowUpdate();
     }
   }

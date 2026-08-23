@@ -59,6 +59,17 @@ def srgb_to_linear(c: float) -> float:
     return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
 
 
+def linear_to_srgb(c: float) -> float:
+    """`srgb_to_linear`の逆関数。`bake_ao_to_texture`が使う: `make_material`が
+    Base Colorに保持しているのはリニア値だが、ベイクしたテクスチャの
+    ピクセルバッファはBlenderの保存/glTF書き出し時にsRGB符号化として
+    そのまま扱われる(再エンコードされない)。リニア値のまま掛け合わせると、
+    書き出し後にglTFローダー側でsRGB→リニアのデコードがもう一段掛かり、
+    二重にガンマがかかって暗部が破綻する(実機playtestで発覚)。"""
+    c = max(0.0, min(1.0, c))
+    return c * 12.92 if c <= 0.0031308 else 1.055 * (c ** (1 / 2.4)) - 0.055
+
+
 def make_material(name: str, color, roughness: float = 0.7, metallic: float = 0.0,
                   emission: float = 0.0) -> bpy.types.Material:
     """Principled BSDF のマテリアルを1つ作る。color は 0〜1 の sRGB。"""
@@ -409,6 +420,53 @@ def parent_to_bone(obj: bpy.types.Object, armature: bpy.types.Object, bone: str)
     bpy.ops.object.parent_set(type="BONE", keep_transform=True)
 
 
+def mark_for_pin(obj: bpy.types.Object, group_name: str | None = None) -> str:
+    """
+    新しく作った硬い部品のオブジェクトに、印用の頂点グループを1つ付ける
+    (plan/models/archive/silhouette-hard-surface-parts.md)。本体へjoin()
+    すると自動ウェイト計算で複数ボーンに割れてしまう恐れがある部品(肩・膝
+    など可動域の大きい位置)に使う。join()後、この印を頼りに
+    `pin_weight_to_bone` が頂点を特定できる。
+
+    group_name省略時は obj.name をそのまま使う。戻り値はグループ名
+    (join()後にそのまま`pin_weight_to_bone`へ渡せる)。
+    """
+    name = group_name or obj.name
+    vg = obj.vertex_groups.new(name=name)
+    vg.add(range(len(obj.data.vertices)), 1.0, "REPLACE")
+    return name
+
+
+def pin_weight_to_bone(obj: bpy.types.Object, group_name: str, bone_name: str) -> None:
+    """
+    `mark_for_pin`で印を付けた頂点を、単一ボーンへウェイト1.0で固定する
+    (plan/models/archive/silhouette-hard-surface-parts.md)。join()後の
+    自動ウェイト計算は、関節をまたぐ位置にある頂点が複数ボーンにブレンド
+    され、曲げたときに硬い部品自体がゴム的に歪む恐れがある。この関数は
+    build_armature()(自動ウェイト計算)の"後"に呼ぶこと。印用の頂点グループ
+    自体は用済みになるのでここで削除する。
+    """
+    marker = obj.vertex_groups.get(group_name)
+    if marker is None:
+        return
+    marker_index = marker.index
+    target = [v.index for v in obj.data.vertices
+             if any(g.group == marker_index and g.weight > 0 for g in v.groups)]
+
+    bone_group = obj.vertex_groups.get(bone_name)
+    if bone_group is None:
+        bone_group = obj.vertex_groups.new(name=bone_name)
+
+    for vidx in target:
+        for g in list(obj.data.vertices[vidx].groups):
+            group = obj.vertex_groups[g.group]
+            if group.name != bone_name:
+                group.remove([vidx])
+        bone_group.add([vidx], 1.0, "REPLACE")
+
+    obj.vertex_groups.remove(marker)
+
+
 # --------------------------------------------------------------------------- アニメーション
 
 # 1クリップぶんのキーフレーム。
@@ -557,12 +615,86 @@ def bake_ao_to_vertex_colors(obj: bpy.types.Object, samples: int = 64, distance:
     bpy.ops.object.bake(type="AO")
 
 
+def bake_ao_to_texture(obj: bpy.types.Object, size: int = 24, samples: int = 64,
+                       distance: float = 0.25) -> None:
+    """
+    AOをテクスチャに焼く(plan/models/archive/texture-pipeline-adoption.md)。
+    `bake_ao_to_vertex_colors`のテクスチャ版で、UVアンラップが要る。
+
+    obj が持つマテリアルスロットすべてに、それぞれ専用の小さい画像
+    (size×size)を1枚ずつ割り当てる。bake()は1回の呼び出しで、面ごとの
+    マテリアル割り当てに応じて対応する画像へ書き分けてくれるため、
+    ガルドの`assign_materials_by_region`のような1枚のメッシュを
+    複数マテリアルで塗り分けた構成でも、マテリアルの数だけbakeを
+    繰り返す必要はない。
+
+    焼いたAOは白黒そのまま(頂点カラー版と同じ)なので、各マテリアルの
+    元のBase Color値を直接ここでピクセル単位に掛け合わせ、
+    「色×AO」を1枚のテクスチャに合成してからBase Colorへ繋ぎ直す
+    (three.js側で頂点カラーが`material.color`に掛かるのと同じ多重合成を、
+    ここではBlender側で先に計算してしまう。three.jsのmapは
+    material.colorに掛かるので、そちらは白(1,1,1)のBase Colorを保ち、
+    テクスチャに色・陰影のすべてを持たせる)。
+    """
+    mesh = obj.data
+    if len(mesh.uv_layers) == 0:
+        activate(obj)
+        bpy.ops.object.mode_set(mode="EDIT")
+        bpy.ops.mesh.select_all(action="SELECT")
+        bpy.ops.uv.smart_project(angle_limit=66.0, island_margin=0.03)
+        bpy.ops.object.mode_set(mode="OBJECT")
+
+    baked: list[tuple[bpy.types.Material, bpy.types.Image, tuple[float, float, float]]] = []
+    for slot in obj.material_slots:
+        mat = slot.material
+        if mat is None or mat in [m for m, _, _ in baked]:
+            continue
+        bsdf = mat.node_tree.nodes["Principled BSDF"]
+        # Base Colorはリニア値(make_material参照)。ベイク画像のピクセルは
+        # sRGB符号化として書き出されるため、掛け合わせる前にsRGBへ戻す
+        base_color = tuple(linear_to_srgb(c) for c in bsdf.inputs["Base Color"].default_value[:3])
+        image = bpy.data.images.new(f"{mat.name}_tex", width=size, height=size, alpha=False)
+        tex_node = mat.node_tree.nodes.new("ShaderNodeTexImage")
+        tex_node.image = image
+        mat.node_tree.nodes.active = tex_node
+        tex_node.select = True
+        baked.append((mat, image, base_color))
+
+    scene = bpy.context.scene
+    scene.render.engine = "CYCLES"
+    scene.cycles.samples = samples
+    scene.render.bake.target = "IMAGE_TEXTURES"
+    scene.render.bake.margin = max(2, size // 8)
+    scene.world.light_settings.distance = distance
+
+    bpy.ops.object.select_all(action="DESELECT")
+    activate(obj)
+    bpy.ops.object.bake(type="AO")
+
+    for mat, image, base_color in baked:
+        pixels = list(image.pixels[:])
+        r, g, b = base_color
+        for i in range(0, len(pixels), 4):
+            pixels[i] *= r
+            pixels[i + 1] *= g
+            pixels[i + 2] *= b
+        image.pixels[:] = pixels
+
+        bsdf = mat.node_tree.nodes["Principled BSDF"]
+        bsdf.inputs["Base Color"].default_value = (1.0, 1.0, 1.0, 1.0)
+        tex_node = next(n for n in mat.node_tree.nodes if n.type == "TEX_IMAGE" and n.image is image)
+        mat.node_tree.links.new(tex_node.outputs["Color"], bsdf.inputs["Base Color"])
+
+
 def export_glb(name: str, objs: Sequence[bpy.types.Object]) -> str:
     os.makedirs(MODEL_DIR, exist_ok=True)
     path = os.path.join(MODEL_DIR, f"{name}.glb")
 
     for o in objs:
-        if o.type == "MESH":
+        # bake_ao_to_textureを通した(UVを持つ)メッシュは既にAOを合成
+        # 済みのテクスチャがBase Colorに繋がっているため、頂点カラーの
+        # AOを重ねて焼くと二重に暗くなる。UVの有無で判別する
+        if o.type == "MESH" and len(o.data.uv_layers) == 0:
             bake_ao_to_vertex_colors(o)
 
     bpy.ops.object.select_all(action="DESELECT")

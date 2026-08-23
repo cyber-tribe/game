@@ -863,6 +863,13 @@ interface VillageLightingPreset {
   ambientIntensity: number;
   sunColor: number;
   sunIntensity: number;
+  /**
+   * フィル光(plan/models/archive/scene-fill-light-discipline.md)。
+   * sunLightの反対側から弱く当てる、青空からのバウンス光の近似。
+   * ambientは無指向性で陰に方向性の締まりを作れないため別に持つ
+   */
+  fillColor: number;
+  fillIntensity: number;
   /** 窓・入口の明かりの強さ。昼は控えめ、宵祭りだけ強調する */
   windowGlowIntensity: number;
   /**
@@ -886,6 +893,8 @@ const DAYTIME_LIGHTING: VillageLightingPreset = {
   ambientIntensity: 1.9,
   sunColor: 0xfff4d8,
   sunIntensity: 1.5,
+  fillColor: 0xaed4f0,
+  fillIntensity: 0.5,
   windowGlowIntensity: 1.2,
   skyHorizon: 0xdcf0fa,
   skyZenith: 0x5da0d8,
@@ -899,6 +908,8 @@ const YOIMATSURI_LIGHTING: VillageLightingPreset = {
   ambientIntensity: 1.0,
   sunColor: 0xffa050,
   sunIntensity: 0.9,
+  fillColor: 0x6a5a8a,
+  fillIntensity: 0.3,
   windowGlowIntensity: 3.0,
   skyHorizon: 0xd88a5c,
   skyZenith: 0x352050,
@@ -967,6 +978,8 @@ export class VillageView {
   /** 昼/宵祭りで色・強さを切り替える光源(`setFestivalLighting`) */
   private readonly ambientLight = new THREE.AmbientLight();
   private readonly sunLight = new THREE.DirectionalLight();
+  /** フィル光(plan/models/archive/scene-fill-light-discipline.md)。影は落とさない */
+  private readonly fillLight = new THREE.DirectionalLight();
   /** 建物ごとの窓明かり(`WINDOW_GLOW_BUILDINGS`のみ持つ)。`buildingId → PointLight` */
   private readonly windowGlowLights = new Map<string, THREE.PointLight>();
   /** 空のグラデーション(`buildSkyDome`)。`setFestivalLighting`で塗り替える */
@@ -983,6 +996,9 @@ export class VillageView {
     this.scene.add(this.ambientLight);
     this.sunLight.position.set(6, 12, 4);
     this.scene.add(this.sunLight);
+    // sunLightの反対側から弱く当てる(影は落とさない)
+    this.fillLight.position.set(-6, 8, -4);
+    this.scene.add(this.fillLight);
 
     // 地面はプレイ可能範囲(VILLAGE_BOUNDS)の見た目そのままに、そこだけ
     // 4倍の広さへ延長する(plan/models/village-surroundings.mdの
@@ -1064,6 +1080,8 @@ export class VillageView {
     this.ambientLight.intensity = preset.ambientIntensity;
     this.sunLight.color.setHex(preset.sunColor);
     this.sunLight.intensity = preset.sunIntensity;
+    this.fillLight.color.setHex(preset.fillColor);
+    this.fillLight.intensity = preset.fillIntensity;
     for (const glow of this.windowGlowLights.values()) {
       glow.intensity = preset.windowGlowIntensity;
     }

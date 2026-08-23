@@ -255,10 +255,38 @@ def build() -> tuple[list, object]:
     extras += parts.build_hatchet(origin=hand_r + Vector((0.0, -0.01, 0.0)),
                                   scale=0.95, rotation=(-22.0, 0.0, 6.0))
 
+    # 肩当て(plan/models/archive/silhouette-hard-surface-parts.md
+    # パイロット)。丸い肩のなだらかな面に段差を作り、黒塗りシルエットでも
+    # 「腕の付け根」が読めるようにする。たがの鉄と同じ意匠で揃える
+    # (背負いダルの金具と呼応させる)。上腕の骨(shoulder-elbow)へ
+    # ウェイト固定するので、腕を振っても剛体のまま追従する(自動ウェイトの
+    # ブレンドで潰れない)
+    pauldron_names = []
+    for side in (-1.0, 1.0):
+        tag = "L" if side < 0 else "R"
+        shoulder = Vector(JOINTS[f"shoulder.{tag}"])
+        # shoulder.L/Rはmirrored()で作られており、既にL側がx>0・R側がx<0
+        # (sideと符号が逆)。外向きに押し出すにはshoulder自身のx符号を使う
+        outward = 1.0 if tag == "L" else -1.0
+        pauldron = parts.build_pauldron(
+            f"pauldron{tag}", shoulder + Vector((0.045 * outward, 0.0, 0.030)),
+            rotation=(0.0, 0.0, -18.0 * outward),
+        )
+        C.assign_material(pauldron, hoop_mat)
+        C.mark_for_pin(pauldron)
+        pauldron_names.append((pauldron.name, f"shoulder.{tag}-elbow.{tag}"))
+        extras.append(pauldron)
+
     mesh = C.join([body] + extras, NAME)
+    # 頂点カラーオンリー方針を終え、テクスチャへ移行するパイロット
+    # (plan/models/archive/texture-pipeline-adoption.md)。UVアンラップ+
+    # マテリアルごとの専用テクスチャにAO×基色を焼き込む
+    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature(NAME, JOINTS, BONES, mesh, root="hip")
     for eye in eyes:
         C.parent_to_bone(eye, armature, "neck-head")
+    for group_name, bone in pauldron_names:
+        C.pin_weight_to_bone(mesh, group_name, bone)
     return [mesh, armature] + eyes, armature
 
 
