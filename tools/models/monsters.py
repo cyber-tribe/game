@@ -78,6 +78,15 @@ def build_purun():
     C.assign_material(mouth, C.make_material("purun_mouth_m", (0.10, 0.22, 0.34), roughness=0.3))
     extras.append(mouth)
 
+    # まどろみの残り香が固まった芯(plan/models/sheets/purun.md、
+    # plan/models/archive/silhouette-hard-surface-parts.mdの義務項目)。
+    # 丸い体表面に唯一の角のある面を作る、正二十面体そのままの結晶。
+    # 背中側(+Y)の上寄りに半分めり込ませて生やす
+    gem_mat = C.make_material("purun_gem", (0.92, 0.72, 0.32), roughness=0.25, emission=0.15)
+    gem = C.gem("purun_gem", (0.0, 0.145, 0.285), 0.050, subdivisions=1)
+    C.assign_material(gem, gem_mat)
+    extras.append(gem)
+
     mesh = C.join([body] + extras, "purun")
     armature = C.build_armature("purun", C.mirrored(PURUN_JOINTS), PURUN_BONES, mesh, root="base")
     return [mesh, armature], armature
