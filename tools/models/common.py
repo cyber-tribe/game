@@ -488,6 +488,39 @@ KeyframeOptions = dict[str, object]
 Keyframe = tuple[int, Pose] | tuple[int, Pose, KeyframeOptions]
 
 
+def secondary_delay_frames(length_ratio: float) -> int:
+    """
+    二次揺れ(plan/game/archive/secondary-motion-delay-convention.md)の
+    遅延フレーム数を、部位の長さの比から機械的に決める。
+
+    length_ratio: 対象パーツ(尻尾・耳・房紐・帯など、胴から生えて先端が
+    自由に動く付属肢)の長さ(根本から先端までの各セグメント長の合計)を、
+    胴の基準長(root〜chest、rootが既にchestなら胴の主要な1ボーン=
+    chestに隣接する幹の骨の長さ)で割った比。長く垂れたものほど遅れて
+    追従する、という実際の物理の近似(単振り子の周期は長さの平方根に
+    比例する、を簡略化した目安)。
+
+    腕・脚のような主要な可動部位(遅延ではなく別の役割の関節)は対象外
+    (呼び出し側でそもそも渡さない)。
+
+    しきい値はパイロット5体の実測(garudo/honegaramiの頭の遅れ=
+    2フレーム、比0.60〜0.67。gajiriの尻尾の遅れ=3フレーム、比2.39)と
+    整合するよう決めてある(計画書の初期案0.15/0.35は概算だったため、
+    実測との突き合わせで調整した):
+
+    - 1.0未満(頭のように基準長に近いかそれより短い付属肢): 2フレーム
+    - 1.0以上3.0未満(標準的な尻尾・帯・房紐): 3フレーム
+    - 3.0以上(長い尻尾・垂れ幕・長い帯): 4フレーム
+
+    上限は4フレームに留める(それ以上遅らせると本体の動きから浮いて見える)。
+    """
+    if length_ratio < 1.0:
+        return 2
+    if length_ratio < 3.0:
+        return 3
+    return 4
+
+
 def add_action(arm_obj: bpy.types.Object, name: str, keyframes: Sequence[Keyframe]) -> None:
     """
     ポーズをキーフレームに焼いてアクションを作り、NLA トラックに積む。

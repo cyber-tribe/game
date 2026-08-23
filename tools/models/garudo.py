@@ -316,8 +316,9 @@ def animations() -> list[tuple[str, list]]:
 
     plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
     タメ・ツメ(LINEAR補間による鋭い動き)・頭の遅れ追従(二次揺れ)を
-    足してある。頭(neck)は胴(hipc)より2フレーム遅れて追従させ、
-    体の動きに引っ張られて頭がついてくる感じを出す。
+    足してある。頭(neck)は胴(hipc)より、部位の長さから機械的に決めた
+    フレーム数(plan/game/archive/secondary-motion-delay-convention.md)
+    だけ遅れて追従させ、体の動きに引っ張られて頭がついてくる感じを出す。
     """
     hipc = "hip-chest"
     spine = "chest-neck"
@@ -327,13 +328,18 @@ def animations() -> list[tuple[str, list]]:
     legL, legR = "hip-thigh.L", "hip-thigh.R"
     shinL, shinR = "thigh.L-knee.L", "thigh.R-knee.R"
 
-    # 頭は胴より2フレーム遅れて同じ動きを追いかける(二次揺れ)
+    # 頭は胴より遅れて同じ動きを追いかける(二次揺れ)。遅延フレーム数は
+    # 頭(neck-head)の長さを胴の基準長(hip-chest)で割った比から決める
+    head_delay = C.secondary_delay_frames(
+        (Vector(JOINTS_HALF["head"]) - Vector(JOINTS_HALF["neck"])).length
+        / (Vector(JOINTS_HALF["chest"]) - Vector(JOINTS_HALF["hip"])).length
+    )
     idle = [
         (1, {hipc: (0, 0, 0), armL: (0, 0, 4), armR: (0, 0, -4), neck: (0, 0, 0)}),
         (18, {hipc: (2.5, 0, 0), armL: (-5, 0, 7), armR: (-5, 0, -7)}),
-        (20, {neck: (-2.5, 0, 0)}, {"partial": True}),
+        (18 + head_delay, {neck: (-2.5, 0, 0)}, {"partial": True}),
         (36, {hipc: (0, 0, 0), armL: (0, 0, 4), armR: (0, 0, -4)}),
-        (38, {neck: (0, 0, 0)}, {"partial": True}),
+        (36 + head_delay, {neck: (0, 0, 0)}, {"partial": True}),
     ]
 
     # 4フェーズ(接地・沈み込み・通過・蹴り出し、plan/models/archive/

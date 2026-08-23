@@ -304,22 +304,34 @@ def gajiri_animations():
     """
     plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
     タメ・ツメ(LINEAR補間)・尻尾の遅れ追従(二次揺れ)を足してある。
-    尻尾(t1)は胴(neck)より3フレーム遅れて同じ揺れを追いかける。
+    尻尾(t1)は胴(neck)より、部位の長さから機械的に決めたフレーム数
+    (plan/game/archive/secondary-motion-delay-convention.md)遅れて
+    同じ揺れを追いかける。
     """
     neck, snout = "chest-neck", "neck-snout"
     t1, t2 = "hip-tail1", "tail1-tail2"
     fL, fR = "chest-hipF.L", "chest-hipF.R"
     bL, bR = "hip-hipB.L", "hip-hipB.R"
+    # 尻尾の遅延フレーム数は、尻尾全体(hip-tail1-tail2-tail3)の長さを
+    # 胴の基準長(chest-hip)で割った比から決める
+    tail_len = (
+        (Vector(GAJIRI_HALF["tail1"]) - Vector(GAJIRI_HALF["hip"])).length
+        + (Vector(GAJIRI_HALF["tail2"]) - Vector(GAJIRI_HALF["tail1"])).length
+        + (Vector(GAJIRI_HALF["tail3"]) - Vector(GAJIRI_HALF["tail2"])).length
+    )
+    tail_delay = C.secondary_delay_frames(
+        tail_len / (Vector(GAJIRI_HALF["chest"]) - Vector(GAJIRI_HALF["hip"])).length
+    )
     return [
-        # 尻尾が首より3フレーム遅れて揺れる(二次揺れ)
+        # 尻尾が首より遅れて揺れる(二次揺れ)
         ("idle", [
             (1, {neck: (0, 0, 0), t1: (0, 0, 0)}),
             (14, {neck: (-4, 0, 0), snout: (5, 0, 0)}),
-            (17, {t1: (0, 0, 16)}, {"partial": True}),
+            (14 + tail_delay, {t1: (0, 0, 16)}, {"partial": True}),
             (28, {neck: (0, 0, 0)}),
-            (31, {t1: (0, 0, -16)}, {"partial": True}),
+            (28 + tail_delay, {t1: (0, 0, -16)}, {"partial": True}),
             (42, {neck: (0, 0, 0)}),
-            (45, {t1: (0, 0, 0)}, {"partial": True}),
+            (42 + tail_delay, {t1: (0, 0, 0)}, {"partial": True}),
         ]),
         ("walk", [
             (1, {fL: (30, 0, 0), fR: (-30, 0, 0), bL: (-28, 0, 0), bR: (28, 0, 0), t1: (0, 0, 12)}),
@@ -546,6 +558,9 @@ def tsubute_animations():
     """
     plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
     タメ・ツメ(LINEAR補間)・腕の遅れ追従(二次揺れ)を足してある。
+    腕はsecondary_delay_frames()(plan/game/archive/
+    secondary-motion-delay-convention.md)の対象外(尻尾・耳等の付属肢では
+    なく主要な可動部位)なので、遅延フレーム数はこれまでどおり目分量のまま
     """
     head = "chest-head"
     armL, armR = "chest-armF.L", "chest-armF.R"
@@ -826,21 +841,26 @@ def honegarami_animations():
     """
     plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
     タメ・ツメ(LINEAR補間)・頭の遅れ追従(二次揺れ)・歩行の接地沈みを
-    足してある。
+    足してある。頭の遅延フレーム数は部位の長さから機械的に決める
+    (plan/game/archive/secondary-motion-delay-convention.md)。
     """
     hipc, neck = "hip-chest", "neck-head"
     armL, armR = "chest-shoulder.L", "chest-shoulder.R"
     foreR = "shoulder.R-elbow.R"
     legL, legR = "hip-thigh.L", "hip-thigh.R"
     shinL, shinR = "thigh.L-knee.L", "thigh.R-knee.R"
+    head_delay = C.secondary_delay_frames(
+        (Vector(HONE_HALF["head"]) - Vector(HONE_HALF["neck"])).length
+        / (Vector(HONE_HALF["chest"]) - Vector(HONE_HALF["hip"])).length
+    )
     return [
-        # 頭が胴より2フレーム遅れて追従する(二次揺れ)
+        # 頭が胴より遅れて追従する(二次揺れ)
         ("idle", [
             (1, {hipc: (0, 0, 0), armL: (0, 0, 5), armR: (0, 0, -5), neck: (0, 0, 0)}),
             (20, {hipc: (2, 0, 1.5), armL: (-4, 0, 8), armR: (-4, 0, -8)}),
-            (22, {neck: (-3, 0, 0)}, {"partial": True}),
+            (20 + head_delay, {neck: (-3, 0, 0)}, {"partial": True}),
             (40, {hipc: (0, 0, 0), armL: (0, 0, 5), armR: (0, 0, -5)}),
-            (42, {neck: (0, 0, 0)}, {"partial": True}),
+            (40 + head_delay, {neck: (0, 0, 0)}, {"partial": True}),
         ]),
         # 接地の瞬間に胴をわずかに沈める
         ("walk", [
