@@ -179,6 +179,35 @@ function makeOutlineMaterial(color: THREE.Color): THREE.MeshBasicMaterial {
 }
 
 /**
+ * 剛体(スキンなし)メッシュ用の輪郭線マテリアル(plan/models/archive/
+ * eye-blink-liveliness.md。頭骨へ剛体で親化した目に使う)。
+ *
+ * 上のmakeOutlineMaterialは`objectNormal`を使うが、これは
+ * `#if defined(USE_ENVMAP) || defined(USE_SKINNING)`の中でしか
+ * 宣言されず(three.jsのMeshBasicMaterial頂点シェーダーテンプレート)、
+ * スキンなしメッシュでは未定義変数エラーになる(実機playtestで発覚)。
+ * 剛体メッシュは頂点ごとの変形が無いぶん単純で、変形前のraw法線属性
+ * (`normal`)をそのまま使えば十分。押し出しは`#include <begin_vertex>`
+ * (常に存在する)の直後でよい。
+ */
+function makeRigidOutlineMaterial(color: THREE.Color): THREE.MeshBasicMaterial {
+  const material = new THREE.MeshBasicMaterial({
+    color,
+    side: THREE.BackSide,
+  });
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.outlineThickness = { value: OUTLINE_THICKNESS };
+    shader.vertexShader = shader.vertexShader
+      .replace("#include <common>", "#include <common>\nuniform float outlineThickness;")
+      .replace(
+        "#include <begin_vertex>",
+        "#include <begin_vertex>\ntransformed += normalize(normal) * outlineThickness;"
+      );
+  };
+  return material;
+}
+
+/**
  * スキン付きメッシュの兄弟ノードとして輪郭線メッシュを追加する。
  * ジオメトリは複製せず共有し、同じskeletonインスタンスにbindする。
  * これにより SkeletonUtils.clone() が instantiate() で複製する際も
@@ -203,6 +232,23 @@ function addOutlineMesh(mesh: THREE.SkinnedMesh): void {
     // 実際のglTF構造では起こらないはずだが、保険として本体自身に付ける
     mesh.add(outline);
   }
+}
+
+/**
+ * まばたき対象の目(`userData.blink`。plan/models/archive/
+ * eye-blink-liveliness.md)は頭の骨へ剛体で親化された非スキンメッシュ
+ * なので、SkeletonUtils.clone前提のaddOutlineMeshは使えない。スキニングが
+ * 無いぶん単純で、輪郭線メッシュを本体の**子**として足すだけでよい
+ * (兄弟ではなく子にすることで、BlinkControllerが本体側のscaleを
+ * まばたきで変えても、子は変換を継承してそのまま追従する)。
+ */
+function addRigidOutlineMesh(mesh: THREE.Mesh): void {
+  const outline = new THREE.Mesh(mesh.geometry, makeRigidOutlineMaterial(outlineColorFor(mesh.material)));
+  outline.name = `${mesh.name}__outline`;
+  outline.castShadow = false;
+  outline.receiveShadow = false;
+  outline.frustumCulled = mesh.frustumCulled;
+  mesh.add(outline);
 }
 
 export interface Instance {
@@ -260,6 +306,10 @@ export class Assets {
       // children配列を書き換えてしまう恐れがあるため、対象のSkinnedMeshだけ
       // 先に集めておき、traverseを終えてからまとめて追加する
       const skinnedMeshes: THREE.SkinnedMesh[] = [];
+      // まばたき対象(userData.blink、tools/models/common.pyのparent_to_bone)。
+      // 頭の骨に剛体で親化された非スキンメッシュなので、輪郭線の付け方が
+      // スキン付きメッシュとは別ルートになる(addRigidOutlineMesh参照)
+      const blinkMeshes: THREE.Mesh[] = [];
       gltf.scene.traverse((obj) => {
         const mesh = obj as THREE.Mesh;
         if (!mesh.isMesh) return;
@@ -272,9 +322,12 @@ export class Assets {
           : toToonMaterial(mesh.material, isSkinned, hasVertexColors);
         if (isSkinned) {
           skinnedMeshes.push(mesh as THREE.SkinnedMesh);
+        } else if (mesh.userData.blink !== undefined) {
+          blinkMeshes.push(mesh);
         }
       });
       for (const mesh of skinnedMeshes) addOutlineMesh(mesh);
+      for (const mesh of blinkMeshes) addRigidOutlineMesh(mesh);
       this.cache.set(name, { scene: gltf.scene, animations: gltf.animations });
     })().finally(() => {
       this.inFlight.delete(name);

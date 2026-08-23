@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { Instance } from "./assets";
+import { BlinkController } from "./blink";
 import { TILE } from "./renderer";
 import { type Dir, type Vec2, dirDelta } from "../core/grid";
 
@@ -158,12 +159,19 @@ export class ActorView {
    */
   private readonly walkSpeedMul: number;
 
+  /**
+   * まばたき・視線の微揺れ(plan/models/archive/eye-blink-liveliness.md)。
+   * 対象(userData.blink)を持たないモデルでは何もしない
+   */
+  private readonly blink: BlinkController;
+
   constructor(instance: Instance, pos: Vec2, facing: Dir = 4, idleSpeedMul = 1, walkSpeedMul = 1) {
     this.root = instance.root;
     this.mixer = instance.mixer;
     this.actions = instance.actions;
     this.idleSpeedMul = idleSpeedMul;
     this.walkSpeedMul = walkSpeedMul;
+    this.blink = new BlinkController(this.root);
     // 位置・回転を乗せる前に測る(AABBがモデル本来のfootprintのままになる)
     const contactShadow = createContactShadow(this.root);
     if (contactShadow) this.root.add(contactShadow);
@@ -358,6 +366,7 @@ export class ActorView {
 
   update(dt: number): void {
     this.mixer?.update(dt);
+    this.blink.update(dt);
 
     // 前フレームで足した踏み込みオフセットをまず取り除き、素の位置に戻す
     // (移動中はlerpが位置を丸ごと上書きするので、この減算は無害)。

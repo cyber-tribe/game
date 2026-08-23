@@ -127,6 +127,11 @@ def build() -> tuple[list, object]:
                                     roughness=0.2, emission=0.4)
     mouth_mat = C.make_material("garudo_mouth", (0.35, 0.16, 0.14), roughness=0.5)
 
+    # まばたき対象(白目・瞳。plan/models/archive/eye-blink-liveliness.md)。
+    # join()の対象から外し、armature構築後に頭の骨(neck-head)へ直接つなぐ。
+    # ハイライト・眉は表情の飾りで変形の必要が無いため、これまでどおり
+    # 本体へ統合する
+    eyes = []
     extras = []
     for side in (-1.0, 1.0):
         white = C.uv_sphere(
@@ -134,12 +139,15 @@ def build() -> tuple[list, object]:
             segments=16, rings=12, scale=(1.0, 0.70, 1.10),
         )
         C.assign_material(white, eye_white)
+        white["blink"] = "white"
         pupil_center = head + Vector((0.060 * side, -0.140, 0.002))
         pupil = C.uv_sphere(
             f"pupil{side}", pupil_center, 0.024,
             segments=14, rings=10, scale=(1.0, 0.7, 1.0),
         )
         C.assign_material(pupil, eye_mat)
+        pupil["blink"] = "pupil"
+        eyes += [white, pupil]
         # 黒目のハイライト(白点)。両目とも同じ向き(正面から見て左上)に
         # 置くことで、視線が生きて見える
         eye_highlight = C.uv_sphere(
@@ -152,7 +160,7 @@ def build() -> tuple[list, object]:
                      (0.052, 0.020, 0.015), bevel=0.006)
         brow.rotation_euler = (0.0, 0.0, -0.18 * side)
         C.assign_material(brow, eye_mat)
-        extras += [white, pupil, eye_highlight, brow]
+        extras += [eye_highlight, brow]
 
     # 大きな鼻。ずんぐりした風貌の要
     nose = C.uv_sphere("nose", head + Vector((0.0, -0.146, -0.040)), 0.046,
@@ -249,7 +257,9 @@ def build() -> tuple[list, object]:
 
     mesh = C.join([body] + extras, NAME)
     armature = C.build_armature(NAME, JOINTS, BONES, mesh, root="hip")
-    return [mesh, armature], armature
+    for eye in eyes:
+        C.parent_to_bone(eye, armature, "neck-head")
+    return [mesh, armature] + eyes, armature
 
 
 def classify_body(center) -> int:
