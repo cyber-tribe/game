@@ -6365,6 +6365,16 @@ def build_oonebosuke():
     C.assign_material(cap, skin)
     extras.append(cap)
 
+    # 頭を預けたまま二度と離れない石の枕(plan/models/sheets/oonebosuke.md、
+    # plan/models/archive/silhouette-hard-surface-parts.mdの義務項目)。
+    # 丸い体表面に唯一の角のある面を作る、面取りした石の直方体
+    pillow_mat = C.make_material("oonebosuke_pillow", (0.40, 0.38, 0.36), roughness=0.9)
+    pillow = C.box("oonebosuke_pillow", (0.0, 0.185, 0.435), (0.115, 0.075, 0.095),
+                   bevel=0.018, bevel_segments=2)
+    pillow.rotation_euler = (0.10, 0.0, 0.0)
+    C.assign_material(pillow, pillow_mat)
+    extras.append(pillow)
+
     mesh = C.join([body] + extras, "oonebosuke")
     armature = C.build_armature("oonebosuke", C.mirrored(OONEBOSUKE_JOINTS), OONEBOSUKE_BONES,
                                 mesh, root="base")
