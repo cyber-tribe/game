@@ -7609,6 +7609,16 @@ def build_kasumiutsubo():
     C.assign_material(mouth, C.make_material("kasumi_mouth_m", (0.16, 0.20, 0.22), roughness=0.4))
     extras.append(mouth)
 
+    # ワスレガニの甲殻が薄く透けて残った、ほとんど消えかけの殻の欠片
+    # (plan/models/sheet-kasumiutsubo.md、plan/models/archive/
+    # silhouette-hard-surface-parts.mdの義務項目)。面取りの浅い、薄く
+    # 小さな箱を背に2枚だけ残す
+    shell_mat = C.make_material("kasumi_shell", (0.62, 0.70, 0.68), roughness=0.4, emission=0.05)
+    for i, (y, size) in enumerate([(-0.02, 0.036), (0.075, 0.030)]):
+        frag = C.box(f"kasumi_shell{i}", (0.0, y, 0.198), (size, size * 0.9, 0.016), bevel=0.005)
+        C.assign_material(frag, shell_mat)
+        extras.append(frag)
+
     mesh = C.join([body] + extras, "kasumiutsubo")
     armature = C.build_armature("kasumiutsubo", joints, bones, mesh, root="chest")
     return [mesh, armature], armature
