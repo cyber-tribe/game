@@ -180,6 +180,22 @@ def build_akubitokage():
     C.assign_material(mouth, C.make_material("akubi_mouth_m", (0.20, 0.15, 0.13), roughness=0.35))
     extras.append(mouth)
 
+    # 背に一列並んだ、控えめな棘(plan/models/sheet-akubitokage.md、
+    # plan/models/archive/silhouette-hard-surface-parts.mdの義務項目)。
+    # 面取りした小さな三角柱を、体の後傾に沿わせて背筋に並べる
+    spike_mat = C.make_material("akubi_spike", (0.24, 0.19, 0.15), roughness=0.55)
+    for i, (spine_y, z, radius, size) in enumerate([
+        (-0.006, 0.090, 0.109, 0.038),
+        (-0.008, 0.140, 0.090, 0.044),
+        (-0.017, 0.190, 0.069, 0.038),
+        (-0.031, 0.235, 0.052, 0.028),
+    ]):
+        spike = C.box(f"akubi_spike{i}", (0.0, spine_y + radius + size * 0.5, z),
+                     (size * 0.4, size, size * 0.7), bevel=size * 0.18, bevel_segments=1)
+        spike.rotation_euler = (math.radians(-20.0), 0.0, math.radians(45.0))
+        C.assign_material(spike, spike_mat)
+        extras.append(spike)
+
     mesh = C.join([body] + extras, "akubitokage")
     armature = C.build_armature("akubitokage", C.mirrored(AKUBI_JOINTS), AKUBI_BONES, mesh, root="base")
     return [mesh, armature], armature
