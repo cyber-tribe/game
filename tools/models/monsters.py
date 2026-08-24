@@ -439,7 +439,15 @@ def build_mabutamushi():
                         look=(0.2 * side, -1.0, 0.0),
                         white=(0.97, 0.92, 0.80), dark=(0.34, 0.20, 0.12), blink=True)
 
-    mesh = C.join([body], "mabutamushi")
+    # 背に1枚だけ乗る、面取りした小さな甲殻(plan/models/
+    # sheet-mabutamushi.md、plan/models/archive/
+    # silhouette-hard-surface-parts.mdの義務項目)。丸い体表面に唯一の
+    # 角のある面を作る
+    shell_mat = C.make_material("mabuta_shell", (0.30, 0.22, 0.18), roughness=0.55)
+    shell = C.box("mabuta_shell", (0.0, 0.030, 0.108), (0.038, 0.048, 0.014), bevel=0.006)
+    C.assign_material(shell, shell_mat)
+
+    mesh = C.join([body, shell], "mabutamushi")
     armature = C.build_armature("mabutamushi", joints, bones, mesh, root="body")
     for eye in eyes:
         C.parent_to_bone(eye, armature, "body-head")
