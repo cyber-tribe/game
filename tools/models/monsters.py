@@ -6046,6 +6046,28 @@ def build_nemurimogura():
     C.assign_material(nose, C.make_material("nemurimogura_nose_m", (0.72, 0.52, 0.52), roughness=0.4))
     extras.append(nose)
 
+    # ユメクイモグラ譲りの掘削用の爪(plan/models/sheet-nemurimogura.md、
+    # plan/models/archive/silhouette-hard-surface-parts.mdの義務項目)。
+    # 丸い前足の表面に唯一の角のある面を作る
+    claw_mat = C.make_material("nemurimogura_claw", (0.74, 0.66, 0.42), roughness=0.55)
+    for side in (-1.0, 1.0):
+        fx, fy, fz = NEMURIMOGURA_HALF["footF.L"]
+        fx *= side
+        for dx, dy in ((-0.020, -0.008), (0.0, -0.018), (0.020, -0.008)):
+            claw = C.cone(
+                f"nemurimogura_claw{side}_{dx}",
+                (fx + dx, fy + dy, fz - 0.008), 0.014, 0.003, 0.038, segments=8,
+            )
+            C.assign_material(claw, claw_mat)
+            extras.append(claw)
+
+    # オオマドロミの力を宿す証としての結晶片(common.gem、小さく)
+    crystal_mat = C.make_material("nemurimogura_crystal", (0.82, 0.74, 0.44), roughness=0.3,
+                                  emission=0.35)
+    crystal = C.gem("nemurimogura_crystal", (0.135, -0.088, 0.058), 0.018, subdivisions=1)
+    C.assign_material(crystal, crystal_mat)
+    extras.append(crystal)
+
     mesh = C.join([body] + extras, "nemurimogura")
     armature = C.build_armature("nemurimogura", joints, bones, mesh, root="chest")
     return [mesh, armature], armature
