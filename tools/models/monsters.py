@@ -5160,6 +5160,18 @@ def build_shizukuuo():
                           look=(0.25 * side, -1.0, 0.05),
                           white=(0.80, 0.86, 0.94), dark=(0.10, 0.12, 0.20))
 
+    # 尾の先が結晶化した、角のある小さな氷状の雫(plan/models/
+    # sheet-shizukuuo.md、plan/models/archive/
+    # silhouette-hard-surface-parts.mdの義務項目)。common.gem
+    # (正二十面体)そのままで硬い面を作る
+    crystal_mat = C.make_material("shizuku_crystal", (0.72, 0.86, 0.96), roughness=0.2,
+                                  emission=0.3)
+    for side in (-1.0, 1.0):
+        fx, fy, fz = SHIZUKUUO_HALF["footB.L"]
+        crystal = C.gem(f"shizuku_crystal{side}", (fx * side, fy, fz), 0.020, subdivisions=1)
+        C.assign_material(crystal, crystal_mat)
+        extras.append(crystal)
+
     mesh = C.join([body] + extras, "shizukuuo")
     armature = C.build_armature("shizukuuo", joints, bones, mesh, root="chest")
     return [mesh, armature], armature
