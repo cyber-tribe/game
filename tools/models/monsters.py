@@ -8083,6 +8083,13 @@ def build_mazarinezumi():
     C.assign_material(nose, C.make_material("mazari_nose_m", (0.72, 0.44, 0.46), roughness=0.4))
     extras.append(nose)
 
+    # ガジリねずみ譲りの前歯(plan/models/sheet-mazarinezumi.md、
+    # plan/models/archive/silhouette-hard-surface-parts.mdの義務項目)。
+    # 丸い体表面に唯一の角のある面を作る、面取りした箱
+    teeth = C.box("mazari_teeth", (0.0, -0.460, 0.140), (0.049, 0.025, 0.046), bevel=0.0065)
+    C.assign_material(teeth, C.make_material("mazari_teeth_m", (0.94, 0.92, 0.83), roughness=0.35))
+    extras.append(teeth)
+
     # 腰から尻尾にかけてだけ乗せた、育ちきらない甲羅
     shell_mat = C.make_material("mazari_shell", (0.48, 0.46, 0.42), roughness=0.55)
     for i, (sy, sz, r) in enumerate([(0.20, 0.31, 0.075), (0.30, 0.34, 0.062), (0.38, 0.38, 0.048)]):
