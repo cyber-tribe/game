@@ -4882,9 +4882,12 @@ def build_yorishironozankyo():
         C.assign_material(eye, glow)
         extras.append(eye)
 
-    # 胸に、全ての記憶が集まる核として発光する紋章を持たせる
-    core_ring = C.uv_sphere("zankyo_core_ring", (0.0, -0.155, 0.660), 0.075,
-                            segments=18, rings=13, scale=(1.0, 0.30, 1.0))
+    # 胸に、全ての記憶が集まる核として発光する紋章を持たせる。輪は
+    # 面取りした硬い円盤にする(plan/models/sheet-yorishironozankyo.md、
+    # plan/models/archive/silhouette-hard-surface-parts.mdの義務項目)。
+    # 丸い体表面に唯一の角のある面を作る
+    core_ring = C.cylinder("zankyo_core_ring", (0.0, -0.155, 0.660), 0.075, 0.038,
+                           segments=24, axis="Y", bevel=0.011)
     C.assign_material(core_ring, C.make_material("zankyo_core_ring_m", (0.72, 0.66, 0.50),
                                                  roughness=0.4, metallic=0.2))
     extras.append(core_ring)
