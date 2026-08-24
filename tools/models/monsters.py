@@ -3610,12 +3610,16 @@ def build_menkaburikozo():
     mask_gold = C.make_material("menkaburikozo_gold", (0.68, 0.56, 0.28), roughness=0.35, metallic=0.3)
     dark = C.make_material("menkaburikozo_hole", (0.04, 0.04, 0.05), roughness=0.9)
 
-    mask = C.uv_sphere("menkaburikozo_mask", (0.0, -0.235, 0.118), 0.115,
-                       segments=20, rings=14, scale=(1.0, 0.30, 0.92))
+    # 祭り面は面取りした硬い円盤にする(plan/models/
+    # sheet-menkaburikozo.md、plan/models/archive/
+    # silhouette-hard-surface-parts.mdの義務項目)。丸い体表面に唯一の
+    # 角のある面を作る
+    mask = C.cylinder("menkaburikozo_mask", (0.0, -0.235, 0.118), 0.105, 0.058,
+                      segments=22, axis="Y", bevel=0.014)
     C.assign_material(mask, mask_red)
     extras.append(mask)
-    rim = C.uv_sphere("menkaburikozo_rim", (0.0, -0.220, 0.118), 0.128,
-                      segments=20, rings=14, scale=(1.0, 0.22, 1.0))
+    rim = C.cylinder("menkaburikozo_rim", (0.0, -0.222, 0.118), 0.118, 0.030,
+                     segments=22, axis="Y", bevel=0.008)
     C.assign_material(rim, mask_gold)
     extras.append(rim)
     for side in (-1.0, 1.0):
