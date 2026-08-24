@@ -4748,6 +4748,16 @@ def build_yumemayoinokage():
                                                 roughness=0.6))
         extras.append(frag)
 
+    # 化けているタルの箍(たが)の欠片。正体を見破られた後も残る
+    # (plan/models/sheet-yumemayoinokage.md、plan/models/archive/
+    # silhouette-hard-surface-parts.mdの義務項目)。丸い体表面に唯一の
+    # 角のある面を作る、面取りした円柱
+    hoop_mat = C.make_material("yumemayoi_hoop", (0.44, 0.34, 0.22), roughness=0.7)
+    hoop = C.cylinder("yumemayoi_hoop", (0.0, 0.0, 0.075), 0.140, 0.026,
+                      segments=24, bevel=0.008)
+    C.assign_material(hoop, hoop_mat)
+    extras.append(hoop)
+
     mesh = C.join([body] + extras, "yumemayoinokage")
     armature = C.build_armature("yumemayoinokage", YUMEMAYOINOKAGE_JOINTS, YUMEMAYOINOKAGE_BONES,
                                 mesh, root="root")
