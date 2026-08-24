@@ -8335,6 +8335,16 @@ def build_moyautsubo():
         C.assign_material(mist, mist_mat)
         extras.append(mist)
 
+    # 背に連なる、面取りした小さな鰭状の棘(plan/models/
+    # sheet-moyautsubo.md、plan/models/archive/
+    # silhouette-hard-surface-parts.mdの義務項目)。丸い体表面に唯一の
+    # 角のある面を作る
+    fin_mat = C.make_material("moya_fin", (0.20, 0.30, 0.30), roughness=0.5)
+    for i, (y, z) in enumerate([(-0.10, 0.252), (0.0, 0.246), (0.10, 0.234)]):
+        fin = C.box(f"moya_fin{i}", (0.0, y, z), (0.008, 0.030, 0.020), bevel=0.005)
+        C.assign_material(fin, fin_mat)
+        extras.append(fin)
+
     mesh = C.join([body] + extras, "moyautsubo")
     armature = C.build_armature("moyautsubo", joints, bones, mesh, root="chest")
     return [mesh, armature], armature
