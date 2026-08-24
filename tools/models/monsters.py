@@ -4347,6 +4347,17 @@ def build_wataamenoobake():
         C.assign_material(sparkle, sparkle_mat)
         extras.append(sparkle)
 
+    # 刺さったままの割り箸(菓子の芯棒)。わたあめが割り箸に巻かれた
+    # まま夢になった、という見立て(plan/models/
+    # sheet-wataamenoobake.md、plan/models/archive/
+    # silhouette-hard-surface-parts.mdの義務項目)。丸い体表面に唯一の
+    # 角のある面を作る、面取りした細い円柱
+    stick_mat = C.make_material("wataame_stick", (0.80, 0.74, 0.58), roughness=0.7)
+    stick = C.cylinder("wataame_stick", (0.0, 0.0, -0.045), 0.010, 0.170,
+                       segments=10, bevel=0.003)
+    C.assign_material(stick, stick_mat)
+    extras.append(stick)
+
     mesh = C.join([body] + extras, "wataamenoobake")
     armature = C.build_armature("wataamenoobake", C.mirrored(WATAAMENOOBAKE_JOINTS),
                                 WATAAMENOOBAKE_BONES, mesh, root="base")
