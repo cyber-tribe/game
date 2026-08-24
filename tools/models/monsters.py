@@ -4960,6 +4960,16 @@ def build_fuchiNoNushi():
         C.assign_material(tear, tear_mat)
         extras.append(tear)
 
+    # 淵の底に沈んだまま離れない、角のある大きな重石(plan/models/
+    # sheet-fuchiNoNushi.md、plan/models/archive/
+    # silhouette-hard-surface-parts.mdの義務項目)。丸い体表面に唯一の
+    # 角のある面を作る、正二十面体そのままの結晶を背に半分めり込ませる
+    weight_mat = C.make_material("fuchi_weight", (0.20, 0.22, 0.26), roughness=0.85)
+    weight = C.gem("fuchi_weight", (0.0, 0.115, 0.360), 0.098, subdivisions=1,
+                   scale=(1.1, 0.9, 1.0))
+    C.assign_material(weight, weight_mat)
+    extras.append(weight)
+
     mesh = C.join([body] + extras, "fuchiNoNushi")
     armature = C.build_armature("fuchiNoNushi", joints, bones, mesh, root="hip")
     return [mesh, armature], armature
