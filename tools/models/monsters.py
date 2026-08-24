@@ -5898,6 +5898,20 @@ def build_namidaguma():
     C.assign_material(mouth, C.make_material("namidaguma_mouth_m", (0.08, 0.06, 0.10), roughness=0.4))
     extras.append(mouth)
 
+    # うるみぐまが抱えていた古い石(plan/models/sheet-urumiguma.md)が、
+    # こらえきれずに割れて欠片になった姿(plan/models/
+    # sheet-namidaguma.md、plan/models/archive/
+    # silhouette-hard-surface-parts.mdの義務項目)。common.gemを砕けた
+    # 複数の欠片として胸元に散らす
+    shard_mat = C.make_material("namidaguma_shard", (0.42, 0.42, 0.44), roughness=0.8)
+    for i, (x, y, z, size) in enumerate([
+        (0.0, -0.075, 0.135, 0.052), (0.055, -0.055, 0.098, 0.032),
+        (-0.050, -0.060, 0.100, 0.030),
+    ]):
+        shard = C.gem(f"namidaguma_shard{i}", (x, y, z), size, subdivisions=1)
+        C.assign_material(shard, shard_mat)
+        extras.append(shard)
+
     mesh = C.join([body] + extras, "namidaguma")
     armature = C.build_armature("namidaguma", joints, bones, mesh, root="chest")
     return [mesh, armature], armature
