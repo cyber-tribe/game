@@ -5608,7 +5608,15 @@ def build_mizukagami():
 
     C.assign_materials_by_region(mirror, [ripple_light, ripple_dark], classify_ripple)
 
-    extras = [mirror]
+    # 壺の口を縁取る硬い口輪(plan/models/sheet-mizukagami.md、
+    # plan/models/archive/silhouette-hard-surface-parts.mdの義務項目)。
+    # 丸い壺の輪郭に唯一の角のある面を作る、面取りした円柱
+    rim_mat = C.make_material("mizukagami_rim", (0.16, 0.19, 0.28), roughness=0.6)
+    rim = C.cylinder("mizukagami_rim", (0.0, 0.0, 0.288), 0.168, 0.028,
+                     segments=28, bevel=0.009)
+    C.assign_material(rim, rim_mat)
+
+    extras = [mirror, rim]
     for side in (-1.0, 1.0):
         # 息をひそめて縁からのぞく、目立たない目
         eye = C.uv_sphere(f"mizukagami_eye{side}", (0.062 * side, -0.150, 0.175), 0.026,
