@@ -4146,9 +4146,12 @@ def build_chouchinokuri():
 
     extras = []
     gold = C.make_material("chouchinokuri_gold", (0.70, 0.56, 0.28), roughness=0.35, metallic=0.3)
-    for cz in (0.075, 0.300):
-        ring = C.uv_sphere(f"chouchinokuri_ring{cz}", (0.0, 0.0, cz), 0.070,
-                           segments=18, rings=8, scale=(1.0, 1.0, 0.35))
+    # 提灯の上下を締める、面取りした竹の口輪(plan/models/sheet-chouchinokuri.md、
+    # plan/models/archive/silhouette-hard-surface-parts.mdの義務項目)。
+    # 丸い体表面に唯一の角のある面を作る、面取りした円柱
+    for cz, radius in ((0.075, 0.125), (0.300, 0.105)):
+        ring = C.cylinder(f"chouchinokuri_ring{cz}", (0.0, 0.0, cz), radius, 0.038,
+                          segments=20, bevel=0.010)
         C.assign_material(ring, gold)
         extras.append(ring)
     ember = C.uv_sphere("chouchinokuri_ember", (0.0, 0.0, 0.185), 0.080,
