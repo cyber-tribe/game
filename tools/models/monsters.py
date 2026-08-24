@@ -4053,6 +4053,14 @@ def build_kageboushi():
         C.assign_material(bite, shadow)
         extras.append(bite)
 
+    # まだ繋がれたままの操り棒(plan/models/sheet-kageboushi.md、
+    # plan/models/archive/silhouette-hard-surface-parts.mdの義務項目)。
+    # 頭から真上に伸びる、面取りした細い硬い円柱
+    rod_mat = C.make_material("kageboushi_rod", (0.10, 0.09, 0.10), roughness=0.5)
+    rod = C.cylinder("kageboushi_rod", (0.0, -0.205, 0.235), 0.010, 0.220, segments=10, bevel=0.004)
+    C.assign_material(rod, rod_mat)
+    extras.append(rod)
+
     mesh = C.join([body] + extras, "kageboushi")
     armature = C.build_armature("kageboushi", joints, bones, mesh, root="chest")
     return [mesh, armature], armature
