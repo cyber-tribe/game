@@ -5402,6 +5402,17 @@ def build_nadakaze():
     C.assign_material(mouth, C.make_material("nadakaze_mouth_m", (0.16, 0.20, 0.28), roughness=0.4))
     extras.append(mouth)
 
+    # 風を切る、面取りした扇状の翼端(plan/models/sheet-nadakaze.md、
+    # plan/models/archive/silhouette-hard-surface-parts.mdの義務項目)。
+    # 丸い体表面に唯一の角のある面を作る、面取りした薄い箱
+    fin_mat = C.make_material("nadakaze_fin", (0.30, 0.36, 0.44), roughness=0.4)
+    for side in (-1.0, 1.0):
+        fin = C.box(f"nadakaze_fin{side}", (0.192 * side, -0.160, 0.058),
+                    (0.026, 0.007, 0.052), bevel=0.006)
+        fin.rotation_euler = (0.0, 0.0, math.radians(-20.0 * side))
+        C.assign_material(fin, fin_mat)
+        extras.append(fin)
+
     mesh = C.join([body] + extras, "nadakaze")
     armature = C.build_armature("nadakaze", joints, bones, mesh, root="chest")
     return [mesh, armature], armature
