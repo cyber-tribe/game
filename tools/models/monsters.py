@@ -9608,6 +9608,22 @@ def build_yoseatsume():
     C.assign_material(teeth, C.make_material("yose_teeth_m", (0.95, 0.93, 0.84), roughness=0.35))
     extras.append(teeth)
 
+    # 各地方の硬い部品の欠片を1つずつ寄せ集めて体表にまとわせる
+    # (plan/models/sheet-yoseatsume.md、plan/models/archive/
+    # silhouette-hard-surface-parts.mdの義務項目)。統一感のない硬い
+    # 欠片の寄せ集めとして、common.gem・C.box・C.cylinderを1つずつ散らす
+    gem_shard = C.gem("yose_gem", (0.038, 0.050, 0.222), 0.024, subdivisions=1)
+    C.assign_material(gem_shard, C.make_material("yose_gem_m", (0.45, 0.44, 0.42), roughness=0.9))
+    extras.append(gem_shard)
+    box_shard = C.box("yose_box", (-0.040, 0.010, 0.218), (0.018, 0.014, 0.012), bevel=0.004)
+    C.assign_material(box_shard, C.make_material("yose_box_m", (0.82, 0.80, 0.70), roughness=0.75))
+    extras.append(box_shard)
+    ring_shard = C.cylinder("yose_ring", (0.0, -0.010, 0.228), 0.024, 0.012,
+                            segments=16, axis="Y", bevel=0.003)
+    C.assign_material(ring_shard, C.make_material("yose_ring_m", (0.70, 0.56, 0.28),
+                                                  roughness=0.4, metallic=0.2))
+    extras.append(ring_shard)
+
     mesh = C.join([body] + extras, "yoseatsume")
     armature = C.build_armature("yoseatsume", joints, bones, mesh, root="chest")
     return [mesh, armature], armature
