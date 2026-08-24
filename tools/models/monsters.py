@@ -5748,6 +5748,16 @@ def build_nakimushi():
     C.assign_material(mouth, C.make_material("nakimushi_mouth_m", (0.10, 0.08, 0.14), roughness=0.5))
     extras.append(mouth)
 
+    # 頬に固まってこびりついた、角のある小さな涙の結晶(plan/models/
+    # sheet-nakimushi.md、plan/models/archive/
+    # silhouette-hard-surface-parts.mdの義務項目)。丸い体表面に唯一の
+    # 角のある面を作る、正二十面体そのままの結晶
+    crystal_mat = C.make_material("nakimushi_crystal", (0.70, 0.82, 0.92), roughness=0.25,
+                                  emission=0.2)
+    crystal = C.gem("nakimushi_crystal", (0.062, -0.128, 0.062), 0.020, subdivisions=1)
+    C.assign_material(crystal, crystal_mat)
+    extras.append(crystal)
+
     mesh = C.join([body] + extras, "nakimushi")
     armature = C.build_armature("nakimushi", joints, bones, mesh, root="chest")
     return [mesh, armature], armature
