@@ -6710,6 +6710,25 @@ def build_subetenopurun():
     C.assign_material(mouth, C.make_material("subete_mouth_m", (0.10, 0.10, 0.14), roughness=0.3))
     extras.append(mouth)
 
+    # ぷるんの結晶の芯(plan/models/sheet-purun.md)を、全地方の色を
+    # 帯びた多面体に拡大したもの(plan/models/sheet-subetenopurun.md、
+    # plan/models/archive/silhouette-hard-surface-parts.mdの義務項目)。
+    # common.gemを一回り大きく、6地方の色で塗り分ける
+    gem_mats = [
+        C.make_material("subete_gem1", (0.72, 0.62, 0.48), roughness=0.2, emission=0.12),
+        C.make_material("subete_gem2", (0.40, 0.52, 0.54), roughness=0.2, emission=0.12),
+        C.make_material("subete_gem3", (0.46, 0.30, 0.24), roughness=0.2, emission=0.12),
+        C.make_material("subete_gem4", (0.74, 0.70, 0.62), roughness=0.2, emission=0.12),
+        C.make_material("subete_gem5", (0.22, 0.26, 0.42), roughness=0.2, emission=0.12),
+        C.make_material("subete_gem6", (0.58, 0.48, 0.34), roughness=0.2, emission=0.12),
+    ]
+    gem = C.gem("subete_gem", (0.0, 0.185, 0.360), 0.078, subdivisions=1)
+    C.assign_materials_by_region(
+        gem, gem_mats,
+        lambda c: min(5, int((math.degrees(math.atan2(c.z, c.x)) % 360.0) / 60.0)),
+    )
+    extras.append(gem)
+
     mesh = C.join([body] + extras, "subetenopurun")
     armature = C.build_armature("subetenopurun", C.mirrored(SUBETENOPURUN_JOINTS),
                                 SUBETENOPURUN_BONES, mesh, root="base")
