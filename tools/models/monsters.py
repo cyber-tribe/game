@@ -6195,6 +6195,16 @@ def build_nushigaeru():
         C.assign_material(wart, wart_mat)
         extras.append(wart)
 
+    # 抱えた、角のある巨大なつぶて岩(plan/models/sheet-nushigaeru.md、
+    # plan/models/archive/silhouette-hard-surface-parts.mdの義務項目)。
+    # tsubuteの石つぶてが地方ボス級に育った姿という位置づけで、
+    # common.gemをツブテガエルより一回り大きくする
+    stone = C.gem("nushigaeru_stone", (0.216, -0.27, 0.027), 0.062, subdivisions=1,
+                  scale=(1.0, 0.9, 0.85))
+    C.assign_material(stone, C.make_material("nushigaeru_stone_m", (0.45, 0.44, 0.42),
+                                             roughness=0.9))
+    extras.append(stone)
+
     mesh = C.join([body] + extras, "nushigaeru")
     armature = C.build_armature("nushigaeru", joints, bones, mesh, root="chest")
     return [mesh, armature], armature
