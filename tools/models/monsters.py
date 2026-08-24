@@ -7797,13 +7797,16 @@ def build_matsurinonushi():
     extras = []
     # 胸に据えた御守りの結び目。状態異常を退ける由来にちなみ、控えめに
     # 金色へ発光させる(目立たない配色を崩さない程度に留める)
+    # お守りは面取りした小さな硬い板にする(plan/models/
+    # sheet-matsurinonushi.md、plan/models/archive/
+    # silhouette-hard-surface-parts.mdの義務項目)。丸い体表面に唯一の
+    # 角のある面を作る
     charm_mat = C.make_material("matsurinonushi_charm", (0.60, 0.49, 0.26), roughness=0.35, emission=0.5)
-    charm = C.uv_sphere("matsurinonushi_charm", (0.0, -0.095, 0.148), 0.036,
-                        segments=16, rings=12, scale=(1.0, 0.42, 1.15))
+    charm = C.box("matsurinonushi_charm", (0.0, -0.205, 0.148), (0.030, 0.014, 0.038), bevel=0.006)
     C.assign_material(charm, charm_mat)
     extras.append(charm)
     knot_mat = C.make_material("matsurinonushi_knot", (0.16, 0.10, 0.08), roughness=0.6)
-    knot = C.uv_sphere("matsurinonushi_knot", (0.0, -0.108, 0.148), 0.015,
+    knot = C.uv_sphere("matsurinonushi_knot", (0.0, -0.218, 0.148), 0.015,
                        segments=12, rings=8)
     C.assign_material(knot, knot_mat)
     extras.append(knot)
