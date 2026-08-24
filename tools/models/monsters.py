@@ -2236,6 +2236,14 @@ def build_kodamagumo():
     C.assign_material(mouth, C.make_material("kodamagumo_mouth_m", (0.28, 0.20, 0.15), roughness=0.3))
     extras.append(mouth)
 
+    # 響きに寄り集まった岩の証として、雲状の膨らみを突き破って覗く
+    # 角のある岩の欠片(plan/models/sheet-kodamagumo.md、
+    # plan/models/archive/silhouette-hard-surface-parts.mdの義務項目)。
+    # common.gem(正二十面体)そのままで硬い面を作る
+    shard = C.gem("kodamagumo_shard", (0.02, 0.06, 0.288), 0.044, subdivisions=1)
+    C.assign_material(shard, rock)
+    extras.append(shard)
+
     mesh = C.join([body] + extras, "kodamagumo")
     armature = C.build_armature("kodamagumo", C.mirrored(KODAMAGUMO_JOINTS),
                                 KODAMAGUMO_BONES, mesh, root="base")
