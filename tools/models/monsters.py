@@ -78,7 +78,7 @@ def build_purun():
     C.assign_material(mouth, C.make_material("purun_mouth_m", (0.10, 0.22, 0.34), roughness=0.3))
     extras.append(mouth)
 
-    # まどろみの残り香が固まった芯(plan/models/sheets/purun.md、
+    # まどろみの残り香が固まった芯(plan/models/sheet-purun.md、
     # plan/models/archive/silhouette-hard-surface-parts.mdの義務項目)。
     # 丸い体表面に唯一の角のある面を作る、正二十面体そのままの結晶。
     # 背中側(+Y)の上寄りに半分めり込ませて生やす
@@ -6365,7 +6365,7 @@ def build_oonebosuke():
     C.assign_material(cap, skin)
     extras.append(cap)
 
-    # 頭を預けたまま二度と離れない石の枕(plan/models/sheets/oonebosuke.md、
+    # 頭を預けたまま二度と離れない石の枕(plan/models/sheet-oonebosuke.md、
     # plan/models/archive/silhouette-hard-surface-parts.mdの義務項目)。
     # 丸い体表面に唯一の角のある面を作る、面取りした石の直方体
     pillow_mat = C.make_material("oonebosuke_pillow", (0.40, 0.38, 0.36), roughness=0.9)
