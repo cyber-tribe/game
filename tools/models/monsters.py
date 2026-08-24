@@ -3932,6 +3932,15 @@ def build_kazaridaruma():
         C.assign_material(eye, ink)
         extras.append(eye)
 
+    # 飾られていた台座(plan/models/sheet-kazaridaruma.md、
+    # plan/models/archive/silhouette-hard-surface-parts.mdの義務項目)。
+    # 「飾られたまま」その場から動けないことを示す、面取りした円柱
+    pedestal_mat = C.make_material("kazaridaruma_pedestal", (0.36, 0.26, 0.16), roughness=0.7)
+    pedestal = C.cylinder("kazaridaruma_pedestal", (0.0, 0.0, 0.006), 0.235, 0.030,
+                          segments=28, bevel=0.010)
+    C.assign_material(pedestal, pedestal_mat)
+    extras.append(pedestal)
+
     mesh = C.join([body] + extras, "kazaridaruma")
     armature = C.build_armature("kazaridaruma", joints, bones, mesh, root="hip")
     return [mesh, armature], armature
