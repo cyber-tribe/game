@@ -3069,6 +3069,14 @@ def build_nedayamabiko():
     C.assign_material(jaw, shell_mat)
     extras.append(jaw)
 
+    # 根を張ったまま動かない証として、甲羅を突き破って覗く角のある岩
+    # (plan/models/sheet-nedayamabiko.md、plan/models/archive/
+    # silhouette-hard-surface-parts.mdの義務項目)。common.gem
+    # (正二十面体)そのままで硬い面を作る
+    shard = C.gem("nedayamabiko_shard", (0.0, 0.300, 0.420), 0.062, subdivisions=1)
+    C.assign_material(shard, shell_mat)
+    extras.append(shard)
+
     mesh = C.join([body] + extras, "nedayamabiko")
     armature = C.build_armature("nedayamabiko", joints, bones, mesh, root="hip")
     return [mesh, armature], armature
