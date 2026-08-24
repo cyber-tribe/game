@@ -7357,6 +7357,16 @@ def build_horoholocho():
         C.assign_material(wing, wing_mat)
         extras.append(wing)
 
+    # 翅の先に付いた、面取りした小さな胞子の結晶(plan/models/
+    # sheet-horoholocho.md、plan/models/archive/
+    # silhouette-hard-surface-parts.mdの義務項目)。丸い翅に唯一の
+    # 角のある面を作る、正二十面体そのままの結晶
+    gem_mat = C.make_material("horoholocho_gem", (0.86, 0.76, 0.42), roughness=0.3, emission=0.2)
+    for side in (-1.0, 1.0):
+        gem = C.gem(f"horoholocho_gem{side}", (0.168 * side, 0.070, 0.078), 0.026, subdivisions=1)
+        C.assign_material(gem, gem_mat)
+        extras.append(gem)
+
     mesh = C.join([body] + extras, "horoholocho")
     armature = C.build_armature("horoholocho", C.mirrored(HOROHOLOCHO_JOINTS),
                                 HOROHOLOCHO_BONES, mesh, root="base")
