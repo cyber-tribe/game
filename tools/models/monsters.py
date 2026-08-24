@@ -5528,6 +5528,16 @@ def build_shioresakura():
     C.assign_material(mouth, C.make_material("shiore_mouth_m", (0.20, 0.22, 0.32), roughness=0.3))
     extras.append(mouth)
 
+    # 花の根元を支える、面取りした木質の萼(plan/models/
+    # sheet-shioresakura.md、plan/models/archive/
+    # silhouette-hard-surface-parts.mdの義務項目)。丸い体表面に唯一の
+    # 角のある面を作る、面取りした円柱
+    calyx_mat = C.make_material("shiore_calyx", (0.20, 0.24, 0.20), roughness=0.75)
+    calyx = C.cylinder("shiore_calyx", (0.0, 0.0, 0.196), 0.225, 0.038,
+                       segments=24, bevel=0.011)
+    C.assign_material(calyx, calyx_mat)
+    extras.append(calyx)
+
     mesh = C.join([body] + extras, "shioresakura")
     armature = C.build_armature("shioresakura", C.mirrored(SHIORESAKURA_JOINTS),
                                 SHIORESAKURA_BONES, mesh, root="base")
