@@ -2405,6 +2405,15 @@ def build_nebosukegaeru():
     C.assign_material(mouth, C.make_material("nebosuke_mouth_m", (0.18, 0.24, 0.14), roughness=0.5))
     extras.append(mouth)
 
+    # 定位置に居座り続けた証として、背に苔むした硬いこぶ
+    # (plan/models/sheet-nebosukegaeru.md、plan/models/archive/
+    # silhouette-hard-surface-parts.mdの義務項目)。丸い体表面に唯一の
+    # 角のある面を作る、面取りした箱
+    moss_mat = C.make_material("nebosuke_moss", (0.30, 0.38, 0.20), roughness=0.85)
+    moss = C.box("nebosuke_moss", (0.0, 0.030, 0.320), (0.052, 0.046, 0.034), bevel=0.010)
+    C.assign_material(moss, moss_mat)
+    extras.append(moss)
+
     mesh = C.join([body] + extras, "nebosukegaeru")
     armature = C.build_armature("nebosukegaeru", joints, bones, mesh, root="chest")
     return [mesh, armature], armature
