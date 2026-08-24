@@ -1960,9 +1960,11 @@ def build_houshitobi():
                           look=(0.2 * side, -1.0, 0.0), squash=0.45,
                           white=(0.92, 0.90, 0.82), dark=(0.10, 0.08, 0.06))
 
-    # 噴出口の先端。胞子を飛ばす開口部を暗い小さな穴として表現する
-    nozzle = C.uv_sphere("houshi_nozzle", (0.0, -0.336, 0.448), 0.028,
-                         segments=12, rings=8, scale=(0.85, 0.6, 0.85))
+    # 噴出口の先端(plan/models/sheet-houshitobi.md、plan/models/archive/
+    # silhouette-hard-surface-parts.mdの義務項目)。胞子を飛ばす開口部を
+    # 面取りした硬い円柱で表す(丸い傘の表面に唯一の角のある面を作る)
+    nozzle = C.cylinder("houshi_nozzle", (0.0, -0.336, 0.448), 0.026, 0.052,
+                        segments=14, axis="Y", bevel=0.007)
     C.assign_material(nozzle, C.make_material("houshi_nozzle_m", (0.14, 0.10, 0.08), roughness=0.4))
     extras.append(nozzle)
 
