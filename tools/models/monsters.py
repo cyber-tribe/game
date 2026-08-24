@@ -1769,6 +1769,15 @@ def build_kinokootoko():
     C.assign_material(mouth, C.make_material("kinoko_mouth_m", (0.20, 0.11, 0.08), roughness=0.5))
     extras.append(mouth)
 
+    # 胴に食い込む、成長の証である硬い樹皮質のパッチ(plan/models/
+    # sheet-kinokootoko.md、plan/models/archive/
+    # silhouette-hard-surface-parts.mdの義務項目)。丸い胴の表面に唯一の
+    # 角のある面を作る、面取りした箱
+    bark_mat = C.make_material("kinoko_bark", (0.28, 0.19, 0.12), roughness=0.85)
+    bark = C.box("kinoko_bark", (0.0, -0.128, 0.480), (0.052, 0.022, 0.070), bevel=0.010)
+    C.assign_material(bark, bark_mat)
+    extras.append(bark)
+
     # 傘の斑点。madoromiと同じく、傘の断面に沿った高さに置かないと
     # 浮いたり埋まったりする(kinoko_cap_surface_zで補正)
     spot_mat = C.make_material("kinoko_spot", (0.94, 0.90, 0.76), roughness=0.6)
