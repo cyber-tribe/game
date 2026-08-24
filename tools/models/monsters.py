@@ -699,6 +699,15 @@ def build_madoromi():
         C.assign_material(spot, spot_mat)
         extras.append(spot)
 
+    # 軸の根元に食い込む、面取りした木質の輪(plan/models/sheet-madoromi.md、
+    # plan/models/archive/silhouette-hard-surface-parts.mdの義務項目)。
+    # 「根を張った眠気」を、地に食い込む硬いつばで表す
+    collar_mat = C.make_material("madoromi_collar", (0.52, 0.40, 0.26), roughness=0.75)
+    collar = C.cylinder("madoromi_collar", (0.0, 0.0, 0.062), 0.128, 0.030,
+                        segments=24, bevel=0.008)
+    C.assign_material(collar, collar_mat)
+    extras.append(collar)
+
     mesh = C.join([body] + extras, "madoromi")
     armature = C.build_armature("madoromi", MADOROMI_JOINTS, MADOROMI_BONES, mesh, root="root")
     return [mesh, armature], armature
