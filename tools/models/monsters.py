@@ -9475,15 +9475,18 @@ def build_yumemirupurun():
     C.assign_material(mouth, C.make_material("yumemiru_mouth_m", (0.20, 0.12, 0.18), roughness=0.3))
     extras.append(mouth)
 
-    # 頭上に漂う、ほのかに発光する夢の粒。マドロミダケの胞子とは違い、
-    # 体表からは離れた高さにふわりと浮かせて「眠気そのもの」を示す
+    # 体の周りに浮く、角のある小さな胞子の結晶(plan/models/
+    # sheet-yumemirupurun.md、plan/models/archive/
+    # silhouette-hard-surface-parts.mdの義務項目)。ぷるんの結晶
+    # (common.gem)にマドロミダケの胞子が混ざった姿という位置づけで、
+    # common.gemそのままで硬い面を作る
     mote_mat = C.make_material("yumemiru_mote", (0.86, 0.80, 0.94), roughness=0.5, emission=1.3)
     for i, (mx, my, mz, mr) in enumerate([
         (0.095, -0.055, 0.415, 0.026),
         (-0.075, 0.050, 0.452, 0.020),
         (0.018, 0.100, 0.486, 0.016),
     ]):
-        mote = C.uv_sphere(f"yumemiru_mote{i}", (mx, my, mz), mr, segments=10, rings=8)
+        mote = C.gem(f"yumemiru_mote{i}", (mx, my, mz), mr, subdivisions=1)
         C.assign_material(mote, mote_mat)
         extras.append(mote)
 
