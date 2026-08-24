@@ -3459,6 +3459,17 @@ def build_kodamaNoNushi():
         C.assign_material(puff, puff_mat)
         extras.append(puff)
 
+    # 無数の岩が寄り集まった証として、雲状の膨らみを突き破って覗く
+    # 角のある岩の欠片(plan/models/sheet-kodamaNoNushi.md、
+    # plan/models/archive/silhouette-hard-surface-parts.mdの義務項目)。
+    # common.gem(正二十面体)そのままで硬い面を作る
+    for i, (px, py, pz, size) in enumerate([
+        (0.0, 0.18, 0.640, 0.062), (0.145, 0.16, 0.520, 0.048), (-0.145, 0.16, 0.520, 0.048),
+    ]):
+        shard = C.gem(f"kodamanonushi_shard{i}", (px, py, pz), size, subdivisions=1)
+        C.assign_material(shard, rock)
+        extras.append(shard)
+
     mesh = C.join([body] + extras, "kodamaNoNushi")
     armature = C.build_armature("kodamaNoNushi", joints, bones, mesh, root="chest")
     return [mesh, armature], armature
