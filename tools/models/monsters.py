@@ -574,9 +574,12 @@ def build_tsubute():
     C.assign_material(mouth, C.make_material("tsubute_mouth_m", (0.22, 0.30, 0.16), roughness=0.5))
     extras.append(mouth)
 
-    # 投げつける小石を手に持たせる
-    stone = C.uv_sphere("tsubute_stone", (0.180, -0.225, 0.055), 0.042,
-                        segments=10, rings=7, scale=(1.0, 0.9, 0.85))
+    # 投げつける小石を手に持たせる。角のある石つぶて
+    # (plan/models/sheet-tsubute.md、plan/models/archive/
+    # silhouette-hard-surface-parts.mdの義務項目)。common.gem
+    # (正二十面体)そのままで硬い面を作る
+    stone = C.gem("tsubute_stone", (0.180, -0.225, 0.055), 0.044, subdivisions=1,
+                  scale=(1.0, 0.9, 0.85))
     C.assign_material(stone, C.make_material("tsubute_stone_m", (0.45, 0.44, 0.42), roughness=0.9))
     extras.append(stone)
 
