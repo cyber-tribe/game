@@ -6432,6 +6432,17 @@ def build_oomadoromi():
         C.assign_material(spot, spot_mat)
         extras.append(spot)
 
+    # マドロミダケの木質のつばを、ボス格にふさわしい太く節くれ立った
+    # 意匠に拡大した根(plan/models/sheet-oomadoromi.md、
+    # plan/models/archive/silhouette-hard-surface-parts.mdの義務項目)。
+    # 面取りした円柱を複数段重ねる
+    root_mat = C.make_material("oomadoromi_root", (0.44, 0.34, 0.22), roughness=0.8)
+    for i, (rz, radius, depth) in enumerate([(0.045, 0.185, 0.045), (0.088, 0.155, 0.038)]):
+        collar = C.cylinder(f"oomadoromi_root{i}", (0.0, 0.0, rz), radius, depth,
+                            segments=26, bevel=0.012)
+        C.assign_material(collar, root_mat)
+        extras.append(collar)
+
     mesh = C.join([body] + extras, "oomadoromi")
     armature = C.build_armature("oomadoromi", OOMADOROMI_JOINTS, OOMADOROMI_BONES, mesh, root="root")
     return [mesh, armature], armature
