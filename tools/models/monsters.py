@@ -5283,6 +5283,16 @@ def build_urumiguma():
     C.assign_material(snout, C.make_material("urumi_snout_m", (0.30, 0.34, 0.48), roughness=0.75))
     extras.append(snout)
 
+    # 抱え込むように丸めた前足の中の、角のある古い石(plan/models/
+    # sheet-urumiguma.md、plan/models/archive/
+    # silhouette-hard-surface-parts.mdの義務項目)。ふさぎ込んで
+    # 動かない理由を物として持たせる、common.gemの結晶
+    stone_mat = C.make_material("urumi_stone", (0.42, 0.42, 0.44), roughness=0.8)
+    stone = C.gem("urumi_stone", (0.0, -0.045, 0.145), 0.068, subdivisions=1,
+                  scale=(1.1, 1.0, 0.9))
+    C.assign_material(stone, stone_mat)
+    extras.append(stone)
+
     mesh = C.join([body] + extras, "urumiguma")
     armature = C.build_armature("urumiguma", joints, bones, mesh, root="hip")
     return [mesh, armature], armature
