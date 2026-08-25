@@ -3520,6 +3520,9 @@ def build_kodamaNoNushi():
         extras.append(shard)
 
     mesh = C.join([body] + extras, "kodamaNoNushi")
+    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開(地方ボス)
+    # (plan/models/archive/texture-rollout-unblock.md)
+    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("kodamaNoNushi", joints, bones, mesh, root="chest")
     return [mesh, armature], armature
 
@@ -4642,6 +4645,9 @@ def build_misemonoNoNushi():
     extras.append(chestplate)
 
     mesh = C.join([body] + extras, "misemonoNoNushi")
+    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開(地方ボス)
+    # (plan/models/archive/texture-rollout-unblock.md)
+    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("misemonoNoNushi", joints, bones, mesh, root="hip")
     return [mesh, armature], armature
 
@@ -5087,6 +5093,9 @@ def build_fuchiNoNushi():
     extras.append(weight)
 
     mesh = C.join([body] + extras, "fuchiNoNushi")
+    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開(地方ボス)
+    # (plan/models/archive/texture-rollout-unblock.md)
+    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("fuchiNoNushi", joints, bones, mesh, root="hip")
     return [mesh, armature], armature
 
@@ -6273,6 +6282,9 @@ def build_nushigaeru():
     extras.append(stone)
 
     mesh = C.join([body] + extras, "nushigaeru")
+    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開(地方ボス)
+    # (plan/models/archive/texture-rollout-unblock.md)
+    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("nushigaeru", joints, bones, mesh, root="chest")
     return [mesh, armature], armature
 
@@ -6511,6 +6523,9 @@ def build_oomadoromi():
         extras.append(collar)
 
     mesh = C.join([body] + extras, "oomadoromi")
+    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開(地方ボス)
+    # (plan/models/archive/texture-rollout-unblock.md)
+    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("oomadoromi", OOMADOROMI_JOINTS, OOMADOROMI_BONES, mesh, root="root")
     return [mesh, armature], armature
 
@@ -6639,6 +6654,9 @@ def build_oonebosuke():
     extras.append(pillow)
 
     mesh = C.join([body] + extras, "oonebosuke")
+    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開(地方ボス)
+    # (plan/models/archive/texture-rollout-unblock.md)
+    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("oonebosuke", C.mirrored(OONEBOSUKE_JOINTS), OONEBOSUKE_BONES,
                                 mesh, root="base")
     return [mesh, armature], armature
@@ -7308,6 +7326,9 @@ def build_honezukaNoNushi():
         extras.append(shard)
 
     mesh = C.join([body] + extras, "honezukaNoNushi")
+    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開(地方ボス)
+    # (plan/models/archive/texture-rollout-unblock.md)
+    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("honezukaNoNushi", joints, bones, mesh, root="hip")
     return [mesh, armature], armature
 
@@ -7488,6 +7509,9 @@ def build_horikuiNoNushi():
         extras.append(spike)
 
     mesh = C.join([body] + extras, "horikuiNoNushi")
+    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開(地方ボス)
+    # (plan/models/archive/texture-rollout-unblock.md)
+    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("horikuiNoNushi", joints, bones, mesh, root="hip")
     return [mesh, armature], armature
 
