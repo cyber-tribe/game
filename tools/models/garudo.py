@@ -134,16 +134,20 @@ def build() -> tuple[list, object]:
     eyes = []
     extras = []
     for side in (-1.0, 1.0):
+        # plan/models/archive/eye-socket-fix.md: 白目の表面が頭部の表面から
+        # 突き出さないよう(頭部半径0.150の5%以内)、奥行き(Y)方向のscaleを
+        # 浅くし、footprint(横幅X・高さZ)のscaleを広げて「大きな目」の
+        # 印象を維持する。中心オフセットも心持ち頭の中心へ寄せた
         white = C.uv_sphere(
-            f"eyewhite{side}", head + Vector((0.056 * side, -0.116, 0.004)), 0.044,
-            segments=16, rings=12, scale=(1.0, 0.70, 1.10),
+            f"eyewhite{side}", head + Vector((0.056 * side, -0.100, 0.004)), 0.044,
+            segments=16, rings=12, scale=(1.25, 0.45, 1.35),
         )
         C.assign_material(white, eye_white)
         white["blink"] = "white"
-        pupil_center = head + Vector((0.060 * side, -0.140, 0.002))
+        pupil_center = head + Vector((0.060 * side, -0.116, 0.002))
         pupil = C.uv_sphere(
             f"pupil{side}", pupil_center, 0.024,
-            segments=14, rings=10, scale=(1.0, 0.7, 1.0),
+            segments=14, rings=10, scale=(1.0, 0.55, 1.0),
         )
         C.assign_material(pupil, eye_mat)
         pupil["blink"] = "pupil"
