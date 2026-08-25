@@ -88,6 +88,10 @@ def build_purun():
     extras.append(gem)
 
     mesh = C.join([body] + extras, "purun")
+    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開の第一弾
+    # (plan/models/archive/texture-rollout-unblock.md)。UVアンラップ+
+    # マテリアルごとの専用テクスチャにAO×基色を焼き込む
+    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("purun", C.mirrored(PURUN_JOINTS), PURUN_BONES, mesh, root="base")
     return [mesh, armature], armature
 
