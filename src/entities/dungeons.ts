@@ -99,6 +99,31 @@ export const REGION_SIZE = 6;
  */
 export const REGION_CHECKPOINT_FLOOR = Math.ceil(REGION_SIZE / 2);
 
+/** floorOffset・depthから、通し階数を地方1〜8の6階区切りへ機械的に割り当てる */
+function regionIndexFromFloorOffset(floorOffset: number, depth: number): number {
+  const absoluteFloor = floorOffset + depth - 1; // 0始まりの通し階数
+  const wrapped = absoluteFloor % TOTAL_REGION_FLOORS; // 夜ごとの夢のような無限ダンジョンを地方1へ周回させる
+  return Math.floor(wrapped / REGION_SIZE) + 1; // 1始まりの地方番号
+}
+
+/**
+ * dungeonId・depthから、地方タイルセット(壁・床モデル)の選択に使う地方番号
+ * (1〜8)を一律に返す(plan/models/archive/dungeon-region-detection.md)。
+ * 地方ダンジョン本体・横穴・近道屋の裏穴・夜ごとの夢・山の芯・はじめの夢・
+ * 忘れ物蔵は、いずれもfloorOffsetから機械的に求められる。ひなたの寝穴
+ * (floorOffsetを持たない独立ダンジョン)と腕試しの間(1階ごとに別の地方
+ * ボスと再戦する構成)だけは式に乗らない例外のため、ここで先に振り分ける。
+ * 描画側はダンジョンの種類ごとに分岐する必要がなく、この1関数を呼べばよい
+ */
+export function regionIndexForFloor(dungeonId: string, depth: number): number {
+  if (dungeonId === HINATA_ID) return 1;
+  if (dungeonId === TRIAL_CHAMBER_ID) {
+    const bossSpeciesId = REGION_BOSS_ORDER[depth - 1];
+    return REGIONS.find((r) => r.bossSpeciesId === bossSpeciesId)?.index ?? 1;
+  }
+  return regionIndexFromFloorOffset(dungeonById(dungeonId).floorOffset ?? 0, depth);
+}
+
 /**
  * その階がめざめの階段の階か(plan/game/no-pitfall-on-checkpoint-floors.md)。
  * 地方ダンジョンでは中間階(REGION_CHECKPOINT_FLOOR)だけ。地方の概念を
