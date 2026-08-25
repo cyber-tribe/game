@@ -204,6 +204,10 @@ def garment_classifier(joints: dict[str, Vector], *, hem: float | None = None,
 def finish(name: str, body, extras: list, joints: dict[str, Vector], bones):
     """小物を素体に統合してアーマチュアを組む。返り値は (書き出す物, アーマチュア)。"""
     mesh = C.join([body] + list(extras), name)
+    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開(村人)
+    # (plan/models/archive/texture-rollout-unblock.md)。全村人が
+    # この共通ヘルパーを通るため、ここ1箇所への追加で全員に行き渡る
+    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature(name, joints, bones, mesh, root="hip")
     return [mesh, armature], armature
 
