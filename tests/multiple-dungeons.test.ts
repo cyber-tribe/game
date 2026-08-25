@@ -3,13 +3,22 @@ import { Rng } from "../src/core/rng";
 import { generateFloor } from "../src/domain/dungeon/generate";
 import {
   DUNGEONS,
+  ECHO_NEST_ID,
+  HINATA_ID,
+  MOUNTAIN_CORE_ID,
+  MUDDY_DEPTHS_ID,
   NIGHTLY_DREAM_ID,
   REGION_DUNGEON_IDS,
   REGION_SIZE,
+  TOTAL_REGION_FLOORS,
+  TRIAL_CHAMBER_ID,
+  TRUE_AWAKENING_ID,
   dungeonById,
   isDungeonUnlocked,
+  regionIndexForDungeonId,
+  regionIndexForFloor,
 } from "../src/entities/dungeons";
-import { REGION_BOSS_ORDER } from "../src/entities/regions";
+import { REGION_BOSS_ORDER, REGIONS } from "../src/entities/regions";
 import { Game } from "../src/application/dungeonRun/game";
 import { initialSave, recordRun } from "../src/save";
 
@@ -152,5 +161,45 @@ describe("save.ts: recordRunとnightlyDreamBestDepth", () => {
     expect(save.nightlyDreamBestDepth).toBe(0);
     // 通常のdeepestは従来どおり更新される
     expect(save.deepest).toBe(8);
+  });
+});
+
+describe("entities/dungeons.ts: regionIndexForFloor(plan/models/archive/dungeon-region-detection.md)", () => {
+  it("地方ダンジョン本体は各階でregionIndexForDungeonIdと一致する", () => {
+    for (const id of REGION_DUNGEON_IDS) {
+      const expected = regionIndexForDungeonId(id);
+      for (let depth = 1; depth <= REGION_SIZE; depth++) {
+        expect(regionIndexForFloor(id, depth)).toBe(expected);
+      }
+    }
+  });
+
+  it("ぬかるみの底・こだまの巣・山の芯・はじめの夢は流用元の地方番号を返す", () => {
+    expect(regionIndexForFloor(MUDDY_DEPTHS_ID, 1)).toBe(2);
+    expect(regionIndexForFloor(ECHO_NEST_ID, 1)).toBe(6);
+    expect(regionIndexForFloor(MOUNTAIN_CORE_ID, 1)).toBe(8);
+    expect(regionIndexForFloor(TRUE_AWAKENING_ID, 1)).toBe(8);
+  });
+
+  it("近道屋の裏穴は深さに応じて地方1→2の番号へ切り替わる", () => {
+    expect(regionIndexForFloor("shortcutBackHole", 4)).toBe(1);
+    expect(regionIndexForFloor("shortcutBackHole", 5)).toBe(2);
+  });
+
+  it("夜ごとの夢は深さ48を超えたところで地方1へ周回する", () => {
+    expect(regionIndexForFloor(NIGHTLY_DREAM_ID, TOTAL_REGION_FLOORS)).toBe(8);
+    expect(regionIndexForFloor(NIGHTLY_DREAM_ID, TOTAL_REGION_FLOORS + 1)).toBe(1);
+  });
+
+  it("腕試しの間は各階でその階のボスの地方番号を返す", () => {
+    for (let depth = 1; depth <= REGION_BOSS_ORDER.length; depth++) {
+      const expected = REGIONS.find((r) => r.bossSpeciesId === REGION_BOSS_ORDER[depth - 1])?.index;
+      expect(regionIndexForFloor(TRIAL_CHAMBER_ID, depth)).toBe(expected);
+    }
+  });
+
+  it("ひなたの寝穴は常に地方1のタイルセットを使う", () => {
+    expect(regionIndexForFloor(HINATA_ID, 1)).toBe(1);
+    expect(regionIndexForFloor(HINATA_ID, 3)).toBe(1);
   });
 });
