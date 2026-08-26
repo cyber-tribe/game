@@ -41,6 +41,11 @@ playtest:
 auto-tester:
     npm run auto-tester
 
+# 判断密度のプレイテスト(plan/game/archive/decision-density-playtest.md)。
+# plan/game/decision-density-findings.md を書き出す
+decision-density:
+    npm run decision-density
+
 # ---- 3Dモデル (Blender) ----
 
 # bpy 入り venv を作る(初回のみ。Python 3.11 必須、約1GB)
