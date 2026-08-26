@@ -48,7 +48,9 @@
 ### 1. 三面図をSVGで描き、リポジトリに置く
 
 - キャラクターごとに、正面・横(必要なら背面)のターンアラウンドを
-  **SVG**で作成し、`plan/models/turnarounds/<キャラ名>.svg`に置く。
+  **SVG**で作成し、`design/characters/<キャラ名>/turnarounds/
+  <キャラ名>.svg`に置く(`plan/`は開発内容の設計を書く場所であり、
+  キャラクター個別の絵の置き場ではないため`design/`側に置く)。
   SVGを選ぶ理由: テキストとしてdiffでき、座標が数値としてそのまま
   読め、Chromium(Playwright、導入済み)でPNGにレンダーして
   目視確認できるため、このリポジトリの「コードで作る」工程と相性が
@@ -95,9 +97,9 @@
 
 ## 受け入れ基準
 
-1. `plan/models/turnarounds/garudo.svg`(正面・横、ガイド線つき、
-   Aポーズ)が存在し、PNG化した画像で比率・目鼻の配置が絵として
-   確認できる。
+1. `design/characters/garudo/turnarounds/garudo.svg`(正面・横、
+   ガイド線つき、Aポーズ)が存在し、PNG化した画像で比率・目鼻の配置が
+   絵として確認できる。
 2. ガルドの現行モデルを平行投影・黒塗りでレンダーした画像と三面図の
    輪郭を重ねた照合画像が生成でき、ずれの有無が一目で判定できる。
 3. 三面図→PNG化・シルエット照合のスクリプトが`tools/`にあり、
@@ -122,10 +124,10 @@
 
 ## 実装状況(進行中)
 
-- `plan/models/turnarounds/garudo.svg`(正面・横、ガイド線つき、
-  頭身2.5、Aポーズ)を作成した。ただし対象は`five-character-
-  redesign-gate.md`により**現行モデルの寸法取りではなく**、
-  `plan/models/concepts/garudo.md`で選定した新デザイン
+- `design/characters/garudo/turnarounds/garudo.svg`(正面・横、
+  ガイド線つき、頭身2.5、Aポーズ)を作成した。ただし対象は
+  `five-character-redesign-gate.md`により**現行モデルの寸法取りでは
+  なく**、`design/characters/garudo/concept.md`で選定した新デザイン
   (C: 樽板エプロン)の三面図として描いた。
 - そのため受け入れ基準2(現行モデルとのシルエット照合)は
   **この順序では実施しない**: 現行モデルは間もなく置き換わる
@@ -137,8 +139,15 @@
   作業中に作った`preview-hero-shot.mjs`とは別物。コンセプト・
   三面図共通の目視確認ツール)を使う。出力は入力ファイルの親
   ディレクトリ名に応じて`tools/preview/concepts/`または
-  `tools/preview/turnarounds/`に振り分ける。
+  `tools/preview/turnarounds/`に振り分ける(SVGの置き場所自体は
+  `design/characters/<キャラ名>/`側だが、目視確認用のPNGは他の
+  モデルのプレビューと同じ`tools/preview/`にまとめる)。
 - 三面図に合わせたガルドの3D化(`garudo.py`の作り直し。詳細は
-  `plan/models/concepts/garudo.md`の実装状況を参照)を完了した。
+  `design/characters/garudo/concept.md`の実装状況を参照)を完了した。
   次はBlenderの平行投影・黒塗りレンダーと三面図を重ね合わせる
   照合スクリプト(受け入れ基準2・3)を作る。
+- ラフ案・三面図は当初`plan/models/concepts/`・
+  `plan/models/turnarounds/`に置いていたが、`plan/`は開発内容の
+  設計を書く場所でありキャラクター個別の絵の置き場ではないため、
+  `design/characters/<キャラ名>/`へ移した(本書の記述・受け入れ基準も
+  合わせて書き換えた)。

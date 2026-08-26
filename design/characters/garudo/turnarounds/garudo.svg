@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 300" width="640" height="300">
   <!-- ガルド 三面図(正面・横、Aポーズ) -->
   <!-- plan/models/2d-turnaround-first-workflow.md の形式。
-       plan/models/concepts/garudo.md で選定した「C: 樽板エプロン」案を
+       design/characters/garudo/concept.md で選定した「C: 樽板エプロン」案を
        起こす。頭身2.5(頭頂〜あご=76px、頭頂〜接地面=190px)。
        正面・横は同じ水平ガイド線(頭頂・目・あご・肩・腰・膝・接地面)
        の上に揃えて描く -->
