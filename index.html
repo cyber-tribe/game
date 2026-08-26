@@ -863,7 +863,11 @@
        * どの画面幅・高さでも重ならない
        */
       .town-box {
-        width: min(1180px, 96vw);
+        /* ノッチ・ホームインジケータぶんの余白(セーフエリア)を
+           差し引く。差し引かないと列数の多い建物(洞窟の入口の6列等)で
+           パネルが物理的な角ぎりぎりまで育ち、ノッチ側の列が見切れる
+           (plan/game/archive/town-box-safe-area-width.md) */
+        width: min(1180px, calc(96vw - var(--safe-left) - var(--safe-right)));
         max-height: 92vh;
         display: flex;
         flex-direction: column;
@@ -871,6 +875,22 @@
         background: var(--panel);
         border: 1px solid var(--edge);
         border-radius: 12px;
+      }
+      /* 触UIでは画面右上に「≡」ボタン(.touch-menu-btn)が拠点画面より
+         手前に固定表示される(issue #483)。列数の多い建物ではパネルが
+         画面幅いっぱいまで育ち、スクロールする前から見えている列が
+         ボタンの真下に重なって見えていた(plan/game/archive/
+         town-box-safe-area-width.md)。.town-columns側のpadding-right
+         では末尾までスクロールしたときにしか効かない(スクロール量に
+         関わらず常に同じ画面位置に浮くボタンには足りない)ため、
+         パネル自体(.town-box、box-sizing: border-boxで幅は固定)の
+         右パディングを増やし、列の描画領域そのものをボタンの手前
+         までに縮める。ボタン自体は動かさず、内装(.village-interior)
+         は既に左寄せで幅も控えめなため対象外 */
+      @media (pointer: coarse) {
+        #ui.town-open:not(.village-interior) .town-box {
+          padding-right: 98px;
+        }
       }
       /*
        * ------------------------------------------------ 建物の内装
