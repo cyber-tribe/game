@@ -19,6 +19,7 @@ from __future__ import annotations
 import math
 
 # common が bpy を読み込む。mathutils は bpy の読み込み後でないと import できない
+import bmesh
 import common as C
 import parts
 import props
@@ -101,8 +102,48 @@ def _segment_between(name: str, p0: Vector, p1: Vector, radius: float, segments:
     return seg
 
 
+def _sculpt_bump(mesh: "bpy.types.Mesh", target: Vector, radius: float, push: float,
+                 inset: float = 0.35) -> None:
+    """
+    メッシュ上で`target`に近い面をinsetし、法線方向へ`push`だけ押し出す
+    (pushを負にするとくぼみになる)。鼻の膨らみ・眼窩や口のくぼみを、
+    別メッシュのプリミティブを貼り付けるのではなく頭部メッシュ自身の
+    凹凸として作る、看板モデルのパイロット(plan/models/archive/
+    flagship-model-program.md「2. ガルドの顔を主人公専用に手作業で
+    作り直す」)。ガルドの頭は`build_skinned`で既にSkin+Subsurfが適用
+    済みの1枚メッシュなので、そこへ直接彫り込めば継ぎ目は生まれない。
+    """
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    bm.faces.ensure_lookup_table()
+    faces = [f for f in bm.faces if (f.calc_center_median() - target).length < radius]
+    if not faces:
+        bm.free()
+        return
+    bmesh.ops.inset_region(bm, faces=faces, thickness=radius * inset, use_boundary=True)
+    verts = list({v for f in faces for v in f.verts})
+    normal = sum((f.normal for f in faces), Vector()).normalized()
+    bmesh.ops.translate(bm, verts=verts, vec=normal * push)
+    bmesh.ops.smooth_vert(bm, verts=verts, factor=0.4, use_axis_x=True, use_axis_y=True,
+                          use_axis_z=True)
+    bm.to_mesh(mesh)
+    bm.free()
+
+
 def build() -> tuple[list, object]:
     body = C.build_skinned(NAME, JOINTS, BONES, RADII, root="hip", subsurf=2)
+
+    # ガルドの顔を主人公専用に手作業で作り直す(plan/models/archive/
+    # flagship-model-program.md)。白目・瞳は`eye-blink-liveliness.md`の
+    # まばたき機構のため引き続き別メッシュにするが、鼻の膨らみと口の
+    # くぼみは頭部メッシュ自身へ直接彫り込み、貼り付けたプリミティブでは
+    # なく1つながりの造形にする。眉間の下・目のまわりもわずかにくぼませ、
+    # 眼窩があることを示す
+    head = Vector(JOINTS["head"])
+    for side in (-1.0, 1.0):
+        _sculpt_bump(body.data, head + Vector((0.058 * side, -0.105, 0.003)), 0.062, -0.012)
+    _sculpt_bump(body.data, head + Vector((0.0, -0.146, -0.040)), 0.048, 0.052, inset=0.45)
+    _sculpt_bump(body.data, head + Vector((0.0, -0.148, -0.086)), 0.026, -0.013)
 
     mats = [
         C.make_material("garudo_skin", SKIN, roughness=0.65),
@@ -113,11 +154,10 @@ def build() -> tuple[list, object]:
     ]
     C.assign_materials_by_region(body, mats, classify_body)
 
-    # 目・鼻・鉢巻き。体とは別メッシュにして、あとで統合する
-    head = Vector(JOINTS["head"])
+    # 目・鉢巻き。体とは別メッシュにして、あとで統合する(鼻は頭部
+    # メッシュへ彫り込み済みなので、ここでは別メッシュを足さない)
     eye_mat = C.make_material("garudo_eye", (0.09, 0.08, 0.10), roughness=0.25)
     eye_white = C.make_material("garudo_eyewhite", (0.95, 0.95, 0.93), roughness=0.3)
-    skin_mat = C.make_material("garudo_nose", SKIN, roughness=0.65)
     band_mat = C.make_material("garudo_band", BANDANA, roughness=0.85)
 
     # 顔の規格(character-design-language.md): 黒目に必ずハイライトを入れ、
@@ -166,14 +206,9 @@ def build() -> tuple[list, object]:
         C.assign_material(brow, eye_mat)
         extras += [eye_highlight, brow]
 
-    # 大きな鼻。ずんぐりした風貌の要
-    nose = C.uv_sphere("nose", head + Vector((0.0, -0.146, -0.040)), 0.046,
-                       segments=16, rings=12, scale=(0.90, 1.20, 0.85))
-    C.assign_material(nose, skin_mat)
-    extras.append(nose)
-
-    # 閉じ口の線。鼻のすぐ下、表情の器としてほぼ全キャラ共通で必須にする規約
-    mouth = C.box("mouth", head + Vector((0.0, -0.148, -0.086)),
+    # 閉じ口の線。鼻のすぐ下、表情の器としてほぼ全キャラ共通で必須にする規約。
+    # 頭部メッシュに彫り込んだくぼみへ、心持ち浅く沈めて収める
+    mouth = C.box("mouth", head + Vector((0.0, -0.140, -0.086)),
                  (0.028, 0.006, 0.007), bevel=0.003)
     C.assign_material(mouth, mouth_mat)
     extras.append(mouth)

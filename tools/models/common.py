@@ -754,7 +754,8 @@ def bake_procedural_detail(obj: bpy.types.Object, patterns: dict[str, str],
     繋がっていないマテリアル名は黙って無視する)。
 
     `patterns`は{マテリアル名: "weave"(織り目) | "scratch"(傷・擦れ) |
-    "fuzz"(毛羽立ち)}。強さ(コントラスト)は`strength`で±の振れ幅として
+    "fuzz"(毛羽立ち) | "fur"(毛並みの流れ方向)}。強さ(コントラスト)は
+    `strength`で±の振れ幅として
     与える(0.18なら明度が0.82〜1.18倍の範囲で揺れる)。トゥーンの4階調
     シェーディングと衝突しないよう控えめにする狙いで、既定値は小さめ。
 
@@ -801,6 +802,15 @@ def bake_procedural_detail(obj: bpy.types.Object, patterns: dict[str, str],
                     # 粗いセルごとにハッシュ値を1つ割り当て、パッチ状の擦れにする
                     cell_x, cell_y = math.floor(x / scale), math.floor(y / scale)
                     value = _hash01(cell_x, cell_y, seed)
+                elif pattern == "fur":
+                    # 斜め方向へ流れる細い毛筋(plan/models/archive/
+                    # flagship-model-program.mdの種族固有識別子)。weaveの
+                    # 格子と違い1方向だけの縞にし、縞と縞の間に細かいノイズを
+                    # 足して、毛が同じ向きへ流れつつ1本ずつ揃っていない
+                    # 質感にする
+                    along = (x * 0.35 + y * 0.94) / scale  # 斜め方向への流れ
+                    strand = max(0.0, math.cos(along * 2 * math.pi)) ** 4
+                    value = 0.7 * strand + 0.3 * _hash01(x, y, seed)
                 else:  # fuzz
                     # 画素ごとに独立した細かいノイズで、毛羽立ちの粗い粒立ちにする
                     value = _hash01(x, y, seed)
