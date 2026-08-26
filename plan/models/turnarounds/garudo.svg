@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 300" width="640" height="300">
+  <!-- ガルド 三面図(正面・横、Aポーズ) -->
+  <!-- plan/models/2d-turnaround-first-workflow.md の形式。
+       plan/models/concepts/garudo.md で選定した「C: 樽板エプロン」案を
+       起こす。頭身2.5(頭頂〜あご=76px、頭頂〜接地面=190px)。
+       正面・横は同じ水平ガイド線(頭頂・目・あご・肩・腰・膝・接地面)
+       の上に揃えて描く -->
+
+  <!-- ガイド線 -->
+  <g stroke="#0af" stroke-width="1" stroke-dasharray="4,3">
+    <line x1="0" y1="20" x2="640" y2="20"/>
+    <line x1="0" y1="58" x2="640" y2="58"/>
+    <line x1="0" y1="96" x2="640" y2="96"/>
+    <line x1="0" y1="100" x2="640" y2="100"/>
+    <line x1="0" y1="150" x2="640" y2="150"/>
+    <line x1="0" y1="180" x2="640" y2="180"/>
+    <line x1="0" y1="210" x2="640" y2="210"/>
+  </g>
+  <g font-family="sans-serif" font-size="10" fill="#0af">
+    <text x="2" y="17">頭頂</text>
+    <text x="2" y="55">目</text>
+    <text x="2" y="93">あご</text>
+    <text x="2" y="112">肩</text>
+    <text x="2" y="147">腰</text>
+    <text x="2" y="177">膝</text>
+    <text x="2" y="207">接地面</text>
+  </g>
+
+  <!-- ============ 正面(中心x=150) ============ -->
+  <g fill="#fff" stroke="#000" stroke-width="3" stroke-linejoin="round" stroke-linecap="round">
+    <!-- 髪の房(非対称、3房を右へ流す) -->
+    <path d="M130,24 L122,6 L140,18 Z"/>
+    <path d="M148,18 L148,0 L162,14 Z"/>
+    <path d="M166,22 L176,6 L172,24 Z"/>
+    <!-- 頭 -->
+    <circle cx="150" cy="58" r="38"/>
+    <!-- 眉 -->
+    <path d="M126,48 L142,46" stroke-width="3"/>
+    <path d="M158,46 L174,48" stroke-width="3"/>
+    <!-- 目(描き目。眼球を潰さずまぶたの開口部で覆う想定だが、この
+         段階では大きな丸目のシルエットのみ決める) -->
+    <circle cx="133" cy="58" r="10"/>
+    <circle cx="133" cy="59" r="4.5" fill="#000"/>
+    <circle cx="131" cy="56.5" r="1.4" fill="#fff"/>
+    <circle cx="167" cy="58" r="10"/>
+    <circle cx="167" cy="59" r="4.5" fill="#000"/>
+    <circle cx="165" cy="56.5" r="1.4" fill="#fff"/>
+    <!-- 鼻 -->
+    <path d="M150,64 L150,72" stroke-width="2.5"/>
+    <!-- 口 -->
+    <path d="M142,80 Q150,84 158,80" stroke-width="2.5"/>
+    <!-- 首 -->
+    <rect x="140" y="96" width="20" height="6"/>
+    <!-- 背負いダルの上端(肩越しに覗く) -->
+    <path d="M132,100 Q150,86 168,100" stroke-width="3" fill="none"/>
+    <!-- 胴 -->
+    <path d="M118,100 Q150,92 182,100 L188,150 Q150,160 112,150 Z"/>
+    <!-- ベルト(たが) -->
+    <rect x="112" y="144" width="76" height="12" rx="4"/>
+    <circle cx="150" cy="150" r="5" fill="#000"/>
+    <!-- 樽板エプロン(3枚のスラット、たがで2箇所束ねる) -->
+    <path d="M122,156 Q118,178 124,196 L136,196 Q132,178 134,156 Z"/>
+    <path d="M142,156 Q140,178 142,200 L158,200 Q160,178 158,156 Z"/>
+    <path d="M166,156 Q168,178 176,196 L164,196 Q166,178 166,156 Z"/>
+    <path d="M120,168 L180,168" stroke-width="3"/>
+    <path d="M122,184 L178,184" stroke-width="3"/>
+    <!-- 腕(Aポーズ: 斜め下) -->
+    <rect x="83" y="98" width="26" height="62" rx="13" transform="rotate(8 96 98)"/>
+    <rect x="191" y="98" width="26" height="62" rx="13" transform="rotate(-8 204 98)"/>
+    <!-- ミトン状の手 -->
+    <circle cx="92" cy="168" r="14"/>
+    <circle cx="208" cy="168" r="14"/>
+    <!-- 脚(エプロンの裾より下、膝〜接地面) -->
+    <rect x="128" y="192" width="20" height="18" rx="8"/>
+    <rect x="152" y="192" width="20" height="18" rx="8"/>
+    <!-- 足 -->
+    <ellipse cx="138" cy="214" rx="14" ry="8"/>
+    <ellipse cx="162" cy="214" rx="14" ry="8"/>
+  </g>
+  <text x="150" y="240" text-anchor="middle" font-family="sans-serif" font-size="14">正面</text>
+
+  <!-- ============ 横(中心x=460、右向き) ============ -->
+  <g fill="#fff" stroke="#000" stroke-width="3" stroke-linejoin="round" stroke-linecap="round">
+    <!-- 髪の房(後方へ流れる) -->
+    <path d="M432,26 L418,14 L438,18 Z"/>
+    <path d="M440,16 L432,0 L448,10 Z"/>
+    <!-- 頭 -->
+    <circle cx="460" cy="58" r="38"/>
+    <!-- 鼻(正面を向く側=右に小さな膨らみ) -->
+    <path d="M496,56 Q502,60 496,66 L492,62 Z"/>
+    <!-- 眉 -->
+    <path d="M480,46 L494,48" stroke-width="3"/>
+    <!-- 目(奥行きは潰さず、進行方向側に1つだけ見える) -->
+    <circle cx="484" cy="58" r="9"/>
+    <circle cx="486" cy="59" r="4" fill="#000"/>
+    <circle cx="484" cy="57" r="1.2" fill="#fff"/>
+    <!-- 口 -->
+    <path d="M482,76 Q490,80 496,74" stroke-width="2.5"/>
+    <!-- 首 -->
+    <rect x="450" y="96" width="20" height="6"/>
+    <!-- 胴 -->
+    <path d="M432,100 Q460,92 480,100 L484,150 Q460,160 428,150 Z"/>
+    <!-- 背負いダル(背中側=左に大きくはみ出す。正面から覗いていた
+         上端がここでは全体として見える) -->
+    <rect x="404" y="94" width="34" height="52" rx="10"/>
+    <path d="M404,110 L438,110" stroke-width="3"/>
+    <path d="M404,128 L438,128" stroke-width="3"/>
+    <path d="M432,98 L412,96" stroke-width="4"/>
+    <!-- ベルト -->
+    <rect x="428" y="144" width="56" height="12" rx="4"/>
+    <!-- 樽板エプロン(前方=右へ張り出す) -->
+    <path d="M456,156 Q450,176 456,196 L476,198 Q468,176 472,156 Z"/>
+    <path d="M472,158 L472,168" stroke-width="3"/>
+    <path d="M466,182 L470,190" stroke-width="3"/>
+    <!-- 腕(片方だけ描く) -->
+    <rect x="440" y="98" width="24" height="60" rx="12" transform="rotate(6 452 98)"/>
+    <circle cx="450" cy="164" r="13"/>
+    <!-- 脚(片方だけ描く) -->
+    <rect x="446" y="192" width="20" height="18" rx="8"/>
+    <ellipse cx="456" cy="214" rx="16" ry="8"/>
+  </g>
+  <text x="460" y="240" text-anchor="middle" font-family="sans-serif" font-size="14">横</text>
+</svg>
