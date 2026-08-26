@@ -61,7 +61,10 @@ def main() -> int:
         if preview:
             size = (420, 520) if animated else (320, 320)
             C.render_preview(name, objs, size=size, samples=40 if animated else 32)
-        path = C.export_glb(name, objs)
+        # animated=Trueはキャラクター(garudo/monsters/villagers)、Falseは
+        # 地形・小物・建物。flatはanime-look-art-direction.mdの
+        # 「キャラクターだけ焼き込み陰影を持たない」区分と一致する
+        path = C.export_glb(name, objs, flat=animated)
         kb = os.path.getsize(path) / 1024
         print(f"  {name:<14} 三角形 {tris:>6}   {kb:>7.1f} KB   {time.time() - start:.1f}s")
 
