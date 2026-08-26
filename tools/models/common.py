@@ -738,6 +738,80 @@ def bake_ao_to_texture(obj: bpy.types.Object, size: int = 24, samples: int = 64,
         mat.node_tree.links.new(tex_node.outputs["Color"], bsdf.inputs["Base Color"])
 
 
+def _hash01(x: float, y: float, seed: float = 0.0) -> float:
+    """xy(+seed)から[0,1)の疑似乱数を1つ決定的に作る(定番のsin-fractハッシュ)。"""
+    n = math.sin(x * 12.9898 + y * 78.233 + seed * 37.719) * 43758.5453
+    return n - math.floor(n)
+
+
+def bake_procedural_detail(obj: bpy.types.Object, patterns: dict[str, str],
+                           strength: float = 0.18, scale: float = 6.0) -> None:
+    """
+    織り目・傷擦れ・毛羽立ちの手続き的な描き込みを、`bake_ao_to_texture`が
+    既に焼いたテクスチャへ乗算で足し込む(plan/models/archive/
+    texture-painted-detail.md)。**`bake_ao_to_texture`の"後"に呼ぶこと**
+    (対象マテリアルのBase Colorが既にテクスチャへ繋がっている前提。
+    繋がっていないマテリアル名は黙って無視する)。
+
+    `patterns`は{マテリアル名: "weave"(織り目) | "scratch"(傷・擦れ) |
+    "fuzz"(毛羽立ち)}。強さ(コントラスト)は`strength`で±の振れ幅として
+    与える(0.18なら明度が0.82〜1.18倍の範囲で揺れる)。トゥーンの4階調
+    シェーディングと衝突しないよう控えめにする狙いで、既定値は小さめ。
+
+    Cyclesのシェーダーノード(ノイズ等)をEmission経由でベイクする方式は、
+    `bpy.ops.object.bake()`がオブジェクトの全マテリアルを一括処理する
+    仕様のため対象外マテリアルの本物のテクスチャまで巻き込んでしまい
+    (かつ「読みながら同じ画像へ書く」経路は循環依存としてBlenderに
+    弾かれ黒になる)、実装コストの割に頑丈さを欠くと判断した。
+    `bake_ao_to_texture`と同じ「Pythonでピクセル配列を直接書く」方式を
+    模様の生成にも使い、対象マテリアルの画像だけを直接書き換える
+    (他マテリアルのベイク結果には一切触れないので、この種の事故が
+    構造的に起きない)。
+    """
+    for slot in obj.material_slots:
+        mat = slot.material
+        if mat is None or mat.name not in patterns:
+            continue
+        bsdf = mat.node_tree.nodes["Principled BSDF"]
+        links = bsdf.inputs["Base Color"].links
+        if not links or links[0].from_node.type != "TEX_IMAGE":
+            continue  # bake_ao_to_texture未実行(焼き込み先のテクスチャが無い)
+        image = links[0].from_node.image
+        if image is None:
+            continue
+
+        pattern = patterns[mat.name]
+        width, height = image.size
+        seed = float(sum(image.name.encode()))  # マテリアルごとに模様の位相をずらす
+        pixels = list(image.pixels[:])
+        for y in range(height):
+            for x in range(width):
+                i = (y * width + x) * 4
+                r, g, b = pixels[i], pixels[i + 1], pixels[i + 2]
+                if r < 0.02 and g < 0.02 and b < 0.02:
+                    continue  # UVアイランド外の余白はそのまま(bake_ao_to_textureと同じ判定)
+
+                if pattern == "weave":
+                    # 縦横に交差する細い糸目の線を格子状に敷く(布目らしく
+                    # くっきり読めるよう、なめらかな波ではなく線そのものにする)
+                    thread = max(0.0, math.cos(x / scale * 2 * math.pi))
+                    thread = max(thread, max(0.0, math.cos(y / scale * 2 * math.pi)))
+                    value = thread ** 3
+                elif pattern == "scratch":
+                    # 粗いセルごとにハッシュ値を1つ割り当て、パッチ状の擦れにする
+                    cell_x, cell_y = math.floor(x / scale), math.floor(y / scale)
+                    value = _hash01(cell_x, cell_y, seed)
+                else:  # fuzz
+                    # 画素ごとに独立した細かいノイズで、毛羽立ちの粗い粒立ちにする
+                    value = _hash01(x, y, seed)
+
+                factor = 1.0 + (value * 2.0 - 1.0) * strength
+                pixels[i] = r * factor
+                pixels[i + 1] = g * factor
+                pixels[i + 2] = b * factor
+        image.pixels[:] = pixels
+
+
 def export_glb(name: str, objs: Sequence[bpy.types.Object]) -> str:
     os.makedirs(MODEL_DIR, exist_ok=True)
     path = os.path.join(MODEL_DIR, f"{name}.glb")
