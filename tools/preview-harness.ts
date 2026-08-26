@@ -14,6 +14,12 @@
  *
  * URLクエリ:
  *   ?model=<名前>       必須。public/models/<名前>.glb を読む
+ *   ?size=<px>          省略時256。看板モデルの「よそ行きの1枚」用に
+ *                        高解像度を指定できる(plan/models/archive/
+ *                        garudo-hero-quality-pass.md)
+ *   ?static=1           クリップを持つモデルでも、idleの1コマだけを
+ *                        1枚のPNGとして撮る(GIF化しない)。同じく
+ *                        商品ページ向けの静止した1枚を撮る用途
  */
 import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
@@ -46,8 +52,10 @@ declare global {
   }
 }
 
-/** 確認用途なので画質より軽さを優先する(plan/models/archive/preview-animation-gif.md) */
-const SIZE = 256;
+/** 確認用途なので画質より軽さを優先する(plan/models/archive/preview-animation-gif.md)。
+ *  ?sizeで上書きできる(plan/models/archive/garudo-hero-quality-pass.mdの
+ *  「よそ行きの1枚」用) */
+const SIZE = Number(new URLSearchParams(location.search).get("size")) || 256;
 const FPS = 12;
 const DT = 1 / FPS;
 const DELAY_MS = Math.round(1000 / FPS);
@@ -140,9 +148,16 @@ async function main(): Promise<void> {
   composer.setSize(SIZE, SIZE);
 
   const clipNames = new Set(assets.get(model).animations.map((clip) => clip.name));
+  const staticPose = params.get("static") === "1";
 
-  if (clipNames.size === 0) {
-    // クリップを持たないモデル(静止物・非スキンメッシュ)は従来どおり1枚のPNG
+  if (clipNames.size === 0 || staticPose) {
+    // クリップを持たないモデル(静止物・非スキンメッシュ)は従来どおり1枚のPNG。
+    // ?static=1のときはクリップを持つモデルでもidleの1コマだけを撮る
+    // (plan/models/archive/garudo-hero-quality-pass.mdの「よそ行きの1枚」)
+    if (staticPose && clipNames.has("idle")) {
+      view.play("idle");
+      view.update(0);
+    }
     composer.render();
     window.__previewReady = true;
     return;

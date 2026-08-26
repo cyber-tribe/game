@@ -381,12 +381,16 @@ def build() -> tuple[list, object]:
     mesh = C.join([body] + extras, NAME)
     # 頂点カラーオンリー方針を終え、テクスチャへ移行するパイロット
     # (plan/models/archive/texture-pipeline-adoption.md)。UVアンラップ+
-    # マテリアルごとの専用テクスチャにAO×基色を焼き込む
-    C.bake_ao_to_texture(mesh, size=128)
+    # マテリアルごとの専用テクスチャにAO×基色を焼き込む。
+    # 看板モデルの例外として128pxから引き上げる(plan/models/archive/
+    # garudo-hero-quality-pass.md)。他59体の既定128pxは変更しない
+    C.bake_ao_to_texture(mesh, size=256)
     # AOだけで止まっていた描き込みのパイロット(plan/models/archive/
     # texture-painted-detail.md)。上着(タルの生地)に織り目、ズボンに
-    # 使い込んだ擦れを足す
-    C.bake_procedural_detail(mesh, {"garudo_tunic": "weave", "garudo_trousers": "scratch"})
+    # 使い込んだ擦れを足す。scaleは解像度に比例させ、128px時代と同じ
+    # 見た目の密度を保つ(garudo-hero-quality-pass.md)
+    C.bake_procedural_detail(mesh, {"garudo_tunic": "weave", "garudo_trousers": "scratch"},
+                             scale=12.0)
     armature = C.build_armature(NAME, JOINTS, BONES, mesh, root="hip")
     for eye in eyes:
         C.parent_to_bone(eye, armature, "neck-head")

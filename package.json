@@ -16,6 +16,7 @@
     "audio": "node tools/audio/build.ts",
     "playtest": "node tools/playtest.mjs",
     "preview-engine": "node tools/preview_engine.mjs",
+    "preview-hero": "node tools/preview-hero-shot.mjs",
     "auto-tester": "node tools/auto-tester.mjs",
     "decision-density": "node tools/decision-density.mjs",
     "cap:sync": "npm run build && cap sync",
