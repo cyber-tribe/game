@@ -51,8 +51,8 @@ export async function settle(page: Page, timeout = 10_000): Promise<void> {
  */
 export async function startInjectedRun(page: Page, payload: InjectedRunPayload): Promise<void> {
   await page.evaluate((p: InjectedRunPayload) => {
-    (
-      globalThis as unknown as { __testHarness: { startInjectedRun: (payload: InjectedRunPayload) => void } }
+    return (
+      globalThis as unknown as { __testHarness: { startInjectedRun: (payload: InjectedRunPayload) => Promise<void> } }
     ).__testHarness.startInjectedRun(p);
   }, payload);
   await settle(page);

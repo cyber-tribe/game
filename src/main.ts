@@ -166,7 +166,7 @@ interface SerializableRngSpec {
 type InjectedRunPayload = Omit<TestFloorInjection, "rng"> & { rng?: SerializableRngSpec };
 
 interface TestHarness {
-  startInjectedRun: (payload: InjectedRunPayload) => void;
+  startInjectedRun: (payload: InjectedRunPayload) => Promise<void>;
 }
 
 /**
@@ -792,9 +792,17 @@ class App {
    * テスト用の箱庭(plan/game/test-dungeon-harness.md)。スロット選択画面を
    * 待たず、注入されたFloorStateでいきなりダイブを開始する。
    * `window.__testHarness`(main.ts末尾、MODE==="test"のときだけ生える)
-   * 経由でのみ呼ばれる
+   * 経由でのみ呼ばれる。
+   *
+   * 第二地方以降の地形モデル(`REGION2_TERRAIN_MODELS`等)は
+   * `essentialModelNames()`に含まれず起動時は未読み込みのまま背景読み込みに
+   * 任せている(`src/modelList.ts`)。通常プレイでは実際にその深さへ着くまでに
+   * 読み込みが終わっている前提だが、この注入口は任意の深さへ一気に飛べるため、
+   * 未読み込みのまま`presentFloor()`を呼ぶと`DungeonView.build`が例外になる
+   * (plan/sound/archive/bgm-instrument-diversity.md補遺で判明)。
+   * 呼び出し前に必要なモデルの読み込み完了を待つ
    */
-  startInjectedTestRun(injection: TestFloorInjection): void {
+  async startInjectedTestRun(injection: TestFloorInjection): Promise<void> {
     this.slotSelect.hide();
     this.diveDefeats = 0;
     this.diveCaptures = 0;
@@ -804,6 +812,7 @@ class App {
     this.trueAwakeningClearedThisRun = false;
     this.diveReachedDepths = [];
     this.game = new Game({ seed: 0, testFloorInjection: injection });
+    await this.assets.ready(modelNames());
     this.presentFloor();
     // 通常はbeginWithSlot()がスロット選択の直後に1回だけthis.loop()を呼び、
     // requestAnimationFrameの自己連鎖を起動する。箱庭注入はそのスロット選択
