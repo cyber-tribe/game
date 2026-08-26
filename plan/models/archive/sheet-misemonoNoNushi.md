@@ -16,3 +16,8 @@ plan/models/archive/character-design-language.mdのデザインシート
    人目を引いた出し物の記憶が、朽ちてなお色濃く残った姿。今は誰も
    いない会場の中央に、当時のままの存在感で居座り続ける」設定を、
    誇らしげな飾り板で表す
+6. **逸脱項目**(plan/models/archive/boss-silhouette-differentiation.md):
+   ①通常種には無い大きな形(design/regions.mdの意匠どおり、祭りの
+   櫓そのものを右肩から生やし、頭より高く突き出させる) ②左右非対称
+   (櫓は右肩だけに生え、朽ちて左へ傾いだ最上段の板と破れた幟が
+   重心を崩す)

@@ -3,6 +3,9 @@ import * as THREE from "three";
 import { DungeonView } from "../src/view/dungeonMesh";
 import type { Assets } from "../src/view/assets";
 import { makeEmptyFloor } from "./helpers/floor";
+import { REGION_DUNGEON_IDS } from "../src/entities/dungeons";
+
+const DUNGEON_ID = REGION_DUNGEON_IDS[0];
 
 function fakeAssets(): Assets {
   return {
@@ -22,7 +25,7 @@ describe("view/dungeonMesh.ts: 夢のもや", () => {
     const scene = new THREE.Scene();
     const view = new DungeonView(scene, fakeAssets());
     const floor = makeEmptyFloor({ depth: 1, width: 10, height: 8 });
-    view.build(floor);
+    view.build(floor, DUNGEON_ID);
 
     const mistMeshes = scene.children
       .flatMap((o) => (o instanceof THREE.Group ? o.children : [o]))
@@ -34,7 +37,7 @@ describe("view/dungeonMesh.ts: 夢のもや", () => {
   it("時間経過でゆっくり明滅する(不透明度が変化する)", () => {
     const scene = new THREE.Scene();
     const view = new DungeonView(scene, fakeAssets());
-    view.build(makeEmptyFloor({ depth: 1, width: 10, height: 8 }));
+    view.build(makeEmptyFloor({ depth: 1, width: 10, height: 8 }), DUNGEON_ID);
 
     view.animate(0);
     const mist = scene.children
@@ -51,8 +54,8 @@ describe("view/dungeonMesh.ts: 夢のもや", () => {
   it("フロアを作り直しても、もやの板が増え続けない(2回目もちょうど4枚)", () => {
     const scene = new THREE.Scene();
     const view = new DungeonView(scene, fakeAssets());
-    view.build(makeEmptyFloor({ depth: 1, width: 10, height: 8 }));
-    view.build(makeEmptyFloor({ depth: 2, width: 14, height: 10 }));
+    view.build(makeEmptyFloor({ depth: 1, width: 10, height: 8 }), DUNGEON_ID);
+    view.build(makeEmptyFloor({ depth: 2, width: 14, height: 10 }), DUNGEON_ID);
 
     const mistMeshes = scene.children
       .flatMap((o) => (o instanceof THREE.Group ? o.children : [o]))

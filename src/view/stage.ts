@@ -128,7 +128,7 @@ export class Stage {
     this.particles = new ParticleSystem(scene);
   }
 
-  enterFloor(floor: FloorState): void {
+  enterFloor(floor: FloorState, dungeonId: string): void {
     for (const view of this.views.values()) view.dispose();
     this.views.clear();
     this.dying.clear();
@@ -137,7 +137,7 @@ export class Stage {
     for (const fx of this.effects) fx.object.removeFromParent();
     this.effects.length = 0;
     this.effectRoot.clear();
-    this.dungeon.build(floor);
+    this.dungeon.build(floor, dungeonId);
     this.syncActors(floor);
   }
 

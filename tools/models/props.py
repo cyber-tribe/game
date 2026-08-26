@@ -20,6 +20,25 @@ STONE_DARK = (0.30, 0.31, 0.36)
 STONE_LIGHT = (0.46, 0.46, 0.50)
 FLOOR_COLOR = (0.35, 0.33, 0.38)
 
+# 第一地方(うたたねの参道)専用の意匠(plan/models/archive/dungeon-region1-tileset.md)
+ROOT_BARK = (0.26, 0.18, 0.12)
+ROOT_BARK_LIGHT = (0.36, 0.26, 0.16)
+ROOT_MOSS = (0.23, 0.32, 0.17)
+DIRT_FLOOR = (0.27, 0.21, 0.15)
+
+
+def _hand_carved_jitter(obj, amount: float = 0.022, z_amount: float | None = None) -> None:
+    """
+    石の目地や木の根の粗さを出す、決め打ちの擬似乱数による頂点ずらし
+    (build_wallが元々使っていたものを共通化。実行のたびに形が変わらないよう
+    頂点インデックスから決定的に値を作る)。
+    """
+    z_amount = amount * 0.6 if z_amount is None else z_amount
+    for index, vert in enumerate(obj.data.vertices):
+        vert.co.x += (((index * 2654435761) % 1000) / 1000.0 - 0.5) * amount
+        vert.co.y += (((index * 40503) % 1000) / 1000.0 - 0.5) * amount
+        vert.co.z += (((index * 69069) % 1000) / 1000.0 - 0.5) * z_amount
+
 
 # --------------------------------------------------------------------------- 地形
 
@@ -39,11 +58,7 @@ def build_wall():
 
     wall = C.join(blocks, "wall")
     # 手彫りらしい粗さ。決め打ちの擬似乱数で、実行のたびに形が変わらないようにする
-    for index, vert in enumerate(wall.data.vertices):
-        jitter = ((index * 2654435761) % 1000) / 1000.0 - 0.5
-        vert.co.x += jitter * 0.022
-        vert.co.y += (((index * 40503) % 1000) / 1000.0 - 0.5) * 0.022
-        vert.co.z += (((index * 69069) % 1000) / 1000.0 - 0.5) * 0.014
+    _hand_carved_jitter(wall, amount=0.022, z_amount=0.014)
     return [wall]
 
 
@@ -65,6 +80,16 @@ def build_stairs():
     """
     stone = C.make_material("stairs_stone", STONE_LIGHT, roughness=0.85)
     dark_stone = C.make_material("stairs_stone_dark", (0.22, 0.22, 0.26), roughness=0.9)
+    return [_build_stairs_shape("stairs", stone, dark_stone, STONE_DARK, (0.01, 0.01, 0.02))]
+
+
+def _build_stairs_shape(name: str, stone: bpy.types.Material, dark_stone: bpy.types.Material,
+                        edge_color, void_color) -> bpy.types.Object:
+    """
+    踏み面・蹴上げの構成そのものは`build_stairs`と`build_stairs_region1`で共通
+    (plan/models/archive/dungeon-region1-tileset.md「階段は流用しつつ素材だけ
+    差し替える」)。見た目の違いはすべて呼び出し側が渡すマテリアルで決まる。
+    """
     objs = []
 
     steps = 5
@@ -72,34 +97,183 @@ def build_stairs():
         y = 0.34 - i * 0.175
         top = -0.04 - i * 0.105
         # 踏み面。段ごとに一段ぶん低くなる
-        tread = C.box(f"stairs_tread{i}", (0.0, y, top - 0.025), (0.80, 0.165, 0.05),
+        tread = C.box(f"{name}_tread{i}", (0.0, y, top - 0.025), (0.80, 0.165, 0.05),
                       bevel=0.012)
         C.assign_material(tread, stone if i < 3 else dark_stone)
         objs.append(tread)
         # 蹴上げ。踏み面の奥に立てて段差をはっきり見せる
-        riser = C.box(f"stairs_riser{i}", (0.0, y - 0.088, top - 0.077),
+        riser = C.box(f"{name}_riser{i}", (0.0, y - 0.088, top - 0.077),
                       (0.80, 0.022, 0.105))
         C.assign_material(riser, dark_stone)
         objs.append(riser)
 
     # 床に開いた穴の縁
     for side in (-1.0, 1.0):
-        edge = C.box(f"stairs_edge{side}", (0.455 * side, 0.0, -0.03),
+        edge = C.box(f"{name}_edge{side}", (0.455 * side, 0.0, -0.03),
                      (0.09, 0.98, 0.10), bevel=0.02)
-        C.assign_material(edge, C.make_material(f"stairs_edge{side}_m", STONE_DARK,
+        C.assign_material(edge, C.make_material(f"{name}_edge{side}_m", edge_color,
                                                 roughness=0.9))
         objs.append(edge)
-    back = C.box("stairs_back", (0.0, 0.455, -0.03), (0.98, 0.09, 0.10), bevel=0.02)
-    C.assign_material(back, C.make_material("stairs_back_m", STONE_DARK, roughness=0.9))
+    back = C.box(f"{name}_back", (0.0, 0.455, -0.03), (0.98, 0.09, 0.10), bevel=0.02)
+    C.assign_material(back, C.make_material(f"{name}_back_m", edge_color, roughness=0.9))
     objs.append(back)
 
     # 最下段の先に置く闇。床より下なので上からは見えないが、
     # 段の連なりが途切れずに続いているように見せる
-    void = C.box("stairs_void", (0.0, -0.455, -0.50), (0.80, 0.09, 0.14))
-    C.assign_material(void, C.make_material("stairs_void_m", (0.01, 0.01, 0.02), roughness=1.0))
+    void = C.box(f"{name}_void", (0.0, -0.455, -0.50), (0.80, 0.09, 0.14))
+    C.assign_material(void, C.make_material(f"{name}_void_m", void_color, roughness=1.0))
     objs.append(void)
 
-    return [C.join(objs, "stairs")]
+    return C.join(objs, name)
+
+
+def build_stairs_region1():
+    """
+    第一地方の階段。段・蹴上げ・穴の縁の構成は`build_stairs`とまったく同じで、
+    素材だけ石から木の根に差し替える(plan/models/archive/
+    dungeon-region1-tileset.md)。
+    """
+    root = C.make_material("stairs_region1_root", ROOT_BARK_LIGHT, roughness=0.88)
+    root_dark = C.make_material("stairs_region1_root_dark", ROOT_BARK, roughness=0.9)
+    return [_build_stairs_shape("stairs_region1", root, root_dark, ROOT_BARK, (0.02, 0.02, 0.015))]
+
+
+# ------------------------------------------------------------ 第一地方の壁・床
+
+_WALL_REGION1_PROFILES = {
+    # 幹の基本半径・上に向かう先細り・左右へのうねり幅・段数
+    1: dict(base_r=0.44, taper=0.22, sway=0.05, segs=4),
+    2: dict(base_r=0.30, taper=0.35, sway=0.15, segs=5),
+    3: dict(base_r=0.37, taper=0.28, sway=-0.10, segs=4),
+}
+
+# 根元に添える差し根(タイル内に収まる範囲でx/yへ短くはみ出す)
+_WALL_REGION1_FEET = {
+    1: [((0.22, 0.0, 0.02), 0.07, 0.30, "X")],
+    2: [((0.0, 0.20, 0.015), 0.05, 0.26, "Y"), ((-0.18, -0.12, 0.02), 0.055, 0.22, "X")],
+    3: [((-0.20, 0.08, 0.02), 0.06, 0.28, "X")],
+}
+
+
+def _build_wall_region1(variant: int):
+    """
+    苔むした太い木の根が壁を成す(plan/models/archive/
+    dungeon-region1-tileset.md)。直方体を積んだ`build_wall`と違い、
+    先細りの輪切り(円錐)を高さごとに左右へずらしながら積み、うねる幹を作る。
+    根元には細い差し根を1〜2本添えて、四角い柱に見えないよう輪郭を崩す。
+    """
+    bark = C.make_material(f"wall_region1_v{variant}_bark", ROOT_BARK, roughness=0.9)
+    bark_light = C.make_material(f"wall_region1_v{variant}_bark_light", ROOT_BARK_LIGHT,
+                                 roughness=0.88)
+    moss = C.make_material(f"wall_region1_v{variant}_moss", ROOT_MOSS, roughness=0.95)
+
+    profile = _WALL_REGION1_PROFILES[variant]
+    segs = profile["segs"]
+    base_r = profile["base_r"]
+    height = 1.02
+
+    objs = []
+    for i in range(segs):
+        t0, t1 = i / segs, (i + 1) / segs
+        z0, z1 = t0 * height, t1 * height
+        r0 = base_r * (1.0 - profile["taper"] * t0)
+        r1 = base_r * (1.0 - profile["taper"] * t1)
+        sway = profile["sway"]
+        x = math.sin(t0 * math.pi * 1.4 + variant) * sway
+        y = math.cos(t0 * math.pi * 1.1 + variant) * sway * 0.6
+        # 継ぎ目に隙間ができないよう、depthを少し重ねる
+        depth = (z1 - z0) * 1.18
+        seg = C.cone(f"wall_region1_v{variant}_trunk{i}", (x, y, (z0 + z1) / 2), r0, r1, depth,
+                    segments=12)
+        C.assign_material(seg, moss if i == segs - 1 else (bark_light if i % 2 else bark))
+        objs.append(seg)
+
+    for (center, radius, length, axis) in _WALL_REGION1_FEET[variant]:
+        foot = C.cylinder(f"wall_region1_v{variant}_foot{len(objs)}", center, radius, length,
+                          segments=8, axis=axis)
+        C.assign_material(foot, bark)
+        objs.append(foot)
+
+    wall = C.join(objs, f"wall_region1_v{variant}")
+    _hand_carved_jitter(wall, amount=0.03, z_amount=0.02)
+    return [wall]
+
+
+def build_wall_region1_v1():
+    return _build_wall_region1(1)
+
+
+def build_wall_region1_v2():
+    return _build_wall_region1(2)
+
+
+def build_wall_region1_v3():
+    return _build_wall_region1(3)
+
+
+# variantごとに床を這わせる根: (中心x, 中心y, 半径, 長さ, 軸)の列。
+# 床の上面はz=0にあるので、半径ぶんだけ中心を持ち上げて上面に乗せる
+_FLOOR_REGION1_ROOTS = {
+    1: [((0.0, 0.0, 0.03), 0.045, 0.62, "Y"), ((0.20, 0.30, 0.02), 0.03, 0.28, "X")],
+    2: [((-0.12, -0.15, 0.032), 0.05, 0.55, "X"), ((0.22, 0.10, 0.024), 0.035, 0.42, "Y")],
+    3: [((0.0, 0.28, 0.026), 0.04, 0.70, "X"), ((-0.26, -0.10, 0.024), 0.035, 0.40, "Y")],
+}
+
+# variantごとの木漏れ日の盛り上がり(こぶ)の位置と半径。上面(z=0)から
+# 半分だけ顔を出すよう、こぶの中心もz=0に揃える
+_FLOOR_REGION1_BUMPS = {
+    1: [(-0.28, -0.24, 0.05), (0.30, -0.18, 0.04), (-0.05, 0.30, 0.035)],
+    2: [(0.28, 0.28, 0.045), (-0.30, 0.15, 0.04), (0.05, -0.32, 0.035), (-0.15, -0.30, 0.03)],
+    3: [(-0.32, 0.22, 0.05), (0.20, 0.05, 0.04), (0.32, -0.30, 0.035)],
+}
+
+
+def _build_floor_region1(variant: int):
+    """
+    踏み固められた土に木の根が這う床(plan/models/archive/
+    dungeon-region1-tileset.md)。木漏れ日の斑模様は専用のテクスチャや
+    頂点カラーの描き込みを別途行うのではなく、根やこぶの盛り上がりを
+    実際の凹凸として作ることで、書き出し時に自動で焼かれるAO
+    (`common.export_glb`→`bake_ao_to_vertex_colors`)がそのまま
+    斑模様になるようにする。
+    """
+    dirt = C.make_material(f"floor_region1_v{variant}_dirt", DIRT_FLOOR, roughness=0.96)
+    bark = C.make_material(f"floor_region1_v{variant}_bark", ROOT_BARK, roughness=0.9)
+
+    # 上面がz=0にくるようにする(既存build_floorと同じ高さの取り決め。
+    # z=0を基準に足元のもの ― アイテム・罠・タル等 ― が置かれるため揃えておく)
+    slab = C.box(f"floor_region1_v{variant}_slab", (0.0, 0.0, -0.06), (1.0, 1.0, 0.12),
+                bevel=0.06, bevel_segments=1)
+    C.assign_material(slab, dirt)
+    objs = [slab]
+
+    for (center, radius, length, axis) in _FLOOR_REGION1_ROOTS[variant]:
+        root = C.cylinder(f"floor_region1_v{variant}_root{len(objs)}", center, radius, length,
+                          segments=8, axis=axis)
+        C.assign_material(root, bark)
+        objs.append(root)
+
+    for x, y, r in _FLOOR_REGION1_BUMPS[variant]:
+        bump = C.uv_sphere(f"floor_region1_v{variant}_bump{len(objs)}", (x, y, 0.0), r,
+                          segments=8, rings=5, scale=(1.0, 1.0, 0.4))
+        C.assign_material(bump, dirt)
+        objs.append(bump)
+
+    floor = C.join(objs, f"floor_region1_v{variant}")
+    _hand_carved_jitter(floor, amount=0.025, z_amount=0.012)
+    return [floor]
+
+
+def build_floor_region1_v1():
+    return _build_floor_region1(1)
+
+
+def build_floor_region1_v2():
+    return _build_floor_region1(2)
+
+
+def build_floor_region1_v3():
+    return _build_floor_region1(3)
 
 
 # --------------------------------------------------------------------------- 罠
@@ -1312,6 +1486,13 @@ PROPS = {
     "barrel_caught": build_barrel_caught,
     "floor": build_floor,
     "stairs": build_stairs,
+    "wall_region1_v1": build_wall_region1_v1,
+    "wall_region1_v2": build_wall_region1_v2,
+    "wall_region1_v3": build_wall_region1_v3,
+    "floor_region1_v1": build_floor_region1_v1,
+    "floor_region1_v2": build_floor_region1_v2,
+    "floor_region1_v3": build_floor_region1_v3,
+    "stairs_region1": build_stairs_region1,
     "trap_damage": build_trap_damage,
     "trap_sleep": build_trap_sleep,
     "trap_alarm": build_trap_alarm,

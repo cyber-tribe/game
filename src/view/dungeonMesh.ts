@@ -11,6 +11,7 @@ import {
 } from "../core/types";
 import { itemDef } from "../entities/itemCatalog";
 import { BARREL_MODELS, TRAP_MODELS } from "../modelList";
+import { regionIndexForFloor } from "../entities/dungeons";
 
 /** 見えているマス / 記憶しているだけのマス の明るさ */
 const LIT = new THREE.Color(1.0, 1.0, 1.0);
@@ -23,6 +24,35 @@ const EXPLORED_BIT = 1;
 const VISIBLE_BIT = 2;
 
 /**
+ * 第一地方(うたたねの参道)のタイルセット(plan/models/archive/
+ * dungeon-region1-tileset.md)。壁・床とも3バリアントで、タイルごとに
+ * ランダムに1つを選び繰り返し感を消す。他の地方はまだ専用タイルセットが
+ * 無いので、既定の"wall"/"floor"/"stairs"へフォールバックする
+ */
+const REGION1_WALL_MODELS = ["wall_region1_v1", "wall_region1_v2", "wall_region1_v3"] as const;
+const REGION1_FLOOR_MODELS = ["floor_region1_v1", "floor_region1_v2", "floor_region1_v3"] as const;
+
+/**
+ * 座標からタイルごとに決定的な「ランダム」値を作る(x,yだけの単純な剰余だと
+ * 盤面に斜め縞の規則性が出てしまうため、ビット混合で崩す)。
+ * バリアント選び・回転のどちらにも使うので、用途ごとにsaltを変えて呼ぶ
+ */
+function tileHash(x: number, y: number, salt: number): number {
+  let h = (x * 374761393 + y * 668265263 + salt * 2246822519) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  h ^= h >>> 16;
+  return h >>> 0;
+}
+
+/** InstancedMeshひとつぶんの管理単位(バリアントごとに1つ持つ) */
+interface TerrainLayer {
+  mesh: THREE.InstancedMesh;
+  cells: number[];
+  rotations: number[] | null;
+  state: Uint8Array;
+}
+
+/**
  * フロアの地形と、床に置かれているものの表示。
  *
  * 壁と床はマス数ぶんあるので InstancedMesh にまとめる。壁は「歩けるマスに
@@ -31,17 +61,13 @@ const VISIBLE_BIT = 2;
  */
 export class DungeonView {
   private readonly group = new THREE.Group();
-  private walls: THREE.InstancedMesh | null = null;
-  private floors: THREE.InstancedMesh | null = null;
-  /** インスタンス番号 → そのマスのタイル配列上の添字 */
-  private wallIndex: number[] = [];
-  private floorIndex: number[] = [];
   /**
-   * 前回反映したときの explored / visible。変わったマスだけ書き直すために持つ。
-   * bit0 = explored、bit1 = visible。UNSEEN は「まだ一度も反映していない」
+   * 壁・床それぞれ、バリアントの数だけInstancedMeshを持つ(地方1は3種、
+   * それ以外は1種のみ)。タイルごとにどのレイヤーに属するかは
+   * build()時にtileHashで決めて固定する
    */
-  private wallState = new Uint8Array(0);
-  private floorState = new Uint8Array(0);
+  private wallLayers: TerrainLayer[] = [];
+  private floorLayers: TerrainLayer[] = [];
 
   private readonly stairsGroup = new THREE.Group();
   /**
@@ -96,33 +122,39 @@ export class DungeonView {
   }
 
   /** 新しいフロアに入ったときに一度だけ呼ぶ */
-  build(floor: FloorState): void {
+  build(floor: FloorState, dungeonId: string): void {
     this.clear();
 
+    // 地方1だけ専用タイルセットを持つ(plan/models/archive/
+    // dungeon-region1-tileset.md)。他の地方はまだ無いので既定セットのまま
+    const isRegion1 = regionIndexForFloor(dungeonId, floor.depth) === 1;
+    const wallModels: readonly string[] = isRegion1 ? REGION1_WALL_MODELS : ["wall"];
+    const floorModels: readonly string[] = isRegion1 ? REGION1_FLOOR_MODELS : ["floor"];
+
     const stairsIndex = floor.stairs.y * floor.width + floor.stairs.x;
-    const wallCells: number[] = [];
-    const floorCells: number[] = [];
+    const wallCellsByVariant: number[][] = wallModels.map(() => []);
+    const floorCellsByVariant: number[][] = floorModels.map(() => []);
     for (let i = 0; i < floor.tiles.length; i++) {
       const tile = floor.tiles[i]!;
+      const x = i % floor.width;
+      const y = (i - x) / floor.width;
       if (isWalkable(tile.kind)) {
         // 階段のマスは階段モデル自体が床も兼ねているので、通常の床タイルは
         // 出さない。両方を同じ高さに重ねて描くとZファイティングで白い縁が
         // ちらつき、階段だと視認できなくなってしまう(#203)
         if (i === stairsIndex) continue;
-        floorCells.push(i);
+        const variant = floorModels.length > 1 ? tileHash(x, y, 13) % floorModels.length : 0;
+        floorCellsByVariant[variant]!.push(i);
       } else if (this.touchesWalkable(floor, i)) {
-        wallCells.push(i);
+        const variant = wallModels.length > 1 ? tileHash(x, y, 7) % wallModels.length : 0;
+        wallCellsByVariant[variant]!.push(i);
       }
     }
 
-    this.walls = this.makeInstanced("wall", wallCells.length, floor, wallCells, 0);
-    this.floors = this.makeInstanced("floor", floorCells.length, floor, floorCells, 0);
-    this.wallIndex = wallCells;
-    this.floorIndex = floorCells;
-    this.wallState = new Uint8Array(wallCells.length).fill(UNSEEN);
-    this.floorState = new Uint8Array(floorCells.length).fill(UNSEEN);
+    this.wallLayers = this.buildLayers(wallModels, wallCellsByVariant, floor, isRegion1);
+    this.floorLayers = this.buildLayers(floorModels, floorCellsByVariant, floor, isRegion1);
 
-    const stairs = this.assets.instantiate("stairs").root;
+    const stairs = this.assets.instantiate(isRegion1 ? "stairs_region1" : "stairs").root;
     stairs.position.copy(toWorld(floor.stairs));
     this.stairsGroup.add(stairs);
 
@@ -176,8 +208,12 @@ export class DungeonView {
 
   /** 毎ターン呼ぶ。視界に応じた明るさと、落ちているものの増減を反映する */
   refresh(floor: FloorState): void {
-    this.applyVisibility(this.walls, this.wallIndex, floor, this.wallState);
-    this.applyVisibility(this.floors, this.floorIndex, floor, this.floorState);
+    for (const layer of this.wallLayers) {
+      this.applyVisibility(layer.mesh, layer.cells, floor, layer.state, layer.rotations);
+    }
+    for (const layer of this.floorLayers) {
+      this.applyVisibility(layer.mesh, layer.cells, floor, layer.state, layer.rotations);
+    }
 
     const stairsTile = tileAt(floor, floor.stairs);
     const stairsExplored = stairsTile?.explored ?? false;
@@ -263,6 +299,36 @@ export class DungeonView {
     return view.object;
   }
 
+  /**
+   * バリアントごとのモデル名 × そのバリアントに属するマス番号から、
+   * バリアントの数だけTerrainLayerを作る(1バリアントしかない既定セットでは
+   * 従来どおり1つだけ作られる)。地方1だけ、タイルごとに90度単位の
+   * ランダム回転も添えて繰り返し感を消す(plan/models/archive/
+   * dungeon-region1-tileset.md)
+   */
+  private buildLayers(
+    models: readonly string[],
+    cellsByVariant: readonly number[][],
+    floor: FloorState,
+    withRandomRotation: boolean,
+  ): TerrainLayer[] {
+    const layers: TerrainLayer[] = [];
+    for (let v = 0; v < models.length; v++) {
+      const cells = cellsByVariant[v]!;
+      const rotations = withRandomRotation
+        ? cells.map((cell) => {
+            const x = cell % floor.width;
+            const y = (cell - x) / floor.width;
+            return (tileHash(x, y, 101) % 4) * (Math.PI / 2);
+          })
+        : null;
+      const mesh = this.makeInstanced(models[v]!, cells.length, floor, cells, 0);
+      if (!mesh) continue;
+      layers.push({ mesh, cells, rotations, state: new Uint8Array(cells.length).fill(UNSEEN) });
+    }
+    return layers;
+  }
+
   private makeInstanced(
     model: string,
     count: number,
@@ -275,7 +341,7 @@ export class DungeonView {
     const mesh = new THREE.InstancedMesh(geometry, material, count);
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     mesh.receiveShadow = true;
-    mesh.castShadow = model === "wall";
+    mesh.castShadow = model.startsWith("wall");
     // InstancedMeshのboundingSphereは初回描画時に一度だけ自動計算され、以後は
     // setMatrixAtで個々のインスタンスを動かしても自動では更新されない。未探索
     // タイルの多くがまだ原点に潰れている(HIDDEN_MATRIX)初回描画時にこれが
@@ -316,6 +382,7 @@ export class DungeonView {
     cells: readonly number[],
     floor: FloorState,
     previous: Uint8Array,
+    rotations: readonly number[] | null,
   ): void {
     if (!mesh) return;
     const matrix = new THREE.Matrix4();
@@ -334,7 +401,12 @@ export class DungeonView {
         if (tile.explored) {
           const x = cell % floor.width;
           const y = (cell - x) / floor.width;
-          matrix.makeTranslation(x * TILE, 0, y * TILE);
+          if (rotations) {
+            matrix.makeRotationY(rotations[i]!);
+            matrix.setPosition(x * TILE, 0, y * TILE);
+          } else {
+            matrix.makeTranslation(x * TILE, 0, y * TILE);
+          }
           mesh.setMatrixAt(i, matrix);
         } else {
           mesh.setMatrixAt(i, HIDDEN_MATRIX);
@@ -435,15 +507,14 @@ export class DungeonView {
   }
 
   clear(): void {
-    for (const mesh of [this.walls, this.floors]) {
-      if (!mesh) continue;
-      this.group.remove(mesh);
-      mesh.geometry.dispose();
-      (mesh.material as THREE.Material).dispose();
-      mesh.dispose();
+    for (const layer of [...this.wallLayers, ...this.floorLayers]) {
+      this.group.remove(layer.mesh);
+      layer.mesh.geometry.dispose();
+      (layer.mesh.material as THREE.Material).dispose();
+      layer.mesh.dispose();
     }
-    this.walls = null;
-    this.floors = null;
+    this.wallLayers = [];
+    this.floorLayers = [];
     this.stairsGroup.clear();
     this.doorGroup.clear();
     this.blockedStairsGroup.clear();

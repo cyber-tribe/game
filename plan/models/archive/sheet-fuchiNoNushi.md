@@ -15,3 +15,7 @@ plan/models/archive/character-design-language.mdのデザインシート
    沈んだ、この地方でもっとも重い悲しみが凝った姿。動じることなく
    淵の底に居座り、地方の主として滝つぼ全体を見渡す」設定を、
    沈んだ重石そのもので表す
+6. **逸脱項目**(plan/models/archive/boss-silhouette-differentiation.md):
+   ①左右非対称(藻は右肩からしか垂れない) ②ネガティブスペース
+   (胸の片側だけに水を湛えた淵そのものをくぼみとして持つ)
+   ③通常種には無い大きな形(水底の藻・水を湛えた淵)
