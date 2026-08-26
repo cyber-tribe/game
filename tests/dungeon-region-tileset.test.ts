@@ -54,36 +54,39 @@ function wallMeshesByModel(scene: THREE.Scene): Map<string, THREE.InstancedMesh>
   return map;
 }
 
-describe("view/dungeonMesh.ts: 第一地方のタイルセット出し分け", () => {
-  it("地方1(ひなたの寝穴・第一地方ダンジョン)は壁・床・階段とも専用モデルを使う", () => {
+describe.each([
+  { region: 1, dungeonIndex: 0, prefix: "region1", stairs: "stairs_region1" },
+  { region: 2, dungeonIndex: 1, prefix: "region2", stairs: "stairs_region2" },
+])("view/dungeonMesh.ts: 第$region地方のタイルセット出し分け", ({ dungeonIndex, prefix, stairs }) => {
+  it("壁・床・階段とも専用モデルを使う", () => {
     const scene = new THREE.Scene();
     const { assets, instancingSourceCalls, instantiateCalls } = fakeAssets();
     const view = new DungeonView(scene, assets);
-    view.build(makeRingFloor(1), REGION_DUNGEON_IDS[0]!);
+    view.build(makeRingFloor(1), REGION_DUNGEON_IDS[dungeonIndex]!);
 
     expect(instancingSourceCalls).not.toContain("wall");
     expect(instancingSourceCalls).not.toContain("floor");
-    expect(instantiateCalls).toContain("stairs_region1");
+    expect(instantiateCalls).toContain(stairs);
     expect(instantiateCalls).not.toContain("stairs");
 
     // 壁マス・床マスとも十分な数があるので(外周48マス・内側196マス)、
     // 3バリアントのうち複数が実際に使われているはず
-    const wallVariants = instancingSourceCalls.filter((n) => n.startsWith("wall_region1_v"));
-    const floorVariants = instancingSourceCalls.filter((n) => n.startsWith("floor_region1_v"));
+    const wallVariants = instancingSourceCalls.filter((n) => n.startsWith(`wall_${prefix}_v`));
+    const floorVariants = instancingSourceCalls.filter((n) => n.startsWith(`floor_${prefix}_v`));
     expect(new Set(wallVariants).size).toBeGreaterThan(1);
     expect(new Set(floorVariants).size).toBeGreaterThan(1);
   });
 
-  it("地方1のタイルには90度単位のランダム回転がかかる(繰り返し感を消す)", () => {
+  it("タイルには90度単位のランダム回転がかかる(繰り返し感を消す)", () => {
     const scene = new THREE.Scene();
     const { assets } = fakeAssets();
     const view = new DungeonView(scene, assets);
-    view.build(makeRingFloor(1), REGION_DUNGEON_IDS[0]!);
+    view.build(makeRingFloor(1), REGION_DUNGEON_IDS[dungeonIndex]!);
 
     const meshes = wallMeshesByModel(scene);
     const rotationYs = new Set<number>();
     for (const [name, mesh] of meshes) {
-      if (!name.startsWith("wall_region1_v") && !name.startsWith("floor_region1_v")) continue;
+      if (!name.startsWith(`wall_${prefix}_v`) && !name.startsWith(`floor_${prefix}_v`)) continue;
       const matrix = new THREE.Matrix4();
       const pos = new THREE.Vector3();
       const quat = new THREE.Quaternion();
@@ -99,19 +102,23 @@ describe("view/dungeonMesh.ts: 第一地方のタイルセット出し分け", (
     // 0度だけでなく、複数の90度刻みの向きが実際に使われている
     expect(rotationYs.size).toBeGreaterThan(1);
   });
+});
 
-  it("地方1以外は従来どおり既定の壁・床・階段のまま(回転もかからない)", () => {
+describe("view/dungeonMesh.ts: タイルセット未対応の地方", () => {
+  it("地方1・2以外は従来どおり既定の壁・床・階段のまま(回転もかからない)", () => {
     const scene = new THREE.Scene();
     const { assets, instancingSourceCalls, instantiateCalls } = fakeAssets();
     const view = new DungeonView(scene, assets);
-    // REGION_DUNGEON_IDS[1] は地方2(regionIndexForFloor(id, 1) === 2)
-    view.build(makeRingFloor(1), REGION_DUNGEON_IDS[1]!);
+    // REGION_DUNGEON_IDS[2] は地方3(regionIndexForFloor(id, 1) === 3、
+    // まだREGION_TILESETSにエントリが無い)
+    view.build(makeRingFloor(1), REGION_DUNGEON_IDS[2]!);
 
     expect(instancingSourceCalls).toContain("wall");
     expect(instancingSourceCalls).toContain("floor");
-    expect(instancingSourceCalls.some((n) => n.includes("region1"))).toBe(false);
+    expect(instancingSourceCalls.some((n) => n.includes("region"))).toBe(false);
     expect(instantiateCalls).toContain("stairs");
     expect(instantiateCalls).not.toContain("stairs_region1");
+    expect(instantiateCalls).not.toContain("stairs_region2");
 
     const meshes = wallMeshesByModel(scene);
     const wallMesh = meshes.get("wall")!;

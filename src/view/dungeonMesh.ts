@@ -24,13 +24,26 @@ const EXPLORED_BIT = 1;
 const VISIBLE_BIT = 2;
 
 /**
- * 第一地方(うたたねの参道)のタイルセット(plan/models/archive/
- * dungeon-region1-tileset.md)。壁・床とも3バリアントで、タイルごとに
- * ランダムに1つを選び繰り返し感を消す。他の地方はまだ専用タイルセットが
- * 無いので、既定の"wall"/"floor"/"stairs"へフォールバックする
+ * 地方ごとのタイルセット(plan/models/archive/dungeon-region1-tileset.md、
+ * plan/models/archive/dungeon-region-tileset-generalize.md)。壁・床とも
+ * 3バリアントで、タイルごとにランダムに1つを選び繰り返し感を消す。
+ * まだタイルセットを持たない地方は、既定の"wall"/"floor"/"stairs"へ
+ * フォールバックする(地方が増えるたびにここへエントリを追加するだけでよい)
  */
-const REGION1_WALL_MODELS = ["wall_region1_v1", "wall_region1_v2", "wall_region1_v3"] as const;
-const REGION1_FLOOR_MODELS = ["floor_region1_v1", "floor_region1_v2", "floor_region1_v3"] as const;
+const REGION_TILESETS: Partial<
+  Record<number, { wall: readonly string[]; floor: readonly string[]; stairs: string }>
+> = {
+  1: {
+    wall: ["wall_region1_v1", "wall_region1_v2", "wall_region1_v3"],
+    floor: ["floor_region1_v1", "floor_region1_v2", "floor_region1_v3"],
+    stairs: "stairs_region1",
+  },
+  2: {
+    wall: ["wall_region2_v1", "wall_region2_v2", "wall_region2_v3"],
+    floor: ["floor_region2_v1", "floor_region2_v2", "floor_region2_v3"],
+    stairs: "stairs_region2",
+  },
+};
 
 /**
  * 座標からタイルごとに決定的な「ランダム」値を作る(x,yだけの単純な剰余だと
@@ -125,11 +138,13 @@ export class DungeonView {
   build(floor: FloorState, dungeonId: string): void {
     this.clear();
 
-    // 地方1だけ専用タイルセットを持つ(plan/models/archive/
-    // dungeon-region1-tileset.md)。他の地方はまだ無いので既定セットのまま
-    const isRegion1 = regionIndexForFloor(dungeonId, floor.depth) === 1;
-    const wallModels: readonly string[] = isRegion1 ? REGION1_WALL_MODELS : ["wall"];
-    const floorModels: readonly string[] = isRegion1 ? REGION1_FLOOR_MODELS : ["floor"];
+    // 地方ごとのタイルセットを引く。持たない地方は既定セットへ
+    // フォールバックする(plan/models/archive/
+    // dungeon-region-tileset-generalize.md)
+    const tileset = REGION_TILESETS[regionIndexForFloor(dungeonId, floor.depth)];
+    const hasTileset = tileset !== undefined;
+    const wallModels: readonly string[] = tileset?.wall ?? ["wall"];
+    const floorModels: readonly string[] = tileset?.floor ?? ["floor"];
 
     const stairsIndex = floor.stairs.y * floor.width + floor.stairs.x;
     const wallCellsByVariant: number[][] = wallModels.map(() => []);
@@ -151,10 +166,10 @@ export class DungeonView {
       }
     }
 
-    this.wallLayers = this.buildLayers(wallModels, wallCellsByVariant, floor, isRegion1);
-    this.floorLayers = this.buildLayers(floorModels, floorCellsByVariant, floor, isRegion1);
+    this.wallLayers = this.buildLayers(wallModels, wallCellsByVariant, floor, hasTileset);
+    this.floorLayers = this.buildLayers(floorModels, floorCellsByVariant, floor, hasTileset);
 
-    const stairs = this.assets.instantiate(isRegion1 ? "stairs_region1" : "stairs").root;
+    const stairs = this.assets.instantiate(tileset?.stairs ?? "stairs").root;
     stairs.position.copy(toWorld(floor.stairs));
     this.stairsGroup.add(stairs);
 
