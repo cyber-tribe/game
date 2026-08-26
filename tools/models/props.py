@@ -26,6 +26,16 @@ ROOT_BARK_LIGHT = (0.36, 0.26, 0.16)
 ROOT_MOSS = (0.23, 0.32, 0.17)
 DIRT_FLOOR = (0.27, 0.21, 0.15)
 
+# 第二地方(忘れ潮の湿地)専用の意匠(plan/models/archive/
+# dungeon-region-tileset-generalize.md)
+REED_GREEN = (0.34, 0.42, 0.22)
+REED_GREEN_DRY = (0.46, 0.44, 0.28)
+MUD_DARK = (0.24, 0.22, 0.16)
+MUD_LIGHT = (0.32, 0.29, 0.20)
+PUDDLE_WATER = (0.12, 0.17, 0.16)
+LOG_BROWN = (0.34, 0.24, 0.15)
+LOG_BROWN_DARK = (0.24, 0.17, 0.10)
+
 
 def _hand_carved_jitter(obj, amount: float = 0.022, z_amount: float | None = None) -> None:
     """
@@ -274,6 +284,139 @@ def build_floor_region1_v2():
 
 def build_floor_region1_v3():
     return _build_floor_region1(3)
+
+
+# ------------------------------------------------------------ 第二地方の壁・床・階段
+
+def build_stairs_region2():
+    """
+    第二地方の階段。段・蹴上げ・穴の縁の構成はbuild_stairsと同じで、
+    素材を泥に沈む丸太に差し替える(plan/models/archive/
+    dungeon-region-tileset-generalize.md)。
+    """
+    log = C.make_material("stairs_region2_log", LOG_BROWN, roughness=0.85)
+    log_dark = C.make_material("stairs_region2_log_dark", LOG_BROWN_DARK, roughness=0.9)
+    return [_build_stairs_shape("stairs_region2", log, log_dark, MUD_DARK, (0.05, 0.05, 0.03))]
+
+
+# variantごとの葦の束の姿(土手の半径・高さ、葦の本数・太さ、傾き)
+_WALL_REGION2_PROFILES = {
+    1: dict(mound_r=0.42, mound_h=0.30, reed_count=7, reed_r=0.042, sway=0.03),
+    2: dict(mound_r=0.34, mound_h=0.24, reed_count=9, reed_r=0.030, sway=0.09),
+    3: dict(mound_r=0.38, mound_h=0.34, reed_count=6, reed_r=0.052, sway=-0.06),
+}
+
+
+def _build_wall_region2(variant: int):
+    """
+    葦の束と泥の土手が壁を成す(plan/models/archive/
+    dungeon-region-tileset-generalize.md)。太い根がうねる第一地方の壁
+    (`_build_wall_region1`)と対照的に、細い葦を束ねて泥の土手に
+    立てただけの、頼りなくたわむ輪郭にする。
+    """
+    mud = C.make_material(f"wall_region2_v{variant}_mud", MUD_DARK, roughness=0.9)
+    reed = C.make_material(f"wall_region2_v{variant}_reed", REED_GREEN, roughness=0.75)
+    reed_dry = C.make_material(f"wall_region2_v{variant}_reed_dry", REED_GREEN_DRY, roughness=0.8)
+    cord_mat = C.make_material(f"wall_region2_v{variant}_cord", MUD_LIGHT, roughness=0.7)
+
+    profile = _WALL_REGION2_PROFILES[variant]
+    objs = []
+
+    # 泥の土手(でこぼこした低い塚)
+    mound = C.box(f"wall_region2_v{variant}_mound", (0.0, 0.0, profile["mound_h"] / 2 - 0.02),
+                 (0.94, 0.94, profile["mound_h"]), bevel=0.10, bevel_segments=2)
+    C.assign_material(mound, mud)
+    objs.append(mound)
+
+    # 葦の束。円周上に疑似乱数でばらつきを持たせて配置する
+    base_z = profile["mound_h"] * 0.6
+    for i in range(profile["reed_count"]):
+        angle = (i / profile["reed_count"]) * 2 * math.pi + variant
+        dist = profile["mound_r"] * (0.35 + 0.4 * ((i * 0.61803) % 1.0))
+        x = math.cos(angle) * dist + profile["sway"] * 0.5
+        y = math.sin(angle) * dist
+        height = 1.0 - profile["mound_h"] * 0.4 + ((i * 0.382) % 1.0 - 0.5) * 0.12
+        r = profile["reed_r"] * (0.8 + 0.4 * ((i * 0.236) % 1.0))
+        reed_obj = C.cone(f"wall_region2_v{variant}_reed{i}", (x, y, base_z + height / 2),
+                          r, r * 0.25, height, segments=7)
+        C.assign_material(reed_obj, reed if i % 3 else reed_dry)
+        objs.append(reed_obj)
+
+    # 束ねる帯
+    cord = C.cylinder(f"wall_region2_v{variant}_cord", (0.0, 0.0, base_z + 0.30),
+                      profile["mound_r"] * 0.62, 0.04, segments=16)
+    C.assign_material(cord, cord_mat)
+    objs.append(cord)
+
+    wall = C.join(objs, f"wall_region2_v{variant}")
+    _hand_carved_jitter(wall, amount=0.025, z_amount=0.015)
+    return [wall]
+
+
+def build_wall_region2_v1():
+    return _build_wall_region2(1)
+
+
+def build_wall_region2_v2():
+    return _build_wall_region2(2)
+
+
+def build_wall_region2_v3():
+    return _build_wall_region2(3)
+
+
+# variantごとに散らす水たまり: (中心x, 中心y, 半径)の列
+_FLOOR_REGION2_PUDDLES = {
+    1: [(-0.20, 0.15, 0.095), (0.25, -0.10, 0.075)],
+    2: [(0.10, 0.28, 0.080), (-0.28, -0.05, 0.065), (0.05, -0.30, 0.050)],
+    3: [(0.30, 0.20, 0.100), (-0.15, -0.25, 0.075)],
+}
+
+
+def _build_floor_region2(variant: int):
+    """
+    ぬかるみと点在する水たまり(plan/models/archive/
+    dungeon-region-tileset-generalize.md)。木の根の代わりに、泥面へ
+    浅く沈んだ水たまり(縁を少し持ち上げ、水面を少し沈める)を実際の
+    凹凸として作り、書き出し時に自動で焼かれるAOがそのまま陰影になる
+    ようにする(第一地方の床と同じ考え方)。
+    """
+    mud = C.make_material(f"floor_region2_v{variant}_mud", MUD_DARK, roughness=0.92)
+    rim_mat = C.make_material(f"floor_region2_v{variant}_rim", MUD_LIGHT, roughness=0.85)
+    water_mat = C.make_material(f"floor_region2_v{variant}_water", PUDDLE_WATER, roughness=0.2)
+
+    # 上面がz=0にくるようにする(既存build_floor/build_floor_region1と
+    # 同じ高さの取り決め)
+    slab = C.box(f"floor_region2_v{variant}_slab", (0.0, 0.0, -0.06), (1.0, 1.0, 0.12),
+                bevel=0.06, bevel_segments=1)
+    C.assign_material(slab, mud)
+    objs = [slab]
+
+    for x, y, r in _FLOOR_REGION2_PUDDLES[variant]:
+        rim = C.cylinder(f"floor_region2_v{variant}_rim{len(objs)}", (x, y, -0.006), r * 1.25,
+                         0.020, segments=16)
+        C.assign_material(rim, rim_mat)
+        objs.append(rim)
+        water = C.cylinder(f"floor_region2_v{variant}_water{len(objs)}", (x, y, -0.016), r,
+                           0.016, segments=16)
+        C.assign_material(water, water_mat)
+        objs.append(water)
+
+    floor = C.join(objs, f"floor_region2_v{variant}")
+    _hand_carved_jitter(floor, amount=0.03, z_amount=0.015)
+    return [floor]
+
+
+def build_floor_region2_v1():
+    return _build_floor_region2(1)
+
+
+def build_floor_region2_v2():
+    return _build_floor_region2(2)
+
+
+def build_floor_region2_v3():
+    return _build_floor_region2(3)
 
 
 # --------------------------------------------------------------------------- 罠
@@ -1493,6 +1636,13 @@ PROPS = {
     "floor_region1_v2": build_floor_region1_v2,
     "floor_region1_v3": build_floor_region1_v3,
     "stairs_region1": build_stairs_region1,
+    "wall_region2_v1": build_wall_region2_v1,
+    "wall_region2_v2": build_wall_region2_v2,
+    "wall_region2_v3": build_wall_region2_v3,
+    "floor_region2_v1": build_floor_region2_v1,
+    "floor_region2_v2": build_floor_region2_v2,
+    "floor_region2_v3": build_floor_region2_v3,
+    "stairs_region2": build_stairs_region2,
     "trap_damage": build_trap_damage,
     "trap_sleep": build_trap_sleep,
     "trap_alarm": build_trap_alarm,

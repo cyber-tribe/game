@@ -38,6 +38,22 @@ export const REGION1_TERRAIN_MODELS = [
 ] as const;
 
 /**
+ * 第二地方(忘れ潮の湿地)専用の地形モデル(`plan/models/archive/
+ * dungeon-region-tileset-generalize.md`)。地方1と同じく壁・床3種+階段。
+ * ひなたの寝穴と違って起動直後には要らないので、`essentialModelNames`
+ * には含めず`modelNames`のみに載せ、背景読み込みに任せる
+ */
+export const REGION2_TERRAIN_MODELS = [
+  "wall_region2_v1",
+  "wall_region2_v2",
+  "wall_region2_v3",
+  "floor_region2_v1",
+  "floor_region2_v2",
+  "floor_region2_v3",
+  "stairs_region2",
+] as const;
+
+/**
  * タルの種類ごとのモデル。BarrelKind と対応する。元素タル(plan/game/archive/
  * barrel-arts.md)は専用モデルをまだ制作しておらず、見た目は空のタルを流用する
  * (plan/models/への新規モデル追加は別作業とする)
@@ -107,7 +123,12 @@ export const VILLAGER_CLIPS = ["idle", "talk"] as const;
  * 一覧を二重に持たないことが大事。
  */
 export function modelNames(): string[] {
-  const names = new Set<string>(["garudo", ...TERRAIN_MODELS, ...REGION1_TERRAIN_MODELS]);
+  const names = new Set<string>([
+    "garudo",
+    ...TERRAIN_MODELS,
+    ...REGION1_TERRAIN_MODELS,
+    ...REGION2_TERRAIN_MODELS,
+  ]);
   for (const species of SPECIES) names.add(species.model);
   for (const item of ITEMS) names.add(item.model);
   for (const model of Object.values(TRAP_MODELS)) names.add(model);
