@@ -1,8 +1,27 @@
+> **実装済み。** `tools/audio/compose.ts`の`TrackParams`に
+> `chordSkeleton?: readonly number[]`を追加し、`composeTrack`内で
+> `CHORD_SKELETON`を直接参照していた4箇所(メインループ・モチーフ提示・
+> `quoteMotif`・`humLayer`)をすべて`params.chordSkeleton ?? CHORD_SKELETON`
+> 経由に差し替えた。`tools/audio/build.ts`の`BgmSpec`に同名フィールドを
+> 追加し、計画書どおりの11パターンをvillage・region1〜8・boss・
+> true-awakeningへ割り当てた。既存の6曲(shortcut等)は
+> `chordSkeleton`を指定していないため、既定の`CHORD_SKELETON`のまま
+> 波形は変化しない。
+>
+> **検証**: `npx tsc --noEmit`・`npx vitest run`(135ファイル/1750件、
+> `chordSkeleton`の決定性・差別化・後方互換を確認する新規3件を含む)・
+> `npm run build`・`npm run audio`いずれも成功。再生成後の差分は
+> village・region1〜8・boss・true-awakeningの11ファイルのみ(他の
+> BGM・SFX・ジングルは無変更)。
+>
+> 再評価(次の聴感評価ラウンド)は`plan/sound/bgm-listening-review.md`
+> 側で継続する。
+
 # 地方ごとに異なるコード進行の骨格を持たせる
 
 ## 経緯
 
-`plan/sound/archive/bgm-listening-review.md`の聴感評価で、ユーザーから
+`plan/sound/bgm-listening-review.md`の聴感評価で、ユーザーから
 「BGMは酷い。どれも同じに聴こえる」という所見を得た
 (`bgm-listening-review-findings.md`参照)。
 

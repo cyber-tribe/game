@@ -793,7 +793,13 @@ class App {
    * テスト用の箱庭(plan/game/test-dungeon-harness.md)。スロット選択画面を
    * 待たず、注入されたFloorStateでいきなりダイブを開始する。
    * `window.__testHarness`(main.ts末尾、MODE==="test"のときだけ生える)
-   * 経由でのみ呼ばれる
+   * 経由でのみ呼ばれる。
+   *
+   * 地方タイルセット(REGION2_TERRAIN_MODELS等)は起動時のessentialModelNamesに
+   * 含めず背景読み込みに任せているため、スロット選択を経由せずいきなり深い階へ
+   * 注入するこの経路では読み込みが間に合わないことがある(Assets.getが例外を
+   * 投げてpresentFloorが失敗する)。通常プレイのフロア遷移は地方の変わり目まで
+   * 十分な時間があるため踏まない競合で、この箱庭注入経路だけの対応でよい
    */
   async startInjectedTestRun(injection: TestFloorInjection): Promise<void> {
     this.slotSelect.hide();
@@ -805,11 +811,6 @@ class App {
     this.trueAwakeningClearedThisRun = false;
     this.diveReachedDepths = [];
     this.game = new Game({ seed: 0, testFloorInjection: injection });
-    // 地方タイルセット(REGION2_TERRAIN_MODELS等)は起動時のessentialModelNamesに
-    // 含めず背景読み込みに任せているため、スロット選択を経由せずいきなり深い階へ
-    // 注入するこの経路では読み込みが間に合わないことがある(Assets.getが例外を
-    // 投げてpresentFloorが失敗する)。通常プレイのフロア遷移は地方の変わり目まで
-    // 十分な時間があるため踏まない競合で、この箱庭注入経路だけの対応でよい
     await this.assets.ready(requiredTerrainModels(this.game.dungeonId, this.game.depth));
     this.presentFloor();
     // 通常はbeginWithSlot()がスロット選択の直後に1回だけthis.loop()を呼び、

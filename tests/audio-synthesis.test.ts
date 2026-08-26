@@ -10,7 +10,20 @@ import {
   composeSmallFireAmbient,
   composeTrack,
 } from "../tools/audio/compose.ts";
-import { breathCry, drumHit, fluteNote, humVoice, malletNote, mixIn, mulberry32, normalize, pluckedString } from "../tools/audio/synth.ts";
+import {
+  bowedTone,
+  breathCry,
+  drumHit,
+  fluteNote,
+  gongHit,
+  humVoice,
+  malletNote,
+  mixIn,
+  mulberry32,
+  normalize,
+  pluckedString,
+  rattleHit,
+} from "../tools/audio/synth.ts";
 import { encodeWav } from "../tools/audio/wav.ts";
 
 const NO_REVERB = { wet: 0, roomSize: 0.3 };
@@ -132,6 +145,41 @@ describe("tools/audio/synth.ts(plan/sound/archive/audio-synthesis.md)", () => {
     const c = breathCry(300, 0.25, 22050, 6, 0.2);
     expect(Array.from(a)).not.toEqual(Array.from(c));
   });
+
+  // 楽器の多様化(plan/sound/archive/bgm-instrument-diversity.md): 木琴・太鼓・笛・
+  // 弦の4種だけでは地方ごとの楽器編成そのものを変えられなかったための3種追加
+  it("gongHitは指定した長さの有限な値の配列を、同じシードから決定的に返す", () => {
+    const a = gongHit(440, 0.6, 22050, 10);
+    const b = gongHit(440, 0.6, 22050, 10);
+    expect(a.length).toBe(Math.floor(0.6 * 22050));
+    expect(Array.from(a)).toEqual(Array.from(b));
+    for (const v of a) expect(Number.isFinite(v)).toBe(true);
+
+    const c = gongHit(440, 0.6, 22050, 11);
+    expect(Array.from(a)).not.toEqual(Array.from(c));
+  });
+
+  it("bowedToneは指定した長さの有限な値の配列を、同じシードから決定的に返す", () => {
+    const a = bowedTone(330, 0.5, 22050, 12);
+    const b = bowedTone(330, 0.5, 22050, 12);
+    expect(a.length).toBe(Math.floor(0.5 * 22050));
+    expect(Array.from(a)).toEqual(Array.from(b));
+    for (const v of a) expect(Number.isFinite(v)).toBe(true);
+
+    const c = bowedTone(330, 0.5, 22050, 13);
+    expect(Array.from(a)).not.toEqual(Array.from(c));
+  });
+
+  it("rattleHitは指定した長さの有限な値の配列を、同じシードから決定的に返す", () => {
+    const a = rattleHit(0.4, 22050, 14);
+    const b = rattleHit(0.4, 22050, 14);
+    expect(a.length).toBe(Math.floor(0.4 * 22050));
+    expect(Array.from(a)).toEqual(Array.from(b));
+    for (const v of a) expect(Number.isFinite(v)).toBe(true);
+
+    const c = rattleHit(0.4, 22050, 15);
+    expect(Array.from(a)).not.toEqual(Array.from(c));
+  });
 });
 
 describe("tools/audio/compose.ts(plan/sound/archive/bgm-quality-upgrade.md)", () => {
@@ -234,6 +282,60 @@ describe("tools/audio/compose.ts(plan/sound/archive/bgm-quality-upgrade.md)", ()
     const a = composeTrack({ ...baseParams, seed: 23, quoteMotif: { degrees: [0, 2, 4, 2] } });
     const b = composeTrack({ ...baseParams, seed: 23, quoteMotif: { degrees: [0, 2, 4, 2] } });
     expect(Array.from(a.left)).toEqual(Array.from(b.left));
+  });
+
+  it("chordSkeletonを指定すると波形が変わり、未指定の曲には影響しない(plan/sound/archive/bgm-chord-progression-variety.md)", () => {
+    const without = composeTrack({ ...baseParams, seed: 25 });
+    const withSkeleton = composeTrack({ ...baseParams, seed: 25, chordSkeleton: [0, 4, 3, 4, 0, 3, 4, 0] });
+    expect(Array.from(withSkeleton.left)).not.toEqual(Array.from(without.left));
+  });
+
+  it("chordSkeletonが異なる2曲は、他のパラメータが同じでも異なる波形を返す(和声の起伏そのものが差別化されている)", () => {
+    const a = composeTrack({ ...baseParams, seed: 27, chordSkeleton: [0, 0, 3, 3, 4, 4, 0, 0] });
+    const b = composeTrack({ ...baseParams, seed: 27, chordSkeleton: [4, 2, 0, 1, 0, 2, 4, 0] });
+    expect(Array.from(a.left)).not.toEqual(Array.from(b.left));
+  });
+
+  it("chordSkeletonは同じシードから決定的に同じ波形を返す", () => {
+    const a = composeTrack({ ...baseParams, seed: 29, chordSkeleton: [0, 4, 3, 4, 0, 3, 4, 0] });
+    const b = composeTrack({ ...baseParams, seed: 29, chordSkeleton: [0, 4, 3, 4, 0, 3, 4, 0] });
+    expect(Array.from(a.left)).toEqual(Array.from(b.left));
+  });
+
+  // 楽器の多様化(plan/sound/archive/bgm-instrument-diversity.md): weightsに
+  // gong/bow/rattleを指定すると、既存4種だけの場合と異なる波形になる
+  // (地方ごとに楽器編成そのものを変えられることの確認)
+  it("weightsにgong/bow/rattleを指定すると波形が変わり、未指定の曲には影響しない", () => {
+    const without = composeTrack({ ...baseParams, seed: 31 });
+    const withNewInstruments = composeTrack({
+      ...baseParams,
+      seed: 31,
+      weights: { mallet: 0.1, drum: 0.1, flute: 0.1, string: 0.1, gong: 0.3, bow: 0.3, rattle: 0.2 },
+    });
+    expect(Array.from(withNewInstruments.left)).not.toEqual(Array.from(without.left));
+  });
+
+  // barsを小さくする(gong/bowは1サンプルごとにsin()を複数重ねるぶん
+  // 既存の楽器より合成コストが高く、baseParams規模(8小節)だとCIの
+  // 遅いランナーでは単発の生成だけでも既定の5秒タイムアウトを
+  // 超えることがあったため)。決定性・クリップ防止という性質の検証には
+  // 小節数を減らしても十分
+  it("gong/bow/rattleのみのweightsでも決定的に同じ波形を返す", () => {
+    const gongBowRattleOnly = { mallet: 0, drum: 0, flute: 0, string: 0, gong: 0.4, bow: 0.3, rattle: 0.3 };
+    const smallParams = { ...baseParams, bars: 2 };
+    const a = composeTrack({ ...smallParams, seed: 33, weights: gongBowRattleOnly });
+    const b = composeTrack({ ...smallParams, seed: 33, weights: gongBowRattleOnly });
+    expect(Array.from(a.left)).toEqual(Array.from(b.left));
+  });
+
+  it("gong/bow/rattleのみのweightsでも有限な値のまま収まる(クリップ防止も維持される)", () => {
+    const gongBowRattleOnly = { mallet: 0, drum: 0, flute: 0, string: 0, gong: 0.4, bow: 0.3, rattle: 0.3 };
+    const smallParams = { ...baseParams, bars: 2 };
+    const out = composeTrack({ ...smallParams, seed: 33, weights: gongBowRattleOnly });
+    const peak = (arr: Float32Array) => arr.reduce((max, v) => Math.max(max, Math.abs(v)), 0);
+    expect(peak(out.left)).toBeLessThanOrEqual(1);
+    expect(peak(out.right)).toBeLessThanOrEqual(1);
+    for (const v of out.left) expect(Number.isFinite(v)).toBe(true);
   });
 
   it("composeSfxは有限な値の配列を返す", () => {
