@@ -17,4 +17,5 @@ __pycache__/
 # playtest のスクリーンショット出力
 playtest-shots/
 decision-density-shots/
+region1-tactical-shots/
 preview.log
