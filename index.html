@@ -907,7 +907,10 @@
       }
       #ui.village-interior .town-box {
         width: min(660px, 52vw);
-        margin-left: min(3vw, 26px);
+        /* iPhoneのノッチは横向きだと画面の左右どちらかの端に来る。ここが
+           --safe-leftを見ていないと、ノッチ側でパネルの左端が隠れる/
+           見切れる(plan/game/archive/interior-panel-safe-area-left.md) */
+        margin-left: calc(min(3vw, 26px) + var(--safe-left));
         padding: 18px 22px 16px;
         background: rgba(8, 10, 22, 0.86);
       }
@@ -917,6 +920,9 @@
         #ui.village-interior #town {
           align-items: flex-start;
           padding-top: calc(20px + var(--safe-top));
+          /* .town-box側の対応で足りるはずだが、将来パネル幅の計算が
+             変わった場合の保険として、コンテナ側でも二重にガードしておく */
+          padding-left: var(--safe-left);
         }
         #ui.village-interior .town-box {
           width: min(660px, 56vw);
