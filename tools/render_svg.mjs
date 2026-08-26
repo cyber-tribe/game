@@ -7,14 +7,17 @@
  *
  *   node tools/render_svg.mjs plan/models/concepts/garudo-a.svg [...]
  *
- * 出力は tools/preview/concepts/<拡張子抜きの入力ファイル名>.png。
+ * 出力は tools/preview/<入力ファイルの親ディレクトリ名>/<拡張子抜きの
+ * 入力ファイル名>.png(例: plan/models/concepts/garudo-a.svg →
+ * tools/preview/concepts/garudo-a.png、plan/models/turnarounds/garudo.svg
+ * → tools/preview/turnarounds/garudo.png)。
  * 環境変数は他のtools/*.mjsと同じ流儀。
  *   CHROMIUM_PATH    Chromium の実行ファイル
  *   PLAYWRIGHT_PATH  playwright パッケージの場所
  */
 import { createRequire } from "node:module";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 async function loadPlaywright() {
@@ -36,8 +39,7 @@ if (inputs.length === 0) {
 
 const { chromium } = await loadPlaywright();
 const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url));
-const OUT_DIR = join(REPO_ROOT, "tools", "preview", "concepts");
-mkdirSync(OUT_DIR, { recursive: true });
+const PREVIEW_ROOT = join(REPO_ROOT, "tools", "preview");
 
 function chromiumPath() {
   const explicit = process.env.CHROMIUM_PATH;
@@ -61,7 +63,9 @@ for (const input of inputs) {
   const el = await page.$("svg");
   const box = await el.boundingBox();
   await page.setViewportSize({ width: Math.ceil(box.width), height: Math.ceil(box.height) });
-  const out = join(OUT_DIR, `${basename(input, ".svg")}.png`);
+  const outDir = join(PREVIEW_ROOT, basename(dirname(input)));
+  mkdirSync(outDir, { recursive: true });
+  const out = join(outDir, `${basename(input, ".svg")}.png`);
   await el.screenshot({ path: out });
   console.log(`撮影: ${out}`);
 }

@@ -137,9 +137,17 @@
   「C: 樽板エプロン」を選定(理由: 黒塗りシルエットだけで判別できる
   という既存原則を、戦闘モーションの実用性を犠牲にせず満たす
   唯一の案)。
-- 次はC案の三面図(`plan/models/turnarounds/garudo.svg`、
-  `2d-turnaround-first-workflow.md`の形式)を起こす工程へ進む。
-  ぷるん・通常敵2体・ボス1体のラフ案は未着手。
+- C案の三面図(`plan/models/turnarounds/garudo.svg`、
+  `2d-turnaround-first-workflow.md`の形式・頭身2.5・ガイド線つき)を
+  作成した。
+- 三面図に合わせたガルドの3D化(`garudo.py`)を完了した:
+  樽板エプロン(旧hemを置き換え)・房の髪(鉢巻き廃止)・ミトン状の
+  手・描き目寄りの目の調整(詳細は`plan/models/concepts/garudo.md`)。
+  三角形数は看板モデル基準(4,000〜7,500)内(7,436)。JOINTS/BONES・
+  アニメーションは変更していない。
+- 残るガルドの工程: Blenderの平行投影・黒塗りレンダーと三面図の
+  重ね合わせ照合(`2d-turnaround-first-workflow.md`受け入れ基準2・
+  3)。その後、ぷるん・通常敵2体・ボス1体のラフ案(未着手)へ進む。
 - `tools/render_svg.mjs`(SVG→PNGの目視確認ツール、
   Playwrightベース。他キャラのコンセプト・三面図にもそのまま
   使い回せる)を新設した。
