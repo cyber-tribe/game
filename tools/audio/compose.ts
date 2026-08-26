@@ -109,6 +109,12 @@ export interface TrackParams {
    * 重ねない(plan/sound/archive/village-soundscape.md)
    */
   quoteMotif?: { degrees: readonly number[]; noteBeats?: number; velocity?: number };
+  /**
+   * コード進行の骨格(ペンタトニック上の度数列)。未指定なら全曲共通の
+   * `CHORD_SKELETON`のまま。地方ごとに和声の起伏そのものを差別化するための
+   * 拡張(plan/sound/archive/bgm-chord-progression-variety.md)
+   */
+  chordSkeleton?: readonly number[];
 }
 
 /**
@@ -123,6 +129,7 @@ export function composeTrack(params: TrackParams): StereoTrack {
   const humLayer = params.humLayer ?? false;
   const motif = params.motif;
   const motifNoteBeats = params.motifNoteBeats ?? 1;
+  const chordSkeleton = params.chordSkeleton ?? CHORD_SKELETON;
   const beatSec = 60 / tempoBpm;
   const totalSamples = Math.floor(bars * beatsPerBar * beatSec * sampleRate);
 
@@ -146,7 +153,7 @@ export function composeTrack(params: TrackParams): StereoTrack {
   const secondPresentationEndBeat = secondPresentationStartBeat + motifBarsNeeded * beatsPerBar;
 
   for (let bar = 0; bar < bars; bar++) {
-    const chordDegree = CHORD_SKELETON[bar % CHORD_SKELETON.length]!;
+    const chordDegree = chordSkeleton[bar % chordSkeleton.length]!;
     const isSecondHalf = bar >= secondHalfStart;
     const barOffset = Math.floor(bar * beatsPerBar * beatSec * sampleRate);
 
@@ -217,7 +224,7 @@ export function composeTrack(params: TrackParams): StereoTrack {
       for (let r = 0; r < repeats; r++) {
         for (const motifDegree of motif) {
           const curBar = startBar + Math.floor(beatsElapsed / beatsPerBar);
-          const chordDegree = CHORD_SKELETON[curBar % CHORD_SKELETON.length]!;
+          const chordDegree = chordSkeleton[curBar % chordSkeleton.length]!;
           const freq = degreeToFreq(chordDegree + motifDegree + SCALE_LEN * octaveShift);
           const dur = noteBeats * beatSec * 0.95;
           const posSec = (startBar * beatsPerBar + beatsElapsed) * beatSec;
@@ -255,7 +262,7 @@ export function composeTrack(params: TrackParams): StereoTrack {
     for (const quoteDegree of degrees) {
       const curBeat = startBeat + beatsElapsed;
       const curBar = Math.floor(curBeat / beatsPerBar);
-      const chordDegree = CHORD_SKELETON[((curBar % CHORD_SKELETON.length) + CHORD_SKELETON.length) % CHORD_SKELETON.length]!;
+      const chordDegree = chordSkeleton[((curBar % chordSkeleton.length) + chordSkeleton.length) % chordSkeleton.length]!;
       const freq = degreeToFreq(chordDegree + quoteDegree + SCALE_LEN);
       const dur = quoteNoteBeats * beatSec * 0.95;
       const offset = Math.floor(curBeat * beatSec * sampleRate);
@@ -268,7 +275,7 @@ export function composeTrack(params: TrackParams): StereoTrack {
   // 2小節ぶんの長さで歌う専用レイヤー。既定falseで従来曲には影響なし
   if (humLayer) {
     for (let bar = 0; bar < bars; bar += 2) {
-      const chordDegree = CHORD_SKELETON[bar % CHORD_SKELETON.length]!;
+      const chordDegree = chordSkeleton[bar % chordSkeleton.length]!;
       const barOffset = Math.floor(bar * beatsPerBar * beatSec * sampleRate);
       const pairBars = Math.min(2, bars - bar);
       const humDur = pairBars * beatsPerBar * beatSec * 0.95;

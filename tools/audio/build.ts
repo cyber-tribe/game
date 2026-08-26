@@ -60,6 +60,12 @@ interface BgmSpec {
   motifNoteBeats?: number;
   /** 曲の終わり付近に弱く重ねる、他の曲のモチーフの断片。省略時は無し */
   quoteMotif?: { degrees: readonly number[]; noteBeats?: number; velocity?: number };
+  /**
+   * コード進行の骨格(ペンタトニック上の度数列)。省略時は全曲共通の既定パターン。
+   * 地方ごとに和声の起伏そのものを差別化するための拡張
+   * (plan/sound/archive/bgm-chord-progression-variety.md)
+   */
+  chordSkeleton?: readonly number[];
 }
 
 // design/regions.mdの各地方の雰囲気を、木琴/太鼓/笛/弦の重みづけ・テンポ・拍子・
@@ -80,6 +86,9 @@ const BGM_SPECS: readonly BgmSpec[] = [
     bars: 9,
     reverb: TOWN_REVERB,
     motif: LEITMOTIF_DEGREES,
+    // 根音への帰着が多い、地に足のついた「おかえり」感
+    // (plan/sound/archive/bgm-chord-progression-variety.md)
+    chordSkeleton: [0, 0, 3, 3, 4, 4, 0, 0],
   },
   // 第一地方: うたたねの参道。素朴でチュートリアルを兼ねる地方 → 木琴主体、軽快なテンポ。
   // モチーフ(plan/sound/archive/bgm-main-cave.md): 素直に上って戻る、歩き出しの歌。
@@ -94,6 +103,8 @@ const BGM_SPECS: readonly BgmSpec[] = [
     reverb: { wet: 0.3, roomSize: 0.5, damping: 0.2 },
     motif: [0, 1, 2, 1],
     quoteMotif: { degrees: LEITMOTIF_DEGREES },
+    // 段階的な上下動、素直で歩き出しやすい
+    chordSkeleton: [0, 1, 2, 1, 0, 2, 3, 0],
   },
   // 第二地方: 忘れ潮の湿地。霧の中を歩く湿地 → 笛主体、重めのテンポ。
   // モチーフ: 長く伸びて半歩沈む、霧の中の遠い声
@@ -106,6 +117,8 @@ const BGM_SPECS: readonly BgmSpec[] = [
     reverb: { wet: 0.34, roomSize: 0.55, damping: 0.25 },
     motif: [2, 2, 1, -1],
     quoteMotif: { degrees: LEITMOTIF_DEGREES },
+    // 根音に落ち着き切らない、霧の中を漂う不安定さ
+    chordSkeleton: [0, 4, 3, 4, 0, 3, 4, 0],
   },
   // 第三地方: まどろみの茸林。眠気に満ちた森 → 弦主体、遅めの3拍子でまどろみを出す。
   // モチーフ: 3拍子に乗ってゆっくり降りる、まぶたが落ちる形
@@ -119,6 +132,8 @@ const BGM_SPECS: readonly BgmSpec[] = [
     reverb: { wet: 0.32, roomSize: 0.5, damping: 0.35 },
     motif: [4, 2, 0],
     quoteMotif: { degrees: LEITMOTIF_DEGREES },
+    // 一方向に降りていく、まぶたが落ちる感触
+    chordSkeleton: [4, 3, 2, 1, 0, 1, 2, 0],
   },
   // 第四地方: 骨積みの回廊。狭く入り組んだ回廊 → 太鼓主体、乾いた刻み(残響は控えめ)。
   // モチーフ: 同音の連打から跳ねる、乾いた足音
@@ -131,6 +146,8 @@ const BGM_SPECS: readonly BgmSpec[] = [
     reverb: { wet: 0.22, roomSize: 0.4, damping: 0.15 },
     motif: [0, 0, 3, 0],
     quoteMotif: { degrees: LEITMOTIF_DEGREES },
+    // 同音の反復が多い、乾いた回廊の刻み
+    chordSkeleton: [0, 0, 3, 0, 4, 4, 0, 3],
   },
   // 第五地方: なみだの滝つぼ。悲しみが形を取った地方 → 笛+弦、ゆったり・水音を思わせる豊かな残響。
   // モチーフ: 高い所から続けて落ちる、滝の形をなぞる
@@ -143,6 +160,8 @@ const BGM_SPECS: readonly BgmSpec[] = [
     reverb: { wet: 0.36, roomSize: 0.6, damping: 0.2 },
     motif: [5, 4, 2, 1],
     quoteMotif: { degrees: LEITMOTIF_DEGREES },
+    // 高低の振れ幅が大きい、滝の情感の起伏
+    chordSkeleton: [4, 4, 3, 1, 0, 1, 3, 4],
   },
   // 第六地方: こだまの尾根。物音がよく響く尾根 → 木琴+太鼓、最も深い残響で「よく響く」感触を出す。
   // モチーフ: 呼びかけ2音+同じ形の反復(こだま)
@@ -155,6 +174,8 @@ const BGM_SPECS: readonly BgmSpec[] = [
     reverb: { wet: 0.38, roomSize: 0.65, damping: 0.15 },
     motif: [3, 0, 3, 0],
     quoteMotif: { degrees: LEITMOTIF_DEGREES },
+    // 2音の呼びかけの反復、こだまの構造そのもの
+    chordSkeleton: [0, 3, 0, 3, 4, 0, 4, 0],
   },
   // 第七地方: わすれられた祭りの跡。宵祭りの影のような反映 → 木琴+太鼓、軽快な2拍子の囃子。
   // モチーフ: 囃子の掛け合い、跳ねて戻る
@@ -168,6 +189,8 @@ const BGM_SPECS: readonly BgmSpec[] = [
     reverb: { wet: 0.28, roomSize: 0.45, damping: 0.2 },
     motif: [0, 2, 0, 3],
     quoteMotif: { degrees: LEITMOTIF_DEGREES },
+    // 大きく跳ねる動き、囃子の弾む感じ
+    chordSkeleton: [0, 4, 0, 2, 4, 0, 3, 0],
   },
   // 第八地方: めざめの前庭。全地方の記憶が入り乱れる → 4種を均等に、遅く荘厳なテンポ。
   // モチーフ: 第一地方のモチーフを2倍の音価に引き延ばした形
@@ -182,6 +205,8 @@ const BGM_SPECS: readonly BgmSpec[] = [
     motifNoteBeats: 2,
     reverb: { wet: 0.34, roomSize: 0.55, damping: 0.2 },
     quoteMotif: { degrees: LEITMOTIF_DEGREES },
+    // 広い音域を巡る、全地方の記憶が入り乱れる様子
+    chordSkeleton: [0, 1, 4, 3, 2, 4, 1, 0],
   },
   // 地方ボス戦共通テーマ。太鼓を厚めにして緊張感を出す。各地方の目安+15前後の速いテンポで、
   // 残響はやや控えめにして音の輪郭を保つ(緊張感優先)
@@ -192,6 +217,8 @@ const BGM_SPECS: readonly BgmSpec[] = [
     tempoBpm: 108,
     bars: 8,
     reverb: { wet: 0.26, roomSize: 0.45, damping: 0.15 },
+    // 根音と五度相当を往復する緊張感
+    chordSkeleton: [0, 4, 3, 4, 0, 4, 3, 4],
   },
   // 真の目覚め。誰もいない頃の記憶 → 弦+笛のみ、太鼓はほぼ鳴らさない。
   // 締めくくりの場面として、最も深く広がりのある残響にする。
@@ -205,6 +232,8 @@ const BGM_SPECS: readonly BgmSpec[] = [
     bars: 8,
     reverb: { wet: 0.4, roomSize: 0.7, damping: 0.15 },
     humLayer: true,
+    // 広がりを持って根音へ収束する、静かな終着
+    chordSkeleton: [4, 2, 0, 1, 0, 2, 4, 0],
   },
   // 近道屋の裏穴(plan/sound/archive/bgm-shortcut-back-hole.md)。無理やり掘った
   // 短く手荒な穴 → 全曲中最速のテンポ+裏拍の木琴でせかせかした足取りを出す。
@@ -517,6 +546,7 @@ function main(): void {
       motif: spec.motif,
       motifNoteBeats: spec.motifNoteBeats,
       quoteMotif: spec.quoteMotif,
+      chordSkeleton: spec.chordSkeleton,
     });
     const path = resolve(AUDIO_ROOT, "bgm", `${spec.id}.wav`);
     writeFileSync(path, encodeWav([track.left, track.right], SAMPLE_RATE));

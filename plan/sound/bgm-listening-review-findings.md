@@ -45,5 +45,8 @@ variety.md`を新規に立てた。
 ## 対応状況
 
 - [x] 原因の特定・記録(本ファイル)
-- [x] 修正方針の計画書作成(`bgm-chord-progression-variety.md`)
-- [ ] 実装・再評価(別PR)
+- [x] 修正方針の計画書作成(`plan/sound/archive/bgm-chord-progression-variety.md`)
+- [x] 実装(地方ごとに異なる`chordSkeleton`を持たせた。詳細は
+      実装済みの計画書を参照)
+- [ ] 再評価(次にユーザーへ聴いてもらい、「同じに聴こえる」が
+      解消したか確認する)

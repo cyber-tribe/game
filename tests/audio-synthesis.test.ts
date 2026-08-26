@@ -236,6 +236,24 @@ describe("tools/audio/compose.ts(plan/sound/archive/bgm-quality-upgrade.md)", ()
     expect(Array.from(a.left)).toEqual(Array.from(b.left));
   });
 
+  it("chordSkeletonを指定すると波形が変わり、未指定の曲には影響しない(plan/sound/archive/bgm-chord-progression-variety.md)", () => {
+    const without = composeTrack({ ...baseParams, seed: 25 });
+    const withSkeleton = composeTrack({ ...baseParams, seed: 25, chordSkeleton: [0, 4, 3, 4, 0, 3, 4, 0] });
+    expect(Array.from(withSkeleton.left)).not.toEqual(Array.from(without.left));
+  });
+
+  it("chordSkeletonが異なる2曲は、他のパラメータが同じでも異なる波形を返す(和声の起伏そのものが差別化されている)", () => {
+    const a = composeTrack({ ...baseParams, seed: 27, chordSkeleton: [0, 0, 3, 3, 4, 4, 0, 0] });
+    const b = composeTrack({ ...baseParams, seed: 27, chordSkeleton: [4, 2, 0, 1, 0, 2, 4, 0] });
+    expect(Array.from(a.left)).not.toEqual(Array.from(b.left));
+  });
+
+  it("chordSkeletonは同じシードから決定的に同じ波形を返す", () => {
+    const a = composeTrack({ ...baseParams, seed: 29, chordSkeleton: [0, 4, 3, 4, 0, 3, 4, 0] });
+    const b = composeTrack({ ...baseParams, seed: 29, chordSkeleton: [0, 4, 3, 4, 0, 3, 4, 0] });
+    expect(Array.from(a.left)).toEqual(Array.from(b.left));
+  });
+
   it("composeSfxは有限な値の配列を返す", () => {
     const out = composeSfx({ kind: "mallet", freq: 660, duration: 0.35, sampleRate: 22050, seed: 1 });
     expect(out.length).toBe(Math.floor(0.35 * 22050));
