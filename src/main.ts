@@ -14,6 +14,7 @@ import { Minimap } from "./view/minimap";
 import { PLAYER_LIGHT, Renderer } from "./view/renderer";
 import { GalleryView } from "./view/gallery";
 import { Stage } from "./view/stage";
+import { requiredTerrainModels } from "./view/dungeonMesh";
 import { VILLAGE_BUILDINGS, VillageView } from "./view/village";
 import { VillageInteriorView, interiorForBuilding } from "./view/villageInterior";
 import { AudioPlayer } from "./audio/player";
@@ -794,13 +795,11 @@ class App {
    * `window.__testHarness`(main.ts末尾、MODE==="test"のときだけ生える)
    * 経由でのみ呼ばれる。
    *
-   * 第二地方以降の地形モデル(`REGION2_TERRAIN_MODELS`等)は
-   * `essentialModelNames()`に含まれず起動時は未読み込みのまま背景読み込みに
-   * 任せている(`src/modelList.ts`)。通常プレイでは実際にその深さへ着くまでに
-   * 読み込みが終わっている前提だが、この注入口は任意の深さへ一気に飛べるため、
-   * 未読み込みのまま`presentFloor()`を呼ぶと`DungeonView.build`が例外になる
-   * (plan/sound/archive/bgm-instrument-diversity.md補遺で判明)。
-   * 呼び出し前に必要なモデルの読み込み完了を待つ
+   * 地方タイルセット(REGION2_TERRAIN_MODELS等)は起動時のessentialModelNamesに
+   * 含めず背景読み込みに任せているため、スロット選択を経由せずいきなり深い階へ
+   * 注入するこの経路では読み込みが間に合わないことがある(Assets.getが例外を
+   * 投げてpresentFloorが失敗する)。通常プレイのフロア遷移は地方の変わり目まで
+   * 十分な時間があるため踏まない競合で、この箱庭注入経路だけの対応でよい
    */
   async startInjectedTestRun(injection: TestFloorInjection): Promise<void> {
     this.slotSelect.hide();
@@ -812,7 +811,7 @@ class App {
     this.trueAwakeningClearedThisRun = false;
     this.diveReachedDepths = [];
     this.game = new Game({ seed: 0, testFloorInjection: injection });
-    await this.assets.ready(modelNames());
+    await this.assets.ready(requiredTerrainModels(this.game.dungeonId, this.game.depth));
     this.presentFloor();
     // 通常はbeginWithSlot()がスロット選択の直後に1回だけthis.loop()を呼び、
     // requestAnimationFrameの自己連鎖を起動する。箱庭注入はそのスロット選択
