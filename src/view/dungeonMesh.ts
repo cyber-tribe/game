@@ -153,7 +153,11 @@ export class DungeonView {
       side: THREE.DoubleSide,
     });
     const mistHeight = 6;
-    const margin = 1.5; // 境界からの張り出し
+    // 境界からの張り出し。plan/models/archive/dungeon-floor-mist-continuity.md
+    // の診断どおり、以前は1.5マス離れた位置に置いていたため、床の縁と
+    // もやの間に何もない虚空の隙間ができ「床が空中に浮いて見える」原因に
+    // なっていた。境界ぎりぎり(隙間ゼロ)に置き直す
+    const margin = 0;
     const w = floor.width * TILE;
     const h = floor.height * TILE;
     const edges: ReadonlyArray<{ x: number; z: number; width: number; rotY: number }> = [
