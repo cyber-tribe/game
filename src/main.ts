@@ -14,6 +14,7 @@ import { Minimap } from "./view/minimap";
 import { PLAYER_LIGHT, Renderer } from "./view/renderer";
 import { GalleryView } from "./view/gallery";
 import { Stage } from "./view/stage";
+import { requiredTerrainModels } from "./view/dungeonMesh";
 import { VILLAGE_BUILDINGS, VillageView } from "./view/village";
 import { VillageInteriorView, interiorForBuilding } from "./view/villageInterior";
 import { AudioPlayer } from "./audio/player";
@@ -166,7 +167,7 @@ interface SerializableRngSpec {
 type InjectedRunPayload = Omit<TestFloorInjection, "rng"> & { rng?: SerializableRngSpec };
 
 interface TestHarness {
-  startInjectedRun: (payload: InjectedRunPayload) => void;
+  startInjectedRun: (payload: InjectedRunPayload) => Promise<void>;
 }
 
 /**
@@ -794,7 +795,7 @@ class App {
    * `window.__testHarness`(main.ts末尾、MODE==="test"のときだけ生える)
    * 経由でのみ呼ばれる
    */
-  startInjectedTestRun(injection: TestFloorInjection): void {
+  async startInjectedTestRun(injection: TestFloorInjection): Promise<void> {
     this.slotSelect.hide();
     this.diveDefeats = 0;
     this.diveCaptures = 0;
@@ -804,6 +805,12 @@ class App {
     this.trueAwakeningClearedThisRun = false;
     this.diveReachedDepths = [];
     this.game = new Game({ seed: 0, testFloorInjection: injection });
+    // 地方タイルセット(REGION2_TERRAIN_MODELS等)は起動時のessentialModelNamesに
+    // 含めず背景読み込みに任せているため、スロット選択を経由せずいきなり深い階へ
+    // 注入するこの経路では読み込みが間に合わないことがある(Assets.getが例外を
+    // 投げてpresentFloorが失敗する)。通常プレイのフロア遷移は地方の変わり目まで
+    // 十分な時間があるため踏まない競合で、この箱庭注入経路だけの対応でよい
+    await this.assets.ready(requiredTerrainModels(this.game.dungeonId, this.game.depth));
     this.presentFloor();
     // 通常はbeginWithSlot()がスロット選択の直後に1回だけthis.loop()を呼び、
     // requestAnimationFrameの自己連鎖を起動する。箱庭注入はそのスロット選択

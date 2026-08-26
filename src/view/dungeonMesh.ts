@@ -46,6 +46,21 @@ const REGION_TILESETS: Partial<
 };
 
 /**
+ * `DungeonView.build`が実際にこのフロアで使う地形モデル名。地方タイルセットを
+ * 持たない地方は既定の"wall"/"floor"/"stairs"(常にessentialModelNamesで読み
+ * 込み済み)にフォールバックするため、その場合は空配列を返す ―
+ * `REGION2_TERRAIN_MODELS`のように意図して背景読み込みに任せているモデルだけ、
+ * 呼び出し側がAssets.readyで待ち合わせる対象にする(plan/game/archive/
+ * dungeon-camera-distance.mdの実装中に発見した、フロア注入直後だと背景読み込みが
+ * 間に合わず`Assets.get`が例外を投げる競合の修正)
+ */
+export function requiredTerrainModels(dungeonId: string, depth: number): string[] {
+  const tileset = REGION_TILESETS[regionIndexForFloor(dungeonId, depth)];
+  if (!tileset) return [];
+  return [...tileset.wall, ...tileset.floor, tileset.stairs];
+}
+
+/**
  * 座標からタイルごとに決定的な「ランダム」値を作る(x,yだけの単純な剰余だと
  * 盤面に斜め縞の規則性が出てしまうため、ビット混合で崩す)。
  * バリアント選び・回転のどちらにも使うので、用途ごとにsaltを変えて呼ぶ
