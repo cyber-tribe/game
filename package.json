@@ -17,6 +17,7 @@
     "playtest": "node tools/playtest.mjs",
     "preview-engine": "node tools/preview_engine.mjs",
     "auto-tester": "node tools/auto-tester.mjs",
+    "decision-density": "node tools/decision-density.mjs",
     "cap:sync": "npm run build && cap sync",
     "cap:add:android": "cap add android",
     "cap:add:ios": "cap add ios"
