@@ -49,33 +49,11 @@
         /*
          * セーフエリア(plan/game/mobile-layout-redesign.md)。各パネルは
          * env(safe-area-inset-*)を直接参照せず、この--safe-*経由で参照する
-         * (plan/game/archive/forced-landscape.md: forced-landscape中は下で
-         * 参照軸を入れ替えるため、直接参照だと90度ずれる)
          */
         --safe-top: env(safe-area-inset-top, 0px);
         --safe-right: env(safe-area-inset-right, 0px);
         --safe-bottom: env(safe-area-inset-bottom, 0px);
         --safe-left: env(safe-area-inset-left, 0px);
-
-        /*
-         * 見た目の軸に沿ったビューポート単位(issue #875)。CSSのvw/vhは常に
-         * 物理的な(縦持ちのままの)軸を指すため、縦持ちでの強制横向き
-         * (forced-landscape、plan/game/archive/forced-landscape.md。#appを
-         * rotate(90deg)で視覚上だけ横向きにする)中は、パネルの幅・高さを
-         * vw/vhで指定すると見た目と逆の軸を参照してしまい、極端に狭い/
-         * 高さの頭打ちが効かない状態になる(issue #833で最初に発覚、#875で
-         * 同じ軸ズレが他の大半のパネルにも残っていることが判明)。
-         *
-         * 各パネルはNvw/Nvhを直接書く代わりに calc(N * var(--vw)) /
-         * calc(N * var(--vh)) を使う。既定(forced-landscapeでない、または
-         * pointer: fineで常にforced-landscapeが外れる)では1vw/1vhそのもの
-         * なので、これまでと完全に同じ計算結果になる。forced-landscape中
-         * だけ、#app自身がwidth: 100dvh/height: 100dvwで辻褄を合わせている
-         * のと同じ考え方でdvh↔dvwへ入れ替える(下のbody.forced-landscape
-         * 参照)。パネルごとに個別の入れ替えルールを書き足す必要が無くなる
-         */
-        --vw: 1vw;
-        --vh: 1vh;
       }
       * { box-sizing: border-box; }
       html, body {
@@ -401,8 +379,8 @@
       }
       #logModal.open { display: flex; }
       .log-modal-box {
-        width: min(640px, calc(94 * var(--vw)));
-        max-height: calc(82 * var(--vh));
+        width: min(640px, 94vw);
+        max-height: 82vh;
         overflow-y: auto;
         padding: 16px 18px;
         background: var(--panel);
@@ -498,7 +476,7 @@
           top: 50%;
           bottom: auto;
           transform: translateY(-50%);
-          max-width: min(300px, calc(42 * var(--vw)));
+          max-width: min(300px, 42vw);
           text-align: left;
         }
       }
@@ -571,7 +549,7 @@
           row-gap: 3px;
           column-gap: 10px;
           min-width: 0;
-          max-width: calc(100 * var(--vw) - 16px - var(--safe-left) - var(--safe-right));
+          max-width: calc(100vw - 16px - var(--safe-left) - var(--safe-right));
           min-height: 40px;
           padding: 6px 12px;
           top: calc(8px + var(--safe-top));
@@ -601,7 +579,7 @@
              あるため、目安の40pxより余裕を持たせたオフセットにする */
           top: calc(70px + var(--safe-top));
           left: calc(8px + var(--safe-left));
-          max-height: calc(38 * var(--vh));
+          max-height: 38vh;
           overflow-y: auto;
           width: auto;
           max-width: 200px;
@@ -764,7 +742,7 @@
         gap: 6px;
         padding: 8px;
         width: 168px;
-        max-width: calc(100 * var(--vw) - 82px - var(--safe-right) - var(--safe-left));
+        max-width: calc(100vw - 82px - var(--safe-right) - var(--safe-left));
         max-height: calc(100dvh - 16px - var(--safe-top) - var(--safe-bottom));
         overflow-y: auto;
         background: var(--panel);
@@ -783,60 +761,39 @@
         touch-action: none;
       }
 
-      /* ------------------------------------------------ 縦持ちでの強制横向き(plan/game/archive/forced-landscape.md) */
+      /* ------------------------------------------------ 縦持ちでの回転案内(plan/game/archive/orientation-rotate-prompt.md) */
       /*
        * タッチ端末(pointer: coarse)かつ縦持ち(orientation: portrait)のときだけ、
-       * `src/ui/orientation-guard.ts`がdocument.bodyへforced-landscapeクラスを
-       * 付ける。専用の縦持ちレイアウトは作らず(意図的に対象外)、ゲーム画面
-       * (#app、3Dビューポート・HUD一式)そのものを90度回転させ、横向きの
-       * まま描画する。案内文で「横に持ち替えてください」と要求する代わりに、
-       * ひと目で伝わる見た目で誘導する狙い(HTML5ゲームで広く使われる定石)。
-       * OS側の画面回転ロックが縦向きで固定されていて`orientation: portrait`
-       * が変わらないケースでも、この方式なら端末を物理的に横へ持ち替えるだけで
-       * 正しいレイアウトになる(旧方式の案内画面は、回転ロック中は永遠に
-       * 案内から抜けられない実質バグを抱えていた)。
+       * `src/ui/orientation-guard.ts`がdocument.bodyへrotate-promptクラスを
+       * 付ける。以前はCSSで#app自体を90度回転させ横向きのまま描画する方式
+       * (forced-landscape、plan/game/archive/forced-landscape.md)を採ったが、
+       * 回転ぶんの座標変換・軸入れ替えが影響する範囲が広く不具合が繰り返し
+       * 見つかったため撤回し、案内表示方式へ戻した
+       * (plan/game/archive/orientation-rotate-prompt.md)。
        *
-       * 横向きに戻せば`orientation: portrait`が外れてクラスごと外れ、
-       * 自動的に通常の横持ちレイアウトへ戻る(既存の`change`イベント監視の
-       * まま、リロード不要)。
-       *
-       * 幅・高さは100dvh/100dvwで入れ替え、transform-origin: top leftを
-       * 基準にrotate(90deg)(時計回り)してtranslateY(-100%)で画面内へ
-       * はめ込む。デスクトップ(pointer: fine)ではクラスが付かないため無効。
-       *
-       * 入力座標の補正(PointerEventのclientX/Yは回転前の画面座標系のまま
-       * 届く)は`src/ui/touch-controls.ts`側で行う(要素の当たり判定は
-       * ブラウザがtransformを考慮するため補正不要、生座標から差分を計算する
-       * 箇所のみ対象)。
+       * 横向きに持ち替えれば`orientation: portrait`が外れてクラスごと外れ、
+       * リロード不要で自動的にゲームへ戻る(既存の`change`イベント監視の
+       * まま)。OS側の画面回転ロックが縦向きで固定されている場合は持ち替えても
+       * 案内が消えない(既知のトレードオフとして受け入れる。#rotatePromptの
+       * 案内文で言及する)。
        */
-      body.forced-landscape #app {
-        width: 100dvh;
-        height: 100dvw;
-        transform: rotate(90deg) translateY(-100%);
-        transform-origin: top left;
+      #rotatePrompt {
+        display: none;
+        position: absolute; inset: 0;
+        align-items: center; justify-content: center;
+        flex-direction: column; gap: 16px;
+        background: #05060c;
+        z-index: 50;
+        pointer-events: auto;
+        text-align: center;
+        padding: 24px;
       }
-      /*
-       * セーフエリアの参照軸入れ替え。env(safe-area-inset-*)はCSSの
-       * transformとは無関係に、端末の物理的な向き(ここでは縦持ちのまま)
-       * での上下左右を指し続ける。90度回転して描画しているレイアウト側の
-       * 上下左右とはズレる(rotate(90deg) translateY(-100%)の変換から
-       * 逆算すると、レイアウト上のtopが物理right、rightが物理bottom、
-       * bottomが物理left、leftが物理topに対応する)ため、forced-landscape
-       * 中は--safe-*の参照元を90度分ずらす。
-       * 実機での確認はできておらず、幾何計算から導いた対応(未検証、
-       * plan/game/archive/forced-landscape.md参照)。ズレていた場合は
-       * ここを直せば各パネルの実装には触れずに直る
-       */
-      body.forced-landscape {
-        --safe-top: env(safe-area-inset-right, 0px);
-        --safe-right: env(safe-area-inset-bottom, 0px);
-        --safe-bottom: env(safe-area-inset-left, 0px);
-        --safe-left: env(safe-area-inset-top, 0px);
-        /* ビューポート単位の軸入れ替え(issue #875、:rootの--vw/--vhの説明を参照)。
-           #app自身のwidth: 100dvh/height: 100dvwと同じ入れ替え */
-        --vw: 1dvh;
-        --vh: 1dvw;
+      body.rotate-prompt #rotatePrompt { display: flex; }
+      #rotatePrompt svg { width: 64px; height: 64px; color: #7fd6ff; }
+      #rotatePrompt p {
+        margin: 0; max-width: 280px; font-size: 15px; line-height: 1.7; color: var(--ink);
       }
+      #rotatePrompt p.rotate-prompt-note { font-size: 12px; color: var(--dim); }
 
       /* ------------------------------------------------ メニュー */
       #menu, #stance, #arts, #stairsConfirm, #doorConfirm, #branchEntranceConfirm, #skillChoice {
@@ -844,7 +801,7 @@
         top: 50%; left: 50%;
         transform: translate(-50%, -50%);
         width: 340px;
-        max-height: calc(74 * var(--vh));
+        max-height: 74vh;
         overflow-y: auto;
         padding: 14px 16px;
         pointer-events: auto;
@@ -868,7 +825,7 @@
        * 追従(選択中の項目へのscrollIntoView)はsrc/ui/menu.ts側で行う。
        * maxの下限は、低い画面でcalcが負になってリストが潰れるのを防ぐ保険
        */
-      .menu-list { max-height: max(96px, calc(74 * var(--vh) - 140px)); overflow-y: auto; }
+      .menu-list { max-height: max(96px, calc(74vh - 140px)); overflow-y: auto; }
       .menu-list li, .menu-sub li {
         padding: 5px 10px; border-radius: 5px; font-size: 14px;
       }
@@ -906,8 +863,8 @@
        * どの画面幅・高さでも重ならない
        */
       .town-box {
-        width: min(1180px, calc(96 * var(--vw)));
-        max-height: calc(92 * var(--vh));
+        width: min(1180px, 96vw);
+        max-height: 92vh;
         display: flex;
         flex-direction: column;
         padding: 26px 32px 22px;
@@ -936,11 +893,6 @@
        * パッドの縦の占有ぶん(下26px+高さ108px+セーフエリア)を
        * .town-boxのmax-heightから差し引いて、パッドと重ならない高さで
        * 頭打ちにする(収まらない列はもとから.town-columns内でスクロールする)。
-       *
-       * ここの幅・高さもNvw/Nvh直書きだと縦持ちでの強制横向き
-       * (forced-landscape)中に軸がズレる(:rootの--vw/--vhを参照、
-       * issue #833→#875)。calc(N * var(--vw))・calc(N * var(--vh))を
-       * 使えば、forced-landscape専用の入れ替えルールを個別に持たなくて済む
        */
       #ui.village-interior #town {
         justify-content: flex-start;
@@ -954,8 +906,8 @@
         );
       }
       #ui.village-interior .town-box {
-        width: min(660px, calc(52 * var(--vw)));
-        margin-left: min(calc(3 * var(--vw)), 26px);
+        width: min(660px, 52vw);
+        margin-left: min(3vw, 26px);
         padding: 18px 22px 16px;
         background: rgba(8, 10, 22, 0.86);
       }
@@ -967,9 +919,9 @@
           padding-top: calc(20px + var(--safe-top));
         }
         #ui.village-interior .town-box {
-          width: min(660px, calc(56 * var(--vw)));
+          width: min(660px, 56vw);
           /* 左下の仮想パッド(.touch-pad)と縦に重ならないよう頭打ちにする */
-          max-height: calc(100 * var(--vh) - 20px - var(--safe-top) - 150px - var(--safe-bottom));
+          max-height: calc(100vh - 20px - var(--safe-top) - 150px - var(--safe-bottom));
           padding: 12px 14px 10px;
         }
       }
@@ -1080,24 +1032,6 @@
            必ず縦スクロールが出て、1画面に1〜2行しか見えなくなる */
         .town-col { min-height: 0; }
       }
-      /*
-       * 縦持ちでの強制横向き(plan/game/archive/forced-landscape.md)中は、
-       * #app自体の見た目の高さは100dvw(回転前の物理"幅")になるが、上の
-       * `@media (max-height: 560px)`は物理軸のままのheight(縦持ちなので
-       * 通常800px超)を見てしまうため、低い画面向けのこの詰め(issue #482)が
-       * 一度も発動しなかった。forced-landscape中は常に見た目の高さが低い
-       * (物理幅ぶんしか無い)ので、高さの条件なしでそのまま適用してよい
-       */
-      body.forced-landscape .town-box { padding: 12px 18px 10px; }
-      body.forced-landscape .town-box h2 { font-size: 17px; margin-bottom: 2px; }
-      body.forced-landscape .town-building { margin-bottom: 4px; }
-      body.forced-landscape .town-stats { margin-bottom: 4px; }
-      body.forced-landscape .town-lead { display: none; }
-      body.forced-landscape .town-desc { margin-top: 6px; }
-      body.forced-landscape .town-flavor { margin-top: 2px; }
-      body.forced-landscape .town-hint { margin-top: 4px; }
-      body.forced-landscape .town-depart-button { margin-top: 8px; padding: 7px; }
-      body.forced-landscape .town-col { min-height: 0; }
 
       /*
        * タッチ端末では、列が少ないときに幅いっぱいまで広げる(issue #519)。
@@ -1135,7 +1069,7 @@
         padding-top: 28px;
       }
       .naming-box {
-        width: min(320px, calc(90 * var(--vw)));
+        width: min(320px, 90vw);
         padding: 20px 24px;
         background: var(--panel);
         border: 1px solid var(--edge);
@@ -1184,7 +1118,7 @@
         pointer-events: auto;
       }
       .slot-box {
-        width: min(420px, calc(92 * var(--vw)));
+        width: min(420px, 92vw);
         padding: 24px 28px;
         background: var(--panel);
         border: 1px solid var(--edge);
@@ -1284,7 +1218,7 @@
         text-align: center;
         padding: 30px 44px;
         max-width: 520px;
-        max-height: calc(78 * var(--vh));
+        max-height: 78vh;
         overflow-y: auto;
       }
       .ending-box h2 {
@@ -1301,8 +1235,8 @@
         display: none;
         position: absolute;
         left: 8px; top: 8px;
-        width: min(300px, calc(84 * var(--vw)));
-        max-height: calc(62 * var(--vh));
+        width: min(300px, 84vw);
+        max-height: 62vh;
         overflow-y: auto;
         padding: 8px 10px;
         pointer-events: auto;
@@ -1431,6 +1365,24 @@
       <div id="loading">
         <h1>少年ガルドと迷いの洞窟</h1>
         <p>モデルを読み込んでいます…</p>
+      </div>
+
+      <!-- 縦持ちでの回転案内(plan/game/archive/orientation-rotate-prompt.md):
+           src/ui/orientation-guard.tsがbody.rotate-promptを付け外しする間だけ
+           表示される。#loadingと同じく#appの直下(#uiの外)に置き、村・ダイブ
+           どちらの画面が裏にあっても確実に最前面へ出す -->
+      <div id="rotatePrompt">
+        <!-- 縦持ち(薄い、before)→横持ち(濃い、after)の2つの端末シルエットを
+             矢印でつなぎ、「回転させる」動作をひと目で伝える -->
+        <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="8" y="12" width="18" height="30" rx="3" opacity="0.45" />
+          <rect x="34" y="24" width="30" height="18" rx="3" />
+          <path d="M28 20 Q40 6 46 18" />
+          <path d="M46 18 l-7 -3 M46 18 l-2 -7" />
+        </svg>
+        <p>スマホを横に持ち替えてください</p>
+        <p class="rotate-prompt-note">画面が回転しない場合は、OS側の画面回転ロックを解除してください</p>
       </div>
 
     </div>

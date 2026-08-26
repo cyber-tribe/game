@@ -1,13 +1,13 @@
-import { shouldForceLandscape } from "../entities/orientation";
+import { shouldPromptRotate } from "../entities/orientation";
 
 /**
- * plan/game/archive/forced-landscape.md: タッチ端末かつ縦持ちを`matchMedia`で
- * 監視し、`document.body`へ`forced-landscape`クラスを反映するだけの薄い
- * 配線。実際の表示切り替え(ゲーム画面全体を90度回転させて横向きのまま
- * 描画する)はCSS側(index.html)に任せる。回転で横向きに戻れば`change`
- * イベントで自動的にクラスが外れ、既存の横持ちレイアウトへ戻る
- * (OS側の画面回転ロックで`orientation: portrait`が変わらないままでも、
- * 端末を物理的に横へ持ち替えればCSSの回転でそのまま正位置になる)。
+ * plan/game/archive/orientation-rotate-prompt.md: タッチ端末かつ縦持ちを
+ * `matchMedia`で監視し、`document.body`へ`rotate-prompt`クラスを反映する
+ * だけの薄い配線。実際の表示(全画面の回転案内オーバーレイ)はCSS側
+ * (index.html)に任せる。横向きに持ち替えれば`change`イベントで自動的に
+ * クラスが外れ、既存の横持ちレイアウトへ戻る(OS側の画面回転ロックで
+ * `orientation: portrait`が変わらないままだと案内は消えない。これは
+ * 既知のトレードオフとして受け入れる)。
  *
  * `matchMedia`の`change`だけには頼らない(issue #874: iOS Safariでは
  * 回転後もこのイベントが発火しない・発火してもクラスの反映が遅れる癖が
@@ -37,7 +37,7 @@ export class OrientationGuard {
   }
 
   private update(): void {
-    const force = shouldForceLandscape(this.pointerCoarse.matches, this.orientationPortrait.matches);
-    this.body.classList.toggle("forced-landscape", force);
+    const prompt = shouldPromptRotate(this.pointerCoarse.matches, this.orientationPortrait.matches);
+    this.body.classList.toggle("rotate-prompt", prompt);
   }
 }
