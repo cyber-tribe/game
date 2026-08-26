@@ -61,7 +61,7 @@ describe("箱庭E2E基盤の疎通", () => {
         { timeout: 60_000 },
       );
 
-      const injectedDepth = await page.evaluate(() => {
+      const injectedDepth = await page.evaluate(async () => {
         const floor = {
           depth: 7,
           width: 3,
@@ -77,7 +77,7 @@ describe("箱庭E2E基盤の疎通", () => {
           fieldObstacles: [],
           secretPassages: [],
         };
-        (globalThis as any).__testHarness.startInjectedRun({ floor, player: { pos: { x: 1, y: 1 } } });
+        await (globalThis as any).__testHarness.startInjectedRun({ floor, player: { pos: { x: 1, y: 1 } } });
         return (globalThis as any).__app.game.depth;
       });
       expect(injectedDepth).toBe(7);
