@@ -286,6 +286,10 @@ def build() -> tuple[list, object]:
     # (plan/models/archive/texture-pipeline-adoption.md)。UVアンラップ+
     # マテリアルごとの専用テクスチャにAO×基色を焼き込む
     C.bake_ao_to_texture(mesh, size=128)
+    # AOだけで止まっていた描き込みのパイロット(plan/models/archive/
+    # texture-painted-detail.md)。上着(タルの生地)に織り目、ズボンに
+    # 使い込んだ擦れを足す
+    C.bake_procedural_detail(mesh, {"garudo_tunic": "weave", "garudo_trousers": "scratch"})
     armature = C.build_armature(NAME, JOINTS, BONES, mesh, root="hip")
     for eye in eyes:
         C.parent_to_bone(eye, armature, "neck-head")
