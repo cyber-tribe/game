@@ -106,12 +106,13 @@ const BGM_SPECS: readonly BgmSpec[] = [
     // 段階的な上下動、素直で歩き出しやすい
     chordSkeleton: [0, 1, 2, 1, 0, 2, 3, 0],
   },
-  // 第二地方: 忘れ潮の湿地。霧の中を歩く湿地 → 笛主体、重めのテンポ。
-  // モチーフ: 長く伸びて半歩沈む、霧の中の遠い声
+  // 第二地方: 忘れ潮の湿地。霧の中を歩く湿地 → 笛+弓弦主体、重めのテンポ。
+  // 弓弦(擦れる持続音)は霧の中に漂う質感を狙って導入
+  // (plan/sound/archive/bgm-instrument-diversity.md)。モチーフ: 長く伸びて半歩沈む、霧の中の遠い声
   {
     id: "region2",
     seed: 2,
-    weights: { mallet: 0.15, drum: 0.1, flute: 0.65, string: 0.2 },
+    weights: { mallet: 0.1, drum: 0.05, flute: 0.35, string: 0.1, bow: 0.4 },
     tempoBpm: 80,
     bars: 8,
     reverb: { wet: 0.34, roomSize: 0.55, damping: 0.25 },
@@ -120,12 +121,13 @@ const BGM_SPECS: readonly BgmSpec[] = [
     // 根音に落ち着き切らない、霧の中を漂う不安定さ
     chordSkeleton: [0, 4, 3, 4, 0, 3, 4, 0],
   },
-  // 第三地方: まどろみの茸林。眠気に満ちた森 → 弦主体、遅めの3拍子でまどろみを出す。
+  // 第三地方: まどろみの茸林。眠気に満ちた森 → 弓弦主体、遅めの3拍子でまどろみを出す。
+  // 持続音でまどろみを表現する(plan/sound/archive/bgm-instrument-diversity.md)。
   // モチーフ: 3拍子に乗ってゆっくり降りる、まぶたが落ちる形
   {
     id: "region3",
     seed: 3,
-    weights: { mallet: 0.1, drum: 0.08, flute: 0.2, string: 0.7 },
+    weights: { mallet: 0.05, drum: 0.05, flute: 0.15, string: 0.2, bow: 0.55 },
     tempoBpm: 70,
     beatsPerBar: 3,
     bars: 9,
@@ -135,12 +137,13 @@ const BGM_SPECS: readonly BgmSpec[] = [
     // 一方向に降りていく、まぶたが落ちる感触
     chordSkeleton: [4, 3, 2, 1, 0, 1, 2, 0],
   },
-  // 第四地方: 骨積みの回廊。狭く入り組んだ回廊 → 太鼓主体、乾いた刻み(残響は控えめ)。
-  // モチーフ: 同音の連打から跳ねる、乾いた足音
+  // 第四地方: 骨積みの回廊。狭く入り組んだ回廊 → 太鼓+からから鳴る連打主体、
+  // 乾いた刻み(残響は控えめ)。骨が触れ合う質感を専用楽器で出す
+  // (plan/sound/archive/bgm-instrument-diversity.md)。モチーフ: 同音の連打から跳ねる、乾いた足音
   {
     id: "region4",
     seed: 4,
-    weights: { mallet: 0.35, drum: 0.55, flute: 0.1, string: 0.2 },
+    weights: { mallet: 0.15, drum: 0.4, flute: 0.05, string: 0.1, rattle: 0.3 },
     tempoBpm: 100,
     bars: 9,
     reverb: { wet: 0.22, roomSize: 0.4, damping: 0.15 },
@@ -149,12 +152,13 @@ const BGM_SPECS: readonly BgmSpec[] = [
     // 同音の反復が多い、乾いた回廊の刻み
     chordSkeleton: [0, 0, 3, 0, 4, 4, 0, 3],
   },
-  // 第五地方: なみだの滝つぼ。悲しみが形を取った地方 → 笛+弦、ゆったり・水音を思わせる豊かな残響。
+  // 第五地方: なみだの滝つぼ。悲しみが形を取った地方 → 笛+弓弦、ゆったり・水音を思わせる豊かな残響。
+  // 弓弦の持続音で情感の起伏を出す(plan/sound/archive/bgm-instrument-diversity.md)。
   // モチーフ: 高い所から続けて落ちる、滝の形をなぞる
   {
     id: "region5",
     seed: 5,
-    weights: { mallet: 0.1, drum: 0.1, flute: 0.45, string: 0.45 },
+    weights: { mallet: 0.05, drum: 0.05, flute: 0.3, string: 0.2, bow: 0.4 },
     tempoBpm: 75,
     bars: 8,
     reverb: { wet: 0.36, roomSize: 0.6, damping: 0.2 },
@@ -163,12 +167,13 @@ const BGM_SPECS: readonly BgmSpec[] = [
     // 高低の振れ幅が大きい、滝の情感の起伏
     chordSkeleton: [4, 4, 3, 1, 0, 1, 3, 4],
   },
-  // 第六地方: こだまの尾根。物音がよく響く尾根 → 木琴+太鼓、最も深い残響で「よく響く」感触を出す。
-  // モチーフ: 呼びかけ2音+同じ形の反復(こだま)
+  // 第六地方: こだまの尾根。物音がよく響く尾根 → 木琴+太鼓+銅鑼、最も深い残響で「よく響く」感触を出す。
+  // 金属的な銅鑼の減衰そのものが「こだま」を体現する
+  // (plan/sound/archive/bgm-instrument-diversity.md)。モチーフ: 呼びかけ2音+同じ形の反復(こだま)
   {
     id: "region6",
     seed: 6,
-    weights: { mallet: 0.5, drum: 0.35, flute: 0.15, string: 0.15 },
+    weights: { mallet: 0.25, drum: 0.25, flute: 0.1, string: 0.1, gong: 0.3 },
     tempoBpm: 90,
     bars: 8,
     reverb: { wet: 0.38, roomSize: 0.65, damping: 0.15 },
@@ -198,7 +203,9 @@ const BGM_SPECS: readonly BgmSpec[] = [
   {
     id: "region8",
     seed: 8,
-    weights: { mallet: 0.3, drum: 0.3, flute: 0.2, string: 0.2 },
+    // 全地方の記憶の入り乱れを、これまで導入した新楽器も含めて薄く混ぜることで表す
+    // (plan/sound/archive/bgm-instrument-diversity.md)
+    weights: { mallet: 0.2, drum: 0.2, flute: 0.15, string: 0.15, gong: 0.1, bow: 0.1, rattle: 0.1 },
     tempoBpm: 60,
     bars: 8,
     motif: [0, 1, 2, 1],
@@ -213,21 +220,25 @@ const BGM_SPECS: readonly BgmSpec[] = [
   {
     id: "boss",
     seed: 2000,
-    weights: { mallet: 0.4, drum: 0.7, flute: 0.05, string: 0.15 },
+    // 銅鑼をわずかに足し、緊張感に金属的な不穏さを重ねる
+    // (plan/sound/archive/bgm-instrument-diversity.md)
+    weights: { mallet: 0.35, drum: 0.7, flute: 0.05, string: 0.15, gong: 0.15 },
     tempoBpm: 108,
     bars: 8,
     reverb: { wet: 0.26, roomSize: 0.45, damping: 0.15 },
     // 根音と五度相当を往復する緊張感
     chordSkeleton: [0, 4, 3, 4, 0, 4, 3, 4],
   },
-  // 真の目覚め。誰もいない頃の記憶 → 弦+笛のみ、太鼓はほぼ鳴らさない。
+  // 真の目覚め。誰もいない頃の記憶 → 弦+笛+弓弦、太鼓はほぼ鳴らさない。
+  // 弓弦の持続音が、締めくくりの場面にふさわしい荘重さを添える
+  // (plan/sound/archive/bgm-instrument-diversity.md)。
   // 締めくくりの場面として、最も深く広がりのある残響にする。
   // ハミング(plan/sound/archive/bgm-true-awakening.md)は歌(design/audio-direction.mdが
   // 定めていた未実装要素)をこの曲だけに足す拡張
   {
     id: "true-awakening",
     seed: 3000,
-    weights: { mallet: 0.05, drum: 0.02, flute: 0.4, string: 0.55 },
+    weights: { mallet: 0.02, drum: 0.02, flute: 0.25, string: 0.3, bow: 0.45 },
     tempoBpm: 65,
     bars: 8,
     reverb: { wet: 0.4, roomSize: 0.7, damping: 0.15 },

@@ -5,7 +5,20 @@
  * 使わせる」考え方を音楽にも当てはめる。音階・楽器群は全曲共通の定数として
  * 固定し、地方ごとにシード・楽器の重み・テンポ・拍子・リバーブの深さを変える。
  */
-import { breathCry, drumHit, fluteNote, humVoice, malletNote, mixIn, mulberry32, normalize, pluckedString } from "./synth.ts";
+import {
+  bowedTone,
+  breathCry,
+  drumHit,
+  fluteNote,
+  gongHit,
+  humVoice,
+  malletNote,
+  mixIn,
+  mulberry32,
+  normalize,
+  pluckedString,
+  rattleHit,
+} from "./synth.ts";
 import {
   mixStereoIn,
   normalizeStereo,
@@ -49,15 +62,67 @@ export interface InstrumentWeights {
   drum: number;
   flute: number;
   string: number;
+  /**
+   * 銅鑼・鐘(金属的な残響)。省略時0(既存曲には影響しない)。
+   * 地方ごとに楽器編成そのものを変え、「同じ木琴・笛・弦の配分違い」を
+   * 脱するための拡張(plan/sound/archive/bgm-instrument-diversity.md)
+   */
+  gong?: number;
+  /** 弓弦(擦れる持続音)。省略時0 */
+  bow?: number;
+  /** からから鳴る乾いた連打(不定音)。省略時0 */
+  rattle?: number;
 }
 
-function pickMelodyInstrument(roll: number, weights: InstrumentWeights): "mallet" | "flute" | "string" {
-  const total = weights.mallet + weights.flute + weights.string;
+type MelodyInstrument = "mallet" | "flute" | "string" | "gong" | "bow" | "rattle";
+
+function pickMelodyInstrument(roll: number, weights: InstrumentWeights): MelodyInstrument {
+  const gong = weights.gong ?? 0;
+  const bow = weights.bow ?? 0;
+  const rattle = weights.rattle ?? 0;
+  const total = weights.mallet + weights.flute + weights.string + gong + bow + rattle;
   if (total <= 0) return "mallet";
   const scaled = roll * total;
-  if (scaled < weights.mallet) return "mallet";
-  if (scaled < weights.mallet + weights.flute) return "flute";
-  return "string";
+  let acc = weights.mallet;
+  if (scaled < acc) return "mallet";
+  acc += weights.flute;
+  if (scaled < acc) return "flute";
+  acc += weights.string;
+  if (scaled < acc) return "string";
+  acc += gong;
+  if (scaled < acc) return "gong";
+  acc += bow;
+  if (scaled < acc) return "bow";
+  return "rattle";
+}
+
+/**
+ * 選ばれた楽器で1音を合成する。rattleは不定音のため freq を無視する。
+ * mallet(0.55)だけ他よりわずかに大きい既存のバランスをそのまま踏襲する。
+ * メインループ・モチーフ提示の両方から使う共通の分岐(plan/sound/archive/
+ * bgm-instrument-diversity.md)
+ */
+function synthesizeMelodyNote(
+  instrument: MelodyInstrument,
+  freq: number,
+  dur: number,
+  sampleRate: number,
+  noteSeed: number,
+): Float32Array {
+  switch (instrument) {
+    case "mallet":
+      return malletNote(freq, dur, sampleRate, 0.55);
+    case "flute":
+      return fluteNote(freq, dur, sampleRate, 0.5);
+    case "string":
+      return pluckedString(freq, dur, sampleRate, noteSeed, 0.5);
+    case "gong":
+      return gongHit(freq, dur, sampleRate, noteSeed, 0.5);
+    case "bow":
+      return bowedTone(freq, dur, sampleRate, noteSeed, 0.5);
+    case "rattle":
+      return rattleHit(dur, sampleRate, noteSeed, 0.5);
+  }
 }
 
 export interface StereoTrack {
@@ -136,10 +201,20 @@ export function composeTrack(params: TrackParams): StereoTrack {
   const malletMono = new Float32Array(totalSamples);
   const fluteMono = new Float32Array(totalSamples);
   const stringMono = new Float32Array(totalSamples);
+  const gongMono = new Float32Array(totalSamples);
+  const bowMono = new Float32Array(totalSamples);
+  const rattleMono = new Float32Array(totalSamples);
   const drumMono = new Float32Array(totalSamples);
   const bassMono = new Float32Array(totalSamples);
   const humMono = new Float32Array(totalSamples);
-  const byInstrument = { mallet: malletMono, flute: fluteMono, string: stringMono } as const;
+  const byInstrument = {
+    mallet: malletMono,
+    flute: fluteMono,
+    string: stringMono,
+    gong: gongMono,
+    bow: bowMono,
+    rattle: rattleMono,
+  } as const;
 
   const rng = mulberry32(seed);
   let noteSeed = seed;
@@ -193,12 +268,7 @@ export function composeTrack(params: TrackParams): StereoTrack {
         const dur = beatSec * (rng() < 0.3 ? 0.5 : 0.95);
         const instrument = pickMelodyInstrument(rng(), weights);
         noteSeed = (noteSeed + 1) | 0;
-        const note =
-          instrument === "mallet"
-            ? malletNote(freq, dur, sampleRate, 0.55)
-            : instrument === "flute"
-              ? fluteNote(freq, dur, sampleRate, 0.5)
-              : pluckedString(freq, dur, sampleRate, noteSeed, 0.5);
+        const note = synthesizeMelodyNote(instrument, freq, dur, sampleRate, noteSeed);
         mixIn(byInstrument[instrument], note, offset);
 
         // 後半(Bメロ相当)だけ、五度違いの和音構成音を木琴で重ねて厚みを増す
@@ -231,12 +301,7 @@ export function composeTrack(params: TrackParams): StereoTrack {
           const offset = Math.floor(posSec * sampleRate);
           noteSeed = (noteSeed + 1) | 0;
           const instrument = pickMelodyInstrument(mulberry32(noteSeed)(), weights);
-          const note =
-            instrument === "mallet"
-              ? malletNote(freq, dur, sampleRate, 0.55)
-              : instrument === "flute"
-                ? fluteNote(freq, dur, sampleRate, 0.5)
-                : pluckedString(freq, dur, sampleRate, noteSeed, 0.5);
+          const note = synthesizeMelodyNote(instrument, freq, dur, sampleRate, noteSeed);
           mixIn(byInstrument[instrument], note, offset);
           beatsElapsed += noteBeats;
         }
@@ -285,17 +350,23 @@ export function composeTrack(params: TrackParams): StereoTrack {
   }
 
   // 楽器ごとにパンを振る: 木琴やや左・笛中央・太鼓とベースは中央、弦は左右に広げる。
+  // 銅鑼はやや右(木琴と対になる位置)・弓弦は弦と同じく広げる・
+  // 連打はさらに右へ寄せて、質感だけでなく定位でも聴き分けやすくする
+  // (plan/sound/archive/bgm-instrument-diversity.md)。
   // ハミングも中央(主旋律より一段下の音量ですでに調整済み)
   const malletStereo = panMono(malletMono, -0.35);
   const fluteStereo = panMono(fluteMono, 0);
   const stringStereo = widenMono(stringMono, sampleRate);
+  const gongStereo = panMono(gongMono, 0.25);
+  const bowStereo = widenMono(bowMono, sampleRate);
+  const rattleStereo = panMono(rattleMono, 0.4);
   const drumStereo = panMono(drumMono, 0);
   const bassStereo = panMono(bassMono, 0);
   const humStereo = panMono(humMono, 0);
 
   const dryLeft = new Float32Array(totalSamples);
   const dryRight = new Float32Array(totalSamples);
-  for (const s of [malletStereo, fluteStereo, stringStereo, drumStereo, bassStereo, humStereo]) {
+  for (const s of [malletStereo, fluteStereo, stringStereo, gongStereo, bowStereo, rattleStereo, drumStereo, bassStereo, humStereo]) {
     mixStereoIn(dryLeft, dryRight, s.left, s.right, 0);
   }
 
@@ -303,7 +374,8 @@ export function composeTrack(params: TrackParams): StereoTrack {
   // ハミングも他の楽器と同じバスへ送り、残響の中に声が溶けるようにする
   const monoDrySum = new Float32Array(totalSamples);
   for (let i = 0; i < totalSamples; i++) {
-    monoDrySum[i] = malletMono[i]! + fluteMono[i]! + stringMono[i]! + drumMono[i]! + bassMono[i]! + humMono[i]!;
+    monoDrySum[i] =
+      malletMono[i]! + fluteMono[i]! + stringMono[i]! + gongMono[i]! + bowMono[i]! + rattleMono[i]! + drumMono[i]! + bassMono[i]! + humMono[i]!;
   }
   const wet = reverbLoopStereo(monoDrySum, sampleRate, reverb);
 
