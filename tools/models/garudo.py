@@ -14,8 +14,8 @@ plan/models/archive/character-design-language.mdのパイロット再デザイ�
 (基色60%+従色30%+差し色10%の目安)。
 
 5体再設計ゲート(plan/models/five-character-redesign-gate.md)の
-第1弾として、plan/models/concepts/garudo.md(C: 樽板エプロン案)・
-plan/models/turnarounds/garudo.svgに合わせて作り直した: 鉢巻きを
+第1弾として、design/characters/garudo/concept.md(C: 樽板エプロン案)・
+design/characters/garudo/turnarounds/garudo.svgに合わせて作り直した: 鉢巻きを
 やめて房状の髪にし(anime-look-art-direction.mdの髪の文法)、
 腰に樽板エプロン(barrel_bodyと同じ低ポリ円柱を流用した「板張り」の
 質感)を足して、生業の象徴である樽を正面のシルエットからも読める
@@ -88,7 +88,7 @@ SKIN = (0.85, 0.66, 0.48)
 TUNIC = (0.82, 0.54, 0.20)
 # 従色(30%): 灰青のまま(現行維持)
 TROUSERS = (0.24, 0.26, 0.34)
-# 髪(鉢巻きは廃止。plan/models/concepts/garudo.md)
+# 髪(鉢巻きは廃止。design/characters/garudo/concept.md)
 HAIR = (0.88, 0.74, 0.26)
 BOOT = (0.30, 0.21, 0.14)
 # 差し色(10%、彩度最高点): 髪紐の赤。基色・従色より断然目立たせる
@@ -381,7 +381,7 @@ def build() -> tuple[list, object]:
     # pin_weight_to_bone)で追加する。黒塗りシルエットにしたとき、上着の
     # 輪郭が体そのものの輪郭から分かれて見えるようにするのが狙い
 
-    # 樽板エプロン(plan/models/concepts/garudo.md「C」案、旧hemの後継)。
+    # 樽板エプロン(design/characters/garudo/concept.md「C」案、旧hemの後継)。
     # 生業の象徴である背負いダルが正面からほぼ見えないという指摘への対応:
     # ベルトから下げる樽板のエプロンを、props.barrel_bodyと同じ手法
     # (低ポリ円柱+flatシェーディングで板張りに見せる)で作り、正面からも
@@ -420,7 +420,7 @@ def build() -> tuple[list, object]:
         pinned_parts.append((cuff.name, f"shoulder.{tag}-elbow.{tag}"))
         extras.append(cuff)
 
-    # ミトン状の手(plan/models/concepts/garudo.md)。先細りの筒のまま
+    # ミトン状の手(design/characters/garudo/concept.md)。先細りの筒のまま
     # 終わっていた手首の先に、丸く膨らんだ手を足す。前腕の骨
     # (elbow-hand)へ剛体固定するので、なたを振っても剥がれない
     for tag in ("L", "R"):

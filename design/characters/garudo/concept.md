@@ -22,8 +22,8 @@
 
 ## 案
 
-`plan/models/concepts/garudo-{a,b,c}.svg`
-(`node tools/render_svg.mjs plan/models/concepts/garudo-*.svg`で
+`design/characters/garudo/concepts/garudo-{a,b,c}.svg`
+(`node tools/render_svg.mjs design/characters/garudo/concepts/garudo-*.svg`で
 `tools/preview/concepts/`にPNG化)。
 
 - **A: 正面樽**(胸に樽板ハーネス) ― 背負いダルはそのまま、胸に
@@ -57,7 +57,7 @@
 
 `plan/models/2d-turnaround-first-workflow.md`の形式で、選定した
 C案を正面・横の三面図(ガイド線つき、Aポーズ)に起こす
-(`plan/models/turnarounds/garudo.svg`)。三面図の承認後、
+(`design/characters/garudo/turnarounds/garudo.svg`)。三面図の承認後、
 `garudo.py`の3D化(`five-character-redesign-gate.md`が許可する
 とおり、build_skinnedの共通素体を捨てて三面図に合わせた専用メッシュ
 にしてよい)に進む。

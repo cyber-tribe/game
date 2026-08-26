@@ -103,8 +103,10 @@
 
 ## 受け入れ基準
 
-1. 5体それぞれにラフ3案以上のSVG線画が`plan/models/concepts/`に
-   あり、採用案と選定理由が1行ずつ記録されている。
+1. 5体それぞれにラフ3案以上のSVG線画が`design/characters/<キャラ名>/
+   concepts/`にあり、採用案と選定理由が1行ずつ記録されている
+   (plan/はキャラクター個別の資産ではなく開発内容の設計を書く場所の
+   ため、キャラクターごとの絵はdesign/側に置く)。
 2. 採用案の三面図があり、3Dモデルがその三面図とシルエット照合で
    一致する。
 3. 5体の商品カット1枚が`tools/preview/`に出力され、「店頭で
@@ -130,19 +132,19 @@
 
 ## 実装状況(進行中)
 
-- **ガルドのラフ案3案**を`plan/models/concepts/garudo.md`(SVG3枚+
+- **ガルドのラフ案3案**を`design/characters/garudo/concept.md`(SVG3枚+
   選定記録)に置いた。目・眉・手は`anime-look-art-direction.md`の
   様式(描き目・房の髪・ミトン手)で3案共通、比べ分けたのは
   「背負いダルを正面のシルエットにどう持ち込むか」の1点。
   「C: 樽板エプロン」を選定(理由: 黒塗りシルエットだけで判別できる
   という既存原則を、戦闘モーションの実用性を犠牲にせず満たす
   唯一の案)。
-- C案の三面図(`plan/models/turnarounds/garudo.svg`、
+- C案の三面図(`design/characters/garudo/turnarounds/garudo.svg`、
   `2d-turnaround-first-workflow.md`の形式・頭身2.5・ガイド線つき)を
   作成した。
 - 三面図に合わせたガルドの3D化(`garudo.py`)を完了した:
   樽板エプロン(旧hemを置き換え)・房の髪(鉢巻き廃止)・ミトン状の
-  手・描き目寄りの目の調整(詳細は`plan/models/concepts/garudo.md`)。
+  手・描き目寄りの目の調整(詳細は`design/characters/garudo/concept.md`)。
   三角形数は看板モデル基準(4,000〜7,500)内(7,436)。JOINTS/BONES・
   アニメーションは変更していない。
 - 残るガルドの工程: Blenderの平行投影・黒塗りレンダーと三面図の
@@ -151,3 +153,8 @@
 - `tools/render_svg.mjs`(SVG→PNGの目視確認ツール、
   Playwrightベース。他キャラのコンセプト・三面図にもそのまま
   使い回せる)を新設した。
+- ラフ案・三面図(SVG)は当初`plan/models/concepts/`・
+  `plan/models/turnarounds/`に置いていたが、`plan/`は開発内容の
+  設計を書く場所でありキャラクター個別の絵の置き場ではないため、
+  `design/characters/<キャラ名>/`(concepts/・turnarounds/の2階層)へ
+  移した。以後の対象4体もこの場所に置く。

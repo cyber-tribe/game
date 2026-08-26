@@ -1,16 +1,18 @@
 /**
- * SVGの線画をPNGにする(plan/models/archive/2d-turnaround-first-workflow.md)。
+ * SVGの線画をPNGにする(plan/models/2d-turnaround-first-workflow.md)。
  *
  * コンセプト案・三面図はSVGで描く(テキストとしてdiffでき、座標が
  * そのまま読めるため)。目視確認のためだけにPlaywrightでPNG化する。
- * SVG自体は編集の唯一の情報源のまま変えない。
+ * SVG自体は編集の唯一の情報源のまま変えない。キャラクター個別の
+ * SVGの置き場所は`design/characters/<キャラ名>/`(plan/は開発内容の
+ * 設計を書く場所であり、キャラクター個別の絵の置き場ではないため)。
  *
- *   node tools/render_svg.mjs plan/models/concepts/garudo-a.svg [...]
+ *   node tools/render_svg.mjs design/characters/garudo/concepts/garudo-a.svg [...]
  *
  * 出力は tools/preview/<入力ファイルの親ディレクトリ名>/<拡張子抜きの
- * 入力ファイル名>.png(例: plan/models/concepts/garudo-a.svg →
- * tools/preview/concepts/garudo-a.png、plan/models/turnarounds/garudo.svg
- * → tools/preview/turnarounds/garudo.png)。
+ * 入力ファイル名>.png(例: design/characters/garudo/concepts/garudo-a.svg
+ * → tools/preview/concepts/garudo-a.png、design/characters/garudo/
+ * turnarounds/garudo.svg → tools/preview/turnarounds/garudo.png)。
  * 環境変数は他のtools/*.mjsと同じ流儀。
  *   CHROMIUM_PATH    Chromium の実行ファイル
  *   PLAYWRIGHT_PATH  playwright パッケージの場所
