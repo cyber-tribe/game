@@ -469,12 +469,17 @@ def build_mabutamushi():
     shell_mat = C.make_material("mabuta_shell", (0.30, 0.22, 0.18), roughness=0.55)
     shell = C.box("mabuta_shell", (0.0, 0.030, 0.108), (0.038, 0.048, 0.014), bevel=0.006)
     C.assign_material(shell, shell_mat)
+    # dieの大きな崩れで自動ウェイト計算のブレンドが本体から取り残す
+    # (plan/models/archive/hard-part-bone-pinning-audit.mdの「要確認」を
+    # 実測で確認)。唯一近い骨(body-head)へ剛体固定する
+    shell_group = C.mark_for_pin(shell)
 
     mesh = C.join([body, shell], "mabutamushi")
     # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
     # (plan/models/archive/texture-rollout-unblock.md)
     C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("mabutamushi", joints, bones, mesh, root="body")
+    C.pin_weight_to_bone(mesh, shell_group, "body-head")
     for eye in eyes:
         C.parent_to_bone(eye, armature, "body-head")
     return [mesh, armature] + eyes, armature
@@ -3600,6 +3605,11 @@ def build_kodamaNoNushi():
     echo_hole = C.cylinder("kodamanonushi_echo_hole", (-0.195, 0.10, 0.470), 0.060, 0.050,
                           segments=18, axis="X")
     C.assign_material(echo_hole, echo_hole_mat)
+    # 膨らみ自体が関節から離れた位置にあり、自動ウェイト計算のブレンドに
+    # 任せるとdieの大きな崩れで元の位置に取り残される(plan/models/archive/
+    # hard-part-bone-pinning-audit.md)。胴の骨(chest-hip)へ剛体固定する
+    C.mark_for_pin(echo_hole)
+    pinned_parts = [(echo_hole.name, "chest-hip")]
     extras.append(echo_hole)
 
     # 逸脱項目②(顔の配置の逸脱)。重なり合ってきた過去のこだまの
@@ -3613,6 +3623,8 @@ def build_kodamaNoNushi():
     ]:
         echo_eye = C.uv_sphere(name, (ex, ey, ez), er, segments=12, rings=8, scale=(1.0, 0.6, 0.8))
         C.assign_material(echo_eye, echo_eye_mat)
+        C.mark_for_pin(echo_eye)
+        pinned_parts.append((echo_eye.name, "chest-neck"))
         extras.append(echo_eye)
 
     # 無数の岩が寄り集まった証として、雲状の膨らみを突き破って覗く
@@ -3631,6 +3643,8 @@ def build_kodamaNoNushi():
     # (plan/models/archive/texture-rollout-unblock.md)
     C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("kodamaNoNushi", joints, bones, mesh, root="chest")
+    for group_name, bone in pinned_parts:
+        C.pin_weight_to_bone(mesh, group_name, bone)
     return [mesh, armature], armature
 
 
@@ -4791,6 +4805,11 @@ def build_misemonoNoNushi():
     # 肩の中心からは離しすぎない)
     yagura_x, yagura_y = 0.225, 0.010
     post_half = 0.048
+    # 肩に生えた櫓ひとそろいは、関節をまたいで頭上高くまで伸びるため、
+    # 自動ウェイト計算のブレンドに任せるとdieの大きな崩れで元の位置に
+    # 取り残される(plan/models/archive/hard-part-bone-pinning-audit.md)。
+    # 剛体の構造物として、まとめてchest-shoulder.Lへ固定する
+    yagura_names = []
     for cx, cy in [
         (yagura_x - post_half, yagura_y - post_half), (yagura_x + post_half, yagura_y - post_half),
         (yagura_x - post_half, yagura_y + post_half), (yagura_x + post_half, yagura_y + post_half),
@@ -4798,11 +4817,15 @@ def build_misemonoNoNushi():
         post = C.box(f"misemono_yagura_post{cx}_{cy}", (cx, cy, 0.980), (0.018, 0.018, 0.760),
                      bevel=0.006)
         C.assign_material(post, post_mat)
+        C.mark_for_pin(post)
+        yagura_names.append(post.name)
         extras.append(post)
     for i, pz in enumerate((0.760, 1.020)):
         plank = C.box(f"misemono_yagura_plank{i}", (yagura_x, yagura_y, pz), (0.135, 0.135, 0.026),
                       bevel=0.010)
         C.assign_material(plank, plank_mat)
+        C.mark_for_pin(plank)
+        yagura_names.append(plank.name)
         extras.append(plank)
     # 最上段だけ朽ちて左へ傾いだ板(原点で作ってから回転し、あとで移動する)
     top_plank = C.box("misemono_yagura_topplank", (0.0, 0.0, 0.0), (0.150, 0.150, 0.024),
@@ -4813,11 +4836,15 @@ def build_misemonoNoNushi():
         vert.co.y += yagura_y
         vert.co.z += 1.300
     C.assign_material(top_plank, plank_mat)
+    C.mark_for_pin(top_plank)
+    yagura_names.append(top_plank.name)
     extras.append(top_plank)
     # 破れた幟。最上段からだらりと垂れる、色あせた紅色の帯
     banner = C.box("misemono_yagura_banner", (yagura_x + 0.140, yagura_y, 1.140),
                    (0.004, 0.060, 0.150), bevel=0.004)
     C.assign_material(banner, banner_mat)
+    C.mark_for_pin(banner)
+    yagura_names.append(banner.name)
     extras.append(banner)
 
     mesh = C.join([body] + extras, "misemonoNoNushi")
@@ -4825,6 +4852,8 @@ def build_misemonoNoNushi():
     # (plan/models/archive/texture-rollout-unblock.md)
     C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("misemonoNoNushi", joints, bones, mesh, root="hip")
+    for group_name in yagura_names:
+        C.pin_weight_to_bone(mesh, group_name, "chest-shoulder.L")
     return [mesh, armature], armature
 
 
@@ -5307,7 +5336,7 @@ def build_fuchiNoNushi():
     C.assign_material(water, basin_water_mat)
     extras.append(water)
 
-    # 右肩からだけ長く垂れ下がる、水底の藻(通常種honegarami系列には
+    # 肩からだけ長く垂れ下がる、水底の藻(通常種honegarami系列には
     # 存在しない大形状)。左右非対称の重心も同時に作る
     kelp_mat = C.make_material("fuchi_kelp", (0.14, 0.26, 0.22), roughness=0.6)
     kelp_specs = [
@@ -5315,9 +5344,16 @@ def build_fuchiNoNushi():
         (0.300, 0.055, 0.345, 0.024, 0.014, 0.135),
         (0.318, 0.062, 0.230, 0.014, 0.004, 0.110),
     ]
+    kelp_names = []
     for i, (kx, ky, kz, rb, rt, depth) in enumerate(kelp_specs):
         kelp = C.cone(f"fuchi_kelp{i}", (kx, ky, kz), rb, rt, depth, segments=10)
         C.assign_material(kelp, kelp_mat)
+        # 肩をまたいで垂れ下がるため、自動ウェイト計算のブレンドに任せると
+        # dieの大きな崩れで元の位置に取り残される(plan/models/archive/
+        # hard-part-bone-pinning-audit.md)。一番近い骨(chest-shoulder.L)
+        # へ剛体固定する
+        C.mark_for_pin(kelp)
+        kelp_names.append(kelp.name)
         extras.append(kelp)
 
     mesh = C.join([body] + extras, "fuchiNoNushi")
@@ -5325,6 +5361,8 @@ def build_fuchiNoNushi():
     # (plan/models/archive/texture-rollout-unblock.md)
     C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("fuchiNoNushi", joints, bones, mesh, root="hip")
+    for group_name in kelp_names:
+        C.pin_weight_to_bone(mesh, group_name, "chest-shoulder.L")
     return [mesh, armature], armature
 
 
@@ -6552,6 +6590,12 @@ def build_nushigaeru():
     lily = C.uv_sphere("nushigaeru_lily", (-0.075, 0.14, 0.365), 0.155,
                        segments=20, rings=6, scale=(1.0, 1.0, 0.10))
     C.assign_material(lily, lily_mat)
+    # 背の睡蓮・葦は関節から離れた位置に乗っており、自動ウェイト計算の
+    # ブレンドに任せるとdieの大きな崩れで元の位置に取り残される
+    # (plan/models/archive/hard-part-bone-pinning-audit.md)。胴の骨
+    # (chest-hip)へ剛体固定する
+    C.mark_for_pin(lily)
+    back_deco_names = [lily.name]
     extras.append(lily)
     reed_mat = C.make_material("nushigaeru_reed", (0.34, 0.42, 0.20), roughness=0.75)
     for i, (rx, ry, rlen) in enumerate([(-0.110, 0.10, 0.30), (-0.045, 0.17, 0.24),
@@ -6559,6 +6603,8 @@ def build_nushigaeru():
         reed = C.cone(f"nushigaeru_reed{i}", (rx, ry, 0.385 + rlen / 2), 0.014, 0.003, rlen,
                      segments=8)
         C.assign_material(reed, reed_mat)
+        C.mark_for_pin(reed)
+        back_deco_names.append(reed.name)
         extras.append(reed)
 
     mesh = C.join([body] + extras, "nushigaeru")
@@ -6566,6 +6612,8 @@ def build_nushigaeru():
     # (plan/models/archive/texture-rollout-unblock.md)
     C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("nushigaeru", joints, bones, mesh, root="chest")
+    for group_name in back_deco_names:
+        C.pin_weight_to_bone(mesh, group_name, "chest-hip")
     return [mesh, armature], armature
 
 
@@ -6834,10 +6882,18 @@ def build_oomadoromi():
     bud_stem = C.cylinder("oomadoromi_bud_stem", (0.225, 0.070, 0.235), 0.052, 0.28,
                           segments=14, bevel=0.010)
     C.assign_material(bud_stem, bud_stem_mat)
+    C.mark_for_pin(bud_stem)
+    bud_names = [bud_stem.name]
     extras.append(bud_stem)
     bud_cap = C.uv_sphere("oomadoromi_bud_cap", (0.225, 0.070, 0.375), 0.115,
                           segments=18, rings=12, scale=(1.0, 1.0, 0.62))
     C.assign_material(bud_cap, bud_cap_mat)
+    # 側面の小さな傘は幹の関節から離れているため、自動ウェイト計算の
+    # ブレンドに任せるとdieの大きな崩れで元の位置に取り残される
+    # (plan/models/archive/hard-part-bone-pinning-audit.md)。一番近い骨
+    # (root-stem)へ剛体固定する
+    C.mark_for_pin(bud_cap)
+    bud_names.append(bud_cap.name)
     extras.append(bud_cap)
 
     mesh = C.join([body] + extras, "oomadoromi")
@@ -6845,6 +6901,8 @@ def build_oomadoromi():
     # (plan/models/archive/texture-rollout-unblock.md)
     C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("oomadoromi", joints, OOMADOROMI_BONES, mesh, root="root")
+    for group_name in bud_names:
+        C.pin_weight_to_bone(mesh, group_name, "root-stem")
     return [mesh, armature], armature
 
 
@@ -6995,12 +7053,20 @@ def build_oonebosuke():
                     bevel=0.016, bevel_segments=2)
     blanket.rotation_euler = (0.04, -0.16, 0.30)
     C.assign_material(blanket, blanket_mat)
+    # 肩の掛け布団は関節から離れた位置に乗っており、自動ウェイト計算の
+    # ブレンドに任せるとdie(squashで大きく潰れる)の姿勢に追従しきれない
+    # (plan/models/archive/hard-part-bone-pinning-audit.md)。一番近い骨
+    # (base-mid)へ剛体固定する
+    C.mark_for_pin(blanket)
+    blanket_names = [blanket.name]
     extras.append(blanket)
     fold_mat = C.make_material("oonebosuke_blanket_fold", (0.22, 0.30, 0.36), roughness=0.85)
     fold = C.box("oonebosuke_blanket_fold", (-0.330, -0.010, 0.245), (0.075, 0.060, 0.016),
                 bevel=0.010, bevel_segments=2)
     fold.rotation_euler = (0.02, -0.10, 0.42)
     C.assign_material(fold, fold_mat)
+    C.mark_for_pin(fold)
+    blanket_names.append(fold.name)
     extras.append(fold)
 
     mesh = C.join([body] + extras, "oonebosuke")
@@ -7013,6 +7079,8 @@ def build_oonebosuke():
     C.bake_procedural_detail(mesh, {"oonebosuke_skin": "scratch"})
     armature = C.build_armature("oonebosuke", C.mirrored(joints), OONEBOSUKE_BONES,
                                 mesh, root="base")
+    for group_name in blanket_names:
+        C.pin_weight_to_bone(mesh, group_name, "base-mid")
     return [mesh, armature], armature
 
 
@@ -7669,10 +7737,18 @@ def build_honezukaNoNushi():
         ((0.0, -0.235, 0.620), 0.086, -1.0, 1),     # 胸の正面に埋もれる
         ((0.0, 0.225, 0.470), 0.066, 1.0, 0),       # 背中に埋もれる
     ]
+    # 埋もれた頭蓋骨が本体と関節をまたいで乗っているため、自動ウェイト
+    # 計算のブレンドに任せるとhit・dieの大きな崩れで元の位置に取り残される
+    # (plan/models/archive/hard-part-bone-pinning-audit.md)。頭蓋骨ごとに
+    # 一番近い骨へ剛体固定する
+    buried_bones = ["chest-shoulder.L", "chest-shoulder.R", "chest-neck", "hip-chest"]
+    pinned_parts = []
     for i, (center, radius, facing, variant) in enumerate(buried_specs):
         skull = C.uv_sphere(f"kotsuduka_buried{i}", center, radius,
                             segments=12, rings=8, scale=(1.0, 0.9, 0.85))
         C.assign_material(skull, bone_mat if variant == 0 else dust_mat)
+        C.mark_for_pin(skull)
+        pinned_parts.append((skull.name, buried_bones[i]))
         extras.append(skull)
         cx, cy, cz = center
         eye_y = cy + facing * radius * 0.75
@@ -7684,6 +7760,8 @@ def build_honezukaNoNushi():
                               (cx + eye_off * side, eye_y, eye_z),
                               eye_r, segments=8, rings=6, scale=(1.0, 0.6, 1.0))
             C.assign_material(eye, dead_mat)
+            C.mark_for_pin(eye)
+            pinned_parts.append((eye.name, buried_bones[i]))
             extras.append(eye)
 
     # 折れた骨の破片。肩・背・腰から突き出し、寄せ集めの塊であることを示す
@@ -7704,6 +7782,8 @@ def build_honezukaNoNushi():
     # (plan/models/archive/texture-rollout-unblock.md)
     C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("honezukaNoNushi", joints, bones, mesh, root="hip")
+    for group_name, bone in pinned_parts:
+        C.pin_weight_to_bone(mesh, group_name, bone)
     return [mesh, armature], armature
 
 
@@ -7869,6 +7949,11 @@ def build_horikuiNoNushi():
     # 拡大版では起こり得ない、いびつな刺さり方にする
     stake_x, stake_y = 0.145, 0.03
     wood = C.make_material("horikui_wood", (0.30, 0.20, 0.12), roughness=0.85)
+    # 杭そのもの(stake/tip)はhip〜crownの全域を貫くため、単一ボーンへ
+    # 剛体固定すると特定の関節の回転だけで不自然に振れてしまう
+    # (plan/models/archive/hard-part-bone-pinning-findings.mdで判断:
+    # 杭は「動かず体だけが軋む」表現とも解釈でき、単純な単一ボーン固定は
+    # 見送る。自動ウェイト計算のまま、複数ボーンに緩くまたがらせておく)
     stake = C.cylinder("horikui_stake", (stake_x, stake_y, 0.90), 0.075, 1.55, segments=8,
                        bevel=0.01)
     C.assign_material(stake, wood)
@@ -7876,13 +7961,18 @@ def build_horikuiNoNushi():
     tip = C.cone("horikui_stake_tip", (stake_x, stake_y, 1.66), 0.075, 0.004, 0.16, segments=8)
     C.assign_material(tip, wood)
     extras.append(tip)
-    # 逸脱項目②。杭が突き破った入り口に、裂けて中の闇が覗く穴を作る
+    # 逸脱項目②。杭が突き破った入り口に、裂けて中の闇が覗く穴を作る。
+    # こちらは入り口(胸〜首)に局在するため、一番近い骨へ固定できる
+    # (plan/models/archive/hard-part-bone-pinning-audit.md)
     tear_mat = C.make_material("horikui_tear", (0.03, 0.03, 0.03), roughness=0.95)
     tear = C.uv_sphere("horikui_tear", (stake_x - 0.055, stake_y, 0.965), 0.062,
                        segments=14, rings=10, scale=(1.0, 0.7, 0.9))
     C.assign_material(tear, tear_mat)
+    C.mark_for_pin(tear)
+    entry_wound_names = [tear.name]
     extras.append(tear)
-    # 打ち込まれた衝撃で裂けた、木の破片
+    # 打ち込まれた衝撃で裂けた、木の破片(同じく入り口に局在するため
+    # まとめて固定する)
     shard_mat = C.make_material("horikui_shard", (0.36, 0.25, 0.16), roughness=0.8)
     for i, (angle_deg, dist, z, length) in enumerate([
         (30.0, 0.10, 0.92, 0.16), (140.0, 0.09, 0.98, 0.14),
@@ -7893,6 +7983,8 @@ def build_horikuiNoNushi():
         y = stake_y + math.sin(angle) * dist
         shard = C.cone(f"horikui_shard{i}", (x, y, z), 0.022, 0.003, length, segments=8)
         C.assign_material(shard, shard_mat)
+        C.mark_for_pin(shard)
+        entry_wound_names.append(shard.name)
         extras.append(shard)
 
     # 大技(足もとの地面がひび割れる)を暗示する、足元に突き出た小さな杭先
@@ -7911,6 +8003,8 @@ def build_horikuiNoNushi():
     C.bake_procedural_detail(mesh, {"horikui_wood": "scratch", "horikui_r1": "scratch",
                                     "horikui_r5": "scratch"})
     armature = C.build_armature("horikuiNoNushi", joints, bones, mesh, root="hip")
+    for group_name in entry_wound_names:
+        C.pin_weight_to_bone(mesh, group_name, "chest-neck")
     return [mesh, armature], armature
 
 
@@ -8551,34 +8645,57 @@ def build_katakunagani():
     C.assign_materials_by_region(body, [shell, ash], lambda c: 1 if c.z < 0.075 else 0)
 
     extras = []
+    pinned_parts = []
     # 何かを掴んで抱え込むための、太く大きな鋏
     claw_mat = C.make_material("katakuna_claw", (0.76, 0.72, 0.62), roughness=0.55)
     for side in (-1.0, 1.0):
         px, py, pz = 0.20 * side, -0.06, 0.035
+        # 鋏はfootF.L/Rのほぼ真上に乗っており、自動ウェイト計算では
+        # dieの大きな崩れに追従しきれず取り残される(plan/models/archive/
+        # hard-part-bone-pinning-audit.mdの確認過程で新たに発見)。
+        # 一番近い骨(hipF.L/R-footF.L/R)へ剛体固定する
+        pincer_bone = f"hipF.{'L' if side < 0 else 'R'}-footF.{'L' if side < 0 else 'R'}"
         pincer = C.uv_sphere(f"katakuna_pincer{side}", (px, py, pz), 0.042,
                              segments=14, rings=10, scale=(1.0, 1.3, 0.65))
         C.assign_material(pincer, claw_mat)
+        C.mark_for_pin(pincer)
+        pinned_parts.append((pincer.name, pincer_bone))
         extras.append(pincer)
         claw_l = C.cone(f"katakuna_clawL{side}", (px + 0.045 * side, py - 0.075, pz + 0.005),
                         0.020, 0.006, 0.075)
         C.assign_material(claw_l, claw_mat)
+        C.mark_for_pin(claw_l)
+        pinned_parts.append((claw_l.name, pincer_bone))
         extras.append(claw_l)
         claw_r = C.cone(f"katakuna_clawR{side}", (px - 0.035 * side, py - 0.075, pz - 0.010),
                         0.017, 0.005, 0.065)
         C.assign_material(claw_r, claw_mat)
+        C.mark_for_pin(claw_r)
+        pinned_parts.append((claw_r.name, pincer_bone))
         extras.append(claw_r)
-        # 頭から突き出た目柄
+        # 頭から突き出た目柄。関節をまたいで乗っているため、自動ウェイト
+        # 計算のブレンドに任せるとdie等の大きな崩れで元の位置に取り残される
+        # (plan/models/archive/hard-part-bone-pinning-audit.md)。
+        # 一番近い骨(neck-snout)へ剛体固定する
         stalk = C.cylinder(f"katakuna_stalk{side}", (0.032 * side, -0.19, 0.175), 0.010, 0.055, segments=8)
         C.assign_material(stalk, ash)
+        C.mark_for_pin(stalk)
+        pinned_parts.append((stalk.name, "neck-snout"))
         extras.append(stalk)
-        extras += eyeball(f"katakuna_eye{side}", (0.032 * side, -0.19, 0.205), 0.020,
-                          look=(0.3 * side, -1.0, 0.1))
+        eye_parts = eyeball(f"katakuna_eye{side}", (0.032 * side, -0.19, 0.205), 0.020,
+                            look=(0.3 * side, -1.0, 0.1))
+        for eye_part in eye_parts:
+            C.mark_for_pin(eye_part)
+            pinned_parts.append((eye_part.name, "neck-snout"))
+        extras += eye_parts
 
     mesh = C.join([body] + extras, "katakunagani")
     # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
     # (plan/models/archive/texture-rollout-unblock.md)
     C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("katakunagani", joints, bones, mesh, root="chest")
+    for group_name, bone in pinned_parts:
+        C.pin_weight_to_bone(mesh, group_name, bone)
     return [mesh, armature], armature
 
 
@@ -9594,19 +9711,27 @@ def build_yoroimukade():
     C.assign_material(body, bone_mat)
 
     extras = []
+    pinned_parts = []
     armor_mat = C.make_material("yoroimukade_armor", (0.48, 0.47, 0.44), roughness=0.6)
-    # 胴に何段も重ねた節状の装甲
+    # 胴に何段も重ねた節状の装甲。hip-chest間に乗っているため、自動ウェイト
+    # 計算のブレンドに任せるとdie等の大きな崩れで元の位置に取り残される
+    # (plan/models/archive/hard-part-bone-pinning-audit.md)。まとめて
+    # hip-chestへ剛体固定する
     for i, z in enumerate((0.290, 0.340, 0.390, 0.440)):
         radius = 0.098 - abs(i - 1.5) * 0.006
         ring = C.cylinder(f"yoroimukade_ring{i}", (0.0, 0.03, z), radius, 0.022, segments=16)
         for vert in ring.data.vertices:
             vert.co.y *= 0.72
         C.assign_material(ring, armor_mat)
+        C.mark_for_pin(ring)
+        pinned_parts.append((ring.name, "hip-chest"))
         extras.append(ring)
         # 余分な脚を思わせる、体節の両脇の小さな棘
         for side in (-1.0, 1.0):
             spike = C.cone(f"yoroimukade_spike{i}_{side}", (0.095 * side, 0.03, z), 0.016, 0.003, 0.05)
             C.assign_material(spike, armor_mat)
+            C.mark_for_pin(spike)
+            pinned_parts.append((spike.name, "hip-chest"))
             extras.append(spike)
 
     dark = C.make_material("yoroimukade_socket", (0.05, 0.05, 0.07), roughness=0.9)
@@ -9630,6 +9755,8 @@ def build_yoroimukade():
     # (plan/models/archive/texture-rollout-unblock.md)
     C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("yoroimukade", joints, bones, mesh, root="hip")
+    for group_name, bone in pinned_parts:
+        C.pin_weight_to_bone(mesh, group_name, bone)
     return [mesh, armature], armature
 
 
