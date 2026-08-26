@@ -13,3 +13,8 @@ plan/models/archive/character-design-language.mdのデザインシート
 5. **設定の見せ場**: design/characters.mdの「主を見失った夢。タルに
    擬態しており、持ち上げる/投げるまで見分けがつかない」設定を、
    化けが解けても残る箍の欠片で表す
+6. **看板モデル対応**(plan/models/archive/flagship-model-program.md):
+   タルへの擬態を裏付ける、近づいて初めて分かる程度の異物感として、
+   本物のタル(props.build_barrel、単色のまま)には無い、肌のような
+   ごく薄い粒立ちを`bake_procedural_detail`の"fuzz"(強さ0.08、既定の
+   半分程度に抑制)で焼き込んだ

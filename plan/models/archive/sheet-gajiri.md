@@ -14,3 +14,7 @@ plan/models/archive/character-design-language.mdのデザインシート
 5. **設定の見せ場**: design/characters.mdの「ふと感じた小さな不安が
    形になったもの。不安という感情が『何かをかじって落ち着けたい』
    という仕草から連想された」設定を、かじる前歯そのもので体現する
+6. **看板モデル対応**(plan/models/archive/flagship-model-program.md):
+   種族固有の質感の識別子として、腹側専用の色(`gajiri_belly`)を
+   新設して背側との色むらをはっきりさせ、両方に`bake_procedural_detail`
+   の"fur"(斜めに流れる毛筋)を焼き込んだ

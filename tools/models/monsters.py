@@ -298,21 +298,31 @@ GAJIRI_BONES_HALF = [
 
 
 def build_gajiri():
-    """四つ足のねずみ。長い尻尾と大きな耳で、小さくても種類が分かるようにする。"""
+    """
+    四つ足のねずみ。長い尻尾と大きな耳で、小さくても種類が分かるようにする。
+
+    看板モデル(plan/models/archive/flagship-model-program.md)として、
+    AOだけでなく種族固有の質感の識別子を持たせる: 背側と腹側で色むらを
+    はっきり分け(通常の高さ切り分けに加え、gajiriは他の四つ足種族と
+    違って腹側専用の色を新設する)、両方に`bake_procedural_detail`の
+    "fur"(毛並みの流れ方向)を焼き込む。
+    """
     joints = C.mirrored(GAJIRI_HALF)
     radii = C.mirrored_radii(GAJIRI_RADII_HALF)
     bones = C.mirrored_bones(GAJIRI_BONES_HALF)
 
     body = C.build_skinned("gajiri", joints, bones, radii, root="chest", subsurf=2)
     fur = C.make_material("gajiri_fur", (0.52, 0.42, 0.34), roughness=0.85)
+    belly = C.make_material("gajiri_belly", (0.66, 0.56, 0.46), roughness=0.8)
     ear_in = C.make_material("gajiri_ear", (0.72, 0.48, 0.46), roughness=0.8)
 
     # 耳だけを内側の色にする。高さで切ると背中まで巻き込むので、
-    # 耳の関節からの距離で判定する
+    # 耳の関節からの距離で判定する。それ以外は高さで背側/腹側を分ける
     ears = [Vector(joints["ear.L"]), Vector(joints["ear.R"])]
     C.assign_materials_by_region(
-        body, [fur, ear_in],
-        lambda c: 1 if min((c - e).length for e in ears) < 0.072 else 0,
+        body, [fur, belly, ear_in],
+        lambda c: 2 if min((c - e).length for e in ears) < 0.072
+        else (1 if c.z < 0.135 else 0),
     )
 
     extras = []
@@ -331,6 +341,9 @@ def build_gajiri():
     # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
     # (plan/models/archive/texture-rollout-unblock.md)
     C.bake_ao_to_texture(mesh, size=128)
+    # 看板モデルの種族固有識別子(plan/models/archive/
+    # flagship-model-program.md): 背側・腹側とも毛並みの流れを焼き込む
+    C.bake_procedural_detail(mesh, {"gajiri_fur": "fur", "gajiri_belly": "fur"})
     armature = C.build_armature("gajiri", joints, bones, mesh, root="chest")
     return [mesh, armature], armature
 
@@ -4952,6 +4965,14 @@ def build_yumemayoinokage():
     # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
     # (plan/models/archive/texture-rollout-unblock.md)
     C.bake_ao_to_texture(mesh, size=128)
+    # 看板モデルの種族固有識別子(plan/models/archive/
+    # flagship-model-program.md)。タルへの擬態を裏付ける、近づいて
+    # 初めて分かる程度の異物感: 本物のタル(props.build_barrel)は
+    # 単色の木肌のままだが、この個体だけ肌のように細かい粒立ち(fuzz)が
+    # ごく薄く乗っている。強さを既定の半分程度に抑え、遠目には
+    # タルそのものに見えるようにする
+    C.bake_procedural_detail(mesh, {"yumemayoi_husk": "fuzz", "yumemayoi_hood": "fuzz"},
+                             strength=0.08)
     armature = C.build_armature("yumemayoinokage", YUMEMAYOINOKAGE_JOINTS, YUMEMAYOINOKAGE_BONES,
                                 mesh, root="root")
     return [mesh, armature], armature
@@ -6901,8 +6922,21 @@ def build_oonebosuke():
     まぶたが重く垂れた目(nebosukegaeruと同じ手法)とよだれで、
     決して覚めない眠気を強調する。配色は第一地方(うたたねの参道)の、
     参道の土色に馴染む素朴な淡い色合い。
+
+    看板モデルのパイロット(plan/models/archive/flagship-model-program.md)
+    として、purunと同じ骨組みの拡大版に見えないよう、逸脱項目を
+    意図して3つ選ぶ(plan/models/archive/
+    boss-silhouette-differentiation.mdの一般則を先行適用):
+    ①左右非対称(片腕だけ低くだらりと垂れる) ②重心・比率のずらし
+    (頭頂をtopの真上ではなく片側へ傾け、寝崩れた姿勢にする)
+    ③通常種には無い大きな形(参道で被ったまま眠り込んだ、
+    掛け布団の切れ端を肩に残す)。
     """
-    body = C.build_skinned("oonebosuke", OONEBOSUKE_JOINTS, OONEBOSUKE_BONES,
+    # 逸脱項目②。topをそのまま片側へずらし、頭が寝崩れて傾いたような
+    # 不安定なシルエットにする(base/midの軸・当たり判定は変えない)
+    joints = dict(OONEBOSUKE_JOINTS)
+    joints["top"] = (0.058, 0.014, OONEBOSUKE_JOINTS["top"][2])
+    body = C.build_skinned("oonebosuke", joints, OONEBOSUKE_BONES,
                            OONEBOSUKE_RADII, root="base", subsurf=2)
     for vert in body.data.vertices:
         if vert.co.z < 0.03:
@@ -6920,9 +6954,12 @@ def build_oonebosuke():
                           segments=14, rings=10, scale=(1.0, 0.85, 0.55))
         C.assign_material(lid, skin)
         extras.append(lid)
-        # 腹の前で組んだような、丸めた腕
-        arm = C.uv_sphere(f"oonebosuke_arm{side}", (0.30 * side, -0.16, 0.20), 0.115,
-                          segments=16, rings=12, scale=(1.0, 0.85, 0.75))
+    # 逸脱項目①。片腕だけ低くだらりと垂れさせ、通常のpurun系列には無い
+    # 左右非対称の重心にする
+    arm_specs = [(-1.0, -0.16, 0.20, 0.115, 0.85), (1.0, -0.235, 0.075, 0.135, 0.70)]
+    for side, ay, az, ar, asquash in arm_specs:
+        arm = C.uv_sphere(f"oonebosuke_arm{side}", (0.30 * side, ay, az), ar,
+                          segments=16, rings=12, scale=(1.0, asquash, 0.75))
         C.assign_material(arm, skin)
         extras.append(arm)
     mouth = C.uv_sphere("oonebosuke_mouth", (0.0, -0.342, 0.238), 0.062,
@@ -6950,11 +6987,31 @@ def build_oonebosuke():
     C.assign_material(pillow, pillow_mat)
     extras.append(pillow)
 
+    # 逸脱項目③。参道で被ったまま眠り込んだ、掛け布団の切れ端を
+    # 片肩に残す(purun系列には存在しない大形状)。肌と紛れないよう、
+    # 色は褪せた藍染めにする
+    blanket_mat = C.make_material("oonebosuke_blanket", (0.30, 0.40, 0.46), roughness=0.85)
+    blanket = C.box("oonebosuke_blanket", (-0.290, 0.020, 0.300), (0.185, 0.130, 0.024),
+                    bevel=0.016, bevel_segments=2)
+    blanket.rotation_euler = (0.04, -0.16, 0.30)
+    C.assign_material(blanket, blanket_mat)
+    extras.append(blanket)
+    fold_mat = C.make_material("oonebosuke_blanket_fold", (0.22, 0.30, 0.36), roughness=0.85)
+    fold = C.box("oonebosuke_blanket_fold", (-0.330, -0.010, 0.245), (0.075, 0.060, 0.016),
+                bevel=0.010, bevel_segments=2)
+    fold.rotation_euler = (0.02, -0.10, 0.42)
+    C.assign_material(fold, fold_mat)
+    extras.append(fold)
+
     mesh = C.join([body] + extras, "oonebosuke")
     # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開(地方ボス)
     # (plan/models/archive/texture-rollout-unblock.md)
     C.bake_ao_to_texture(mesh, size=128)
-    armature = C.build_armature("oonebosuke", C.mirrored(OONEBOSUKE_JOINTS), OONEBOSUKE_BONES,
+    # 看板モデルの種族固有識別子(plan/models/archive/
+    # flagship-model-program.md): 個体固有の使い込まれた質感として、
+    # 肌にまだらな擦れを焼き込む
+    C.bake_procedural_detail(mesh, {"oonebosuke_skin": "scratch"})
+    armature = C.build_armature("oonebosuke", C.mirrored(joints), OONEBOSUKE_BONES,
                                 mesh, root="base")
     return [mesh, armature], armature
 
@@ -7757,6 +7814,14 @@ def build_horikuiNoNushi():
     体の配色は第一〜第七地方の色が不揃いに混ざり合った、統一感のない
     継ぎ接ぎにする。目は打ち込まれた痛みそのものとして、怒りを帯びた
     赤い光にする。
+
+    看板モデルのパイロット(plan/models/archive/flagship-model-program.md)
+    として、逸脱項目を意図して2つ選ぶ(plan/models/archive/
+    boss-silhouette-differentiation.mdの一般則を先行適用):
+    ①左右非対称(杭は体の中心ではなく片肩寄りを貫く、いびつな
+    刺さり方にする) ②ネガティブスペース(杭が突き破った入り口に、
+    裂けて中の闇が覗く穴を作る)。honegarami系列の通常種にも
+    存在しない、この個体だけの傷。
     """
     joints = C.mirrored(HORIKUINONUSHI_HALF)
     radii = C.mirrored_radii(HORIKUINONUSHI_RADII_HALF)
@@ -7800,13 +7865,23 @@ def build_horikuiNoNushi():
 
     # 体を貫いて突き出た、近道屋が打ち込んだ杭そのもの。古びた木の色にし、
     # 頭上と足元に突き出させて、体がその杭に取り憑いた姿であることを示す
+    # 逸脱項目①。杭を体の中心ではなく片肩寄りへ通し、通常のhonegarami
+    # 拡大版では起こり得ない、いびつな刺さり方にする
+    stake_x, stake_y = 0.145, 0.03
     wood = C.make_material("horikui_wood", (0.30, 0.20, 0.12), roughness=0.85)
-    stake = C.cylinder("horikui_stake", (0.02, 0.03, 0.90), 0.075, 1.55, segments=8, bevel=0.01)
+    stake = C.cylinder("horikui_stake", (stake_x, stake_y, 0.90), 0.075, 1.55, segments=8,
+                       bevel=0.01)
     C.assign_material(stake, wood)
     extras.append(stake)
-    tip = C.cone("horikui_stake_tip", (0.02, 0.03, 1.66), 0.075, 0.004, 0.16, segments=8)
+    tip = C.cone("horikui_stake_tip", (stake_x, stake_y, 1.66), 0.075, 0.004, 0.16, segments=8)
     C.assign_material(tip, wood)
     extras.append(tip)
+    # 逸脱項目②。杭が突き破った入り口に、裂けて中の闇が覗く穴を作る
+    tear_mat = C.make_material("horikui_tear", (0.03, 0.03, 0.03), roughness=0.95)
+    tear = C.uv_sphere("horikui_tear", (stake_x - 0.055, stake_y, 0.965), 0.062,
+                       segments=14, rings=10, scale=(1.0, 0.7, 0.9))
+    C.assign_material(tear, tear_mat)
+    extras.append(tear)
     # 打ち込まれた衝撃で裂けた、木の破片
     shard_mat = C.make_material("horikui_shard", (0.36, 0.25, 0.16), roughness=0.8)
     for i, (angle_deg, dist, z, length) in enumerate([
@@ -7814,7 +7889,8 @@ def build_horikuiNoNushi():
         (250.0, 0.11, 0.86, 0.18), (320.0, 0.08, 1.04, 0.12),
     ]):
         angle = math.radians(angle_deg)
-        x, y = 0.02 + math.cos(angle) * dist, 0.03 + math.sin(angle) * dist
+        x = stake_x + math.cos(angle) * dist
+        y = stake_y + math.sin(angle) * dist
         shard = C.cone(f"horikui_shard{i}", (x, y, z), 0.022, 0.003, length, segments=8)
         C.assign_material(shard, shard_mat)
         extras.append(shard)
@@ -7829,6 +7905,11 @@ def build_horikuiNoNushi():
     # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開(地方ボス)
     # (plan/models/archive/texture-rollout-unblock.md)
     C.bake_ao_to_texture(mesh, size=128)
+    # 看板モデルの種族固有識別子(plan/models/archive/
+    # flagship-model-program.md): 打ち込まれた杭と継ぎ接ぎの体、両方に
+    # この個体だけの傷・錆の刻印を焼き込む
+    C.bake_procedural_detail(mesh, {"horikui_wood": "scratch", "horikui_r1": "scratch",
+                                    "horikui_r5": "scratch"})
     armature = C.build_armature("horikuiNoNushi", joints, bones, mesh, root="hip")
     return [mesh, armature], armature
 
