@@ -315,15 +315,24 @@ describe("tools/audio/compose.ts(plan/sound/archive/bgm-quality-upgrade.md)", ()
     expect(Array.from(withNewInstruments.left)).not.toEqual(Array.from(without.left));
   });
 
-  it("gong/bow/rattleのみのweightsでも決定的に同じ波形を返し、有限な値のまま収まる(クリップ防止も維持される)", () => {
+  // barsを小さくして決定性だけを確かめる(gong/bowはsin()を複数重ねる分
+  // 合成が重く、baseParams規模の2曲比較だとCIの遅いランナーで既定の5秒
+  // タイムアウトを超えることがあったため)
+  it("gong/bow/rattleのみのweightsでも決定的に同じ波形を返す", () => {
     const gongBowRattleOnly = { mallet: 0, drum: 0, flute: 0, string: 0, gong: 0.4, bow: 0.3, rattle: 0.3 };
-    const a = composeTrack({ ...baseParams, seed: 33, weights: gongBowRattleOnly });
-    const b = composeTrack({ ...baseParams, seed: 33, weights: gongBowRattleOnly });
+    const smallParams = { ...baseParams, bars: 2 };
+    const a = composeTrack({ ...smallParams, seed: 33, weights: gongBowRattleOnly });
+    const b = composeTrack({ ...smallParams, seed: 33, weights: gongBowRattleOnly });
     expect(Array.from(a.left)).toEqual(Array.from(b.left));
+  });
+
+  it("gong/bow/rattleのみのweightsでも有限な値のまま収まる(クリップ防止も維持される、本番相当のbars数で確認)", () => {
+    const gongBowRattleOnly = { mallet: 0, drum: 0, flute: 0, string: 0, gong: 0.4, bow: 0.3, rattle: 0.3 };
+    const out = composeTrack({ ...baseParams, seed: 33, weights: gongBowRattleOnly });
     const peak = (arr: Float32Array) => arr.reduce((max, v) => Math.max(max, Math.abs(v)), 0);
-    expect(peak(a.left)).toBeLessThanOrEqual(1);
-    expect(peak(a.right)).toBeLessThanOrEqual(1);
-    for (const v of a.left) expect(Number.isFinite(v)).toBe(true);
+    expect(peak(out.left)).toBeLessThanOrEqual(1);
+    expect(peak(out.right)).toBeLessThanOrEqual(1);
+    for (const v of out.left) expect(Number.isFinite(v)).toBe(true);
   });
 
   it("composeSfxは有限な値の配列を返す", () => {
