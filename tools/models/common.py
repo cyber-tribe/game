@@ -822,16 +822,21 @@ def bake_procedural_detail(obj: bpy.types.Object, patterns: dict[str, str],
         image.pixels[:] = pixels
 
 
-def export_glb(name: str, objs: Sequence[bpy.types.Object]) -> str:
+def export_glb(name: str, objs: Sequence[bpy.types.Object], flat: bool = False) -> str:
     os.makedirs(MODEL_DIR, exist_ok=True)
     path = os.path.join(MODEL_DIR, f"{name}.glb")
 
-    for o in objs:
-        # bake_ao_to_textureを通した(UVを持つ)メッシュは既にAOを合成
-        # 済みのテクスチャがBase Colorに繋がっているため、頂点カラーの
-        # AOを重ねて焼くと二重に暗くなる。UVの有無で判別する
-        if o.type == "MESH" and len(o.data.uv_layers) == 0:
-            bake_ao_to_vertex_colors(o)
+    # キャラクター(flat=True)はアニメ調の方針(plan/models/archive/
+    # anime-look-art-direction.md)で、焼き込み陰影を一切持たずトゥーン階調
+    # だけで陰影を付ける。地形・小物・建物(flat=False)は現行どおり、
+    # UVを持たないメッシュに近距離のAOを頂点カラーへ焼く
+    if not flat:
+        for o in objs:
+            # bake_ao_to_textureを通した(UVを持つ)メッシュは既にAOを合成
+            # 済みのテクスチャがBase Colorに繋がっているため、頂点カラーの
+            # AOを重ねて焼くと二重に暗くなる。UVの有無で判別する
+            if o.type == "MESH" and len(o.data.uv_layers) == 0:
+                bake_ao_to_vertex_colors(o)
 
     bpy.ops.object.select_all(action="DESELECT")
     for o in objs:

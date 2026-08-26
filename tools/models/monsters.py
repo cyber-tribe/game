@@ -88,10 +88,6 @@ def build_purun():
     extras.append(gem)
 
     mesh = C.join([body] + extras, "purun")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開の第一弾
-    # (plan/models/archive/texture-rollout-unblock.md)。UVアンラップ+
-    # マテリアルごとの専用テクスチャにAO×基色を焼き込む
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("purun", C.mirrored(PURUN_JOINTS), PURUN_BONES, mesh, root="base")
     return [mesh, armature], armature
 
@@ -201,9 +197,6 @@ def build_akubitokage():
         extras.append(spike)
 
     mesh = C.join([body] + extras, "akubitokage")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("akubitokage", C.mirrored(AKUBI_JOINTS), AKUBI_BONES, mesh, root="base")
     return [mesh, armature], armature
 
@@ -302,10 +295,12 @@ def build_gajiri():
     四つ足のねずみ。長い尻尾と大きな耳で、小さくても種類が分かるようにする。
 
     看板モデル(plan/models/archive/flagship-model-program.md)として、
-    AOだけでなく種族固有の質感の識別子を持たせる: 背側と腹側で色むらを
-    はっきり分け(通常の高さ切り分けに加え、gajiriは他の四つ足種族と
-    違って腹側専用の色を新設する)、両方に`bake_procedural_detail`の
-    "fur"(毛並みの流れ方向)を焼き込む。
+    種族固有の質感の識別子を持たせる: 背側と腹側で色むらをはっきり分け
+    (通常の高さ切り分けに加え、gajiriは他の四つ足種族と違って腹側専用の
+    色を新設する)。毛並みの手続きテクスチャは廃止した(plan/models/
+    archive/anime-look-art-direction.md): アニメ調の方針では毛の流れは
+    シルエット(毛の房)で表す想定だが、房の形は2Dコンセプト段階で
+    決める未決事項として残る。
     """
     joints = C.mirrored(GAJIRI_HALF)
     radii = C.mirrored_radii(GAJIRI_RADII_HALF)
@@ -338,12 +333,6 @@ def build_gajiri():
     extras.append(teeth)
 
     mesh = C.join([body] + extras, "gajiri")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
-    # 看板モデルの種族固有識別子(plan/models/archive/
-    # flagship-model-program.md): 背側・腹側とも毛並みの流れを焼き込む
-    C.bake_procedural_detail(mesh, {"gajiri_fur": "fur", "gajiri_belly": "fur"})
     armature = C.build_armature("gajiri", joints, bones, mesh, root="chest")
     return [mesh, armature], armature
 
@@ -475,9 +464,6 @@ def build_mabutamushi():
     shell_group = C.mark_for_pin(shell)
 
     mesh = C.join([body, shell], "mabutamushi")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("mabutamushi", joints, bones, mesh, root="body")
     C.pin_weight_to_bone(mesh, shell_group, "body-head")
     for eye in eyes:
@@ -615,9 +601,6 @@ def build_tsubute():
     extras.append(stone)
 
     mesh = C.join([body] + extras, "tsubute")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("tsubute", joints, bones, mesh, root="chest")
     for eye in eyes:
         C.parent_to_bone(eye, armature, "chest-head")
@@ -746,9 +729,6 @@ def build_madoromi():
     extras.append(collar)
 
     mesh = C.join([body] + extras, "madoromi")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("madoromi", MADOROMI_JOINTS, MADOROMI_BONES, mesh, root="root")
     return [mesh, armature], armature
 
@@ -915,9 +895,6 @@ def build_honegarami():
     extras += [blade, guard, grip]
 
     mesh = C.join([body] + extras, "honegarami")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("honegarami", joints, bones, mesh, root="hip")
     return [mesh, armature], armature
 
@@ -1079,9 +1056,6 @@ def build_kirimizuchi():
         extras.append(spike)
 
     mesh = C.join([body] + extras, "kirimizuchi")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("kirimizuchi", joints, bones, mesh, root="chest")
     return [mesh, armature], armature
 
@@ -1283,9 +1257,6 @@ def build_nukarumigani():
         extras.append(ridge)
 
     mesh = C.join([body] + extras, "nukarumigani")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("nukarumigani", joints, bones, mesh, root="hip")
     return [mesh, armature], armature
 
@@ -1477,9 +1448,6 @@ def build_ashiatodori():
             extras.append(claw)
 
     mesh = C.join([body] + extras, "ashiatodori")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("ashiatodori", joints, bones, mesh, root="body")
     return [mesh, armature], armature
 
@@ -1648,9 +1616,6 @@ def build_wasuremizuchi():
         extras.append(wisp)
 
     mesh = C.join([body] + extras, "wasuremizuchi")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("wasuremizuchi", joints, bones, mesh, root="chest")
     return [mesh, armature], armature
 
@@ -1880,9 +1845,6 @@ def build_kinokootoko():
         extras.append(spore)
 
     mesh = C.join([body] + extras, "kinokootoko")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("kinokootoko", joints, bones, mesh, root="hip")
     return [mesh, armature], armature
 
@@ -2065,9 +2027,6 @@ def build_houshitobi():
         extras.append(mote)
 
     mesh = C.join([body] + extras, "houshitobi")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("houshitobi", joints, bones, mesh, root="root")
     return [mesh, armature], armature
 
@@ -2196,9 +2155,6 @@ def build_kodamausagi():
         extras.append(ear)
 
     mesh = C.join([body] + extras, "kodamausagi")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("kodamausagi", C.mirrored(KODAMAUSAGI_JOINTS),
                                 KODAMAUSAGI_BONES, mesh, root="base")
     return [mesh, armature], armature
@@ -2326,9 +2282,6 @@ def build_kodamagumo():
     extras.append(shard)
 
     mesh = C.join([body] + extras, "kodamagumo")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("kodamagumo", C.mirrored(KODAMAGUMO_JOINTS),
                                 KODAMAGUMO_BONES, mesh, root="base")
     return [mesh, armature], armature
@@ -2479,9 +2432,6 @@ def build_nebosukegaeru():
     extras.append(moss)
 
     mesh = C.join([body] + extras, "nebosukegaeru")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("nebosukegaeru", joints, bones, mesh, root="chest")
     return [mesh, armature], armature
 
@@ -2701,9 +2651,6 @@ def build_madoromigumo():
         extras.append(fang)
 
     mesh = C.join([body] + extras, "madoromigumo")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("madoromigumo", joints, bones, mesh, root="body")
     return [mesh, armature], armature
 
@@ -2853,9 +2800,6 @@ def build_kaerukodama():
     extras.append(pouch)
 
     mesh = C.join([body] + extras, "kaerukodama")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("kaerukodama", joints, bones, mesh, root="chest")
     return [mesh, armature], armature
 
@@ -2997,9 +2941,6 @@ def build_yamabikooni():
     extras.append(jaw)
 
     mesh = C.join([body] + extras, "yamabikooni")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("yamabikooni", joints, bones, mesh, root="hip")
     return [mesh, armature], armature
 
@@ -3154,9 +3095,6 @@ def build_nedayamabiko():
     extras.append(shard)
 
     mesh = C.join([body] + extras, "nedayamabiko")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("nedayamabiko", joints, bones, mesh, root="hip")
     return [mesh, armature], armature
 
@@ -3296,9 +3234,6 @@ def build_yamabikogitsune():
     extras.append(throat)
 
     mesh = C.join([body] + extras, "yamabikogitsune")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("yamabikogitsune", joints, bones, mesh, root="chest")
     return [mesh, armature], armature
 
@@ -3439,9 +3374,6 @@ def build_kodamagitsune():
     extras.append(echo)
 
     mesh = C.join([body] + extras, "kodamagitsune")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("kodamagitsune", joints, bones, mesh, root="chest")
     return [mesh, armature], armature
 
@@ -3639,9 +3571,6 @@ def build_kodamaNoNushi():
         extras.append(shard)
 
     mesh = C.join([body] + extras, "kodamaNoNushi")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開(地方ボス)
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("kodamaNoNushi", joints, bones, mesh, root="chest")
     for group_name, bone in pinned_parts:
         C.pin_weight_to_bone(mesh, group_name, bone)
@@ -3777,9 +3706,6 @@ def build_menkaburikozo():
         extras.append(hole)
 
     mesh = C.join([body] + extras, "menkaburikozo")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("menkaburikozo", joints, bones, mesh, root="chest")
     return [mesh, armature], armature
 
@@ -3985,9 +3911,6 @@ def build_honedatami():
         extras.append(plate)
 
     mesh = C.join([body] + extras, "honedatami")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("honedatami", joints, bones, mesh, root="hip")
     return [mesh, armature], armature
 
@@ -4145,9 +4068,6 @@ def build_kazaridaruma():
     extras.append(pedestal)
 
     mesh = C.join([body] + extras, "kazaridaruma")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("kazaridaruma", joints, bones, mesh, root="hip")
     return [mesh, armature], armature
 
@@ -4277,9 +4197,6 @@ def build_kageboushi():
     extras.append(rod)
 
     mesh = C.join([body] + extras, "kageboushi")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("kageboushi", joints, bones, mesh, root="chest")
     return [mesh, armature], armature
 
@@ -4393,9 +4310,6 @@ def build_chouchinokuri():
                           white=(0.85, 0.72, 0.55), dark=(0.12, 0.07, 0.05))
 
     mesh = C.join([body] + extras, "chouchinokuri")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("chouchinokuri", C.mirrored(CHOUCHINOKURI_JOINTS),
                                 CHOUCHINOKURI_BONES, mesh, root="base")
     return [mesh, armature], armature
@@ -4519,9 +4433,6 @@ def build_wataamenoobake():
     extras.append(stick)
 
     mesh = C.join([body] + extras, "wataamenoobake")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("wataamenoobake", C.mirrored(WATAAMENOOBAKE_JOINTS),
                                 WATAAMENOOBAKE_BONES, mesh, root="base")
     return [mesh, armature], armature
@@ -4643,9 +4554,6 @@ def build_yaguramori():
         extras.append(finial)
 
     mesh = C.join([body] + extras, "yaguramori")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("yaguramori", YAGURAMORI_JOINTS, YAGURAMORI_BONES,
                                 mesh, root="root")
     return [mesh, armature], armature
@@ -4848,9 +4756,6 @@ def build_misemonoNoNushi():
     extras.append(banner)
 
     mesh = C.join([body] + extras, "misemonoNoNushi")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開(地方ボス)
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("misemonoNoNushi", joints, bones, mesh, root="hip")
     for group_name in yagura_names:
         C.pin_weight_to_bone(mesh, group_name, "chest-shoulder.L")
@@ -4991,17 +4896,6 @@ def build_yumemayoinokage():
     extras.append(hoop)
 
     mesh = C.join([body] + extras, "yumemayoinokage")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
-    # 看板モデルの種族固有識別子(plan/models/archive/
-    # flagship-model-program.md)。タルへの擬態を裏付ける、近づいて
-    # 初めて分かる程度の異物感: 本物のタル(props.build_barrel)は
-    # 単色の木肌のままだが、この個体だけ肌のように細かい粒立ち(fuzz)が
-    # ごく薄く乗っている。強さを既定の半分程度に抑え、遠目には
-    # タルそのものに見えるようにする
-    C.bake_procedural_detail(mesh, {"yumemayoi_husk": "fuzz", "yumemayoi_hood": "fuzz"},
-                             strength=0.08)
     armature = C.build_armature("yumemayoinokage", YUMEMAYOINOKAGE_JOINTS, YUMEMAYOINOKAGE_BONES,
                                 mesh, root="root")
     return [mesh, armature], armature
@@ -5151,9 +5045,6 @@ def build_yorishironozankyo():
     extras.append(core)
 
     mesh = C.join([body] + extras, "yorishironozankyo")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("yorishironozankyo", joints, bones, mesh, root="hip")
     return [mesh, armature], armature
 
@@ -5357,9 +5248,6 @@ def build_fuchiNoNushi():
         extras.append(kelp)
 
     mesh = C.join([body] + extras, "fuchiNoNushi")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開(地方ボス)
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("fuchiNoNushi", joints, bones, mesh, root="hip")
     for group_name in kelp_names:
         C.pin_weight_to_bone(mesh, group_name, "chest-shoulder.L")
@@ -5493,9 +5381,6 @@ def build_shizukuuo():
         extras.append(crystal)
 
     mesh = C.join([body] + extras, "shizukuuo")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("shizukuuo", joints, bones, mesh, root="chest")
     return [mesh, armature], armature
 
@@ -5632,9 +5517,6 @@ def build_urumiguma():
     extras.append(stone)
 
     mesh = C.join([body] + extras, "urumiguma")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("urumiguma", joints, bones, mesh, root="hip")
     return [mesh, armature], armature
 
@@ -5765,9 +5647,6 @@ def build_nadakaze():
         extras.append(fin)
 
     mesh = C.join([body] + extras, "nadakaze")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("nadakaze", joints, bones, mesh, root="chest")
     return [mesh, armature], armature
 
@@ -5880,9 +5759,6 @@ def build_shioresakura():
     extras.append(calyx)
 
     mesh = C.join([body] + extras, "shioresakura")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("shioresakura", C.mirrored(SHIORESAKURA_JOINTS),
                                 SHIORESAKURA_BONES, mesh, root="base")
     return [mesh, armature], armature
@@ -6007,9 +5883,6 @@ def build_mizukagami():
     extras.append(mouth)
 
     mesh = C.join([body] + extras, "mizukagami")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("mizukagami", MIZUKAGAMI_JOINTS, MIZUKAGAMI_BONES, mesh, root="root")
     return [mesh, armature], armature
 
@@ -6129,9 +6002,6 @@ def build_nakimushi():
     extras.append(crystal)
 
     mesh = C.join([body] + extras, "nakimushi")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("nakimushi", joints, bones, mesh, root="chest")
     return [mesh, armature], armature
 
@@ -6276,9 +6146,6 @@ def build_namidaguma():
         extras.append(shard)
 
     mesh = C.join([body] + extras, "namidaguma")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("namidaguma", joints, bones, mesh, root="chest")
     return [mesh, armature], armature
 
@@ -6435,9 +6302,6 @@ def build_nemurimogura():
     extras.append(crystal)
 
     mesh = C.join([body] + extras, "nemurimogura")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("nemurimogura", joints, bones, mesh, root="chest")
     return [mesh, armature], armature
 
@@ -6608,9 +6472,6 @@ def build_nushigaeru():
         extras.append(reed)
 
     mesh = C.join([body] + extras, "nushigaeru")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開(地方ボス)
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("nushigaeru", joints, bones, mesh, root="chest")
     for group_name in back_deco_names:
         C.pin_weight_to_bone(mesh, group_name, "chest-hip")
@@ -6719,9 +6580,6 @@ def build_oitekeboshi():
         extras.append(fang)
 
     mesh = C.join([body] + extras, "oitekeboshi")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("oitekeboshi", OITEKEBOSHI_JOINTS, OITEKEBOSHI_BONES,
                                 mesh, root="root")
     return [mesh, armature], armature
@@ -6897,9 +6755,6 @@ def build_oomadoromi():
     extras.append(bud_cap)
 
     mesh = C.join([body] + extras, "oomadoromi")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開(地方ボス)
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("oomadoromi", joints, OOMADOROMI_BONES, mesh, root="root")
     for group_name in bud_names:
         C.pin_weight_to_bone(mesh, group_name, "root-stem")
@@ -7070,13 +6925,6 @@ def build_oonebosuke():
     extras.append(fold)
 
     mesh = C.join([body] + extras, "oonebosuke")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開(地方ボス)
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
-    # 看板モデルの種族固有識別子(plan/models/archive/
-    # flagship-model-program.md): 個体固有の使い込まれた質感として、
-    # 肌にまだらな擦れを焼き込む
-    C.bake_procedural_detail(mesh, {"oonebosuke_skin": "scratch"})
     armature = C.build_armature("oonebosuke", C.mirrored(joints), OONEBOSUKE_BONES,
                                 mesh, root="base")
     for group_name in blanket_names:
@@ -7215,9 +7063,6 @@ def build_subetenopurun():
     extras.append(gem)
 
     mesh = C.join([body] + extras, "subetenopurun")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("subetenopurun", C.mirrored(SUBETENOPURUN_JOINTS),
                                 SUBETENOPURUN_BONES, mesh, root="base")
     return [mesh, armature], armature
@@ -7357,9 +7202,6 @@ def build_honezukanotsukai():
         extras.append(shard)
 
     mesh = C.join([body] + extras, "honezukanotsukai")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("honezukanotsukai", TSUKAI_JOINTS, TSUKAI_BONES,
                                 mesh, root="root")
     return [mesh, armature], armature
@@ -7542,9 +7384,6 @@ def build_hajimeNoYume():
         extras.append(knob)
 
     mesh = C.join([body] + extras, "hajimeNoYume")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("hajimeNoYume", HAJIME_NO_YUME_JOINTS, HAJIME_NO_YUME_BONES,
                                 mesh, root="root")
     return [mesh, armature], armature
@@ -7778,9 +7617,6 @@ def build_honezukaNoNushi():
         extras.append(shard)
 
     mesh = C.join([body] + extras, "honezukaNoNushi")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開(地方ボス)
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("honezukaNoNushi", joints, bones, mesh, root="hip")
     for group_name, bone in pinned_parts:
         C.pin_weight_to_bone(mesh, group_name, bone)
@@ -7994,14 +7830,6 @@ def build_horikuiNoNushi():
         extras.append(spike)
 
     mesh = C.join([body] + extras, "horikuiNoNushi")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開(地方ボス)
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
-    # 看板モデルの種族固有識別子(plan/models/archive/
-    # flagship-model-program.md): 打ち込まれた杭と継ぎ接ぎの体、両方に
-    # この個体だけの傷・錆の刻印を焼き込む
-    C.bake_procedural_detail(mesh, {"horikui_wood": "scratch", "horikui_r1": "scratch",
-                                    "horikui_r5": "scratch"})
     armature = C.build_armature("horikuiNoNushi", joints, bones, mesh, root="hip")
     for group_name in entry_wound_names:
         C.pin_weight_to_bone(mesh, group_name, "chest-neck")
@@ -8137,9 +7965,6 @@ def build_horoholocho():
         extras.append(gem)
 
     mesh = C.join([body] + extras, "horoholocho")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("horoholocho", C.mirrored(HOROHOLOCHO_JOINTS),
                                 HOROHOLOCHO_BONES, mesh, root="base")
     return [mesh, armature], armature
@@ -8255,9 +8080,6 @@ def build_ishizuenezumi():
     extras.append(tail_cap)
 
     mesh = C.join([body] + extras, "ishizuenezumi")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("ishizuenezumi", joints, bones, mesh, root="chest")
     return [mesh, armature], armature
 
@@ -8385,9 +8207,6 @@ def build_kasumiutsubo():
         extras.append(frag)
 
     mesh = C.join([body] + extras, "kasumiutsubo")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("kasumiutsubo", joints, bones, mesh, root="chest")
     return [mesh, armature], armature
 
@@ -8534,9 +8353,6 @@ def build_matsurinonushi():
         extras.append(lid)
 
     mesh = C.join([body] + extras, "matsurinonushi")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("matsurinonushi", joints, bones, mesh, root="chest")
     return [mesh, armature], armature
 
@@ -8690,9 +8506,6 @@ def build_katakunagani():
         extras += eye_parts
 
     mesh = C.join([body] + extras, "katakunagani")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("katakunagani", joints, bones, mesh, root="chest")
     for group_name, bone in pinned_parts:
         C.pin_weight_to_bone(mesh, group_name, bone)
@@ -8842,9 +8655,6 @@ def build_mazarinezumi():
         extras.append(plate)
 
     mesh = C.join([body] + extras, "mazarinezumi")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("mazarinezumi", joints, bones, mesh, root="chest")
     return [mesh, armature], armature
 
@@ -8954,9 +8764,6 @@ def build_mouhitotsunokage():
     extras.append(latch)
 
     mesh = C.join([body] + extras, "mouhitotsunokage")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("mouhitotsunokage", MOUHITOTSUNOKAGE_JOINTS,
                                 MOUHITOTSUNOKAGE_BONES, mesh, root="root")
     return [mesh, armature], armature
@@ -9083,9 +8890,6 @@ def build_moyautsubo():
         extras.append(fin)
 
     mesh = C.join([body] + extras, "moyautsubo")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("moyautsubo", joints, bones, mesh, root="chest")
     return [mesh, armature], armature
 
@@ -9214,9 +9018,6 @@ def build_surigarasu():
         extras.append(feather_tail)
 
     mesh = C.join([body] + extras, "surigarasu")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("surigarasu", joints, bones, mesh, root="chest")
     return [mesh, armature], armature
 
@@ -9320,9 +9121,6 @@ def build_tokoshiepurun():
     extras.append(ring)
 
     mesh = C.join([body] + extras, "tokoshiepurun")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("tokoshiepurun", C.mirrored(TOKOSHIEPURUN_JOINTS),
                                 TOKOSHIEPURUN_BONES, mesh, root="base")
     return [mesh, armature], armature
@@ -9459,9 +9257,6 @@ def build_wasurebone():
         extras.append(rib)
 
     mesh = C.join([body] + extras, "wasurebone")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("wasurebone", joints, bones, mesh, root="hip")
     return [mesh, armature], armature
 
@@ -9605,9 +9400,6 @@ def build_wasuregani():
         extras.append(claw)
 
     mesh = C.join([body] + extras, "wasuregani")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("wasuregani", joints, bones, mesh, root="hip")
     return [mesh, armature], armature
 
@@ -9751,9 +9543,6 @@ def build_yoroimukade():
         extras.append(fang)
 
     mesh = C.join([body] + extras, "yoroimukade")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("yoroimukade", joints, bones, mesh, root="hip")
     for group_name, bone in pinned_parts:
         C.pin_weight_to_bone(mesh, group_name, bone)
@@ -9947,9 +9736,6 @@ def build_yoroioiteke():
         extras.append(k_thorn)
 
     mesh = C.join([body] + extras, "yoroioiteke")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("yoroioiteke", joints, bones, mesh, root="hip")
     return [mesh, armature], armature
 
@@ -10086,9 +9872,6 @@ def build_yumemirupurun():
         extras.append(mote)
 
     mesh = C.join([body] + extras, "yumemirupurun")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("yumemirupurun", C.mirrored(YUMEMIRUPURUN_JOINTS),
                                 YUMEMIRUPURUN_BONES, mesh, root="base")
     return [mesh, armature], armature
@@ -10253,9 +10036,6 @@ def build_yoseatsume():
     extras.append(ring_shard)
 
     mesh = C.join([body] + extras, "yoseatsume")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("yoseatsume", joints, bones, mesh, root="chest")
     return [mesh, armature], armature
 
@@ -10412,9 +10192,6 @@ def build_yumekuimogura():
     extras.append(nose)
 
     mesh = C.join([body] + extras, "yumekuimogura")
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開
-    # (plan/models/archive/texture-rollout-unblock.md)
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature("yumekuimogura", joints, bones, mesh, root="chest")
     return [mesh, armature], armature
 
@@ -10584,4 +10361,4 @@ if __name__ == "__main__":
         objs = make(target)
         print(f"{target}: 三角形 {C.tri_count(objs)}")
         C.render_preview(target, objs)
-        C.export_glb(target, objs)
+        C.export_glb(target, objs, flat=True)

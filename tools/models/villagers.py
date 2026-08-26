@@ -44,10 +44,11 @@
 - **`C.box()` / `C.uv_sphere()` は頂点を動かすだけで、オブジェクトの原点は
   ワールド原点に残る。** 置いてから `rotation_euler` を与えると原点まわりに
   回って遠くへ飛ぶ。原点で作る → 回す → `location` で置く、の順にする。
-- **トゥーンシェーディングとAOベイクは共通基盤が面倒を見る**
-  (`plan/game/archive/toon-shading-pipeline.md` は読み込み側、
-  `plan/game/archive/ao-vertex-color-bake.md` は `C.export_glb()` 側)。
-  村人側では何もしない。
+- **トゥーンシェーディングは共通基盤が面倒を見る**
+  (`plan/game/archive/toon-shading-pipeline.md`)。村人側では何もしない。
+  焼き込み陰影は持たない(`plan/models/archive/
+  anime-look-art-direction.md`): 色はフラットな塗り分けのままにし、
+  陰影はランタイムのトゥーン階調だけに任せる。
 - **動きの緩急は規約に従う**(`plan/game/archive/
   animation-quality-guidelines.md`)。`idle_clip()` / `talk_clip()` に
   二次揺れ(頭の遅れ追従)とタメ・ツメを織り込んであるので、ひな形を
@@ -204,10 +205,6 @@ def garment_classifier(joints: dict[str, Vector], *, hem: float | None = None,
 def finish(name: str, body, extras: list, joints: dict[str, Vector], bones):
     """小物を素体に統合してアーマチュアを組む。返り値は (書き出す物, アーマチュア)。"""
     mesh = C.join([body] + list(extras), name)
-    # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開(村人)
-    # (plan/models/archive/texture-rollout-unblock.md)。全村人が
-    # この共通ヘルパーを通るため、ここ1箇所への追加で全員に行き渡る
-    C.bake_ao_to_texture(mesh, size=128)
     armature = C.build_armature(name, joints, bones, mesh, root="hip")
     return [mesh, armature], armature
 
@@ -2290,4 +2287,4 @@ if __name__ == "__main__":
         objs = make(target)
         print(f"{target}: 三角形 {C.tri_count(objs)}")
         C.render_preview(target, objs)
-        C.export_glb(target, objs)
+        C.export_glb(target, objs, flat=True)
