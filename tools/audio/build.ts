@@ -354,6 +354,9 @@ const SFX_SPECS: readonly SfxSpec[] = [
   { id: "enterGallery", kind: "mallet", freq: 900, duration: 0.15, seed: 126 }, // 木札同士が触れる音
   { id: "enterRecordsHall", kind: "drum", freq: 200, duration: 0.08, seed: 127 }, // 筆を置く音
   { id: "enterGarudoHouse", kind: "drum", freq: 220, duration: 0.3, seed: 128 }, // 戸の開閉
+  // ボスの間の扉のきしみ(plan/sound/archive/sfx-boss-door.md)。
+  // 村の建物の扉音より低く長い一撃にして、場面の重さを出す
+  { id: "doorOpened", kind: "drum", freq: 130, duration: 0.55, seed: 129 },
 ];
 
 interface BarrelOpenSpec {

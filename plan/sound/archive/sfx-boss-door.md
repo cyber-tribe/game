@@ -1,3 +1,18 @@
+> **実装済み。** `tools/audio/build.ts`の`SFX_SPECS`に計画書どおりの
+> 値(drum/130Hz/0.55s)で`doorOpened`エントリを追加し、
+> `public/audio/sfx/doorOpened.wav`へ生成した。新しい合成機能は
+> 不要だった(既存の`composeSfx`のみ)。
+>
+> `src/view/stage.ts`の`buildEventHandlers`を編集: `doorOpened: noop`を
+> `doorOpened: () => { this.audio.playSfx("doorOpened"); return 0; }`
+> に置き換えた(見た目の演出は計画どおり対象外のまま)。
+>
+> **検証**: `npx tsc --noEmit`・`npx vitest run`(135ファイル/1747件)・
+> `npm run build`・`npm run audio`いずれも成功。再生成後の差分は
+> `doorOpened.wav`の新規1ファイルのみ(既存音源は無変更)。デコードして
+> `enterStorage.wav`(0.75s・ピーク0.66)と比較し、`doorOpened.wav`
+> (0.95s・ピーク0.70)が狙いどおり低く長いことを確認済み。
+
 # ボスの間の扉のきしみ
 
 ## 経緯
