@@ -1,4 +1,3 @@
-import { forcedLandscapePointerDelta } from "../entities/orientation";
 import { ATTACK_KEY_CODE, type Input } from "../view/input";
 
 /**
@@ -19,14 +18,6 @@ import { ATTACK_KEY_CODE, type Input } from "../view/input";
  * `tap()`→`Input.onKey`の経路に乗り「Escapeで閉じる」画面すべてに効く。
  * ダイブ中にメニューが開いていないときのEscapeは`cancel`だがどこも拾わない
  * ので、何も起きない。
- *
- * `plan/game/archive/forced-landscape.md`: `body.forced-landscape`中は
- * CSSがゲーム画面全体を90度回転させて描画するが、`PointerEvent`の
- * `clientX/clientY`は回転前の画面座標系のまま届く。生座標から差分を
- * 計算しているパッドのドラッグ・視点回転ジェスチャは`isForcedLandscape()`
- * で判定し`forcedLandscapePointerDelta()`(`src/entities/orientation.ts`)で
- * 補正する。ピンチ(距離のみ)・要素の当たり判定(タップ)は回転の影響を
- * 受けないため補正不要。
  */
 
 const DEAD_ZONE_RADIUS = 18;
@@ -121,7 +112,6 @@ export class TouchControls {
 
   private rotatePointerId: number | null = null;
   private rotateStartX = 0;
-  private rotateStartY = 0;
 
   private readonly pinchPointers = new Map<number, { x: number; y: number }>();
   private pinchBaseDist: number | null = null;
@@ -192,10 +182,9 @@ export class TouchControls {
 
     pad.addEventListener("pointermove", (e) => {
       if (e.pointerId !== this.padPointerId || !this.padOrigin) return;
-      const rawDx = e.clientX - this.padOrigin.x;
-      const rawDy = e.clientY - this.padOrigin.y;
-      const { dx, dy } = forcedLandscapePointerDelta(rawDx, rawDy, this.isForcedLandscape());
-      const dist = Math.hypot(dx, dy); // 回転補正は距離を変えない(90度回転は距離不変)
+      const dx = e.clientX - this.padOrigin.x;
+      const dy = e.clientY - this.padOrigin.y;
+      const dist = Math.hypot(dx, dy);
 
       const clamped = Math.min(dist, PAD_MAX_RADIUS);
       const knobScale = dist === 0 ? 0 : clamped / dist;
@@ -266,7 +255,6 @@ export class TouchControls {
       if (this.pinchPointers.size === 1 && this.rotatePointerId === null) {
         this.rotatePointerId = e.pointerId;
         this.rotateStartX = e.clientX;
-        this.rotateStartY = e.clientY;
       } else if (this.pinchPointers.size === 2) {
         // 2本目が触れた時点で回転は打ち切り、ピンチに切り替える
         this.rotatePointerId = null;
@@ -291,15 +279,10 @@ export class TouchControls {
       }
 
       if (this.rotatePointerId === e.pointerId) {
-        const rawDx = e.clientX - this.rotateStartX;
-        const rawDy = e.clientY - this.rotateStartY;
-        // forced-landscape中は横移動量をclientYの差分に読み替える
-        // (forcedLandscapePointerDelta((dx,dy))の.dxがちょうどそれを返す)
-        const { dx: delta } = forcedLandscapePointerDelta(rawDx, rawDy, this.isForcedLandscape());
+        const delta = e.clientX - this.rotateStartX;
         if (Math.abs(delta) >= ROTATE_STEP_PX) {
           tap(this.input, delta > 0 ? "KeyE" : "KeyQ");
           this.rotateStartX = e.clientX;
-          this.rotateStartY = e.clientY;
         }
       }
     });
@@ -317,10 +300,5 @@ export class TouchControls {
     if (this.pinchPointers.size < 2) return null;
     const [a, b] = [...this.pinchPointers.values()];
     return Math.hypot(a!.x - b!.x, a!.y - b!.y);
-  }
-
-  /** `src/ui/orientation-guard.ts`が付け外しする`body.forced-landscape`をそのまま見る */
-  private isForcedLandscape(): boolean {
-    return document.body.classList.contains("forced-landscape");
   }
 }

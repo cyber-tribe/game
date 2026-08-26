@@ -105,8 +105,11 @@ Playwrightの `page.evaluate` はNode↔ブラウザの境界を挟むため、�
 ## 4. 実ブラウザでの操作(`tests/harness/`)
 
 - `browser.ts` の `launchMobileBrowser()`: Playwright(Chromium)を、
-  スマホ相当(タッチ有効・縦長のモバイル画面、Pixel 5プリセット)で
-  起動する。`playwright`パッケージは`tools/playtest.mjs`と同じ方針で
+  スマホ相当(タッチ有効・横向きのモバイル画面、Pixel 5プリセットの
+  viewportを横向きに入れ替えたもの)で起動する。ゲームは横持ち固定
+  (plan/game/archive/orientation-rotate-prompt.md)で、タッチ端末が
+  縦持ちのままだと回転案内オーバーレイが全画面入力を遮断してしまう
+  ため。`playwright`パッケージは`tools/playtest.mjs`と同じ方針で
   プロジェクトの依存には入れておらず、動的importで読む(無ければ
   `PLAYWRIGHT_PATH`環境変数か既定のフォールバックパスを探す)。
 - `gamePage.ts`:
@@ -115,10 +118,8 @@ Playwrightの `page.evaluate` はNode↔ブラウザの境界を挟むため、�
   - `startInjectedRun(page, payload)`: 上記の注入口を呼び、ダイブを開始する。
   - `dragTouchPad(page, dx, dy)`: 仮想パッド(`#touchPad`)を実際に
     ドラッグする。`dx`/`dy`は見た目どおり(右に倒したいなら`dx>0`)。
-    強制横向き(タッチ端末の縦持ちで画面をCSS回転させる、
-    `plan/game/archive/forced-landscape.md`)が有効なときは、内部で
-    座標を逆変換してから送る。`DASH_HOLD_THRESHOLD`(0.25秒)未満で
-    離せば、1マスだけ進む「タップ」相当になる。
+    `DASH_HOLD_THRESHOLD`(0.25秒)未満で離せば、1マスだけ進む
+    「タップ」相当になる。
   - `tapActionButton(page, dataCode)`: アクションボタン(`.touch-btn`、
     攻撃は`"KeyX"`・タルを持ち上げるのは`"KeyF"`・投げるのは`"KeyG"` 等)
     を実際にタップする。

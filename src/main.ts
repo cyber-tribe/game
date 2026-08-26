@@ -319,8 +319,9 @@ class App {
     new TouchControls(document.querySelector<HTMLElement>("#touch")!, this.canvas, this.input, () =>
       this.hud.showLogModal(),
     );
-    // 縦持ちでの強制横向き(plan/game/archive/forced-landscape.md): matchMediaの
-    // 監視結果をdocument.bodyへクラスとして反映するだけなので、以後参照する必要が無い
+    // 縦持ちでの回転案内(plan/game/archive/orientation-rotate-prompt.md):
+    // matchMediaの監視結果をdocument.bodyへクラスとして反映するだけなので、
+    // 以後参照する必要が無い
     new OrientationGuard();
     this.town = new TownScreen(document.querySelector<HTMLElement>("#town")!);
     this.namingRoot = document.querySelector<HTMLElement>("#naming")!;
@@ -2007,12 +2008,12 @@ class App {
       visibleTiles: floor.tiles.filter((t) => t.visible).length,
       drawCalls: this.renderer.renderer.info.render.calls,
       triangles: this.renderer.renderer.info.render.triangles,
-      // 縦持ちでの強制横向き(plan/game/archive/forced-landscape.md)の診断用
-      // (issue #874・#877)。出先デバッグパネル(?debug=1、src/ui/debug-panel.ts)
-      // のスナップショット・Issue作成にそのまま乗るため、実機で再現した
-      // その場でこれらの値を確認・報告できる
+      // 縦持ちでの回転案内(plan/game/archive/orientation-rotate-prompt.md)の
+      // 診断用(issue #874・#877)。出先デバッグパネル(?debug=1、
+      // src/ui/debug-panel.ts)のスナップショット・Issue作成にそのまま乗るため、
+      // 実機で再現したその場でこれらの値を確認・報告できる
       orientation: {
-        forcedLandscapeClass: document.body.classList.contains("forced-landscape"),
+        rotatePromptClass: document.body.classList.contains("rotate-prompt"),
         pointerCoarse: matchMedia("(pointer: coarse)").matches,
         orientationPortrait: matchMedia("(orientation: portrait)").matches,
         innerWidth: window.innerWidth,

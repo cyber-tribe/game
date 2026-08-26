@@ -35,13 +35,15 @@ describe("箱庭E2E基盤の疎通", () => {
       );
       expect(hasHarness).toBe(true);
 
-      // Pixel 5プリセット(タッチ有効・縦長のモバイル画面)が既定になっていることの確認
+      // Pixel 5プリセット(タッチ有効)が既定になっていることの確認。ゲームは
+      // 横持ち固定(plan/game/archive/orientation-rotate-prompt.md)なので、
+      // viewportはtests/harness/browser.tsが横向きに入れ替えたものになる
       const viewport = await page.evaluate(() => ({
         width: window.innerWidth,
         height: window.innerHeight,
         hasTouch: "ontouchstart" in window,
       }));
-      expect(viewport.width).toBeLessThan(viewport.height);
+      expect(viewport.width).toBeGreaterThan(viewport.height);
       expect(viewport.hasTouch).toBe(true);
     } finally {
       await browser.close();

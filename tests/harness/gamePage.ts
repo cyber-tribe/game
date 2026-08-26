@@ -72,14 +72,6 @@ export async function dragTouchPad(page: Page, dx: number, dy: number, holdMs = 
   const originX = box.x + box.width / 2;
   const originY = box.y + box.height / 2;
 
-  // 強制横向き(plan/game/archive/forced-landscape.md、src/entities/orientation.ts):
-  // タッチ端末の縦持ちでは画面をCSSで90度回転させて表示し、アプリ側が
-  // 生のポインタ座標を(dx,dy)->(dy,-dx)で補正してから方向判定する。
-  // ここで送る座標は「回転前の生の画面座標」なので、狙った見た目どおりの
-  // 方向になるよう先に逆変換((dx,dy)->(-dy,dx))しておく
-  const forcedLandscape = await page.evaluate(() => document.body.classList.contains("forced-landscape"));
-  const [rawDx, rawDy] = forcedLandscape ? [-dy, dx] : [dx, dy];
-
   await pad.dispatchEvent("pointerdown", {
     pointerId: 1,
     pointerType: "touch",
@@ -90,8 +82,8 @@ export async function dragTouchPad(page: Page, dx: number, dy: number, holdMs = 
   await pad.dispatchEvent("pointermove", {
     pointerId: 1,
     pointerType: "touch",
-    clientX: originX + rawDx,
-    clientY: originY + rawDy,
+    clientX: originX + dx,
+    clientY: originY + dy,
     button: 0,
   });
   // consumeTapMove()が拾えるよう、押している間に最低1フレームは進める
@@ -100,8 +92,8 @@ export async function dragTouchPad(page: Page, dx: number, dy: number, holdMs = 
   await pad.dispatchEvent("pointerup", {
     pointerId: 1,
     pointerType: "touch",
-    clientX: originX + rawDx,
-    clientY: originY + rawDy,
+    clientX: originX + dx,
+    clientY: originY + dy,
     button: 0,
   });
   await settle(page);

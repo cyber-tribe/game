@@ -36,6 +36,14 @@ export async function launchMobileBrowser(): Promise<{ browser: Browser; context
     executablePath: chromiumPath(),
     args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--use-gl=angle", "--disable-gpu-sandbox"],
   });
-  const context: BrowserContext = await browser.newContext({ ...devices["Pixel 5"] });
+  const pixel5 = devices["Pixel 5"];
+  // このゲームは横持ち固定(plan/game/archive/orientation-rotate-prompt.md):
+  // タッチ端末が縦持ちのままだと回転案内オーバーレイが全画面入力を遮断して
+  // 操作できなくなるため、Pixel 5プリセットのviewportを横向き(幅と高さを
+  // 入れ替え)にして使う。タッチ有効・isMobile等は既定のまま
+  const context: BrowserContext = await browser.newContext({
+    ...pixel5,
+    viewport: { width: pixel5.viewport.height, height: pixel5.viewport.width },
+  });
   return { browser, context };
 }
