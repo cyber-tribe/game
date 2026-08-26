@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 340" width="240" height="340">
+  <!-- ガルド ラフ案C「樽板エプロン」: 背負いダルは維持しつつ(肩越しに
+       上端だけ覗かせる)、ベルトから垂らす樽板(たがで束ねた木の
+       スラット)のエプロンを正面に足し、木目そのものを正面の
+       シルエットへ持ち込む -->
+  <g fill="#fff" stroke="#000" stroke-width="3" stroke-linejoin="round" stroke-linecap="round">
+    <!-- 頭 -->
+    <circle cx="120" cy="62" r="38"/>
+    <!-- 髪の房(左右非対称、3房を右へ流す) -->
+    <path d="M100,26 L92,8 L110,20 Z"/>
+    <path d="M118,20 L118,2 L132,16 Z"/>
+    <path d="M136,24 L146,8 L142,26 Z"/>
+    <!-- 眉 -->
+    <path d="M96,52 L112,50" stroke-width="3"/>
+    <path d="M128,50 L144,52" stroke-width="3"/>
+    <!-- 目 -->
+    <circle cx="103" cy="62" r="10"/>
+    <circle cx="103" cy="63" r="4.5" fill="#000"/>
+    <circle cx="101" cy="60.5" r="1.4" fill="#fff"/>
+    <circle cx="137" cy="62" r="10"/>
+    <circle cx="137" cy="63" r="4.5" fill="#000"/>
+    <circle cx="135" cy="60.5" r="1.4" fill="#fff"/>
+    <!-- 鼻 -->
+    <path d="M120,68 L120,76" stroke-width="2.5"/>
+    <!-- 口 -->
+    <path d="M112,84 Q120,88 128,84" stroke-width="2.5"/>
+    <!-- 首 -->
+    <rect x="110" y="98" width="20" height="12"/>
+    <!-- 背負いダルの上端(肩越しに覗く。現行案を維持する部分) -->
+    <path d="M102,100 Q120,84 138,100" stroke-width="3" fill="none"/>
+    <!-- 胴(上着) -->
+    <path d="M88,108 Q120,98 152,108 L160,190 Q120,206 80,190 Z"/>
+    <!-- ベルト(たが) -->
+    <rect x="82" y="176" width="76" height="14" rx="4"/>
+    <circle cx="120" cy="183" r="5" fill="#000"/>
+    <!-- 樽板エプロン(ベルトから垂れる3枚の木のスラット、正面の識別要素) -->
+    <path d="M92,190 Q88,222 94,246 L106,246 Q102,222 104,190 Z"/>
+    <path d="M112,190 Q110,222 112,250 L128,250 Q130,222 128,190 Z"/>
+    <path d="M136,190 Q138,222 146,246 L134,246 Q136,222 136,190 Z"/>
+    <!-- エプロンの帯(たが) -->
+    <path d="M90,208 L150,208" stroke-width="3"/>
+    <path d="M92,228 L148,228" stroke-width="3"/>
+    <!-- 腕 -->
+    <rect x="53" y="106" width="28" height="66" rx="14"/>
+    <rect x="159" y="106" width="28" height="66" rx="14"/>
+    <!-- ミトン状の手 -->
+    <circle cx="67" cy="182" r="15"/>
+    <circle cx="173" cy="182" r="15"/>
+    <!-- 脚(エプロンの裾より下に出る) -->
+    <rect x="96" y="248" width="24" height="24" rx="10"/>
+    <rect x="120" y="248" width="24" height="24" rx="10"/>
+    <!-- 足 -->
+    <ellipse cx="106" cy="276" rx="16" ry="10"/>
+    <ellipse cx="134" cy="276" rx="16" ry="10"/>
+  </g>
+  <text x="120" y="322" text-anchor="middle" font-family="sans-serif" font-size="14">C: 樽板エプロン</text>
+</svg>

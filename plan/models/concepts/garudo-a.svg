@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 340" width="240" height="340">
+  <!-- ガルド ラフ案A「正面樽」: 背負いダルではなく、胸に樽板のハーネスを
+       着けることで、正面からでも樽守りだと一目で分かるようにする -->
+  <g fill="#fff" stroke="#000" stroke-width="3" stroke-linejoin="round" stroke-linecap="round">
+    <!-- 頭 -->
+    <circle cx="120" cy="62" r="38"/>
+    <!-- 鉢巻き -->
+    <path d="M83,42 Q120,26 157,42" stroke-width="9" fill="none"/>
+    <!-- 髪の房(鉢巻きの上に4房) -->
+    <path d="M92,32 L86,14 L100,26 Z"/>
+    <path d="M108,24 L104,6 L118,18 Z"/>
+    <path d="M132,24 L136,6 L122,18 Z"/>
+    <path d="M148,32 L154,14 L140,26 Z"/>
+    <!-- 房紐(差し色、右こめかみ) -->
+    <path d="M156,44 L166,58 L160,66" stroke-width="3" fill="none"/>
+    <!-- 眉 -->
+    <path d="M96,52 L112,50" stroke-width="3"/>
+    <path d="M128,50 L144,52" stroke-width="3"/>
+    <!-- 目(丸目、まぶたで縁取り。眼球は潰さない) -->
+    <circle cx="103" cy="62" r="10"/>
+    <circle cx="103" cy="63" r="4.5" fill="#000"/>
+    <circle cx="101" cy="60.5" r="1.4" fill="#fff"/>
+    <circle cx="137" cy="62" r="10"/>
+    <circle cx="137" cy="63" r="4.5" fill="#000"/>
+    <circle cx="135" cy="60.5" r="1.4" fill="#fff"/>
+    <!-- 鼻 -->
+    <path d="M120,68 L120,76" stroke-width="2.5"/>
+    <!-- 口(閉じ口) -->
+    <path d="M112,84 Q120,88 128,84" stroke-width="2.5"/>
+    <!-- 首 -->
+    <rect x="110" y="98" width="20" height="12"/>
+    <!-- 肩ひも(胸樽ハーネス) -->
+    <path d="M88,108 L104,124" stroke-width="4"/>
+    <path d="M152,108 L136,124" stroke-width="4"/>
+    <!-- 胴(上着) -->
+    <path d="M88,108 Q120,98 152,108 L160,190 Q120,206 80,190 Z"/>
+    <!-- 胸の樽板ハーネス(正面から見える最大の識別要素) -->
+    <rect x="97" y="118" width="46" height="56" rx="10"/>
+    <path d="M97,134 L143,134" stroke-width="3"/>
+    <path d="M97,158 L143,158" stroke-width="3"/>
+    <!-- ベルト(たが) -->
+    <rect x="82" y="178" width="76" height="14" rx="4"/>
+    <circle cx="120" cy="185" r="5" fill="#000"/>
+    <!-- 腕 -->
+    <rect x="53" y="106" width="28" height="66" rx="14"/>
+    <rect x="159" y="106" width="28" height="66" rx="14"/>
+    <!-- ミトン状の手(先細りの筒をやめる) -->
+    <circle cx="67" cy="182" r="15"/>
+    <circle cx="173" cy="182" r="15"/>
+    <!-- 脚 -->
+    <rect x="96" y="192" width="24" height="76" rx="11"/>
+    <rect x="120" y="192" width="24" height="76" rx="11"/>
+    <!-- 足 -->
+    <ellipse cx="106" cy="272" rx="16" ry="10"/>
+    <ellipse cx="134" cy="272" rx="16" ry="10"/>
+  </g>
+  <text x="120" y="322" text-anchor="middle" font-family="sans-serif" font-size="14">A: 正面樽(胸に樽板ハーネス)</text>
+</svg>
