@@ -594,7 +594,12 @@
          * バーの長さと色で読める)。状態異常は戦闘判断に直結するので残す
          */
         #allies .allies-title { display: none; }
-        #allies .ally { display: flex; align-items: center; gap: 7px; }
+        /* flex-wrapで折り返しを許可し、状態異常ラベル(.ally-status)はflex-basis:100%で
+           強制的に次の行へ回す(issue #950)。以前は状態異常表示も名前と同じ行で
+           横並びにしていたため、複数の状態異常が同時に付くと長いラベルが
+           flex:0 0 auto(縮まない)で幅を専有し、min-width:0で縮小可能な
+           .ally-row(名前を含む)が0pxまで潰れて名前が完全に見えなくなっていた */
+        #allies .ally { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
         #allies .ally + .ally { margin-top: 4px; }
         #allies .ally-row { margin: 0; flex: 1 1 auto; min-width: 0; }
         #allies .ally-name {
@@ -604,7 +609,10 @@
         #allies .ally-hp { display: none; }
         #allies .ally-bar { flex: 0 0 56px; margin: 0; }
         #allies .ally-stance { display: none; }
-        #allies .ally-status { font-size: 9.5px; margin: 0; flex: 0 0 auto; }
+        #allies .ally-status {
+          font-size: 9.5px; margin: 0; flex: 1 0 100%;
+          overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
 
         /* ------------------------------------------------ ミニマップ(タッチ専用の縮小・透過強化) */
         /* 目安: 短辺(横持ちなのでvh)の1/4以下。aspect-ratioでcanvasの縦横比
