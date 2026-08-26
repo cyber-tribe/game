@@ -19,6 +19,25 @@ export const TRAP_MODELS = {
 export const TERRAIN_MODELS = ["wall", "floor", "stairs"] as const;
 
 /**
+ * 第一地方(うたたねの参道)専用の地形モデル(`plan/models/archive/
+ * dungeon-region1-tileset.md`)。壁・床は繰り返し感を消すため3種ずつ用意し、
+ * `src/view/dungeonMesh.ts`がタイルごとにランダムへ1つ選ぶ。地方を持たない
+ * ダンジョンや、まだタイルセットが無い地方2〜8では`TERRAIN_MODELS`の
+ * 既定セットへフォールバックする。ひなたの寝穴が常に地方1判定
+ * (`regionIndexForFloor`)なので、起動直後から必要 ― `essentialModelNames`
+ * にも含める
+ */
+export const REGION1_TERRAIN_MODELS = [
+  "wall_region1_v1",
+  "wall_region1_v2",
+  "wall_region1_v3",
+  "floor_region1_v1",
+  "floor_region1_v2",
+  "floor_region1_v3",
+  "stairs_region1",
+] as const;
+
+/**
  * タルの種類ごとのモデル。BarrelKind と対応する。元素タル(plan/game/archive/
  * barrel-arts.md)は専用モデルをまだ制作しておらず、見た目は空のタルを流用する
  * (plan/models/への新規モデル追加は別作業とする)
@@ -88,7 +107,7 @@ export const VILLAGER_CLIPS = ["idle", "talk"] as const;
  * 一覧を二重に持たないことが大事。
  */
 export function modelNames(): string[] {
-  const names = new Set<string>(["garudo", ...TERRAIN_MODELS]);
+  const names = new Set<string>(["garudo", ...TERRAIN_MODELS, ...REGION1_TERRAIN_MODELS]);
   for (const species of SPECIES) names.add(species.model);
   for (const item of ITEMS) names.add(item.model);
   for (const model of Object.values(TRAP_MODELS)) names.add(model);
@@ -110,7 +129,7 @@ export function modelNames(): string[] {
  * 間に合わなくても、フロアを組む手前で待ち合わせる作りにしてある。
  */
 export function essentialModelNames(): string[] {
-  const names = new Set<string>(["garudo", ...TERRAIN_MODELS]);
+  const names = new Set<string>(["garudo", ...TERRAIN_MODELS, ...REGION1_TERRAIN_MODELS]);
   for (const model of Object.values(BARREL_MODELS)) names.add(model);
   for (const species of speciesForDepth(1)) names.add(species.model);
   return [...names];

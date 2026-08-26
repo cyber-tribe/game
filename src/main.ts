@@ -849,7 +849,7 @@ class App {
     this.stanceMenu.hide();
     this.artsMenu.hide();
     this.hud.hideOverlay();
-    this.stage.enterFloor(this.game.floor);
+    this.stage.enterFloor(this.game.floor, this.game.dungeonId);
     this.applyCostumeTint();
     this.applyCarriedBarrelVisual();
     this.renderer.setFocus(this.game.player.pos, true);
@@ -1649,7 +1649,7 @@ class App {
 
     const changedFloor = this.game.depth !== beforeDepth;
     if (changedFloor) {
-      this.stage.enterFloor(this.game.floor);
+      this.stage.enterFloor(this.game.floor, this.game.dungeonId);
       this.applyCostumeTint();
       this.applyCarriedBarrelVisual();
       this.renderer.setFocus(this.game.player.pos, true);
