@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 340" width="240" height="340">
+  <!-- ガルド ラフ案B「天秤の樽担ぎ」: 背負いダル1つをやめ、両肩にかけた
+       天秤棒の両端に小樽を1つずつ提げる、ゼロから考え直した案。
+       肩幅を超えて左右に張り出す棒と樽が、シルエットだけで
+       「荷を運ぶ仕事」を語る -->
+  <g fill="#fff" stroke="#000" stroke-width="3" stroke-linejoin="round" stroke-linecap="round">
+    <!-- 頭 -->
+    <circle cx="120" cy="62" r="38"/>
+    <!-- 前髪の一房だけ(質素・簡素な子という方向) -->
+    <path d="M112,28 L108,8 L124,24 Z"/>
+    <!-- 眉 -->
+    <path d="M96,52 L112,50" stroke-width="3"/>
+    <path d="M128,50 L144,52" stroke-width="3"/>
+    <!-- 目 -->
+    <circle cx="103" cy="62" r="10"/>
+    <circle cx="103" cy="63" r="4.5" fill="#000"/>
+    <circle cx="101" cy="60.5" r="1.4" fill="#fff"/>
+    <circle cx="137" cy="62" r="10"/>
+    <circle cx="137" cy="63" r="4.5" fill="#000"/>
+    <circle cx="135" cy="60.5" r="1.4" fill="#fff"/>
+    <!-- 鼻 -->
+    <path d="M120,68 L120,76" stroke-width="2.5"/>
+    <!-- 口 -->
+    <path d="M112,84 Q120,88 128,84" stroke-width="2.5"/>
+    <!-- 首 -->
+    <rect x="110" y="98" width="20" height="12"/>
+    <!-- 胴(飾りの少ない質素な上着) -->
+    <path d="M88,108 Q120,98 152,108 L160,190 Q120,206 80,190 Z"/>
+    <!-- ベルト -->
+    <rect x="82" y="178" width="76" height="14" rx="4"/>
+    <circle cx="120" cy="185" r="5" fill="#000"/>
+    <!-- 天秤棒(両肩をまたいで左右へ張り出す。シルエットの主役) -->
+    <line x1="30" y1="100" x2="210" y2="100" stroke-width="7"/>
+    <!-- 提げ紐 -->
+    <line x1="30" y1="100" x2="30" y2="112" stroke-width="3"/>
+    <line x1="210" y1="100" x2="210" y2="112" stroke-width="3"/>
+    <!-- 小樽(左) -->
+    <rect x="12" y="112" width="36" height="48" rx="9"/>
+    <path d="M12,128 L48,128" stroke-width="2.5"/>
+    <path d="M12,146 L48,146" stroke-width="2.5"/>
+    <!-- 小樽(右) -->
+    <rect x="192" y="112" width="36" height="48" rx="9"/>
+    <path d="M192,128 L228,128" stroke-width="2.5"/>
+    <path d="M192,146 L228,146" stroke-width="2.5"/>
+    <!-- 腕(棒を支えるため、やや前に構える) -->
+    <rect x="58" y="106" width="26" height="62" rx="13"/>
+    <rect x="156" y="106" width="26" height="62" rx="13"/>
+    <!-- ミトン状の手 -->
+    <circle cx="70" cy="176" r="14"/>
+    <circle cx="170" cy="176" r="14"/>
+    <!-- 脚 -->
+    <rect x="96" y="192" width="24" height="76" rx="11"/>
+    <rect x="120" y="192" width="24" height="76" rx="11"/>
+    <!-- 足 -->
+    <ellipse cx="106" cy="272" rx="16" ry="10"/>
+    <ellipse cx="134" cy="272" rx="16" ry="10"/>
+  </g>
+  <text x="120" y="322" text-anchor="middle" font-family="sans-serif" font-size="14">B: 天秤の樽担ぎ(ゼロ案)</text>
+</svg>
