@@ -130,6 +130,27 @@ def _sculpt_bump(mesh: "bpy.types.Mesh", target: Vector, radius: float, push: fl
     bm.free()
 
 
+def _sculpt_dent(mesh: "bpy.types.Mesh", target: Vector, radius: float, push: float) -> None:
+    """
+    `_sculpt_bump`と違いinset_regionを使わず、既存の頂点をそのまま
+    法線方向へ押すだけの軽い彫り込み(三角形数を増やさない)。皺のような
+    小さな凹凸を何本も足すのに向く(plan/models/archive/
+    garudo-clothing-volume.md)。
+    """
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    verts = [v for v in bm.verts if (v.co - target).length < radius]
+    if not verts:
+        bm.free()
+        return
+    normal = sum((v.normal for v in verts), Vector()).normalized()
+    for v in verts:
+        falloff = 1.0 - (v.co - target).length / radius
+        v.co += normal * push * falloff
+    bm.to_mesh(mesh)
+    bm.free()
+
+
 def build() -> tuple[list, object]:
     body = C.build_skinned(NAME, JOINTS, BONES, RADII, root="hip", subsurf=2)
 
@@ -153,6 +174,18 @@ def build() -> tuple[list, object]:
         C.make_material("garudo_bandana", BANDANA, roughness=0.85),
     ]
     C.assign_materials_by_region(body, mats, classify_body)
+    tunic_mat = mats[1]
+
+    # 皺を実ジオメトリで彫る(plan/models/archive/
+    # garudo-clothing-volume.md)。負荷のかかる場所(肘の内側・腰の帯の
+    # 上)にだけ、頂点を押し込む浅い窪みを3本入れる(多すぎると安っぽく
+    # なるため絞る)。`_sculpt_bump`は顔の彫り込みと同じ仕組みをそのまま
+    # 転用できる
+    _sculpt_dent(body.data, Vector((0.0, -0.120, 0.415)), 0.075, -0.014)
+    for tag in ("L", "R"):
+        elbow = Vector(JOINTS[f"elbow.{tag}"])
+        inward = -1.0 if tag == "L" else 1.0
+        _sculpt_dent(body.data, elbow + Vector((0.012 * inward, 0.018, 0.012)), 0.032, -0.011)
 
     # 目・鉢巻き。体とは別メッシュにして、あとで統合する(鼻は頭部
     # メッシュへ彫り込み済みなので、ここでは別メッシュを足さない)
@@ -300,7 +333,7 @@ def build() -> tuple[list, object]:
     # (背負いダルの金具と呼応させる)。上腕の骨(shoulder-elbow)へ
     # ウェイト固定するので、腕を振っても剛体のまま追従する(自動ウェイトの
     # ブレンドで潰れない)
-    pauldron_names = []
+    pinned_parts = []
     for side in (-1.0, 1.0):
         tag = "L" if side < 0 else "R"
         shoulder = Vector(JOINTS[f"shoulder.{tag}"])
@@ -313,8 +346,37 @@ def build() -> tuple[list, object]:
         )
         C.assign_material(pauldron, hoop_mat)
         C.mark_for_pin(pauldron)
-        pauldron_names.append((pauldron.name, f"shoulder.{tag}-elbow.{tag}"))
+        pinned_parts.append((pauldron.name, f"shoulder.{tag}-elbow.{tag}"))
         extras.append(pauldron)
+
+    # 上着を「体の塗り分け」から独立した立体にする(plan/models/archive/
+    # garudo-clothing-volume.md)。裾・袖口・襟を、丸い体表面へ段差を作る
+    # silhouette-hard-surface-parts.mdの硬い部品と同じ手法(box/cylinder+
+    # pin_weight_to_bone)で追加する。黒塗りシルエットにしたとき、上着の
+    # 輪郭が体そのものの輪郭から分かれて見えるようにするのが狙い
+    hem = C.cone("garudo_hem", (0.0, 0.0, 0.325), 0.168, 0.132, 0.075, segments=10)
+    C.assign_material(hem, tunic_mat)
+    C.mark_for_pin(hem)
+    pinned_parts.append((hem.name, "hip-chest"))
+    extras.append(hem)
+
+    collar = C.cylinder("garudo_collar", (0.0, 0.0, 0.585), 0.082, 0.045, segments=12)
+    C.assign_material(collar, tunic_mat)
+    C.mark_for_pin(collar)
+    pinned_parts.append((collar.name, "chest-neck"))
+    extras.append(collar)
+
+    for tag in ("L", "R"):
+        shoulder = Vector(JOINTS[f"shoulder.{tag}"])
+        elbow = Vector(JOINTS[f"elbow.{tag}"])
+        direction = (elbow - shoulder).normalized()
+        cuff = C.cylinder(f"garudo_cuff{tag}", (0.0, 0.0, 0.0), 0.066, 0.05, segments=10)
+        cuff.rotation_euler = direction.to_track_quat("Z", "Y").to_euler()
+        cuff.location = elbow - direction * 0.03
+        C.assign_material(cuff, tunic_mat)
+        C.mark_for_pin(cuff)
+        pinned_parts.append((cuff.name, f"shoulder.{tag}-elbow.{tag}"))
+        extras.append(cuff)
 
     mesh = C.join([body] + extras, NAME)
     # 頂点カラーオンリー方針を終え、テクスチャへ移行するパイロット
@@ -328,7 +390,7 @@ def build() -> tuple[list, object]:
     armature = C.build_armature(NAME, JOINTS, BONES, mesh, root="hip")
     for eye in eyes:
         C.parent_to_bone(eye, armature, "neck-head")
-    for group_name, bone in pauldron_names:
+    for group_name, bone in pinned_parts:
         C.pin_weight_to_bone(mesh, group_name, bone)
     return [mesh, armature] + eyes, armature
 

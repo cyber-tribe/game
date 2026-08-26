@@ -23,3 +23,12 @@ plan/models/archive/character-design-language.mdのデザインシート
    `garudo.py`の`_sculpt_bump`でheadメッシュ自身の凹凸として作り、
    継ぎ目のない1つながりの顔にした(眉は表情の視認性のため、
    色で目立たせる別メッシュのまま維持)
+7. **衣装の独立立体化**(plan/models/archive/garudo-clothing-volume.md):
+   上着を体の色分けから独立した立体にした。裾(腰まわりへ張り出す
+   末広がりのリング)・襟(首の付け根の折り返し)・両袖口(肘の
+   すぐ上で絞った膨らみ)を`box`/`cylinder`で追加し、
+   `mark_for_pin`/`pin_weight_to_bone`(silhouette-hard-surface-
+   parts.mdの手法)で該当の骨(hip-chest/chest-neck/shoulder-elbow)
+   へ剛体固定した。皺は新設の`_sculpt_dent`(位相の三角形を増やさない
+   軽い押し込み)で肘の内側・腰の帯の上に3本だけ入れた。三角形数は
+   7,320→7,472(看板モデル基準4,000〜7,500の範囲内)。
