@@ -13,7 +13,7 @@ from __future__ import annotations
 import math
 
 import common as C
-from mathutils import Vector
+from mathutils import Matrix, Vector
 
 EYE_DARK = (0.07, 0.06, 0.09)
 EYE_WHITE = (0.95, 0.95, 0.92)
@@ -3534,6 +3534,13 @@ def build_kodamaNoNushi():
     地方の他の種族の特徴(kodamausagiの長い耳、kodamagumoの雲状の膨らみ、
     kaerukodamaの見開いた目)を1体に集約する。配色は第六地方
     (こだまの尾根)の岩肌の灰色と乾いた土色。
+
+    通常種の拡大版に見えないよう、逸脱項目を意図して3つ選ぶ
+    (plan/models/archive/boss-silhouette-differentiation.md):
+    ①ネガティブスペース(左の雲状の膨らみだけ、声が響き抜ける空洞に
+    する) ②顔の配置の逸脱(重なり合った過去のこだまの名残として、
+    高さも大きさも違う目をあと2つ、非対称に散らす) ③左右非対称
+    (雲状の膨らみ自体の大きさを左右で変える)。
     """
     joints = C.mirrored(KODAMANONUSHI_HALF)
     radii = C.mirrored_radii(KODAMANONUSHI_RADII_HALF)
@@ -3558,18 +3565,42 @@ def build_kodamaNoNushi():
     C.assign_material(jaw, rock)
     extras.append(jaw)
 
-    # kodamagumo譲りの、雲のような膨らみを背に重ねる
+    # kodamagumo譲りの、雲のような膨らみを背に重ねる。逸脱項目③
+    # (左右非対称)として、左右で大きさを変える(右0.115→左0.095)
     puff_mat = C.make_material("kodamanonushi_puff", (0.58, 0.57, 0.55), roughness=0.82)
     for px, py, pz, pr in [
         (0.0, 0.05, 0.560, 0.145),
         (0.115, 0.10, 0.470, 0.115),
-        (-0.115, 0.10, 0.470, 0.115),
+        (-0.115, 0.10, 0.470, 0.095),
         (0.0, 0.22, 0.420, 0.120),
     ]:
         puff = C.uv_sphere(f"kodamanonushi_puff{px}_{pz}", (px, py, pz), pr,
                            segments=16, rings=12)
         C.assign_material(puff, puff_mat)
         extras.append(puff)
+
+    # 逸脱項目①(ネガティブスペース)。左の膨らみだけ、声が響き抜ける
+    # 空洞にする(honegarami系列はもちろんkodamagumo自身にも無い意匠)。
+    # 暗い円盤を膨らみの側面へ半分埋め込み、抜けた穴のように見せる
+    echo_hole_mat = C.make_material("kodamanonushi_echo_hole", (0.03, 0.03, 0.04),
+                                    roughness=0.95)
+    echo_hole = C.cylinder("kodamanonushi_echo_hole", (-0.195, 0.10, 0.470), 0.060, 0.050,
+                          segments=18, axis="X")
+    C.assign_material(echo_hole, echo_hole_mat)
+    extras.append(echo_hole)
+
+    # 逸脱項目②(顔の配置の逸脱)。重なり合ってきた過去のこだまの
+    # 名残として、本来の目とは高さも大きさも違う目をあと2つ、
+    # 左右非対称に散らす(kaerukodama譲りの見開いた目そのものではなく、
+    # 色を落として「もう声を発さない、響きの残像」だと分かるようにする)
+    echo_eye_mat = C.make_material("kodamanonushi_echo_eye", (0.30, 0.34, 0.36), roughness=0.4)
+    for name, (ex, ey, ez), er in [
+        ("kodamanonushi_echoeye_r", (0.062, -0.270, 0.400), 0.030),
+        ("kodamanonushi_echoeye_l", (-0.028, -0.145, 0.560), 0.020),
+    ]:
+        echo_eye = C.uv_sphere(name, (ex, ey, ez), er, segments=12, rings=8, scale=(1.0, 0.6, 0.8))
+        C.assign_material(echo_eye, echo_eye_mat)
+        extras.append(echo_eye)
 
     # 無数の岩が寄り集まった証として、雲状の膨らみを突き破って覗く
     # 角のある岩の欠片(plan/models/sheet-kodamaNoNushi.md、
@@ -4690,6 +4721,13 @@ def build_misemonoNoNushi():
     kazaridaruma譲りの金色の帯を組み合わせて、地方の主らしい存在感を
     まとわせる。配色は第七地方(わすれられた祭りの跡)の、くすんだ紅色と
     金色の名残。
+
+    通常種の拡大版に見えないよう、逸脱項目を意図して2つ選ぶ
+    (plan/models/archive/boss-silhouette-differentiation.md):
+    ①通常種には無い大きな形(`design/regions.md`の意匠どおり、祭りの
+    櫓そのものを右肩から生やし、頭より高く突き出させる) ②左右非対称
+    (櫓は右肩だけに生え、朽ちて左へ傾いだ最上段の板と破れた幟が重心を
+    崩す)。
     """
     joints = C.mirrored(MISEMONONONUSHI_HALF)
     radii = C.mirrored_radii(MISEMONONONUSHI_RADII_HALF)
@@ -4727,6 +4765,47 @@ def build_misemonoNoNushi():
     chestplate = C.box("misemono_chestplate", (0.0, -0.150, 0.640), (0.145, 0.028, 0.110), bevel=0.012)
     C.assign_material(chestplate, plate)
     extras.append(chestplate)
+
+    # 逸脱項目①②。右肩からだけ、祭りの櫓そのものが朽ちた姿で生え、
+    # 頭より高く突き出す(通常種honegarami系列にもkazaridarumaにも
+    # 存在しない大形状)。最上段の板をわざと左へ傾がせ、破れた幟を
+    # 垂らして、左右非対称な重心のずれを作る
+    post_mat = C.make_material("misemono_yagura_post", (0.30, 0.20, 0.14), roughness=0.85)
+    plank_mat = C.make_material("misemono_yagura_plank", (0.42, 0.28, 0.18), roughness=0.8)
+    banner_mat = C.make_material("misemono_yagura_banner", (0.46, 0.14, 0.13), roughness=0.7)
+    # shoulder.L(0.198, 0.0, 0.675)の球へ半分めり込ませ、肩から直接
+    # 生えているように見せる(post_halfぶん外側へずらすだけで、
+    # 肩の中心からは離しすぎない)
+    yagura_x, yagura_y = 0.225, 0.010
+    post_half = 0.048
+    for cx, cy in [
+        (yagura_x - post_half, yagura_y - post_half), (yagura_x + post_half, yagura_y - post_half),
+        (yagura_x - post_half, yagura_y + post_half), (yagura_x + post_half, yagura_y + post_half),
+    ]:
+        post = C.box(f"misemono_yagura_post{cx}_{cy}", (cx, cy, 0.980), (0.018, 0.018, 0.760),
+                     bevel=0.006)
+        C.assign_material(post, post_mat)
+        extras.append(post)
+    for i, pz in enumerate((0.760, 1.020)):
+        plank = C.box(f"misemono_yagura_plank{i}", (yagura_x, yagura_y, pz), (0.135, 0.135, 0.026),
+                      bevel=0.010)
+        C.assign_material(plank, plank_mat)
+        extras.append(plank)
+    # 最上段だけ朽ちて左へ傾いだ板(原点で作ってから回転し、あとで移動する)
+    top_plank = C.box("misemono_yagura_topplank", (0.0, 0.0, 0.0), (0.150, 0.150, 0.024),
+                      bevel=0.010)
+    top_plank.data.transform(Matrix.Rotation(math.radians(18), 4, "Y"))
+    for vert in top_plank.data.vertices:
+        vert.co.x += yagura_x
+        vert.co.y += yagura_y
+        vert.co.z += 1.300
+    C.assign_material(top_plank, plank_mat)
+    extras.append(top_plank)
+    # 破れた幟。最上段からだらりと垂れる、色あせた紅色の帯
+    banner = C.box("misemono_yagura_banner", (yagura_x + 0.140, yagura_y, 1.140),
+                   (0.004, 0.060, 0.150), bevel=0.004)
+    C.assign_material(banner, banner_mat)
+    extras.append(banner)
 
     mesh = C.join([body] + extras, "misemonoNoNushi")
     # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開(地方ボス)
@@ -5141,6 +5220,12 @@ def build_fuchiNoNushi():
     悲しみの重さでうつむいているような、低い重心の前傾姿勢にする。
     配色は涙と滝つぼを思わせる沈んだ青・藍色系。肩や顎から涙の
     しずくが垂れ下がる。
+
+    通常種の拡大版に見えないよう、逸脱項目を意図して3つ選ぶ
+    (plan/models/archive/boss-silhouette-differentiation.md):
+    ①非対称(藻は右肩からしか垂れない) ②ネガティブスペース
+    (胸の片側だけに水を湛えた淵そのものをくぼみとして持つ)
+    ③通常種には無い大きな形(水底の藻・水を湛えた淵)。
     """
     joints = C.mirrored(FUCHINONUSHI_HALF)
     radii = C.mirrored_radii(FUCHINONUSHI_RADII_HALF)
@@ -5181,6 +5266,38 @@ def build_fuchiNoNushi():
                    scale=(1.1, 0.9, 1.0))
     C.assign_material(weight, weight_mat)
     extras.append(weight)
+
+    # 淵の主だけの逸脱項目(plan/models/archive/
+    # boss-silhouette-differentiation.md): ①非対称 ②ネガティブスペース
+    # ③通常種には無い大きな形。honegarami系列の通常種には無い、この
+    # 地方の名そのものを体現する2つの意匠を、あえて左右非対称に配する
+    basin_rim_mat = C.make_material("fuchi_basin_rim", (0.24, 0.24, 0.28), roughness=0.8)
+    basin_water_mat = C.make_material("fuchi_basin_water", (0.09, 0.20, 0.32), roughness=0.15,
+                                      emission=0.18)
+    # 片側の胸元だけに、悲しみの涙を湛えた小さな淵そのものをくぼみとして
+    # 抱える(ネガティブスペース)。石の縁の内側に昏い水面を沈める
+    basin_center = (0.060, -0.110, 0.530)
+    rim = C.cylinder("fuchi_basin_rim", basin_center, 0.076, 0.022, segments=20, axis="Y")
+    C.assign_material(rim, basin_rim_mat)
+    extras.append(rim)
+    water = C.cylinder("fuchi_basin_water",
+                       (basin_center[0], basin_center[1] - 0.011, basin_center[2]),
+                       0.058, 0.012, segments=20, axis="Y")
+    C.assign_material(water, basin_water_mat)
+    extras.append(water)
+
+    # 右肩からだけ長く垂れ下がる、水底の藻(通常種honegarami系列には
+    # 存在しない大形状)。左右非対称の重心も同時に作る
+    kelp_mat = C.make_material("fuchi_kelp", (0.14, 0.26, 0.22), roughness=0.6)
+    kelp_specs = [
+        (0.270, 0.045, 0.470, 0.036, 0.024, 0.145),
+        (0.300, 0.055, 0.345, 0.024, 0.014, 0.135),
+        (0.318, 0.062, 0.230, 0.014, 0.004, 0.110),
+    ]
+    for i, (kx, ky, kz, rb, rt, depth) in enumerate(kelp_specs):
+        kelp = C.cone(f"fuchi_kelp{i}", (kx, ky, kz), rb, rt, depth, segments=10)
+        C.assign_material(kelp, kelp_mat)
+        extras.append(kelp)
 
     mesh = C.join([body] + extras, "fuchiNoNushi")
     # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開(地方ボス)
@@ -6348,10 +6465,21 @@ def build_nushigaeru():
     大きな喉袋を足し、背には歳月を経た証のいぼを散らす。目は主の
     証として淡く発光させる。配色は第二地方(忘れ潮の湿地)の、
     霧と水を思わせる灰みがかった水色・青緑系。
+
+    通常種の拡大版に見えないよう、逸脱項目を意図して3つ選ぶ
+    (plan/models/archive/boss-silhouette-differentiation.md):
+    ①左右非対称(片側の後ろ足だけ歳月でひときわ太く育っている)
+    ②重心・比率のずらし(喉袋を片側へ寄せ、異様に膨らませる)
+    ③通常種には無い大きな形(この地方の湿地そのものを表す、背に
+    根付いた睡蓮の葉と葦)。
     """
     joints = C.mirrored(NUSHIGAERU_HALF)
     radii = C.mirrored_radii(NUSHIGAERU_RADII_HALF)
     bones = C.mirrored_bones(NUSHIGAERU_BONES_HALF)
+    # 逸脱項目①。片側の後ろ足だけ、歳月でひときわ太く育った印にする
+    radii["kneeB.R"] *= 1.35
+    radii["ankleB.R"] *= 1.30
+    radii["footB.R"] *= 1.25
 
     body = C.build_skinned("nushigaeru", joints, bones, radii, root="chest", subsurf=2)
     hide = C.make_material("nushigaeru_hide", (0.36, 0.46, 0.48), roughness=0.7)
@@ -6365,9 +6493,10 @@ def build_nushigaeru():
                           segments=16, rings=12, scale=(1.0, 1.0, 0.9))
         C.assign_material(eye, glow)
         extras.append(eye)
-    # 石つぶてを溜め込む大きな喉袋
-    throat = C.uv_sphere("nushigaeru_throat", (0.0, -0.335, 0.165), 0.088,
-                         segments=18, rings=14, scale=(1.0, 0.95, 0.78))
+    # 逸脱項目②(重心・比率のずらし)。石つぶてを溜め込む喉袋を中央に
+    # 置かず片側へ寄せ、通常種tsubuteには無い異様な大きさに育てる
+    throat = C.uv_sphere("nushigaeru_throat", (0.062, -0.330, 0.150), 0.108,
+                         segments=18, rings=14, scale=(1.0, 0.95, 0.72))
     C.assign_material(throat, belly)
     extras.append(throat)
     mouth = C.uv_sphere("nushigaeru_mouth", (0.0, -0.385, 0.205), 0.040,
@@ -6394,6 +6523,22 @@ def build_nushigaeru():
     C.assign_material(stone, C.make_material("nushigaeru_stone_m", (0.45, 0.44, 0.42),
                                              roughness=0.9))
     extras.append(stone)
+
+    # 逸脱項目③(通常種には無い大きな形)。この地方(忘れ潮の湿地)
+    # そのものを表す、背に根付いた睡蓮の葉と葦。tsubuteはもちろん、
+    # 通常種の蛙には存在しない意匠
+    lily_mat = C.make_material("nushigaeru_lily", (0.22, 0.40, 0.24), roughness=0.7)
+    lily = C.uv_sphere("nushigaeru_lily", (-0.075, 0.14, 0.365), 0.155,
+                       segments=20, rings=6, scale=(1.0, 1.0, 0.10))
+    C.assign_material(lily, lily_mat)
+    extras.append(lily)
+    reed_mat = C.make_material("nushigaeru_reed", (0.34, 0.42, 0.20), roughness=0.75)
+    for i, (rx, ry, rlen) in enumerate([(-0.110, 0.10, 0.30), (-0.045, 0.17, 0.24),
+                                        (-0.140, 0.19, 0.20)]):
+        reed = C.cone(f"nushigaeru_reed{i}", (rx, ry, 0.385 + rlen / 2), 0.014, 0.003, rlen,
+                     segments=8)
+        C.assign_material(reed, reed_mat)
+        extras.append(reed)
 
     mesh = C.join([body] + extras, "nushigaeru")
     # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開(地方ボス)
@@ -6593,8 +6738,21 @@ def build_oomadoromi():
     シルエットにする。ヨリシロの核に近い夢である証として、目を
     淡く発光させる。配色は第三地方(まどろみの茸林)の、湿った土色と
     胞子の淡い黄土色。
+
+    通常種madoromiの拡大版に見えないよう、逸脱項目を意図して3つ選ぶ
+    (plan/models/archive/boss-silhouette-differentiation.md):
+    ①左右非対称(傘そのものを片側へ倒すように傾ける) ②ネガティブ
+    スペース(傘の裏に、眠気を吐き出す暗いひだの空洞を作る) ③通常種
+    には無い大きな形(煮詰まって取り込んだ、もう1本の小さな傘を側面に
+    育てる)。
     """
-    body = C.build_skinned("oomadoromi", OOMADOROMI_JOINTS, OOMADOROMI_BONES,
+    # 逸脱項目①。capbase/captopをそのまま片側へずらし、傘を傾けて
+    # 眠りこけているような不安定なシルエットにする(root/stemの軸は
+    # 動かさない=既存の当たり判定・footfallは変えない)
+    joints = dict(OOMADOROMI_JOINTS)
+    joints["capbase"] = (0.048, 0.016, OOMADOROMI_JOINTS["capbase"][2])
+    joints["captop"] = (0.100, 0.032, OOMADOROMI_JOINTS["captop"][2])
+    body = C.build_skinned("oomadoromi", joints, OOMADOROMI_BONES,
                            OOMADOROMI_RADII, root="root", subsurf=2)
     stem_mat = C.make_material("oomadoromi_stem", (0.78, 0.72, 0.58), roughness=0.75)
     cap_mat = C.make_material("oomadoromi_cap", (0.46, 0.30, 0.24), roughness=0.6)
@@ -6639,11 +6797,33 @@ def build_oomadoromi():
         C.assign_material(collar, root_mat)
         extras.append(collar)
 
+    # 逸脱項目②(ネガティブスペース)。傘の裏側に、眠気そのものを
+    # 吐き出しているひだの暗い空洞を作る(通常種madoromiには無い深い陰影)
+    gill_mat = C.make_material("oomadoromi_gill", (0.10, 0.06, 0.05), roughness=0.9)
+    gill = C.uv_sphere("oomadoromi_gill", (0.020, 0.006, 0.430), 0.300,
+                       segments=24, rings=6, scale=(1.0, 1.0, 0.11))
+    C.assign_material(gill, gill_mat)
+    extras.append(gill)
+
+    # 逸脱項目③(通常種には無い大きな形)。煮詰まって取り込んだ、
+    # もう1本の小さな傘を側面に育てる。①の傘の傾きと同じ側に添えて
+    # 重心のずれを強める
+    bud_stem_mat = C.make_material("oomadoromi_bud_stem", (0.72, 0.66, 0.52), roughness=0.75)
+    bud_cap_mat = C.make_material("oomadoromi_bud_cap", (0.42, 0.27, 0.21), roughness=0.62)
+    bud_stem = C.cylinder("oomadoromi_bud_stem", (0.225, 0.070, 0.235), 0.052, 0.28,
+                          segments=14, bevel=0.010)
+    C.assign_material(bud_stem, bud_stem_mat)
+    extras.append(bud_stem)
+    bud_cap = C.uv_sphere("oomadoromi_bud_cap", (0.225, 0.070, 0.375), 0.115,
+                          segments=18, rings=12, scale=(1.0, 1.0, 0.62))
+    C.assign_material(bud_cap, bud_cap_mat)
+    extras.append(bud_cap)
+
     mesh = C.join([body] + extras, "oomadoromi")
     # 頂点カラーオンリー方針を終え、テクスチャへ移行する全展開(地方ボス)
     # (plan/models/archive/texture-rollout-unblock.md)
     C.bake_ao_to_texture(mesh, size=128)
-    armature = C.build_armature("oomadoromi", OOMADOROMI_JOINTS, OOMADOROMI_BONES, mesh, root="root")
+    armature = C.build_armature("oomadoromi", joints, OOMADOROMI_BONES, mesh, root="root")
     return [mesh, armature], armature
 
 
@@ -7346,10 +7526,20 @@ def build_honezukaNoNushi():
     複数めり込ませ、複数の骸骨が溶け合った塊として見せる。灯る目を持つのは
     主頭蓋だけで、埋もれた頭蓋は空洞のまま。配色は第四地方(骨積みの回廊)の
     白骨色とくすんだ灰色。
+
+    通常種の拡大版に見えないよう、逸脱項目を意図して2つ選ぶ
+    (plan/models/archive/boss-silhouette-differentiation.md):
+    ①左右非対称(片方の肩だけ、めり込んだ頭蓋骨の重みでひときわ肥大
+    している) ②顔の配置の逸脱(正面中央の主頭蓋に加え、高さも
+    大きさもばらばらな頭蓋骨を肩・胸・背に非対称に埋め込む――他の
+    ボスにも広げた、このボス発案のアイデア)。
     """
     joints = C.mirrored(HONEZUKANONUSHI_HALF)
     radii = C.mirrored_radii(HONEZUKANONUSHI_RADII_HALF)
     bones = C.mirrored_bones(HONEZUKANONUSHI_BONES_HALF)
+    # 逸脱項目①。片方の肩だけ、めり込んだ頭蓋骨の重みでひときわ肥大する
+    radii["shoulder.R"] *= 1.30
+    radii["elbow.R"] *= 1.12
 
     body = C.build_skinned("honezukaNoNushi", joints, bones, radii, root="hip", subsurf=2)
     bone_mat = C.make_material("kotsuduka_bone", (0.85, 0.83, 0.73), roughness=0.75)
@@ -7416,8 +7606,9 @@ def build_honezukaNoNushi():
     # 「顔」が向く-Y/+Yの符号)
     buried_specs = [
         # (中心, 半径, facing, 色バリエーション)
-        ((0.300, -0.045, 0.615), 0.072, -1.0, 0),  # 左肩から突き出す
-        ((-0.300, -0.045, 0.615), 0.072, -1.0, 0),  # 右肩から突き出す
+        ((0.300, -0.045, 0.615), 0.072, -1.0, 0),   # 左肩から突き出す
+        # 逸脱項目①と揃え、右肩だけひときわ大きな頭蓋骨がめり込む
+        ((-0.320, -0.050, 0.630), 0.098, -1.0, 0),  # 右肩から突き出す(肥大)
         ((0.0, -0.235, 0.620), 0.086, -1.0, 1),     # 胸の正面に埋もれる
         ((0.0, 0.225, 0.470), 0.066, 1.0, 0),       # 背中に埋もれる
     ]
