@@ -28,6 +28,7 @@ import {
   type VoiceCryParams,
 } from "./compose.ts";
 import type { ReverbParams } from "./effects.ts";
+import { findTooSimilarPairs, type DistinctnessTrack } from "./similarity.ts";
 import { SAMPLE_RATE, encodeWav } from "./wav.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -37,7 +38,7 @@ const AUDIO_ROOT = resolve(HERE, "../../public/audio");
 // (舞台が洞窟であることに合わせる。plan/sound/archive/bgm-quality-upgrade.md の指針)
 const TOWN_REVERB: ReverbParams = { wet: 0.15, roomSize: 0.3, damping: 0.2 };
 
-interface BgmSpec {
+export interface BgmSpec {
   id: string;
   seed: number;
   weights: InstrumentWeights;
@@ -72,7 +73,7 @@ interface BgmSpec {
 // リバーブの深さで描き分ける。数値の大小に厳密な意味は無く、地方ごとに違う
 // 質感になることをねらった相対値(具体値の決定はplan/sound/archive/bgm-quality-upgrade.mdの
 // 未決事項どおり音楽セッションの裁量)
-const BGM_SPECS: readonly BgmSpec[] = [
+export const BGM_SPECS: readonly BgmSpec[] = [
   // 村(拠点)のテーマ。主旋律1本(design/audio-direction.md)。「村はヨリシロの
   // 眠りを世話する村」という考証を踏まえ、ゆりかごのように揺れる3拍子の子守唄の
   // 形にする。主旋律そのものがLEITMOTIF_DEGREES(ゲーム全体のライトモチーフ)
@@ -542,6 +543,11 @@ function main(): void {
   mkdirSync(resolve(AUDIO_ROOT, "bgm/mood"), { recursive: true });
   mkdirSync(resolve(AUDIO_ROOT, "sfx"), { recursive: true });
 
+  // 聴感評価の対象だった11本(chordSkeletonを個別指定した曲。
+  // plan/sound/archive/bgm-chord-progression-variety.md)だけを
+  // 「似すぎ」の機械チェック対象にする(plan/sound/archive/bgm-automated-distinctness-check.md)
+  const distinctnessCheckTracks: DistinctnessTrack[] = [];
+
   for (const spec of BGM_SPECS) {
     const track = composeTrack({
       seed: spec.seed,
@@ -563,6 +569,17 @@ function main(): void {
     writeFileSync(path, encodeWav([track.left, track.right], SAMPLE_RATE));
     const seconds = track.left.length / SAMPLE_RATE;
     console.log(`bgm/${spec.id}.wav (${seconds.toFixed(1)}s, ${spec.tempoBpm}bpm, ${spec.bars}bars)`);
+    if (spec.chordSkeleton) distinctnessCheckTracks.push({ id: spec.id, samples: track.left });
+  }
+
+  const tooSimilar = findTooSimilarPairs(distinctnessCheckTracks, SAMPLE_RATE);
+  if (tooSimilar.length > 0) {
+    console.warn(`[似すぎ警告] ${tooSimilar.length}件のBGMペアが構成上似すぎている可能性があります:`);
+    for (const pair of tooSimilar) {
+      console.warn(
+        `  ${pair.a} <-> ${pair.b} [${pair.reasons.join(",")}] (和声類似度=${pair.harmonicSimilarity.toFixed(3)}, 音色距離=${pair.timbreDistance.toFixed(3)})`,
+      );
+    }
   }
 
   for (const spec of MOOD_SPECS) {
@@ -617,4 +634,8 @@ function main(): void {
   }
 }
 
-main();
+// テスト(tests/audio-similarity.test.ts)がBGM_SPECSだけをimportしたときに
+// 生成処理を誤って実行しないよう、直接実行されたときだけmain()を呼ぶ
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main();
+}
