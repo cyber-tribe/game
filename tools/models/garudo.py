@@ -599,7 +599,8 @@ def build() -> tuple[list, object]:
     C.activate(armature)
     bpy.ops.object.mode_set(mode="EDIT")
     for eb in armature.data.edit_bones:
-        if "shoulder" in eb.name or "elbow" in eb.name or "hand" in eb.name:
+        if any(part in eb.name for part in
+               ("shoulder", "elbow", "hand", "thigh", "knee", "foot")):
             y_axis = (eb.tail - eb.head).normalized()
             x_target = (Vector((1.0, 0.0, 0.0)) - y_axis * y_axis.x).normalized()
             eb.align_roll(x_target.cross(y_axis))
@@ -707,8 +708,12 @@ def animations() -> list[tuple[str, list]]:
     # ロール整列後の軸系: X=前後(負が前)・Z=内外(Lは負が外、Rは正が外)
     armL, armR = "shoulder.L-elbow.L", "shoulder.R-elbow.R"
     foreL, foreR = "elbow.L-hand.L", "elbow.R-hand.R"
-    legL, legR = "hip-thigh.L", "hip-thigh.R"
-    shinL, shinR = "thigh.L-knee.L", "thigh.R-knee.R"
+    # 脚のスイングは大腿ボーン(支点=股関節)、膝の曲げはすねボーン
+    # (支点=膝)。hip-thighは骨盤の斜めコネクタで前後スイングの軸に
+    # なれない(腕と同じ構造の不具合。ロール整列とあわせて修正)。
+    # ロール整列後の軸系: X=前後(負が前・正が後ろ)
+    legL, legR = "thigh.L-knee.L", "thigh.R-knee.R"
+    shinL, shinR = "knee.L-foot.L", "knee.R-foot.R"
 
     head_delay = C.secondary_delay_frames(
         (Vector(JOINTS_HALF["head"]) - Vector(JOINTS_HALF["neck"])).length
@@ -722,16 +727,19 @@ def animations() -> list[tuple[str, list]]:
         (36 + head_delay, {neck: (0, 0, 0)}, {"partial": True}),
     ]
 
+    # 歩行: 接地時(f1/f15)は前脚(-24)がほぼ伸び(すね4)、後脚(+24)が
+    # 蹴り出しでやや曲がる(すね12)。通過時(f8/f22)は前へ運ぶ脚の膝を
+    # 大きく畳み(すね40)、軸脚は伸びたまま。腰は通過時に沈む(bob)
     walk = [
-        (1, {legL: (26, 0, 0), legR: (-26, 0, 0), shinL: (6, 0, 0), shinR: (20, 0, 0),
+        (1, {legL: (24, 0, 0), legR: (-24, 0, 0), shinL: (12, 0, 0), shinR: (4, 0, 0),
              armL: (-15, 0, -4), armR: (15, 0, 4), hipc: (3, 0, 0)}),
-        (8, {legL: (0, 0, 0), legR: (0, 0, 0), shinL: (12, 0, 0), shinR: (46, 0, 0),
+        (8, {legL: (0, 0, 0), legR: (0, 0, 0), shinL: (40, 0, 0), shinR: (5, 0, 0),
              armL: (0, 0, -4), armR: (0, 0, 4), hipc: {"rot": (6, 0, 0), "loc": (0, -0.012, 0)}}),
-        (15, {legL: (-26, 0, 0), legR: (26, 0, 0), shinL: (20, 0, 0), shinR: (6, 0, 0),
+        (15, {legL: (-24, 0, 0), legR: (24, 0, 0), shinL: (4, 0, 0), shinR: (12, 0, 0),
               armL: (15, 0, -4), armR: (-15, 0, 4), hipc: (3, 0, 0)}),
-        (22, {legL: (0, 0, 0), legR: (0, 0, 0), shinL: (46, 0, 0), shinR: (12, 0, 0),
+        (22, {legL: (0, 0, 0), legR: (0, 0, 0), shinL: (5, 0, 0), shinR: (40, 0, 0),
               armL: (0, 0, -4), armR: (0, 0, 4), hipc: {"rot": (6, 0, 0), "loc": (0, -0.012, 0)}}),
-        (29, {legL: (26, 0, 0), legR: (-26, 0, 0), shinL: (6, 0, 0), shinR: (20, 0, 0),
+        (29, {legL: (24, 0, 0), legR: (-24, 0, 0), shinL: (12, 0, 0), shinR: (4, 0, 0),
               armL: (-15, 0, -4), armR: (15, 0, 4), hipc: (3, 0, 0)}),
     ]
 
@@ -754,11 +762,14 @@ def animations() -> list[tuple[str, list]]:
     die = [
         (1, {hipc: (0, 0, 0), neck: (0, 0, 0), legL: (0, 0, 0), legR: (0, 0, 0)},
          {"interp": "LINEAR"}),
-        (8, {hipc: (-28, 0, 0), neck: (-18, 0, 0), legL: (18, 0, 0), legR: (18, 0, 0),
+        (8, {hipc: (-28, 0, 0), neck: (-18, 0, 0), legL: (10, 0, 0), legR: (8, 0, 0),
+             shinL: (14, 0, 0), shinR: (10, 0, 0),
              armL: (-40, 0, -30), armR: (-40, 0, 30)}),
-        (22, {hipc: (-82, 0, 0), neck: (-30, 0, 0), legL: (52, 0, 0), legR: (48, 0, 0),
+        (22, {hipc: (-82, 0, 0), neck: (-30, 0, 0), legL: (26, 0, 0), legR: (20, 0, 0),
+              shinL: (34, 0, 0), shinR: (28, 0, 0),
               armL: (-70, 0, -46), armR: (-70, 0, 46)}),
-        (26, {hipc: (-76, 0, 0), neck: (-26, 0, 0), legL: (48, 0, 0), legR: (44, 0, 0),
+        (26, {hipc: (-76, 0, 0), neck: (-26, 0, 0), legL: (22, 0, 0), legR: (17, 0, 0),
+              shinL: (30, 0, 0), shinR: (24, 0, 0),
               armL: (-64, 0, -42), armR: (-64, 0, 42)}),
     ]
 
