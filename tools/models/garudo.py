@@ -234,7 +234,7 @@ def build() -> tuple[list, object]:
     for s in (-1.0, 1.0):
         ear = C.uv_sphere(f"garudo_ear{s}", Vector((0.054 * s, -0.004, 0.872)), 0.012,
                           segments=6, rings=5, scale=(0.5, 0.9, 1.2))
-        add(ear, skin_mat)
+        add(ear, skin_mat, pin_bone="neck-head")
 
     # ---- 髪。土台の塊(スカルプ)+ベジェカーブの房 ----
     # 設定画の髪は円錐スパイクではなく、曲がりながら先細る房の集まり。
@@ -246,7 +246,7 @@ def build() -> tuple[list, object]:
         (0.912, 0.068, 0.064, 0.0, 0.004),
         (0.945, 0.055, 0.056, 0.0, 0.002),
         (0.964, 0.032, 0.036, 0.0, 0.0),
-    ], cap_bottom=True), hair_mat)
+    ], cap_bottom=True), hair_mat, pin_bone="neck-head")
     lock_specs = [
         # 前髪: 額に沿って6本、根元は生え際、先は眉の上へ垂れて左右へ流す
         ([(-0.050, -0.026, 0.914), (-0.058, -0.048, 0.896), (-0.050, -0.058, 0.872)],
@@ -284,7 +284,8 @@ def build() -> tuple[list, object]:
          [0.017, 0.014, 0.003]),
     ]
     for i, (pts, radii) in enumerate(lock_specs):
-        add(_lock(f"garudo_hair_lock{i}", [Vector(p) for p in pts], radii), hair_mat)
+        add(_lock(f"garudo_hair_lock{i}", [Vector(p) for p in pts], radii), hair_mat,
+            pin_bone="neck-head")
 
     # ---- 顔の造作 ----
     # 眉: 曲がりながら先細る太めの房(箱よりも描いた眉に近い)
@@ -294,7 +295,7 @@ def build() -> tuple[list, object]:
                       Vector((0.024 * s, -0.0605, 0.9060)),
                       Vector((0.037 * s, -0.0560, 0.9010))],
                      [0.0040, 0.0050, 0.0018])
-        add(brow, hair_mat)
+        add(brow, hair_mat, pin_bone="neck-head")
         # 上まぶたの線: 目の上縁を縁取る細い線。目が「顔に描かれている」
         # 印象を決める要(設定画のくっきりした目の再現)
         lid = _lock(f"garudo_lid{s}",
@@ -302,16 +303,17 @@ def build() -> tuple[list, object]:
                      Vector((0.023 * s, -0.0620, 0.8930)),
                      Vector((0.035 * s, -0.0575, 0.8890))],
                     [0.0022, 0.0028, 0.0014])
-        add(lid, C.make_material("garudo_lidline", (0.16, 0.10, 0.07), roughness=0.6))
+        add(lid, C.make_material("garudo_lidline", (0.16, 0.10, 0.07), roughness=0.6),
+            pin_bone="neck-head")
     nose = _cone_at("garudo_nose", Vector((0.0, -0.058, 0.864)),
                     Vector((0.0, -0.9, -0.35)), 0.008, 0.014)
-    add(nose, skin_mat)
+    add(nose, skin_mat, pin_bone="neck-head")
     mouth = _lock("garudo_mouth",
                   [Vector((-0.012, -0.0575, 0.8365)),
                    Vector((0.000, -0.0590, 0.8355)),
                    Vector((0.012, -0.0575, 0.8365))],
                   [0.0016, 0.0022, 0.0016])
-    add(mouth, mouth_mat)
+    add(mouth, mouth_mat, pin_bone="neck-head")
 
     # まばたき対象(白目・瞳)は本体へjoinせず、後で頭の骨へ剛体接続する
     # (plan/models/archive/eye-blink-liveliness.md)。設定画の目は
@@ -331,7 +333,7 @@ def build() -> tuple[list, object]:
         highlight = C.uv_sphere(f"garudo_eyehl{s}",
                                 Vector((0.0195 * s, -0.0685, 0.885)), 0.0042,
                                 segments=6, rings=4)
-        add(highlight, highlight_mat)
+        add(highlight, highlight_mat, pin_bone="neck-head")
 
     # ---- 胴(シャツ)。肩幅があり、胸で最も広く、ベルトへ絞る ----
     add(_loft("garudo_torso", [
