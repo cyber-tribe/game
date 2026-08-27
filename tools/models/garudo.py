@@ -425,6 +425,23 @@ def build() -> tuple[list, object]:
         (0.226, 0.110),
         (0.192, 0.100),
     ]
+    apron_mat_dark = C.make_material(
+        "garudo_apron_wood_dark",
+        tuple(c * 0.90 for c in APRON_WOOD), roughness=0.85)
+
+    def plank_index(x: float, y: float) -> int:
+        return int((math.atan2(y, x) + math.tau) / (math.tau / 12)) % 12
+
+    def alternate_planks(obj, dark_mat) -> None:
+        """側面の板(面法線が水平寄り)を1枚おきに暗いトーンにする。"""
+        obj.data.materials.append(dark_mat)
+        for poly in obj.data.polygons:
+            if abs(poly.normal.z) < 0.7:
+                cx = sum(obj.data.vertices[v].co.x for v in poly.vertices) / len(poly.vertices)
+                cy = sum(obj.data.vertices[v].co.y for v in poly.vertices) / len(poly.vertices)
+                if plank_index(cx, cy) % 2 == 1:
+                    poly.material_index = 1
+
     def plank_jitter(x: float, y: float) -> float:
         """頂点の角度から板(12分割)の番号を求め、板ごとに固有の
         半径ゆらぎを返す。全段で同じ関数を使うため、段をまたいでも
@@ -457,6 +474,7 @@ def build() -> tuple[list, object]:
                     int((math.atan2(v.co.y, v.co.x) + math.tau) / (math.tau / 12))
                     * 7.13 + 1.7)
         add(seg, apron_mat, pin_bone="hip-chest")
+        alternate_planks(seg, apron_mat_dark)
     for i, (hoop_z, hoop_r) in enumerate(((0.372, 0.116), (0.226, 0.110))):
         hoop = C.cylinder(f"garudo_apron_hoop{i}", (0.0, 0.0, hoop_z),
                           hoop_r + 0.004, 0.016, segments=10)
@@ -487,6 +505,12 @@ def build() -> tuple[list, object]:
             (0.085, 0.034, 0.037, 0.057 * s, 0.0),
             (0.130, 0.035, 0.037, 0.056 * s, 0.0),
         ], segments=12), boot_mat, pin_bone=f"knee.{tag}-foot.{tag}")
+        # 履き口の折り返しカフ(設定画のブーツ上端の段)
+        add(_loft(f"garudo_bootcuff{tag}", [
+            (0.112, 0.037, 0.039, 0.056 * s, 0.0),
+            (0.132, 0.038, 0.040, 0.056 * s, 0.0),
+            (0.140, 0.035, 0.037, 0.056 * s, 0.0),
+        ], segments=12), sole_mat, pin_bone=f"knee.{tag}-foot.{tag}")
         # 靴底: 本体より一回り張り出す濃色のリム(設定画の底の段差)
         add(_loft(f"garudo_sole{tag}", [
             (0.000, 0.036, 0.061, 0.057 * s, -0.018),
@@ -513,6 +537,7 @@ def build() -> tuple[list, object]:
     ], segments=12, smooth=False)
     barrel.location += bp_origin
     add(barrel, apron_mat, pin_bone="hip-chest")
+    alternate_planks(barrel, apron_mat_dark)
     for i, t in enumerate((0.16, 0.52, 0.86)):
         bhoop = C.cylinder(f"garudo_backpack_hoop{i}", (0.0, 0.0, bp_h * t),
                            bp_radius(t) + 0.003, 0.013, segments=12)
