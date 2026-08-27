@@ -592,7 +592,41 @@ def build() -> tuple[list, object]:
         C.parent_to_bone(eye, armature, "neck-head")
     for group_name, bone in pinned:
         C.pin_weight_to_bone(mesh, group_name, bone)
+    _fix_orphan_weights(mesh)
     return [mesh, armature] + eyes, armature
+
+
+def _fix_orphan_weights(mesh_obj) -> None:
+    """
+    自動ウェイト(Bone Heat)は部品の多い密集メッシュで一部の頂点の
+    解を出せないことがある(「failed to find solution」警告)。無ウェイトの
+    頂点はポーズ中その場に取り残され、体が動くと部位がちぎれて見える。
+    ここでは無ウェイト頂点を最寄りのボーン(線分距離)へウェイト1.0で
+    割り当てて取りこぼしを無くす。
+    """
+    segments = []
+    for parent, child in BONES:
+        name = C.bone_name(parent, child)
+        vg = mesh_obj.vertex_groups.get(name)
+        if vg is None:
+            vg = mesh_obj.vertex_groups.new(name=name)
+        segments.append((vg, Vector(JOINTS[parent]), Vector(JOINTS[child])))
+
+    def seg_dist(p: Vector, a: Vector, b: Vector) -> float:
+        ab = b - a
+        if ab.length_squared == 0.0:
+            return (p - a).length
+        t = max(0.0, min(1.0, (p - a).dot(ab) / ab.length_squared))
+        return (p - (a + ab * t)).length
+
+    orphans = 0
+    for v in mesh_obj.data.vertices:
+        if not any(g.weight > 0.001 for g in v.groups):
+            vg, _, _ = min(segments, key=lambda s: seg_dist(v.co, s[1], s[2]))
+            vg.add([v.index], 1.0, "REPLACE")
+            orphans += 1
+    if orphans:
+        print(f"  自動ウェイトの取りこぼし {orphans} 頂点を最寄りボーンへ割り当てた")
 
 
 # ---------------------------------------------------------------- アニメーション
