@@ -13,6 +13,15 @@
  * 入力ファイル名>.png(例: design/characters/garudo/concepts/garudo-a.svg
  * → tools/preview/concepts/garudo-a.png、design/characters/garudo/
  * turnarounds/garudo.svg → tools/preview/turnarounds/garudo.png)。
+ *
+ * --silhouette を先頭に付けると、全fill/strokeを黒に置き換えた
+ * シルエット版を tools/preview/silhouettes/<名前>-silhouette.png へ
+ * 出力する(plan/models/archive/turnaround-drawing-craft.mdの
+ * 受け入れ基準2「黒塗りシルエット版の画像」用。3Dモデル側との重ね
+ * 合わせ照合はtools/compare_turnaround.mjsを使う)。
+ *
+ *   node tools/render_svg.mjs --silhouette design/characters/garudo/turnarounds/garudo.svg
+ *
  * 環境変数は他のtools/*.mjsと同じ流儀。
  *   CHROMIUM_PATH    Chromium の実行ファイル
  *   PLAYWRIGHT_PATH  playwright パッケージの場所
@@ -32,9 +41,11 @@ async function loadPlaywright() {
   }
 }
 
-const inputs = process.argv.slice(2);
+const rawArgs = process.argv.slice(2);
+const silhouette = rawArgs.includes("--silhouette");
+const inputs = rawArgs.filter((a) => a !== "--silhouette");
 if (inputs.length === 0) {
-  console.error("使い方: node tools/render_svg.mjs <svgファイル> [...]");
+  console.error("使い方: node tools/render_svg.mjs [--silhouette] <svgファイル> [...]");
   process.exitCode = 1;
   process.exit();
 }
@@ -54,7 +65,15 @@ const browser = await chromium.launch({ executablePath: chromiumPath() });
 const page = await browser.newPage();
 
 for (const input of inputs) {
-  const svg = readFileSync(input, "utf-8");
+  let svg = readFileSync(input, "utf-8");
+  if (silhouette) {
+    // キャプション文字はシルエット判定に含めない。全fill/strokeを
+    // 黒にして、輪郭だけで判読できるかを確認する
+    svg = svg
+      .replace(/<text[\s\S]*?<\/text>/g, "")
+      .replace(/fill="(?!none)[^"]*"/g, 'fill="#000"')
+      .replace(/stroke="(?!none)[^"]*"/g, 'stroke="#000"');
+  }
   // 背景を白にして、線画をそのままの座標で表示する(viewBoxの寸法で
   // ページも合わせるので、SVG側の余白設計がそのままPNGの余白になる)
   await page.setContent(
@@ -65,9 +84,10 @@ for (const input of inputs) {
   const el = await page.$("svg");
   const box = await el.boundingBox();
   await page.setViewportSize({ width: Math.ceil(box.width), height: Math.ceil(box.height) });
-  const outDir = join(PREVIEW_ROOT, basename(dirname(input)));
+  const outDir = join(PREVIEW_ROOT, silhouette ? "silhouettes" : basename(dirname(input)));
   mkdirSync(outDir, { recursive: true });
-  const out = join(outDir, `${basename(input, ".svg")}.png`);
+  const suffix = silhouette ? "-silhouette" : "";
+  const out = join(outDir, `${basename(input, ".svg")}${suffix}.png`);
   await el.screenshot({ path: out });
   console.log(`撮影: ${out}`);
 }
