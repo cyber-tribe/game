@@ -288,6 +288,11 @@ def build() -> tuple[list, object]:
          [0.015, 0.012, 0.003]),
         ([(0.046, 0.022, 0.912), (0.060, 0.036, 0.888), (0.054, 0.042, 0.860)],
          [0.015, 0.012, 0.003]),
+        # うなじの短い房
+        ([(-0.012, 0.048, 0.880), (-0.016, 0.058, 0.862), (-0.012, 0.058, 0.844)],
+         [0.013, 0.010, 0.003]),
+        ([(0.012, 0.048, 0.880), (0.016, 0.058, 0.862), (0.012, 0.058, 0.844)],
+         [0.013, 0.010, 0.003]),
     ]
     for i, (pts, radii) in enumerate(lock_specs):
         add(_lock(f"garudo_hair_lock{i}", [Vector(p) for p in pts], radii), hair_mat,
@@ -305,10 +310,10 @@ def build() -> tuple[list, object]:
         # 上まぶたの線: 目の上縁を縁取る細い線。目が「顔に描かれている」
         # 印象を決める要(設定画のくっきりした目の再現)
         lid = _lock(f"garudo_lid{s}",
-                    [Vector((0.010 * s, -0.0585, 0.8905)),
-                     Vector((0.023 * s, -0.0620, 0.8930)),
-                     Vector((0.035 * s, -0.0575, 0.8890))],
-                    [0.0022, 0.0028, 0.0014])
+                    [Vector((0.008 * s, -0.0585, 0.8900)),
+                     Vector((0.023 * s, -0.0625, 0.8932)),
+                     Vector((0.037 * s, -0.0570, 0.8882))],
+                    [0.0024, 0.0032, 0.0016])
         add(lid, C.make_material("garudo_lidline", (0.16, 0.10, 0.07), roughness=0.6),
             pin_bone="neck-head")
     nose = _cone_at("garudo_nose", Vector((0.0, -0.058, 0.864)),
@@ -405,6 +410,12 @@ def build() -> tuple[list, object]:
     ]), belt_mat, pin_bone="hip-chest")
     add(C.box("garudo_buckle", (0.0, -0.064, 0.457), (0.024, 0.007, 0.022)),
         hoop_mat, pin_bone="hip-chest")
+    for i, trim_z in enumerate((0.4375, 0.4755)):
+        trim = _loft(f"garudo_belt_trim{i}", [
+            (trim_z - 0.004, 0.0845, 0.0625, 0.0, 0.0),
+            (trim_z + 0.004, 0.0845, 0.0625, 0.0, 0.0),
+        ], segments=12)
+        add(trim, sole_mat, pin_bone="hip-chest")
 
     # ---- 樽板エプロン(膨らみ→くびれ→膨らみ)+たが2段 ----
     apron_profile = [
@@ -460,6 +471,10 @@ def build() -> tuple[list, object]:
             (0.245, 0.045, 0.045, 0.056 * s, 0.0),
             (0.310, 0.046, 0.046, 0.056 * s, 0.0),
         ], segments=12), trousers_mat)
+        knee_fold = C.cylinder(f"garudo_knee_fold{s}", (0.0, 0.0, 0.0), 0.0455, 0.009,
+                               segments=12)
+        knee_fold.location = Vector((0.056 * s, 0.0, 0.172))
+        add(knee_fold, trousers_mat)
 
     # ---- ブーツ(甲・つま先・靴底の実体形状) ----
     for s in (-1.0, 1.0):
