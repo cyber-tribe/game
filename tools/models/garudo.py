@@ -196,7 +196,7 @@ def build() -> tuple[list, object]:
     belt_mat = C.make_material("garudo_belt", BELT, roughness=0.75)
     hoop_mat = C.make_material("garudo_hoop", HOOP, roughness=0.45, metallic=0.7)
     apron_mat = C.make_material("garudo_apron_wood", APRON_WOOD, roughness=0.85)
-    eye_mat = C.make_material("garudo_eye", (0.20, 0.12, 0.07), roughness=0.25)
+    eye_mat = C.make_material("garudo_eye", (0.30, 0.17, 0.09), roughness=0.25)
     eyewhite_mat = C.make_material("garudo_eyewhite", (0.95, 0.95, 0.93), roughness=0.3)
     highlight_mat = C.make_material("garudo_eye_highlight", (1.0, 1.0, 1.0),
                                     roughness=0.2, emission=0.4)
