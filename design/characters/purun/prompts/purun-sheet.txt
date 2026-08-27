@@ -1,0 +1,17 @@
+Character design sheet (settei-gasho) for a Japanese RPG video game art book, in the style of 1990s Japanese fantasy manga/anime illustration: confident clean ink linework, cel-shaded painted colors with soft shadows, gentle and drowsy mood.
+
+Single page layout on parchment-white background containing:
+- LEFT SIDE, dominant: one full-body view of the creature from a front three-quarter angle.
+- RIGHT SIDE: a column of smaller studies — front view, side view, back view (clearly showing the crystal core embedded in its back), and one expression study of its face.
+
+CREATURE: A small droplet-shaped slime creature, the "mascot face" of the game world. It is the solidified afterglow of a light doze — a harmless, dreamy little being with no malice. Round teardrop body, one head tall, soft and wobbly.
+
+APPEARANCE:
+- Semi-translucent pale blue jelly body `rgb(77,158,217)` with soft internal glow; you can faintly see through its edges.
+- Simple sleepy face: two dark navy oval eyes and a small navy mouth `rgb(26,56,87)`, calm and content, slightly drowsy.
+- Embedded halfway into its BACK: a small amber crystal (icosahedron gem shape) `rgb(235,184,82)` glowing faintly warm — the only angular, hard element on the otherwise soft round body. This crystal core is its identifying silhouette feature.
+- No limbs, or only the softest suggestion of stubby ones; it moves by bouncing.
+
+The overall look: endearing, peaceful, iconic — a creature whose entire outline reads instantly even in black silhouette (teardrop + one angular crystal spike on the back).
+
+Clean game-artbook presentation, no text, no logos, no watermark, white/parchment background, all studies drawn in the same consistent style and palette.

@@ -1,0 +1,18 @@
+Character design sheet (settei-gasho) for a Japanese RPG video game art book, in the style of 1990s Japanese fantasy manga/anime illustration: confident clean ink linework, cel-shaded painted colors with soft shadows, timid but charming mood.
+
+Single page layout on parchment-white background containing:
+- LEFT SIDE, dominant: one full-body view of the creature from a front three-quarter angle, in a nervous crouched stance ready to bolt.
+- RIGHT SIDE: a column of smaller studies — front view, side view, a close-up study of its head showing the oversized front teeth, and one small study of it running away in panic.
+
+CREATURE: A small four-legged rodent creature, born from a fleeting flicker of anxiety in a sleeping giant's dream. Cowardly — it gnaws on things to calm itself, and flees the moment it is hurt. Small, low to the ground, a bit less than one head tall.
+
+APPEARANCE:
+- Warm brown fur `rgb(133,107,87)` with a visibly lighter belly; fur flows in soft diagonal streaks.
+- Large round nervous eyes, always a little wide with worry.
+- Big rounded ears, blushing pale rose on the inner side `rgb(184,122,117)`.
+- Its signature feature: a pair of oversized, chisel-shaped white front teeth `rgb(242,237,214)` — flat, angular, slightly comical, clearly readable even in black silhouette.
+- Skinny whip-like tail, small clawed paws.
+
+The overall look: a jittery little gnawer you almost feel sorry for — endearing rather than menacing.
+
+Clean game-artbook presentation, no text, no logos, no watermark, white/parchment background, all studies drawn in the same consistent style and palette.
