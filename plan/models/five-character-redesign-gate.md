@@ -168,7 +168,7 @@
   `design/characters/garudo/concept.md`「0からの全面やり直し」)。
   その過程で、手描きSVGのベジェ曲線+平坦な色面という技法自体が
   ユーザーの求める塗り込みイラストの水準に届かないと判明し
-  (`plan/models/turnaround-drawing-craft.md`「手描きSVGの技法そのものが
+  (`plan/models/archive/turnaround-drawing-craft.md`「手描きSVGの技法そのものが
   上限に達した」)、画像生成APIへの技法変更を検討中(要ユーザーの
   APIキー、現在確認待ち)。
 - 上記の待ち時間を使い、ぷるん・ツブテガエル・おおねぼすけの3体

@@ -171,7 +171,7 @@
 方針へ全面的にやり直した(`design/characters/garudo/concept.md`
 「0からの全面やり直し」)。さらにその後、手描きSVGという技法自体が
 ユーザーの求める塗り込みイラストの水準に届かないと判明し、画像生成
-APIへの技法変更を検討中(`plan/models/turnaround-drawing-craft.md`)。
+APIへの技法変更を検討中(`plan/models/archive/turnaround-drawing-craft.md`)。
 
 したがって本書の「2. 顔はアニメの文法で作る」「3. 髪は房で造形する」
 「3.5. 線画そのものの様式」「4. 5体再設計ゲートとの関係」は、

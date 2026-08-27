@@ -97,7 +97,7 @@ C案を正面・横の三面図(ガイド線つき、Aポーズ)に起こす
 
 ## 三面図の描き直し(turnaround-drawing-craft.md対応、進行中)
 
-上記の3D化は`plan/models/turnaround-drawing-craft.md`により
+上記の3D化は`plan/models/archive/turnaround-drawing-craft.md`により
 「不合格の絵(プリミティブの組み立て)を土台にしている」としてゲート
 未通過と判定された。同書の規定(プリミティブ禁止・ベジェ曲線の
 閉パス・シルエット先行・自己承認の禁止)に沿って、正面シルエットを
@@ -144,7 +144,7 @@ practice.md`が追加された。v1〜v3が(b)(c)で伸び悩んだ根本原因
 
 ## 人体デッサンの練習(figure-drawing-practice.md)を実施した結果
 
-`plan/models/drawing-practice/practice{1,2,3}.svg`
+`plan/models/archive/drawing-practice/practice{1,2,3}.svg`
 (`tools/preview/drawing-practice/`にPNG化)。
 
 - **練習1(8頭身・正面)**: ジェスチャー線・頭/胸郭/骨盤の3塊・

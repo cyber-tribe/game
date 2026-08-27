@@ -229,3 +229,6 @@ Billingを有効化する(有効化され次第、同じキーで5体分を生�
   同じ経路(発注文`design/characters/<名前>/prompts/<名前>-sheet.txt`
   →ユーザーが外部ツールで生成→提供)で進める。
 - 次の工程はガルドの3D化(`five-character-redesign-gate.md`決定2-4)。
+
+(ガルドの設定画確定・3D化完了に伴いアーカイブ。詳細は上記
+「決着」の節と`five-character-redesign-gate.md`実装状況を参照)

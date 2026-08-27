@@ -111,7 +111,7 @@ PNG目視は`turnaround-drawing-craft.md`の規定(プリミティブ禁止・
 
 ## 実装状況(進行中・ユーザー承認待ち)
 
-- 練習1〜4を実施した(`plan/models/drawing-practice/practice{1,2,3}.svg`、
+- 練習1〜4を実施した(`plan/models/archive/drawing-practice/practice{1,2,3}.svg`、
   練習4は`design/characters/garudo/turnarounds/garudo.svg`。詳細な
   自己検査は`design/characters/garudo/concept.md`)。
 - 練習1(8頭身正面)・練習2(8頭身側面のS字)・練習3(2.5頭身への
@@ -131,3 +131,14 @@ PNG目視は`turnaround-drawing-craft.md`の規定(プリミティブ禁止・
   は前回のPR時点のまま変更していない。
 - 次の工程はユーザーが正面・側面のPNGを見て判断すること
   (承認/追加修正の指示等)。それまで3D反映は着手しない。
+
+### 完了の記録(アーカイブ)
+
+本書の目的(量塊→関節→輪郭の構築工程を練習で身につけ、v1〜v3の
+「浮いたカプセル」問題を解消する)は達成し、その工程はその後の
+写実版素体(`design/characters/garudo/turnarounds/garudo-realistic-*`)の
+構築にも実際に使われた。最終的にガルドの設定画は外部の画像生成
+ツールによるユーザー提供(`design/characters/garudo/generated/
+garudo-sheet.png`)で確定し、3D化もその設定画からの採寸(断面リングの
+積み上げ)へ移行したため、本書の手描き練習工程は役割を終えた。
+記録として練習SVG(`archive/drawing-practice/`)とともに保存する。
