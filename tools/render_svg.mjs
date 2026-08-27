@@ -1,5 +1,5 @@
 /**
- * SVGの線画をPNGにする(plan/models/2d-turnaround-first-workflow.md)。
+ * SVGの線画をPNGにする(plan/models/archive/2d-turnaround-first-workflow.md)。
  *
  * コンセプト案・三面図はSVGで描く(テキストとしてdiffでき、座標が
  * そのまま読めるため)。目視確認のためだけにPlaywrightでPNG化する。

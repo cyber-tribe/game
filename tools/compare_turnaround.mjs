@@ -1,6 +1,6 @@
 /**
  * 三面図(SVG)と3Dモデルの平行投影シルエットを重ねて照合する
- * (plan/models/2d-turnaround-first-workflow.mdの受け入れ基準2・3)。
+ * (plan/models/archive/2d-turnaround-first-workflow.mdの受け入れ基準2・3)。
  *
  * design/characters/<名前>/turnarounds/<名前>.svg(正面。
  * <名前>-side.svgがあれば側面も)を黒塗りに変換してレンダーし、

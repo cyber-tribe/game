@@ -55,7 +55,7 @@
 
 ## 次の工程
 
-`plan/models/2d-turnaround-first-workflow.md`の形式で、選定した
+`plan/models/archive/2d-turnaround-first-workflow.md`の形式で、選定した
 C案を正面・横の三面図(ガイド線つき、Aポーズ)に起こす
 (`design/characters/garudo/turnarounds/garudo.svg`)。三面図の承認後、
 `garudo.py`の3D化(`five-character-redesign-gate.md`が許可する
