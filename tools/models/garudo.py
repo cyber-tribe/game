@@ -536,7 +536,7 @@ def build() -> tuple[list, object]:
     # 自前で組む。12分割+フラットシェーディングで板張りに見せる
     bp_h = 0.27
     bp_r = 0.064
-    bp_origin = Vector((0.02, 0.104, 0.50))
+    bp_origin = Vector((0.02, 0.104, 0.475))
 
     def bp_radius(t: float) -> float:
         return bp_r * (1.0 + 0.14 * math.sin(t * math.pi))
@@ -587,16 +587,63 @@ def build() -> tuple[list, object]:
         add(clasp, hoop_mat, pin_bone="hip-chest")
 
     mesh = C.join(parts_list, NAME)
-    armature = C.build_armature(NAME, JOINTS, BONES, mesh, root="hip")
+    _chibify_mesh(mesh)
+    for eye in eyes:
+        _chibify_mesh(eye)
+    chibi_joints = {name: Vector(_chibify_point(*pos)) for name, pos in JOINTS.items()}
+    armature = C.build_armature(NAME, chibi_joints, BONES, mesh, root="hip")
     for eye in eyes:
         C.parent_to_bone(eye, armature, "neck-head")
     for group_name, bone in pinned:
         C.pin_weight_to_bone(mesh, group_name, bone)
-    _fix_orphan_weights(mesh)
+    _fix_orphan_weights(mesh, chibi_joints)
     return [mesh, armature] + eyes, armature
 
 
-def _fix_orphan_weights(mesh_obj) -> None:
+# ---- ゲーム内頭身(チビ化)変換 ----
+# ユーザー方針: 「設定画は人間の等身でよく、ゲーム内では等身を縮める」。
+# そこで本ファイルは設定画(7頭身)の座標系のまま全部位を組み、join後の
+# 最終段でこの区分線形マッピングにより頭を拡大・体を圧縮して、ゲーム内
+# 頭身(約2.6頭身)へ変換する。意匠・ディテールは設計空間のまま維持される。
+# 注意: z0.79〜0.812(首〜あご)は横スケールが0.92→2.34へ急変する遷移帯
+# なので、首以外の部品をこの帯に置かないこと(置くと横に引き伸ばされる)。
+CHIBI_Z_ANCHORS = [
+    (0.000, 0.000),   # 接地
+    (0.140, 0.110),   # ブーツ上端(ブーツは79%にとどめて塊感を残す)
+    (0.420, 0.260),   # 股
+    (0.790, 0.580),   # 首根本
+    (0.812, 0.600),   # あご
+    (0.970, 0.970),   # 頭頂(頭部をz方向2.34倍に拡大)
+]
+CHIBI_LAT_ANCHORS = [
+    (0.000, 1.00),
+    (0.420, 1.00),
+    (0.790, 0.92),
+    (0.812, 2.34),    # 頭部はzと同率で拡大し、球形を保つ
+    (0.970, 2.34),
+]
+
+
+def _piecewise(z: float, anchors) -> float:
+    if z <= anchors[0][0]:
+        return anchors[0][1]
+    for (z0, v0), (z1, v1) in zip(anchors, anchors[1:]):
+        if z <= z1:
+            return v0 + (v1 - v0) * (z - z0) / (z1 - z0)
+    return anchors[-1][1]
+
+
+def _chibify_point(x: float, y: float, z: float) -> tuple[float, float, float]:
+    lat = _piecewise(z, CHIBI_LAT_ANCHORS)
+    return x * lat, y * lat, _piecewise(z, CHIBI_Z_ANCHORS)
+
+
+def _chibify_mesh(mesh_obj) -> None:
+    for v in mesh_obj.data.vertices:
+        v.co = Vector(_chibify_point(v.co.x, v.co.y, v.co.z))
+
+
+def _fix_orphan_weights(mesh_obj, joints) -> None:
     """
     自動ウェイト(Bone Heat)は部品の多い密集メッシュで一部の頂点の
     解を出せないことがある(「failed to find solution」警告)。無ウェイトの
@@ -610,7 +657,7 @@ def _fix_orphan_weights(mesh_obj) -> None:
         vg = mesh_obj.vertex_groups.get(name)
         if vg is None:
             vg = mesh_obj.vertex_groups.new(name=name)
-        segments.append((vg, Vector(JOINTS[parent]), Vector(JOINTS[child])))
+        segments.append((vg, Vector(joints[parent]), Vector(joints[child])))
 
     def seg_dist(p: Vector, a: Vector, b: Vector) -> float:
         ab = b - a
