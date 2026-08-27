@@ -9,6 +9,12 @@
     tools/venv/bin/python tools/build_models.py garudo purun
 
 --no-preview を付けるとレンダリングを飛ばす(その方が速い)。
+
+--silhouette を付けると、通常のプレビュー・書き出しの代わりに
+平行投影・黒塗りのシルエット(正面・側面)だけを
+tools/preview/silhouettes/ へ出力する(plan/models/
+2d-turnaround-first-workflow.mdの三面図照合用。tools/
+compare_turnaround.mjsから呼ばれる想定)。
 """
 
 from __future__ import annotations
@@ -41,6 +47,7 @@ def targets() -> dict:
 def main() -> int:
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     preview = "--no-preview" not in sys.argv
+    silhouette = "--silhouette" in sys.argv
 
     table = targets()
     names = args or list(table)
@@ -58,6 +65,11 @@ def main() -> int:
         C.reset_scene()
         objs = build()
         tris = C.tri_count(objs)
+        if silhouette:
+            C.render_silhouette(name, objs, view="front")
+            C.render_silhouette(name, objs, view="side")
+            print(f"  {name:<14} シルエット出力 → tools/preview/silhouettes/")
+            continue
         if preview:
             size = (420, 520) if animated else (320, 320)
             C.render_preview(name, objs, size=size, samples=40 if animated else 32)
@@ -68,7 +80,7 @@ def main() -> int:
         kb = os.path.getsize(path) / 1024
         print(f"  {name:<14} 三角形 {tris:>6}   {kb:>7.1f} KB   {time.time() - start:.1f}s")
 
-    print(f"{len(names)} 件を {time.time() - total_start:.1f}s で書き出しました → {C.MODEL_DIR}")
+    print(f"{len(names)} 件を {time.time() - total_start:.1f}s で処理しました → {C.MODEL_DIR}")
     return 0
 
 
