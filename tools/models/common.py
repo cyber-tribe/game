@@ -947,6 +947,105 @@ def render_preview(name: str, objs: Sequence[bpy.types.Object], samples: int = 4
     return path
 
 
+def render_silhouette(name: str, objs: Sequence[bpy.types.Object], view: str = "front",
+                      size: int = 400) -> str:
+    """
+    平行投影・黒塗りのシルエットレンダー(plan/models/
+    2d-turnaround-first-workflow.mdの受け入れ基準2)。三面図
+    (design/characters/<名前>/turnarounds/)のSVGを黒塗りにした画像との
+    重ね合わせ照合に使う。出力は tools/preview/silhouettes/<名前>-
+    <view>.png。
+
+    view="front"は-Y方向(character-design-language.mdの正面)、
+    "side"は+X方向(mirrored()で.L側が+Xなので、この向きで見ると
+    体の左半身が見える側面図になる)から平行投影で見る。
+    """
+    silhouette_dir = os.path.join(PREVIEW_DIR, "silhouettes")
+    os.makedirs(silhouette_dir, exist_ok=True)
+    path = os.path.join(silhouette_dir, f"{name}-{view}.png")
+
+    # render_previewと同じく、アクション/NLAの影響を止めて素立ちに戻す
+    muted = []
+    for obj in objs:
+        if obj.type != "ARMATURE" or obj.animation_data is None:
+            continue
+        for track in obj.animation_data.nla_tracks:
+            if not track.mute:
+                track.mute = True
+                muted.append(track)
+        obj.animation_data.action = None
+        activate(obj)
+        bpy.ops.object.mode_set(mode="POSE")
+        reset_pose(obj)
+        bpy.ops.object.mode_set(mode="OBJECT")
+    bpy.context.scene.frame_set(1)
+    bpy.context.view_layer.update()
+
+    lo, hi = bounds(objs)
+    center = (lo + hi) * 0.5
+    extent = max((hi - lo).x, (hi - lo).y, (hi - lo).z, 0.5)
+
+    cam_dir = Vector((0, -1, 0)) if view == "front" else Vector((1, 0, 0))
+    cam_loc = center - cam_dir * (extent * 2)
+
+    bpy.ops.object.camera_add(location=cam_loc)
+    cam = bpy.context.object
+    cam.data.type = "ORTHO"
+    cam.data.ortho_scale = extent * 1.15
+    cam.rotation_euler = (center - cam_loc).to_track_quat("-Z", "Y").to_euler()
+
+    # 陰影・光源に依存しない純黒(Emission)へ全マテリアルを差し替える。
+    # 元のマテリアル割り当ては後で復元する
+    black_mat = bpy.data.materials.new("silhouette_black")
+    black_mat.use_nodes = True
+    bsdf = black_mat.node_tree.nodes.get("Principled BSDF")
+    if bsdf is not None:
+        black_mat.node_tree.nodes.remove(bsdf)
+    emit = black_mat.node_tree.nodes.new("ShaderNodeEmission")
+    emit.inputs["Color"].default_value = (0.0, 0.0, 0.0, 1.0)
+    output = black_mat.node_tree.nodes["Material Output"]
+    black_mat.node_tree.links.new(emit.outputs["Emission"], output.inputs["Surface"])
+
+    original_mats: dict[str, list] = {}
+    for obj in objs:
+        if obj.type != "MESH":
+            continue
+        original_mats[obj.name] = list(obj.data.materials)
+        obj.data.materials.clear()
+        obj.data.materials.append(black_mat)
+
+    world = bpy.context.scene.world
+    bg_input = world.node_tree.nodes["Background"].inputs["Color"]
+    original_bg = tuple(bg_input.default_value)
+    bg_input.default_value = (1.0, 1.0, 1.0, 1.0)
+
+    scene = bpy.context.scene
+    scene.camera = cam
+    scene.render.engine = "CYCLES"
+    scene.cycles.samples = 8
+    scene.view_settings.view_transform = "Standard"
+    scene.view_settings.look = "None"
+    scene.render.resolution_x = size
+    scene.render.resolution_y = size
+    scene.render.film_transparent = False
+    scene.render.filepath = path
+    bpy.ops.render.render(write_still=True)
+
+    # 後始末。元のマテリアル・背景・アクションへ戻す
+    for obj in objs:
+        if obj.name not in original_mats:
+            continue
+        obj.data.materials.clear()
+        for mat in original_mats[obj.name]:
+            obj.data.materials.append(mat)
+    bg_input.default_value = original_bg
+    bpy.data.objects.remove(cam, do_unlink=True)
+    bpy.data.materials.remove(black_mat)
+    for track in muted:
+        track.mute = False
+    return path
+
+
 def add_sun(location: Vector, target: Vector, energy: float) -> None:
     bpy.ops.object.light_add(type="SUN", location=location)
     light = bpy.context.object

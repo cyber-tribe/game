@@ -142,12 +142,36 @@
   `tools/preview/turnarounds/`に振り分ける(SVGの置き場所自体は
   `design/characters/<キャラ名>/`側だが、目視確認用のPNGは他の
   モデルのプレビューと同じ`tools/preview/`にまとめる)。
-- 三面図に合わせたガルドの3D化(`garudo.py`の作り直し。詳細は
-  `design/characters/garudo/concept.md`の実装状況を参照)を完了した。
-  次はBlenderの平行投影・黒塗りレンダーと三面図を重ね合わせる
-  照合スクリプト(受け入れ基準2・3)を作る。
 - ラフ案・三面図は当初`plan/models/concepts/`・
   `plan/models/turnarounds/`に置いていたが、`plan/`は開発内容の
   設計を書く場所でありキャラクター個別の絵の置き場ではないため、
   `design/characters/<キャラ名>/`へ移した(本書の記述・受け入れ基準も
   合わせて書き換えた)。
+- **上記の3D化(garudo.pyの作り直し)は取り消し線扱いとする**:
+  完了直後に`turnaround-drawing-craft.md`により、その土台の三面図が
+  プリミティブの組み立てで作られた不合格の絵と判定された。以後の
+  経緯・描き直し(v1〜v3→figure-drawing-practice.mdの人体デッサン
+  練習→90年代アニメ調への様式変更v2)は`design/characters/garudo/
+  concept.md`を参照。**garudo.pyの3D化はまだ完了していない**
+  (ユーザー承認待ち)。
+- 受け入れ基準2・3(平行投影・黒塗りシルエットの重ね合わせ照合)の
+  ツールを先行して作った: `common.render_silhouette()`
+  (`build_models.py --silhouette`から呼ぶ。全マテリアルを陰影に
+  依存しない純黒Emissionへ差し替え、正面(-Y)・側面(+X)から
+  平行投影でレンダーする)と`tools/compare_turnaround.mjs`
+  (三面図SVGを黒塗り化して赤、3Dシルエットを青に着色し、
+  乗算合成で重ねる。一致箇所は紫、ずれた箇所は赤or青だけになる)。
+  現行のガルド3Dモデル(旧デザイン)と新しい三面図を実際に重ねて
+  確認し、ずれが大きく可視化されることを確認した(3Dが旧デザインの
+  ままなので、これは想定どおりの結果であり不具合ではない)。
+  ツール自体は他キャラにもそのまま使い回せる状態にある。
+- 受け入れ基準4(character-design-language.mdへの工程明記)を満たす
+  「2.5. 大きな作り直し・新規キャラは三面図を先に描く」を
+  `plan/models/archive/character-design-language.md`に追記した。
+
+**本書自身の受け入れ基準1〜4はすべて満たした**(三面図の存在・
+シルエット照合ツール・使い回せる形での実装・工程のドキュメント化)。
+本書が定義する対象は「三面図を描く工程そのもの」であり、ガルドの
+デザイン自体がゲートを通過するかどうか(`five-character-redesign-
+gate.md`・`turnaround-drawing-craft.md`が引き続き追跡する、ユーザー
+承認待ちの論点)とは別軸のため、ここでarchiveへ移す。

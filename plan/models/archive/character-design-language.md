@@ -147,6 +147,37 @@
 シートは短くてよい(10行程度)。**シート無しの造形着手を禁止**する。
 これが「設定→絵」の翻訳工程になる。
 
+### 2.5. 大きな作り直し・新規キャラは三面図を先に描く
+
+デザインシート(文字)だけでは造形の疑問が解消されないと分かった
+(plan/models/archive/2d-turnaround-first-workflow.md)。**大きな
+作り直し・新規キャラクターは、造形に着手する前に三面図(正面・横、
+ガイド線つき、Aポーズ)をSVGで描く**。工程は以下のとおり
+(いずれも実装セッションの自己承認を禁止する。各段階でユーザーの
+確認を挟む):
+
+1. ラフ案を3案以上描き、シルエット・図形言語で1案を選ぶ
+   (plan/models/archive/five-character-redesign-gate.md)。
+2. 人体として部位が繋がった下絵を、いきなり輪郭からではなく
+   ジェスチャー線→頭・胸郭・骨盤の3塊→関節→輪郭の順で組む
+   (plan/models/archive/figure-drawing-practice.md)。
+3. 輪郭はプリミティブ(circle/rect/ellipse)の組み立てではなく、
+   太く迷いのないベジェ曲線で描く。90年代の日本のアニメ・漫画調
+   (特定作品名は書かない。太い輪郭線・少ないアンカー点・大胆な
+   髪の塊・控えめな目、と言葉で引く)を様式の参照先とする
+   (plan/models/archive/turnaround-drawing-craft.md、
+   plan/models/archive/anime-look-art-direction.md「3.5」)。
+4. 三面図の完成後、ユーザーがレンダー画像を見て承認してから3D化に
+   進む。3D化後は`tools/compare_turnaround.mjs`で三面図と3Dの
+   シルエットを重ねて照合する(plan/models/archive/
+   2d-turnaround-first-workflow.md)。
+5. 三面図・ラフ案は`plan/`(開発内容の設計を書く場所)ではなく
+   `design/characters/<キャラ名>/`(concepts/・turnarounds/の
+   2階層)に置く。
+
+既存68種+村人の一斉描き直しは対象外(作り直す機会があるキャラから
+順に、この工程を通す)。
+
 ## 3. パイロット: ガルドの再デザイン
 
 主人公から直す。三語コンセプトは「**がんこ・まっすぐ・樽育ち**」。
