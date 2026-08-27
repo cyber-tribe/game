@@ -1,0 +1,2702 @@
+{
+  "generatedAt": "2026-08-27T22:18:56.692Z",
+  "sessions": [
+    {
+      "index": 0,
+      "inputSeed": 1161240929,
+      "rngState": 2844353130,
+      "turns": 112,
+      "finalHud": {
+        "screen": "dungeon",
+        "depth": 1,
+        "pos": {
+          "x": 2,
+          "y": 3
+        },
+        "hp": 10,
+        "status": "playing",
+        "allies": 0,
+        "turn": 8
+      },
+      "anomalies": [
+        {
+          "kind": "softlock-suspected",
+          "detail": "連続20ターンHUD状態が変化しない(入力を遮るものは見当たらない)",
+          "lowConfidence": true,
+          "atDetection": {
+            "turn": 3,
+            "pos": {
+              "x": 2,
+              "y": 3
+            },
+            "blockedBy": {
+              "lock": 0,
+              "anyModalOpen": false,
+              "photoMode": false,
+              "helpVisible": false,
+              "villageActive": false,
+              "ended": false
+            },
+            "neighbors": [
+              {
+                "delta": "-1,-1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "0,-1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "1,-1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "-1,0",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "1,0",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "-1,1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "0,1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "1,1",
+                "tile": 1,
+                "occupant": "monster"
+              }
+            ],
+            "log": [
+              "矢印かWASDで歩けるよ。モンスターのいる方へ進むと1マス押し出せる。Xキーで、向いている方向へ攻撃できる。",
+              "ぷるんのこうげき!",
+              "身構えていたので、ダメージをおさえた!",
+              "ガルドに3のダメージ!",
+              "指示できる仲間がいない。",
+              "指示できる仲間がいない。"
+            ],
+            "hud": {
+              "screen": "dungeon",
+              "depth": 1,
+              "pos": {
+                "x": 2,
+                "y": 3
+              },
+              "hp": 22,
+              "status": "playing",
+              "allies": 0,
+              "turn": 3
+            }
+          },
+          "fingerprint": "c9f571cc0c841683d9d9d91e370f4127d5b2920a3e14a926b9345839f33bc0da"
+        },
+        {
+          "kind": "softlock-suspected",
+          "detail": "連続20ターンHUD状態が変化しない(入力を遮るものは見当たらない)",
+          "lowConfidence": true,
+          "atDetection": {
+            "turn": 3,
+            "pos": {
+              "x": 2,
+              "y": 3
+            },
+            "blockedBy": {
+              "lock": 0,
+              "anyModalOpen": false,
+              "photoMode": false,
+              "helpVisible": false,
+              "villageActive": false,
+              "ended": false
+            },
+            "neighbors": [
+              {
+                "delta": "-1,-1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "0,-1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "1,-1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "-1,0",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "1,0",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "-1,1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "0,1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "1,1",
+                "tile": 1,
+                "occupant": "monster"
+              }
+            ],
+            "log": [
+              "ぷるんのこうげき!",
+              "身構えていたので、ダメージをおさえた!",
+              "ガルドに3のダメージ!",
+              "指示できる仲間がいない。",
+              "指示できる仲間がいない。",
+              "指示できる仲間がいない。"
+            ],
+            "hud": {
+              "screen": "dungeon",
+              "depth": 1,
+              "pos": {
+                "x": 2,
+                "y": 3
+              },
+              "hp": 22,
+              "status": "playing",
+              "allies": 0,
+              "turn": 3
+            }
+          },
+          "fingerprint": "c9f571cc0c841683d9d9d91e370f4127d5b2920a3e14a926b9345839f33bc0da"
+        },
+        {
+          "kind": "softlock-suspected",
+          "detail": "連続20ターンHUD状態が変化しない(入力を遮るものは見当たらない)",
+          "lowConfidence": true,
+          "atDetection": {
+            "turn": 4,
+            "pos": {
+              "x": 2,
+              "y": 3
+            },
+            "blockedBy": {
+              "lock": 0,
+              "anyModalOpen": false,
+              "photoMode": false,
+              "helpVisible": false,
+              "villageActive": false,
+              "ended": false
+            },
+            "neighbors": [
+              {
+                "delta": "-1,-1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "0,-1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "1,-1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "-1,0",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "1,0",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "-1,1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "0,1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "1,1",
+                "tile": 1,
+                "occupant": "monster"
+              }
+            ],
+            "log": [
+              "指示できる仲間がいない。",
+              "ぷるんのこうげき!",
+              "身構えていたので、ダメージをおさえた!",
+              "ガルドに3のダメージ!",
+              "指示できる仲間がいない。",
+              "指示できる仲間がいない。"
+            ],
+            "hud": {
+              "screen": "dungeon",
+              "depth": 1,
+              "pos": {
+                "x": 2,
+                "y": 3
+              },
+              "hp": 19,
+              "status": "playing",
+              "allies": 0,
+              "turn": 4
+            }
+          },
+          "fingerprint": "c9f571cc0c841683d9d9d91e370f4127d5b2920a3e14a926b9345839f33bc0da"
+        }
+      ],
+      "recentLog": [
+        "ぷるんのこうげき!",
+        "身構えていたので、ダメージをおさえた!",
+        "ガルドに2のダメージ!",
+        "ぷるんのこうげき!",
+        "身構えていたので、ダメージをおさえた!",
+        "ガルドに3のダメージ!"
+      ],
+      "snapshot": {
+        "rngState": 3348306406,
+        "maxDepth": 3,
+        "depth": 1,
+        "floor": {
+          "depth": 1,
+          "width": 13,
+          "height": 7,
+          "rooms": [
+            {
+              "id": 0,
+              "x": 1,
+              "y": 1,
+              "w": 11,
+              "h": 5
+            }
+          ],
+          "stairs": {
+            "x": 11,
+            "y": 3
+          },
+          "actors": [
+            {
+              "id": 1,
+              "kind": "player",
+              "name": "ガルド",
+              "model": "garudo",
+              "pos": {
+                "x": 2,
+                "y": 3
+              },
+              "facing": 2,
+              "hp": 10,
+              "maxHp": 25,
+              "atk": 8,
+              "def": 4,
+              "level": 1,
+              "exp": 0,
+              "statuses": [],
+              "alive": true,
+              "satiety": 98.39999999999998,
+              "maxSatiety": 100,
+              "inventory": {
+                "items": [],
+                "maxSize": 20,
+                "weaponUid": null,
+                "shieldUid": null,
+                "headUid": null,
+                "charmUid": null
+              },
+              "gold": 0,
+              "carrying": null,
+              "guarding": false,
+              "artCooldowns": {
+                "critBarrel": 0,
+                "soothe": 0,
+                "ukemi": 0,
+                "shout": 0,
+                "pierce": 0
+              },
+              "critBarrelReady": false,
+              "ukemiReady": false,
+              "pierceReady": false,
+              "bracedReady": false
+            },
+            {
+              "id": 2,
+              "kind": "monster",
+              "name": "ぷるん",
+              "speciesId": "purun",
+              "model": "purun",
+              "pos": {
+                "x": 3,
+                "y": 4
+              },
+              "facing": 7,
+              "hp": 12,
+              "maxHp": 12,
+              "atk": 6,
+              "def": 2,
+              "level": 1,
+              "statuses": [],
+              "alive": true,
+              "aiKind": "melee",
+              "exp": 5,
+              "aware": true
+            }
+          ],
+          "items": [],
+          "traps": [],
+          "barrels": [],
+          "goldPiles": [],
+          "fieldObstacles": [],
+          "secretPassages": []
+        },
+        "player": {
+          "id": 1,
+          "kind": "player",
+          "name": "ガルド",
+          "model": "garudo",
+          "pos": {
+            "x": 2,
+            "y": 3
+          },
+          "facing": 2,
+          "hp": 10,
+          "maxHp": 25,
+          "atk": 8,
+          "def": 4,
+          "level": 1,
+          "exp": 0,
+          "statuses": [],
+          "alive": true,
+          "satiety": 98.39999999999998,
+          "maxSatiety": 100,
+          "inventory": {
+            "items": [],
+            "maxSize": 20,
+            "weaponUid": null,
+            "shieldUid": null,
+            "headUid": null,
+            "charmUid": null
+          },
+          "gold": 0,
+          "carrying": null,
+          "guarding": false,
+          "artCooldowns": {
+            "critBarrel": 0,
+            "soothe": 0,
+            "ukemi": 0,
+            "shout": 0,
+            "pierce": 0
+          },
+          "critBarrelReady": false,
+          "ukemiReady": false,
+          "pierceReady": false,
+          "bracedReady": false
+        },
+        "allies": [],
+        "status": "playing",
+        "turnCount": 8,
+        "endReason": "",
+        "actorIdCounter": 2,
+        "itemUidCounter": 1,
+        "barrelIdCounter": 1,
+        "trainingFocus": "balance",
+        "dungeonId": "hinata",
+        "tarukurabeScore": 0,
+        "tarukurabeBarrelsLeft": 0,
+        "tarukurabeScoredLanes": [],
+        "runSkills": [],
+        "pendingSkillChoice": null,
+        "pendingLevelUpChoices": 0
+      }
+    },
+    {
+      "index": 1,
+      "inputSeed": 3675162273,
+      "rngState": 1673885422,
+      "turns": 113,
+      "finalHud": {
+        "screen": "dungeon",
+        "depth": 1,
+        "pos": {
+          "x": 1,
+          "y": 3
+        },
+        "hp": 8,
+        "status": "playing",
+        "allies": 0,
+        "turn": 10
+      },
+      "anomalies": [
+        {
+          "kind": "softlock-suspected",
+          "detail": "連続20ターンHUD状態が変化しない(入力を遮るものは見当たらない)",
+          "lowConfidence": true,
+          "atDetection": {
+            "turn": 0,
+            "pos": {
+              "x": 1,
+              "y": 3
+            },
+            "blockedBy": {
+              "lock": 0,
+              "anyModalOpen": false,
+              "photoMode": false,
+              "helpVisible": false,
+              "villageActive": false,
+              "ended": false
+            },
+            "neighbors": [
+              {
+                "delta": "-1,-1",
+                "tile": 0,
+                "occupant": null
+              },
+              {
+                "delta": "0,-1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "1,-1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "-1,0",
+                "tile": 0,
+                "occupant": null
+              },
+              {
+                "delta": "1,0",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "-1,1",
+                "tile": 0,
+                "occupant": null
+              },
+              {
+                "delta": "0,1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "1,1",
+                "tile": 1,
+                "occupant": null
+              }
+            ],
+            "log": [
+              "地下1階。最深記録は 0 階。",
+              "洞窟に降りた。階段をさがそう。",
+              "矢印かWASDで歩けるよ。モンスターのいる方へ進むと1マス押し出せる。Xキーで、向いている方向へ攻撃できる。",
+              "指示できる仲間がいない。",
+              "指示できる仲間がいない。"
+            ],
+            "hud": {
+              "screen": "dungeon",
+              "depth": 1,
+              "pos": {
+                "x": 1,
+                "y": 3
+              },
+              "hp": 25,
+              "status": "playing",
+              "allies": 0,
+              "turn": 0
+            }
+          },
+          "fingerprint": "c9f571cc0c841683d9d9d91e370f4127d5b2920a3e14a926b9345839f33bc0da"
+        },
+        {
+          "kind": "softlock-suspected",
+          "detail": "連続20ターンHUD状態が変化しない(モーダルが開いたまま)",
+          "lowConfidence": true,
+          "atDetection": {
+            "turn": 6,
+            "pos": {
+              "x": 1,
+              "y": 3
+            },
+            "blockedBy": {
+              "lock": 0,
+              "anyModalOpen": true,
+              "photoMode": false,
+              "helpVisible": false,
+              "villageActive": false,
+              "ended": false
+            },
+            "neighbors": [
+              {
+                "delta": "-1,-1",
+                "tile": 0,
+                "occupant": null
+              },
+              {
+                "delta": "0,-1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "1,-1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "-1,0",
+                "tile": 0,
+                "occupant": null
+              },
+              {
+                "delta": "1,0",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "-1,1",
+                "tile": 0,
+                "occupant": null
+              },
+              {
+                "delta": "0,1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "1,1",
+                "tile": 1,
+                "occupant": "monster"
+              }
+            ],
+            "log": [
+              "指示できる仲間がいない。",
+              "指示できる仲間がいない。",
+              "ぷるんのこうげき!",
+              "身構えていたので、ダメージをおさえた!",
+              "ガルドに2のダメージ!",
+              "指示できる仲間がいない。"
+            ],
+            "hud": {
+              "screen": "dungeon",
+              "depth": 1,
+              "pos": {
+                "x": 1,
+                "y": 3
+              },
+              "hp": 18,
+              "status": "playing",
+              "allies": 0,
+              "turn": 6
+            }
+          },
+          "fingerprint": "aee1665c88b0305d0d0be3f9d7912e30b789b74f3299f5bf48b8c5923d82d2d3"
+        }
+      ],
+      "recentLog": [
+        "ガルドに2のダメージ!",
+        "指示できる仲間がいない。",
+        "ぷるんのこうげき!",
+        "会心の一撃!",
+        "身構えていたので、ダメージをおさえた!",
+        "ガルドに4のダメージ!"
+      ],
+      "snapshot": {
+        "rngState": 1546003028,
+        "maxDepth": 3,
+        "depth": 1,
+        "floor": {
+          "depth": 1,
+          "width": 13,
+          "height": 7,
+          "rooms": [
+            {
+              "id": 0,
+              "x": 1,
+              "y": 1,
+              "w": 11,
+              "h": 5
+            }
+          ],
+          "stairs": {
+            "x": 11,
+            "y": 3
+          },
+          "actors": [
+            {
+              "id": 1,
+              "kind": "player",
+              "name": "ガルド",
+              "model": "garudo",
+              "pos": {
+                "x": 1,
+                "y": 3
+              },
+              "facing": 4,
+              "hp": 8,
+              "maxHp": 25,
+              "atk": 8,
+              "def": 4,
+              "level": 1,
+              "exp": 0,
+              "statuses": [],
+              "alive": true,
+              "satiety": 97.99999999999997,
+              "maxSatiety": 100,
+              "inventory": {
+                "items": [],
+                "maxSize": 20,
+                "weaponUid": null,
+                "shieldUid": null,
+                "headUid": null,
+                "charmUid": null
+              },
+              "gold": 0,
+              "carrying": null,
+              "guarding": false,
+              "artCooldowns": {
+                "critBarrel": 0,
+                "soothe": 0,
+                "ukemi": 0,
+                "shout": 0,
+                "pierce": 0
+              },
+              "critBarrelReady": false,
+              "ukemiReady": false,
+              "pierceReady": false,
+              "bracedReady": false
+            },
+            {
+              "id": 2,
+              "kind": "monster",
+              "name": "ぷるん",
+              "speciesId": "purun",
+              "model": "purun",
+              "pos": {
+                "x": 2,
+                "y": 4
+              },
+              "facing": 7,
+              "hp": 12,
+              "maxHp": 12,
+              "atk": 6,
+              "def": 2,
+              "level": 1,
+              "statuses": [],
+              "alive": true,
+              "aiKind": "melee",
+              "exp": 5,
+              "aware": true
+            }
+          ],
+          "items": [],
+          "traps": [],
+          "barrels": [],
+          "goldPiles": [],
+          "fieldObstacles": [],
+          "secretPassages": []
+        },
+        "player": {
+          "id": 1,
+          "kind": "player",
+          "name": "ガルド",
+          "model": "garudo",
+          "pos": {
+            "x": 1,
+            "y": 3
+          },
+          "facing": 4,
+          "hp": 8,
+          "maxHp": 25,
+          "atk": 8,
+          "def": 4,
+          "level": 1,
+          "exp": 0,
+          "statuses": [],
+          "alive": true,
+          "satiety": 97.99999999999997,
+          "maxSatiety": 100,
+          "inventory": {
+            "items": [],
+            "maxSize": 20,
+            "weaponUid": null,
+            "shieldUid": null,
+            "headUid": null,
+            "charmUid": null
+          },
+          "gold": 0,
+          "carrying": null,
+          "guarding": false,
+          "artCooldowns": {
+            "critBarrel": 0,
+            "soothe": 0,
+            "ukemi": 0,
+            "shout": 0,
+            "pierce": 0
+          },
+          "critBarrelReady": false,
+          "ukemiReady": false,
+          "pierceReady": false,
+          "bracedReady": false
+        },
+        "allies": [],
+        "status": "playing",
+        "turnCount": 10,
+        "endReason": "",
+        "actorIdCounter": 2,
+        "itemUidCounter": 1,
+        "barrelIdCounter": 1,
+        "trainingFocus": "balance",
+        "dungeonId": "hinata",
+        "tarukurabeScore": 0,
+        "tarukurabeBarrelsLeft": 0,
+        "tarukurabeScoredLanes": [],
+        "runSkills": [],
+        "pendingSkillChoice": null,
+        "pendingLevelUpChoices": 0
+      }
+    },
+    {
+      "index": 2,
+      "inputSeed": 2035429220,
+      "rngState": 1005320396,
+      "turns": 120,
+      "finalHud": {
+        "screen": "dungeon",
+        "depth": 1,
+        "pos": {
+          "x": 1,
+          "y": 3
+        },
+        "hp": 10,
+        "status": "playing",
+        "allies": 0,
+        "turn": 9
+      },
+      "anomalies": [
+        {
+          "kind": "softlock-suspected",
+          "detail": "連続20ターンHUD状態が変化しない(モーダルが開いたまま)",
+          "lowConfidence": true,
+          "atDetection": {
+            "turn": 1,
+            "pos": {
+              "x": 1,
+              "y": 3
+            },
+            "blockedBy": {
+              "lock": 0,
+              "anyModalOpen": true,
+              "photoMode": false,
+              "helpVisible": false,
+              "villageActive": false,
+              "ended": false
+            },
+            "neighbors": [
+              {
+                "delta": "-1,-1",
+                "tile": 0,
+                "occupant": null
+              },
+              {
+                "delta": "0,-1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "1,-1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "-1,0",
+                "tile": 0,
+                "occupant": null
+              },
+              {
+                "delta": "1,0",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "-1,1",
+                "tile": 0,
+                "occupant": null
+              },
+              {
+                "delta": "0,1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "1,1",
+                "tile": 1,
+                "occupant": null
+              }
+            ],
+            "log": [
+              "地下1階。最深記録は 0 階。",
+              "洞窟に降りた。階段をさがそう。",
+              "矢印かWASDで歩けるよ。モンスターのいる方へ進むと1マス押し出せる。Xキーで、向いている方向へ攻撃できる。",
+              "指示できる仲間がいない。",
+              "指示できる仲間がいない。",
+              "指示できる仲間がいない。"
+            ],
+            "hud": {
+              "screen": "dungeon",
+              "depth": 1,
+              "pos": {
+                "x": 1,
+                "y": 3
+              },
+              "hp": 25,
+              "status": "playing",
+              "allies": 0,
+              "turn": 1
+            }
+          },
+          "fingerprint": "aee1665c88b0305d0d0be3f9d7912e30b789b74f3299f5bf48b8c5923d82d2d3"
+        },
+        {
+          "kind": "softlock-suspected",
+          "detail": "連続20ターンHUD状態が変化しない(入力を遮るものは見当たらない)",
+          "lowConfidence": true,
+          "atDetection": {
+            "turn": 7,
+            "pos": {
+              "x": 1,
+              "y": 3
+            },
+            "blockedBy": {
+              "lock": 0,
+              "anyModalOpen": false,
+              "photoMode": false,
+              "helpVisible": false,
+              "villageActive": false,
+              "ended": false
+            },
+            "neighbors": [
+              {
+                "delta": "-1,-1",
+                "tile": 0,
+                "occupant": null
+              },
+              {
+                "delta": "0,-1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "1,-1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "-1,0",
+                "tile": 0,
+                "occupant": null
+              },
+              {
+                "delta": "1,0",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "-1,1",
+                "tile": 0,
+                "occupant": null
+              },
+              {
+                "delta": "0,1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "1,1",
+                "tile": 1,
+                "occupant": "monster"
+              }
+            ],
+            "log": [
+              "ぷるんのこうげき!",
+              "身構えていたので、ダメージをおさえた!",
+              "ガルドに3のダメージ!",
+              "ぷるんのこうげき!",
+              "身構えていたので、ダメージをおさえた!",
+              "ガルドに3のダメージ!"
+            ],
+            "hud": {
+              "screen": "dungeon",
+              "depth": 1,
+              "pos": {
+                "x": 1,
+                "y": 3
+              },
+              "hp": 14,
+              "status": "playing",
+              "allies": 0,
+              "turn": 7
+            }
+          },
+          "fingerprint": "c9f571cc0c841683d9d9d91e370f4127d5b2920a3e14a926b9345839f33bc0da"
+        }
+      ],
+      "recentLog": [
+        "ぷるんのこうげき!",
+        "身構えていたので、ダメージをおさえた!",
+        "ガルドに2のダメージ!",
+        "ぷるんのこうげき!",
+        "身構えていたので、ダメージをおさえた!",
+        "ガルドに3のダメージ!"
+      ],
+      "snapshot": {
+        "rngState": 877438002,
+        "maxDepth": 3,
+        "depth": 1,
+        "floor": {
+          "depth": 1,
+          "width": 13,
+          "height": 7,
+          "rooms": [
+            {
+              "id": 0,
+              "x": 1,
+              "y": 1,
+              "w": 11,
+              "h": 5
+            }
+          ],
+          "stairs": {
+            "x": 11,
+            "y": 3
+          },
+          "actors": [
+            {
+              "id": 1,
+              "kind": "player",
+              "name": "ガルド",
+              "model": "garudo",
+              "pos": {
+                "x": 1,
+                "y": 3
+              },
+              "facing": 4,
+              "hp": 7,
+              "maxHp": 25,
+              "atk": 8,
+              "def": 4,
+              "level": 1,
+              "exp": 0,
+              "statuses": [],
+              "alive": true,
+              "satiety": 97.99999999999997,
+              "maxSatiety": 100,
+              "inventory": {
+                "items": [],
+                "maxSize": 20,
+                "weaponUid": null,
+                "shieldUid": null,
+                "headUid": null,
+                "charmUid": null
+              },
+              "gold": 0,
+              "carrying": null,
+              "guarding": false,
+              "artCooldowns": {
+                "critBarrel": 0,
+                "soothe": 0,
+                "ukemi": 0,
+                "shout": 0,
+                "pierce": 0
+              },
+              "critBarrelReady": false,
+              "ukemiReady": false,
+              "pierceReady": false,
+              "bracedReady": false
+            },
+            {
+              "id": 2,
+              "kind": "monster",
+              "name": "ぷるん",
+              "speciesId": "purun",
+              "model": "purun",
+              "pos": {
+                "x": 2,
+                "y": 4
+              },
+              "facing": 7,
+              "hp": 12,
+              "maxHp": 12,
+              "atk": 6,
+              "def": 2,
+              "level": 1,
+              "statuses": [],
+              "alive": true,
+              "aiKind": "melee",
+              "exp": 5,
+              "aware": true
+            }
+          ],
+          "items": [],
+          "traps": [],
+          "barrels": [],
+          "goldPiles": [],
+          "fieldObstacles": [],
+          "secretPassages": []
+        },
+        "player": {
+          "id": 1,
+          "kind": "player",
+          "name": "ガルド",
+          "model": "garudo",
+          "pos": {
+            "x": 1,
+            "y": 3
+          },
+          "facing": 4,
+          "hp": 7,
+          "maxHp": 25,
+          "atk": 8,
+          "def": 4,
+          "level": 1,
+          "exp": 0,
+          "statuses": [],
+          "alive": true,
+          "satiety": 97.99999999999997,
+          "maxSatiety": 100,
+          "inventory": {
+            "items": [],
+            "maxSize": 20,
+            "weaponUid": null,
+            "shieldUid": null,
+            "headUid": null,
+            "charmUid": null
+          },
+          "gold": 0,
+          "carrying": null,
+          "guarding": false,
+          "artCooldowns": {
+            "critBarrel": 0,
+            "soothe": 0,
+            "ukemi": 0,
+            "shout": 0,
+            "pierce": 0
+          },
+          "critBarrelReady": false,
+          "ukemiReady": false,
+          "pierceReady": false,
+          "bracedReady": false
+        },
+        "allies": [],
+        "status": "playing",
+        "turnCount": 10,
+        "endReason": "",
+        "actorIdCounter": 2,
+        "itemUidCounter": 1,
+        "barrelIdCounter": 1,
+        "trainingFocus": "balance",
+        "dungeonId": "hinata",
+        "tarukurabeScore": 0,
+        "tarukurabeBarrelsLeft": 0,
+        "tarukurabeScoredLanes": [],
+        "runSkills": [],
+        "pendingSkillChoice": null,
+        "pendingLevelUpChoices": 0
+      }
+    },
+    {
+      "index": 3,
+      "inputSeed": 2677647395,
+      "rngState": 2078150141,
+      "turns": 150,
+      "finalHud": {
+        "screen": "village",
+        "depth": 1,
+        "pos": {
+          "x": 1,
+          "y": 3
+        },
+        "hp": 0,
+        "status": "dead",
+        "allies": 0,
+        "turn": 12
+      },
+      "anomalies": [],
+      "recentLog": [
+        "ガルドに3のダメージ!",
+        "ぷるんのこうげき!",
+        "身構えていたので、ダメージをおさえた!",
+        "ガルドに3のダメージ!",
+        "地下1階で力尽きた……",
+        "力つきても、ここまで知ったことは消えないよ。また潜ればいい。"
+      ],
+      "snapshot": {
+        "rngState": 686596407,
+        "maxDepth": 3,
+        "depth": 1,
+        "floor": {
+          "depth": 1,
+          "width": 13,
+          "height": 7,
+          "rooms": [
+            {
+              "id": 0,
+              "x": 1,
+              "y": 1,
+              "w": 11,
+              "h": 5
+            }
+          ],
+          "stairs": {
+            "x": 11,
+            "y": 3
+          },
+          "actors": [
+            {
+              "id": 1,
+              "kind": "player",
+              "name": "ガルド",
+              "model": "garudo",
+              "pos": {
+                "x": 1,
+                "y": 3
+              },
+              "facing": 4,
+              "hp": 0,
+              "maxHp": 25,
+              "atk": 8,
+              "def": 4,
+              "level": 1,
+              "exp": 0,
+              "statuses": [],
+              "alive": false,
+              "satiety": 97.79999999999997,
+              "maxSatiety": 100,
+              "inventory": {
+                "items": [],
+                "maxSize": 20,
+                "weaponUid": null,
+                "shieldUid": null,
+                "headUid": null,
+                "charmUid": null
+              },
+              "gold": 0,
+              "carrying": null,
+              "guarding": false,
+              "artCooldowns": {
+                "critBarrel": 0,
+                "soothe": 0,
+                "ukemi": 0,
+                "shout": 0,
+                "pierce": 0
+              },
+              "critBarrelReady": false,
+              "ukemiReady": false,
+              "pierceReady": false,
+              "bracedReady": false
+            },
+            {
+              "id": 2,
+              "kind": "monster",
+              "name": "ぷるん",
+              "speciesId": "purun",
+              "model": "purun",
+              "pos": {
+                "x": 2,
+                "y": 4
+              },
+              "facing": 7,
+              "hp": 12,
+              "maxHp": 12,
+              "atk": 6,
+              "def": 2,
+              "level": 1,
+              "statuses": [],
+              "alive": true,
+              "aiKind": "melee",
+              "exp": 5,
+              "aware": true
+            }
+          ],
+          "items": [],
+          "traps": [],
+          "barrels": [],
+          "goldPiles": [],
+          "fieldObstacles": [],
+          "secretPassages": []
+        },
+        "player": {
+          "id": 1,
+          "kind": "player",
+          "name": "ガルド",
+          "model": "garudo",
+          "pos": {
+            "x": 1,
+            "y": 3
+          },
+          "facing": 4,
+          "hp": 0,
+          "maxHp": 25,
+          "atk": 8,
+          "def": 4,
+          "level": 1,
+          "exp": 0,
+          "statuses": [],
+          "alive": false,
+          "satiety": 97.79999999999997,
+          "maxSatiety": 100,
+          "inventory": {
+            "items": [],
+            "maxSize": 20,
+            "weaponUid": null,
+            "shieldUid": null,
+            "headUid": null,
+            "charmUid": null
+          },
+          "gold": 0,
+          "carrying": null,
+          "guarding": false,
+          "artCooldowns": {
+            "critBarrel": 0,
+            "soothe": 0,
+            "ukemi": 0,
+            "shout": 0,
+            "pierce": 0
+          },
+          "critBarrelReady": false,
+          "ukemiReady": false,
+          "pierceReady": false,
+          "bracedReady": false
+        },
+        "allies": [],
+        "status": "dead",
+        "turnCount": 12,
+        "endReason": "地下1階で力尽きた……",
+        "actorIdCounter": 2,
+        "itemUidCounter": 1,
+        "barrelIdCounter": 1,
+        "trainingFocus": "balance",
+        "dungeonId": "hinata",
+        "tarukurabeScore": 0,
+        "tarukurabeBarrelsLeft": 0,
+        "tarukurabeScoredLanes": [],
+        "runSkills": [],
+        "pendingSkillChoice": null,
+        "pendingLevelUpChoices": 0
+      }
+    },
+    {
+      "index": 4,
+      "inputSeed": 1033862614,
+      "rngState": 866486720,
+      "turns": 112,
+      "finalHud": {
+        "screen": "dungeon",
+        "depth": 1,
+        "pos": {
+          "x": 1,
+          "y": 2
+        },
+        "hp": 11,
+        "status": "playing",
+        "allies": 0,
+        "turn": 10
+      },
+      "anomalies": [
+        {
+          "kind": "softlock-suspected",
+          "detail": "連続20ターンHUD状態が変化しない(入力を遮るものは見当たらない)",
+          "lowConfidence": true,
+          "atDetection": {
+            "turn": 0,
+            "pos": {
+              "x": 1,
+              "y": 3
+            },
+            "blockedBy": {
+              "lock": 0,
+              "anyModalOpen": false,
+              "photoMode": false,
+              "helpVisible": false,
+              "villageActive": false,
+              "ended": false
+            },
+            "neighbors": [
+              {
+                "delta": "-1,-1",
+                "tile": 0,
+                "occupant": null
+              },
+              {
+                "delta": "0,-1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "1,-1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "-1,0",
+                "tile": 0,
+                "occupant": null
+              },
+              {
+                "delta": "1,0",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "-1,1",
+                "tile": 0,
+                "occupant": null
+              },
+              {
+                "delta": "0,1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "1,1",
+                "tile": 1,
+                "occupant": null
+              }
+            ],
+            "log": [
+              "地下1階。最深記録は 0 階。",
+              "洞窟に降りた。階段をさがそう。",
+              "矢印かWASDで歩けるよ。モンスターのいる方へ進むと1マス押し出せる。Xキーで、向いている方向へ攻撃できる。",
+              "指示できる仲間がいない。",
+              "指示できる仲間がいない。"
+            ],
+            "hud": {
+              "screen": "dungeon",
+              "depth": 1,
+              "pos": {
+                "x": 1,
+                "y": 3
+              },
+              "hp": 25,
+              "status": "playing",
+              "allies": 0,
+              "turn": 0
+            }
+          },
+          "fingerprint": "c9f571cc0c841683d9d9d91e370f4127d5b2920a3e14a926b9345839f33bc0da"
+        },
+        {
+          "kind": "softlock-suspected",
+          "detail": "連続20ターンHUD状態が変化しない(入力を遮るものは見当たらない)",
+          "lowConfidence": true,
+          "atDetection": {
+            "turn": 8,
+            "pos": {
+              "x": 1,
+              "y": 2
+            },
+            "blockedBy": {
+              "lock": 0,
+              "anyModalOpen": false,
+              "photoMode": false,
+              "helpVisible": false,
+              "villageActive": false,
+              "ended": false
+            },
+            "neighbors": [
+              {
+                "delta": "-1,-1",
+                "tile": 0,
+                "occupant": null
+              },
+              {
+                "delta": "0,-1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "1,-1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "-1,0",
+                "tile": 0,
+                "occupant": null
+              },
+              {
+                "delta": "1,0",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "-1,1",
+                "tile": 0,
+                "occupant": null
+              },
+              {
+                "delta": "0,1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "1,1",
+                "tile": 1,
+                "occupant": "monster"
+              }
+            ],
+            "log": [
+              "ガルドに3のダメージ!",
+              "ぷるんのこうげき!",
+              "身構えていたので、ダメージをおさえた!",
+              "ガルドに3のダメージ!",
+              "指示できる仲間がいない。",
+              "指示できる仲間がいない。"
+            ],
+            "hud": {
+              "screen": "dungeon",
+              "depth": 1,
+              "pos": {
+                "x": 1,
+                "y": 2
+              },
+              "hp": 14,
+              "status": "playing",
+              "allies": 0,
+              "turn": 8
+            }
+          },
+          "fingerprint": "c9f571cc0c841683d9d9d91e370f4127d5b2920a3e14a926b9345839f33bc0da"
+        }
+      ],
+      "recentLog": [
+        "ぷるんのこうげき!",
+        "身構えていたので、ダメージをおさえた!",
+        "ガルドに2のダメージ!",
+        "ぷるんのこうげき!",
+        "身構えていたので、ダメージをおさえた!",
+        "ガルドに2のダメージ!"
+      ],
+      "snapshot": {
+        "rngState": 1370439996,
+        "maxDepth": 3,
+        "depth": 1,
+        "floor": {
+          "depth": 1,
+          "width": 13,
+          "height": 7,
+          "rooms": [
+            {
+              "id": 0,
+              "x": 1,
+              "y": 1,
+              "w": 11,
+              "h": 5
+            }
+          ],
+          "stairs": {
+            "x": 11,
+            "y": 3
+          },
+          "actors": [
+            {
+              "id": 1,
+              "kind": "player",
+              "name": "ガルド",
+              "model": "garudo",
+              "pos": {
+                "x": 1,
+                "y": 2
+              },
+              "facing": 0,
+              "hp": 11,
+              "maxHp": 25,
+              "atk": 8,
+              "def": 4,
+              "level": 1,
+              "exp": 0,
+              "statuses": [],
+              "alive": true,
+              "satiety": 97.99999999999997,
+              "maxSatiety": 100,
+              "inventory": {
+                "items": [],
+                "maxSize": 20,
+                "weaponUid": null,
+                "shieldUid": null,
+                "headUid": null,
+                "charmUid": null
+              },
+              "gold": 0,
+              "carrying": null,
+              "guarding": false,
+              "artCooldowns": {
+                "critBarrel": 0,
+                "soothe": 0,
+                "ukemi": 0,
+                "shout": 0,
+                "pierce": 0
+              },
+              "critBarrelReady": false,
+              "ukemiReady": false,
+              "pierceReady": false,
+              "bracedReady": false
+            },
+            {
+              "id": 2,
+              "kind": "monster",
+              "name": "ぷるん",
+              "speciesId": "purun",
+              "model": "purun",
+              "pos": {
+                "x": 2,
+                "y": 3
+              },
+              "facing": 7,
+              "hp": 12,
+              "maxHp": 12,
+              "atk": 6,
+              "def": 2,
+              "level": 1,
+              "statuses": [],
+              "alive": true,
+              "aiKind": "melee",
+              "exp": 5,
+              "aware": true
+            }
+          ],
+          "items": [],
+          "traps": [],
+          "barrels": [],
+          "goldPiles": [],
+          "fieldObstacles": [],
+          "secretPassages": []
+        },
+        "player": {
+          "id": 1,
+          "kind": "player",
+          "name": "ガルド",
+          "model": "garudo",
+          "pos": {
+            "x": 1,
+            "y": 2
+          },
+          "facing": 0,
+          "hp": 11,
+          "maxHp": 25,
+          "atk": 8,
+          "def": 4,
+          "level": 1,
+          "exp": 0,
+          "statuses": [],
+          "alive": true,
+          "satiety": 97.99999999999997,
+          "maxSatiety": 100,
+          "inventory": {
+            "items": [],
+            "maxSize": 20,
+            "weaponUid": null,
+            "shieldUid": null,
+            "headUid": null,
+            "charmUid": null
+          },
+          "gold": 0,
+          "carrying": null,
+          "guarding": false,
+          "artCooldowns": {
+            "critBarrel": 0,
+            "soothe": 0,
+            "ukemi": 0,
+            "shout": 0,
+            "pierce": 0
+          },
+          "critBarrelReady": false,
+          "ukemiReady": false,
+          "pierceReady": false,
+          "bracedReady": false
+        },
+        "allies": [],
+        "status": "playing",
+        "turnCount": 10,
+        "endReason": "",
+        "actorIdCounter": 2,
+        "itemUidCounter": 1,
+        "barrelIdCounter": 1,
+        "trainingFocus": "balance",
+        "dungeonId": "hinata",
+        "tarukurabeScore": 0,
+        "tarukurabeBarrelsLeft": 0,
+        "tarukurabeScoredLanes": [],
+        "runSkills": [],
+        "pendingSkillChoice": null,
+        "pendingLevelUpChoices": 0
+      }
+    },
+    {
+      "index": 5,
+      "inputSeed": 1380979773,
+      "rngState": 2513449257,
+      "turns": 105,
+      "finalHud": {
+        "screen": "dungeon",
+        "depth": 1,
+        "pos": {
+          "x": 1,
+          "y": 3
+        },
+        "hp": 1,
+        "status": "playing",
+        "allies": 0,
+        "turn": 12
+      },
+      "anomalies": [
+        {
+          "kind": "softlock-suspected",
+          "detail": "連続20ターンHUD状態が変化しない(モーダルが開いたまま)",
+          "lowConfidence": true,
+          "atDetection": {
+            "turn": 9,
+            "pos": {
+              "x": 1,
+              "y": 3
+            },
+            "blockedBy": {
+              "lock": 0,
+              "anyModalOpen": true,
+              "photoMode": false,
+              "helpVisible": false,
+              "villageActive": false,
+              "ended": false
+            },
+            "neighbors": [
+              {
+                "delta": "-1,-1",
+                "tile": 0,
+                "occupant": null
+              },
+              {
+                "delta": "0,-1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "1,-1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "-1,0",
+                "tile": 0,
+                "occupant": null
+              },
+              {
+                "delta": "1,0",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "-1,1",
+                "tile": 0,
+                "occupant": null
+              },
+              {
+                "delta": "0,1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "1,1",
+                "tile": 1,
+                "occupant": "monster"
+              }
+            ],
+            "log": [
+              "ぷるんのこうげき!",
+              "身構えていたので、ダメージをおさえた!",
+              "ガルドに3のダメージ!",
+              "ぷるんのこうげき!",
+              "身構えていたので、ダメージをおさえた!",
+              "ガルドに2のダメージ!"
+            ],
+            "hud": {
+              "screen": "dungeon",
+              "depth": 1,
+              "pos": {
+                "x": 1,
+                "y": 3
+              },
+              "hp": 9,
+              "status": "playing",
+              "allies": 0,
+              "turn": 9
+            }
+          },
+          "fingerprint": "aee1665c88b0305d0d0be3f9d7912e30b789b74f3299f5bf48b8c5923d82d2d3"
+        }
+      ],
+      "recentLog": [
+        "身構えていたので、ダメージをおさえた!",
+        "ガルドに2のダメージ!",
+        "指示できる仲間がいない。",
+        "ぷるんのこうげき!",
+        "身構えていたので、ダメージをおさえた!",
+        "ガルドに3のダメージ!"
+      ],
+      "snapshot": {
+        "rngState": 1121895523,
+        "maxDepth": 3,
+        "depth": 1,
+        "floor": {
+          "depth": 1,
+          "width": 13,
+          "height": 7,
+          "rooms": [
+            {
+              "id": 0,
+              "x": 1,
+              "y": 1,
+              "w": 11,
+              "h": 5
+            }
+          ],
+          "stairs": {
+            "x": 11,
+            "y": 3
+          },
+          "actors": [
+            {
+              "id": 1,
+              "kind": "player",
+              "name": "ガルド",
+              "model": "garudo",
+              "pos": {
+                "x": 1,
+                "y": 3
+              },
+              "facing": 4,
+              "hp": 1,
+              "maxHp": 25,
+              "atk": 8,
+              "def": 4,
+              "level": 1,
+              "exp": 0,
+              "statuses": [],
+              "alive": true,
+              "satiety": 97.59999999999997,
+              "maxSatiety": 100,
+              "inventory": {
+                "items": [],
+                "maxSize": 20,
+                "weaponUid": null,
+                "shieldUid": null,
+                "headUid": null,
+                "charmUid": null
+              },
+              "gold": 0,
+              "carrying": null,
+              "guarding": false,
+              "artCooldowns": {
+                "critBarrel": 0,
+                "soothe": 0,
+                "ukemi": 0,
+                "shout": 0,
+                "pierce": 0
+              },
+              "critBarrelReady": false,
+              "ukemiReady": false,
+              "pierceReady": false,
+              "bracedReady": false
+            },
+            {
+              "id": 2,
+              "kind": "monster",
+              "name": "ぷるん",
+              "speciesId": "purun",
+              "model": "purun",
+              "pos": {
+                "x": 2,
+                "y": 4
+              },
+              "facing": 7,
+              "hp": 12,
+              "maxHp": 12,
+              "atk": 6,
+              "def": 2,
+              "level": 1,
+              "statuses": [],
+              "alive": true,
+              "aiKind": "melee",
+              "exp": 5,
+              "aware": true
+            }
+          ],
+          "items": [],
+          "traps": [],
+          "barrels": [],
+          "goldPiles": [],
+          "fieldObstacles": [],
+          "secretPassages": []
+        },
+        "player": {
+          "id": 1,
+          "kind": "player",
+          "name": "ガルド",
+          "model": "garudo",
+          "pos": {
+            "x": 1,
+            "y": 3
+          },
+          "facing": 4,
+          "hp": 1,
+          "maxHp": 25,
+          "atk": 8,
+          "def": 4,
+          "level": 1,
+          "exp": 0,
+          "statuses": [],
+          "alive": true,
+          "satiety": 97.59999999999997,
+          "maxSatiety": 100,
+          "inventory": {
+            "items": [],
+            "maxSize": 20,
+            "weaponUid": null,
+            "shieldUid": null,
+            "headUid": null,
+            "charmUid": null
+          },
+          "gold": 0,
+          "carrying": null,
+          "guarding": false,
+          "artCooldowns": {
+            "critBarrel": 0,
+            "soothe": 0,
+            "ukemi": 0,
+            "shout": 0,
+            "pierce": 0
+          },
+          "critBarrelReady": false,
+          "ukemiReady": false,
+          "pierceReady": false,
+          "bracedReady": false
+        },
+        "allies": [],
+        "status": "playing",
+        "turnCount": 12,
+        "endReason": "",
+        "actorIdCounter": 2,
+        "itemUidCounter": 1,
+        "barrelIdCounter": 1,
+        "trainingFocus": "balance",
+        "dungeonId": "hinata",
+        "tarukurabeScore": 0,
+        "tarukurabeBarrelsLeft": 0,
+        "tarukurabeScoredLanes": [],
+        "runSkills": [],
+        "pendingSkillChoice": null,
+        "pendingLevelUpChoices": 0
+      }
+    },
+    {
+      "index": 6,
+      "inputSeed": 4026832000,
+      "rngState": 2378658304,
+      "turns": 111,
+      "finalHud": {
+        "screen": "dungeon",
+        "depth": 1,
+        "pos": {
+          "x": 1,
+          "y": 3
+        },
+        "hp": 19,
+        "status": "playing",
+        "allies": 0,
+        "turn": 6
+      },
+      "anomalies": [
+        {
+          "kind": "softlock-suspected",
+          "detail": "連続20ターンHUD状態が変化しない(モーダルが開いたまま)",
+          "lowConfidence": true,
+          "atDetection": {
+            "turn": 3,
+            "pos": {
+              "x": 1,
+              "y": 3
+            },
+            "blockedBy": {
+              "lock": 0,
+              "anyModalOpen": true,
+              "photoMode": false,
+              "helpVisible": false,
+              "villageActive": false,
+              "ended": false
+            },
+            "neighbors": [
+              {
+                "delta": "-1,-1",
+                "tile": 0,
+                "occupant": null
+              },
+              {
+                "delta": "0,-1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "1,-1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "-1,0",
+                "tile": 0,
+                "occupant": null
+              },
+              {
+                "delta": "1,0",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "-1,1",
+                "tile": 0,
+                "occupant": null
+              },
+              {
+                "delta": "0,1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "1,1",
+                "tile": 1,
+                "occupant": "monster"
+              }
+            ],
+            "log": [
+              "地下1階。最深記録は 0 階。",
+              "洞窟に降りた。階段をさがそう。",
+              "矢印かWASDで歩けるよ。モンスターのいる方へ進むと1マス押し出せる。Xキーで、向いている方向へ攻撃できる。",
+              "指示できる仲間がいない。",
+              "指示できる仲間がいない。"
+            ],
+            "hud": {
+              "screen": "dungeon",
+              "depth": 1,
+              "pos": {
+                "x": 1,
+                "y": 3
+              },
+              "hp": 25,
+              "status": "playing",
+              "allies": 0,
+              "turn": 3
+            }
+          },
+          "fingerprint": "aee1665c88b0305d0d0be3f9d7912e30b789b74f3299f5bf48b8c5923d82d2d3"
+        },
+        {
+          "kind": "softlock-suspected",
+          "detail": "連続20ターンHUD状態が変化しない(入力を遮るものは見当たらない)",
+          "lowConfidence": true,
+          "atDetection": {
+            "turn": 5,
+            "pos": {
+              "x": 1,
+              "y": 3
+            },
+            "blockedBy": {
+              "lock": 0,
+              "anyModalOpen": false,
+              "photoMode": false,
+              "helpVisible": false,
+              "villageActive": false,
+              "ended": false
+            },
+            "neighbors": [
+              {
+                "delta": "-1,-1",
+                "tile": 0,
+                "occupant": null
+              },
+              {
+                "delta": "0,-1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "1,-1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "-1,0",
+                "tile": 0,
+                "occupant": null
+              },
+              {
+                "delta": "1,0",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "-1,1",
+                "tile": 0,
+                "occupant": null
+              },
+              {
+                "delta": "0,1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "1,1",
+                "tile": 1,
+                "occupant": "monster"
+              }
+            ],
+            "log": [
+              "身構えていたので、ダメージをおさえた!",
+              "ガルドに2のダメージ!",
+              "指示できる仲間がいない。",
+              "指示できる仲間がいない。",
+              "指示できる仲間がいない。",
+              "指示できる仲間がいない。"
+            ],
+            "hud": {
+              "screen": "dungeon",
+              "depth": 1,
+              "pos": {
+                "x": 1,
+                "y": 3
+              },
+              "hp": 21,
+              "status": "playing",
+              "allies": 0,
+              "turn": 5
+            }
+          },
+          "fingerprint": "c9f571cc0c841683d9d9d91e370f4127d5b2920a3e14a926b9345839f33bc0da"
+        }
+      ],
+      "recentLog": [
+        "指示できる仲間がいない。",
+        "指示できる仲間がいない。",
+        "指示できる仲間がいない。",
+        "ぷるんのこうげき!",
+        "身構えていたので、ダメージをおさえた!",
+        "ガルドに2のダメージ!"
+      ],
+      "snapshot": {
+        "rngState": 483151294,
+        "maxDepth": 3,
+        "depth": 1,
+        "floor": {
+          "depth": 1,
+          "width": 13,
+          "height": 7,
+          "rooms": [
+            {
+              "id": 0,
+              "x": 1,
+              "y": 1,
+              "w": 11,
+              "h": 5
+            }
+          ],
+          "stairs": {
+            "x": 11,
+            "y": 3
+          },
+          "actors": [
+            {
+              "id": 1,
+              "kind": "player",
+              "name": "ガルド",
+              "model": "garudo",
+              "pos": {
+                "x": 1,
+                "y": 3
+              },
+              "facing": 4,
+              "hp": 19,
+              "maxHp": 25,
+              "atk": 8,
+              "def": 4,
+              "level": 1,
+              "exp": 0,
+              "statuses": [],
+              "alive": true,
+              "satiety": 98.79999999999998,
+              "maxSatiety": 100,
+              "inventory": {
+                "items": [],
+                "maxSize": 20,
+                "weaponUid": null,
+                "shieldUid": null,
+                "headUid": null,
+                "charmUid": null
+              },
+              "gold": 0,
+              "carrying": null,
+              "guarding": false,
+              "artCooldowns": {
+                "critBarrel": 0,
+                "soothe": 0,
+                "ukemi": 0,
+                "shout": 0,
+                "pierce": 0
+              },
+              "critBarrelReady": false,
+              "ukemiReady": false,
+              "pierceReady": false,
+              "bracedReady": false
+            },
+            {
+              "id": 2,
+              "kind": "monster",
+              "name": "ぷるん",
+              "speciesId": "purun",
+              "model": "purun",
+              "pos": {
+                "x": 2,
+                "y": 4
+              },
+              "facing": 7,
+              "hp": 12,
+              "maxHp": 12,
+              "atk": 6,
+              "def": 2,
+              "level": 1,
+              "statuses": [],
+              "alive": true,
+              "aiKind": "melee",
+              "exp": 5,
+              "aware": true
+            }
+          ],
+          "items": [],
+          "traps": [],
+          "barrels": [],
+          "goldPiles": [],
+          "fieldObstacles": [],
+          "secretPassages": []
+        },
+        "player": {
+          "id": 1,
+          "kind": "player",
+          "name": "ガルド",
+          "model": "garudo",
+          "pos": {
+            "x": 1,
+            "y": 3
+          },
+          "facing": 4,
+          "hp": 19,
+          "maxHp": 25,
+          "atk": 8,
+          "def": 4,
+          "level": 1,
+          "exp": 0,
+          "statuses": [],
+          "alive": true,
+          "satiety": 98.79999999999998,
+          "maxSatiety": 100,
+          "inventory": {
+            "items": [],
+            "maxSize": 20,
+            "weaponUid": null,
+            "shieldUid": null,
+            "headUid": null,
+            "charmUid": null
+          },
+          "gold": 0,
+          "carrying": null,
+          "guarding": false,
+          "artCooldowns": {
+            "critBarrel": 0,
+            "soothe": 0,
+            "ukemi": 0,
+            "shout": 0,
+            "pierce": 0
+          },
+          "critBarrelReady": false,
+          "ukemiReady": false,
+          "pierceReady": false,
+          "bracedReady": false
+        },
+        "allies": [],
+        "status": "playing",
+        "turnCount": 6,
+        "endReason": "",
+        "actorIdCounter": 2,
+        "itemUidCounter": 1,
+        "barrelIdCounter": 1,
+        "trainingFocus": "balance",
+        "dungeonId": "hinata",
+        "tarukurabeScore": 0,
+        "tarukurabeBarrelsLeft": 0,
+        "tarukurabeScoredLanes": [],
+        "runSkills": [],
+        "pendingSkillChoice": null,
+        "pendingLevelUpChoices": 0
+      }
+    },
+    {
+      "index": 7,
+      "inputSeed": 382697031,
+      "rngState": 2590981750,
+      "turns": 115,
+      "finalHud": {
+        "screen": "dungeon",
+        "depth": 1,
+        "pos": {
+          "x": 1,
+          "y": 3
+        },
+        "hp": 12,
+        "status": "playing",
+        "allies": 0,
+        "turn": 8
+      },
+      "anomalies": [
+        {
+          "kind": "softlock-suspected",
+          "detail": "連続20ターンHUD状態が変化しない(入力を遮るものは見当たらない)",
+          "lowConfidence": true,
+          "atDetection": {
+            "turn": 6,
+            "pos": {
+              "x": 1,
+              "y": 3
+            },
+            "blockedBy": {
+              "lock": 0,
+              "anyModalOpen": false,
+              "photoMode": false,
+              "helpVisible": false,
+              "villageActive": false,
+              "ended": false
+            },
+            "neighbors": [
+              {
+                "delta": "-1,-1",
+                "tile": 0,
+                "occupant": null
+              },
+              {
+                "delta": "0,-1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "1,-1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "-1,0",
+                "tile": 0,
+                "occupant": null
+              },
+              {
+                "delta": "1,0",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "-1,1",
+                "tile": 0,
+                "occupant": null
+              },
+              {
+                "delta": "0,1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "1,1",
+                "tile": 1,
+                "occupant": "monster"
+              }
+            ],
+            "log": [
+              "身構えていたので、ダメージをおさえた!",
+              "ガルドに2のダメージ!",
+              "ぷるんのこうげき!",
+              "身構えていたので、ダメージをおさえた!",
+              "ガルドに3のダメージ!",
+              "指示できる仲間がいない。"
+            ],
+            "hud": {
+              "screen": "dungeon",
+              "depth": 1,
+              "pos": {
+                "x": 1,
+                "y": 3
+              },
+              "hp": 17,
+              "status": "playing",
+              "allies": 0,
+              "turn": 6
+            }
+          },
+          "fingerprint": "c9f571cc0c841683d9d9d91e370f4127d5b2920a3e14a926b9345839f33bc0da"
+        },
+        {
+          "kind": "softlock-suspected",
+          "detail": "連続20ターンHUD状態が変化しない(モーダルが開いたまま)",
+          "lowConfidence": true,
+          "atDetection": {
+            "turn": 6,
+            "pos": {
+              "x": 1,
+              "y": 3
+            },
+            "blockedBy": {
+              "lock": 0,
+              "anyModalOpen": true,
+              "photoMode": false,
+              "helpVisible": false,
+              "villageActive": false,
+              "ended": false
+            },
+            "neighbors": [
+              {
+                "delta": "-1,-1",
+                "tile": 0,
+                "occupant": null
+              },
+              {
+                "delta": "0,-1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "1,-1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "-1,0",
+                "tile": 0,
+                "occupant": null
+              },
+              {
+                "delta": "1,0",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "-1,1",
+                "tile": 0,
+                "occupant": null
+              },
+              {
+                "delta": "0,1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "1,1",
+                "tile": 1,
+                "occupant": "monster"
+              }
+            ],
+            "log": [
+              "身構えていたので、ダメージをおさえた!",
+              "ガルドに2のダメージ!",
+              "ぷるんのこうげき!",
+              "身構えていたので、ダメージをおさえた!",
+              "ガルドに3のダメージ!",
+              "指示できる仲間がいない。"
+            ],
+            "hud": {
+              "screen": "dungeon",
+              "depth": 1,
+              "pos": {
+                "x": 1,
+                "y": 3
+              },
+              "hp": 17,
+              "status": "playing",
+              "allies": 0,
+              "turn": 6
+            }
+          },
+          "fingerprint": "aee1665c88b0305d0d0be3f9d7912e30b789b74f3299f5bf48b8c5923d82d2d3"
+        },
+        {
+          "kind": "softlock-suspected",
+          "detail": "連続20ターンHUD状態が変化しない(モーダルが開いたまま)",
+          "lowConfidence": true,
+          "atDetection": {
+            "turn": 7,
+            "pos": {
+              "x": 1,
+              "y": 3
+            },
+            "blockedBy": {
+              "lock": 0,
+              "anyModalOpen": true,
+              "photoMode": false,
+              "helpVisible": false,
+              "villageActive": false,
+              "ended": false
+            },
+            "neighbors": [
+              {
+                "delta": "-1,-1",
+                "tile": 0,
+                "occupant": null
+              },
+              {
+                "delta": "0,-1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "1,-1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "-1,0",
+                "tile": 0,
+                "occupant": null
+              },
+              {
+                "delta": "1,0",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "-1,1",
+                "tile": 0,
+                "occupant": null
+              },
+              {
+                "delta": "0,1",
+                "tile": 1,
+                "occupant": null
+              },
+              {
+                "delta": "1,1",
+                "tile": 1,
+                "occupant": "monster"
+              }
+            ],
+            "log": [
+              "身構えていたので、ダメージをおさえた!",
+              "ガルドに2のダメージ!",
+              "指示できる仲間がいない。",
+              "指示できる仲間がいない。",
+              "指示できる仲間がいない。",
+              "指示できる仲間がいない。"
+            ],
+            "hud": {
+              "screen": "dungeon",
+              "depth": 1,
+              "pos": {
+                "x": 1,
+                "y": 3
+              },
+              "hp": 15,
+              "status": "playing",
+              "allies": 0,
+              "turn": 7
+            }
+          },
+          "fingerprint": "aee1665c88b0305d0d0be3f9d7912e30b789b74f3299f5bf48b8c5923d82d2d3"
+        }
+      ],
+      "recentLog": [
+        "指示できる仲間がいない。",
+        "ぷるんのこうげき!",
+        "身構えていたので、ダメージをおさえた!",
+        "ガルドに3のダメージ!",
+        "指示できる仲間がいない。",
+        "指示できる仲間がいない。"
+      ],
+      "snapshot": {
+        "rngState": 3726770696,
+        "maxDepth": 3,
+        "depth": 1,
+        "floor": {
+          "depth": 1,
+          "width": 13,
+          "height": 7,
+          "rooms": [
+            {
+              "id": 0,
+              "x": 1,
+              "y": 1,
+              "w": 11,
+              "h": 5
+            }
+          ],
+          "stairs": {
+            "x": 11,
+            "y": 3
+          },
+          "actors": [
+            {
+              "id": 1,
+              "kind": "player",
+              "name": "ガルド",
+              "model": "garudo",
+              "pos": {
+                "x": 1,
+                "y": 3
+              },
+              "facing": 6,
+              "hp": 12,
+              "maxHp": 25,
+              "atk": 8,
+              "def": 4,
+              "level": 1,
+              "exp": 0,
+              "statuses": [],
+              "alive": true,
+              "satiety": 98.39999999999998,
+              "maxSatiety": 100,
+              "inventory": {
+                "items": [],
+                "maxSize": 20,
+                "weaponUid": null,
+                "shieldUid": null,
+                "headUid": null,
+                "charmUid": null
+              },
+              "gold": 0,
+              "carrying": null,
+              "guarding": false,
+              "artCooldowns": {
+                "critBarrel": 0,
+                "soothe": 0,
+                "ukemi": 0,
+                "shout": 0,
+                "pierce": 0
+              },
+              "critBarrelReady": false,
+              "ukemiReady": false,
+              "pierceReady": false,
+              "bracedReady": false
+            },
+            {
+              "id": 2,
+              "kind": "monster",
+              "name": "ぷるん",
+              "speciesId": "purun",
+              "model": "purun",
+              "pos": {
+                "x": 2,
+                "y": 4
+              },
+              "facing": 7,
+              "hp": 12,
+              "maxHp": 12,
+              "atk": 6,
+              "def": 2,
+              "level": 1,
+              "statuses": [],
+              "alive": true,
+              "aiKind": "melee",
+              "exp": 5,
+              "aware": true
+            }
+          ],
+          "items": [],
+          "traps": [],
+          "barrels": [],
+          "goldPiles": [],
+          "fieldObstacles": [],
+          "secretPassages": []
+        },
+        "player": {
+          "id": 1,
+          "kind": "player",
+          "name": "ガルド",
+          "model": "garudo",
+          "pos": {
+            "x": 1,
+            "y": 3
+          },
+          "facing": 6,
+          "hp": 12,
+          "maxHp": 25,
+          "atk": 8,
+          "def": 4,
+          "level": 1,
+          "exp": 0,
+          "statuses": [],
+          "alive": true,
+          "satiety": 98.39999999999998,
+          "maxSatiety": 100,
+          "inventory": {
+            "items": [],
+            "maxSize": 20,
+            "weaponUid": null,
+            "shieldUid": null,
+            "headUid": null,
+            "charmUid": null
+          },
+          "gold": 0,
+          "carrying": null,
+          "guarding": false,
+          "artCooldowns": {
+            "critBarrel": 0,
+            "soothe": 0,
+            "ukemi": 0,
+            "shout": 0,
+            "pierce": 0
+          },
+          "critBarrelReady": false,
+          "ukemiReady": false,
+          "pierceReady": false,
+          "bracedReady": false
+        },
+        "allies": [],
+        "status": "playing",
+        "turnCount": 8,
+        "endReason": "",
+        "actorIdCounter": 2,
+        "itemUidCounter": 1,
+        "barrelIdCounter": 1,
+        "trainingFocus": "balance",
+        "dungeonId": "hinata",
+        "tarukurabeScore": 0,
+        "tarukurabeBarrelsLeft": 0,
+        "tarukurabeScoredLanes": [],
+        "runSkills": [],
+        "pendingSkillChoice": null,
+        "pendingLevelUpChoices": 0
+      }
+    }
+  ]
+}
