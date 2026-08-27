@@ -138,7 +138,7 @@
 ## 実装状況(進行中)
 
 - **ガルドのラフ案3案**を`design/characters/garudo/concept.md`(SVG3枚+
-  選定記録)に置いた。目・眉・手は`anime-look-art-direction.md`の
+  選定記録)に置いた。目・眉・手は`archive/anime-look-art-direction.md`の
   様式(描き目・房の髪・ミトン手)で3案共通、比べ分けたのは
   「背負いダルを正面のシルエットにどう持ち込むか」の1点。
   「C: 樽板エプロン」を選定(理由: 黒塗りシルエットだけで判別できる
