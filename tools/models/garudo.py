@@ -51,8 +51,8 @@ JOINTS_HALF = {
     "head": (0.0, -0.004, 0.878),
     "crown": (0.0, 0.0, 0.93),
     "shoulder.L": (0.100, 0.0, 0.748),
-    "elbow.L": (0.110, 0.004, 0.505),
-    "hand.L": (0.115, -0.016, 0.352),
+    "elbow.L": (0.138, 0.004, 0.505),
+    "hand.L": (0.158, -0.016, 0.352),
     "thigh.L": (0.056, 0.0, 0.36),
     "knee.L": (0.056, 0.0, 0.17),
     "foot.L": (0.057, -0.02, 0.03),
@@ -379,41 +379,41 @@ def build() -> tuple[list, object]:
     # ---- 袖(肩〜肘。まくり口の膨らみで終わる)+前腕(素肌)+ミトン ----
     for s in (-1.0, 1.0):
         add(_loft(f"garudo_sleeve{s}", [
-            (0.492, 0.035, 0.035, 0.111 * s, 0.004),
-            (0.516, 0.037, 0.037, 0.110 * s, 0.004),
-            (0.528, 0.030, 0.030, 0.110 * s, 0.004),
-            (0.600, 0.031, 0.031, 0.107 * s, 0.003),
-            (0.680, 0.033, 0.033, 0.104 * s, 0.002),
-            (0.718, 0.035, 0.035, 0.101 * s, 0.0),
-            (0.738, 0.034, 0.034, 0.098 * s, 0.0),
-            (0.752, 0.026, 0.027, 0.094 * s, 0.0),
-            (0.760, 0.012, 0.013, 0.090 * s, 0.0),
+            (0.492, 0.035, 0.035, 0.139 * s, 0.004),
+            (0.516, 0.037, 0.037, 0.136 * s, 0.004),
+            (0.528, 0.030, 0.030, 0.134 * s, 0.004),
+            (0.600, 0.031, 0.031, 0.124 * s, 0.003),
+            (0.680, 0.033, 0.033, 0.112 * s, 0.002),
+            (0.718, 0.035, 0.035, 0.105 * s, 0.0),
+            (0.738, 0.034, 0.034, 0.100 * s, 0.0),
+            (0.752, 0.026, 0.027, 0.095 * s, 0.0),
+            (0.760, 0.012, 0.013, 0.091 * s, 0.0),
         ], segments=12), shirt_mat)
         _slope_shoulders(parts_list[-1])
         fold = C.cylinder(f"garudo_cuff_fold{s}", (0.0, 0.0, 0.0), 0.0385, 0.010,
                           segments=12)
-        fold.location = Vector((0.110 * s, 0.004, 0.505))
+        fold.location = Vector((0.137 * s, 0.004, 0.505))
         add(fold, shirt_mat)
         add(_loft(f"garudo_forearm{s}", [
-            (0.360, 0.0195, 0.0195, 0.115 * s, -0.012),
-            (0.400, 0.021, 0.021, 0.114 * s, -0.005),
-            (0.450, 0.0225, 0.0225, 0.112 * s, 0.002),
-            (0.500, 0.0240, 0.0240, 0.111 * s, 0.004),
+            (0.360, 0.0195, 0.0195, 0.155 * s, -0.012),
+            (0.400, 0.021, 0.021, 0.151 * s, -0.005),
+            (0.450, 0.0225, 0.0225, 0.146 * s, 0.002),
+            (0.500, 0.0240, 0.0240, 0.140 * s, 0.004),
         ], segments=12), skin_mat)
         tag = "L" if s > 0 else "R"
         add(_loft(f"garudo_glove{tag}", [
-            (0.292, 0.014, 0.014, 0.116 * s, -0.016),
-            (0.302, 0.026, 0.026, 0.116 * s, -0.016),
-            (0.330, 0.031, 0.031, 0.116 * s, -0.016),
-            (0.352, 0.029, 0.029, 0.116 * s, -0.015),
-            (0.368, 0.023, 0.023, 0.115 * s, -0.014),
+            (0.292, 0.014, 0.014, 0.160 * s, -0.016),
+            (0.302, 0.026, 0.026, 0.160 * s, -0.016),
+            (0.330, 0.031, 0.031, 0.159 * s, -0.016),
+            (0.352, 0.029, 0.029, 0.158 * s, -0.015),
+            (0.368, 0.023, 0.023, 0.156 * s, -0.014),
         ], segments=12), glove_mat, pin_bone=f"elbow.{tag}-hand.{tag}")
-        thumb = C.uv_sphere(f"garudo_thumb{tag}", Vector((0.093 * s, -0.024, 0.336)),
+        thumb = C.uv_sphere(f"garudo_thumb{tag}", Vector((0.137 * s, -0.024, 0.336)),
                             0.011, segments=6, rings=5, scale=(1.0, 1.0, 1.5))
         add(thumb, glove_mat, pin_bone=f"elbow.{tag}-hand.{tag}")
         wrist_cuff = C.cylinder(f"garudo_glove_cuff{tag}", (0.0, 0.0, 0.0), 0.0255,
                                 0.012, segments=10)
-        wrist_cuff.location = Vector((0.1155 * s, -0.0135, 0.365))
+        wrist_cuff.location = Vector((0.156 * s, -0.0135, 0.365))
         add(wrist_cuff, glove_mat, pin_bone=f"elbow.{tag}-hand.{tag}")
 
     # ---- ベルト+バックル ----
@@ -592,6 +592,18 @@ def build() -> tuple[list, object]:
         _chibify_mesh(eye)
     chibi_joints = {name: Vector(_chibify_point(*pos)) for name, pos in JOINTS.items()}
     armature = C.build_armature(NAME, chibi_joints, BONES, mesh, root="hip")
+    # 腕チェーンのボーンはロール(ローカル軸の向き)が既定計算では不定で、
+    # 腕を外側へ傾けた本モデルではXキーが前後スイングにならず内側へ
+    # 巻き込む(エプロン貫通の原因)。ローカルX=ワールドXに揃え、
+    # アニメーション表の意図(X=前後振り・Z=内外開き)と一致させる
+    C.activate(armature)
+    bpy.ops.object.mode_set(mode="EDIT")
+    for eb in armature.data.edit_bones:
+        if "shoulder" in eb.name or "elbow" in eb.name or "hand" in eb.name:
+            y_axis = (eb.tail - eb.head).normalized()
+            x_target = (Vector((1.0, 0.0, 0.0)) - y_axis * y_axis.x).normalized()
+            eb.align_roll(x_target.cross(y_axis))
+    bpy.ops.object.mode_set(mode="OBJECT")
     for eye in eyes:
         C.parent_to_bone(eye, armature, "neck-head")
     for group_name, bone in pinned:
@@ -689,8 +701,12 @@ def animations() -> list[tuple[str, list]]:
     hipc = "hip-chest"
     spine = "chest-neck"
     neck = "neck-head"
-    armL, armR = "chest-shoulder.L", "chest-shoulder.R"
-    foreL, foreR = "shoulder.L-elbow.L", "shoulder.R-elbow.R"
+    # 腕のスイングは上腕ボーン(支点=肩関節)、肘の曲げは前腕ボーン
+    # (支点=肘)。chest-shoulderは鎖骨方向のほぼ水平なボーンで、前後
+    # スイングの軸になれない(ロール整列とあわせて貫通不具合の修正)。
+    # ロール整列後の軸系: X=前後(負が前)・Z=内外(Lは負が外、Rは正が外)
+    armL, armR = "shoulder.L-elbow.L", "shoulder.R-elbow.R"
+    foreL, foreR = "elbow.L-hand.L", "elbow.R-hand.R"
     legL, legR = "hip-thigh.L", "hip-thigh.R"
     shinL, shinR = "thigh.L-knee.L", "thigh.R-knee.R"
 
@@ -699,51 +715,51 @@ def animations() -> list[tuple[str, list]]:
         / (Vector(JOINTS_HALF["chest"]) - Vector(JOINTS_HALF["hip"])).length
     )
     idle = [
-        (1, {hipc: (0, 0, 0), armL: (0, 0, 4), armR: (0, 0, -4), neck: (0, 0, 0)}),
-        (18, {hipc: (2.5, 0, 0), armL: (-5, 0, 7), armR: (-5, 0, -7)}),
+        (1, {hipc: (0, 0, 0), armL: (0, 0, -4), armR: (0, 0, 4), neck: (0, 0, 0)}),
+        (18, {hipc: (2.5, 0, 0), armL: (-5, 0, -7), armR: (-5, 0, 7)}),
         (18 + head_delay, {neck: (-2.5, 0, 0)}, {"partial": True}),
-        (36, {hipc: (0, 0, 0), armL: (0, 0, 4), armR: (0, 0, -4)}),
+        (36, {hipc: (0, 0, 0), armL: (0, 0, -4), armR: (0, 0, 4)}),
         (36 + head_delay, {neck: (0, 0, 0)}, {"partial": True}),
     ]
 
     walk = [
         (1, {legL: (26, 0, 0), legR: (-26, 0, 0), shinL: (6, 0, 0), shinR: (20, 0, 0),
-             armL: (-15, 0, 4), armR: (15, 0, -4), hipc: (3, 0, 0)}),
+             armL: (-15, 0, -4), armR: (15, 0, 4), hipc: (3, 0, 0)}),
         (8, {legL: (0, 0, 0), legR: (0, 0, 0), shinL: (12, 0, 0), shinR: (46, 0, 0),
-             armL: (0, 0, 4), armR: (0, 0, -4), hipc: {"rot": (6, 0, 0), "loc": (0, -0.012, 0)}}),
+             armL: (0, 0, -4), armR: (0, 0, 4), hipc: {"rot": (6, 0, 0), "loc": (0, -0.012, 0)}}),
         (15, {legL: (-26, 0, 0), legR: (26, 0, 0), shinL: (20, 0, 0), shinR: (6, 0, 0),
-              armL: (15, 0, 4), armR: (-15, 0, -4), hipc: (3, 0, 0)}),
+              armL: (15, 0, -4), armR: (-15, 0, 4), hipc: (3, 0, 0)}),
         (22, {legL: (0, 0, 0), legR: (0, 0, 0), shinL: (46, 0, 0), shinR: (12, 0, 0),
-              armL: (0, 0, 4), armR: (0, 0, -4), hipc: {"rot": (6, 0, 0), "loc": (0, -0.012, 0)}}),
+              armL: (0, 0, -4), armR: (0, 0, 4), hipc: {"rot": (6, 0, 0), "loc": (0, -0.012, 0)}}),
         (29, {legL: (26, 0, 0), legR: (-26, 0, 0), shinL: (6, 0, 0), shinR: (20, 0, 0),
-              armL: (-15, 0, 4), armR: (15, 0, -4), hipc: (3, 0, 0)}),
+              armL: (-15, 0, -4), armR: (15, 0, 4), hipc: (3, 0, 0)}),
     ]
 
     attack = [
-        (1, {hipc: (0, 0, 0), armR: (0, 0, -4), foreR: (0, 0, 0), neck: (0, 0, 0)}),
-        (7, {hipc: (-12, 0, -10), armR: (-112, 0, -22), foreR: (-38, 0, 0), neck: (8, 0, 0)},
+        (1, {hipc: (0, 0, 0), armR: (0, 0, 4), foreR: (0, 0, 0), neck: (0, 0, 0)}),
+        (7, {hipc: (-12, 0, -10), armR: (-112, 0, 22), foreR: (-38, 0, 0), neck: (8, 0, 0)},
          {"interp": "LINEAR"}),
-        (10, {hipc: (18, 0, 12), armR: (64, 0, 16), foreR: (14, 0, 0), neck: (-12, 0, 0)}),
-        (12, {hipc: (14, 0, 9), armR: (52, 0, 12), foreR: (8, 0, 0), neck: (-8, 0, 0)}),
-        (22, {hipc: (0, 0, 0), armR: (0, 0, -4), foreR: (0, 0, 0), neck: (0, 0, 0)}),
+        (10, {hipc: (18, 0, 12), armR: (64, 0, -8), foreR: (14, 0, 0), neck: (-12, 0, 0)}),
+        (12, {hipc: (14, 0, 9), armR: (52, 0, -6), foreR: (8, 0, 0), neck: (-8, 0, 0)}),
+        (22, {hipc: (0, 0, 0), armR: (0, 0, 4), foreR: (0, 0, 0), neck: (0, 0, 0)}),
     ]
 
     hit = [
-        (1, {hipc: (0, 0, 0), neck: (0, 0, 0), armL: (0, 0, 4), armR: (0, 0, -4)},
+        (1, {hipc: (0, 0, 0), neck: (0, 0, 0), armL: (0, 0, -4), armR: (0, 0, 4)},
          {"interp": "LINEAR"}),
-        (3, {hipc: (-20, 0, 0), neck: (-14, 0, 0), armL: (-18, 0, 22), armR: (-18, 0, -22)}),
-        (14, {hipc: (0, 0, 0), neck: (0, 0, 0), armL: (0, 0, 4), armR: (0, 0, -4)}),
+        (3, {hipc: (-20, 0, 0), neck: (-14, 0, 0), armL: (-18, 0, -22), armR: (-18, 0, 22)}),
+        (14, {hipc: (0, 0, 0), neck: (0, 0, 0), armL: (0, 0, -4), armR: (0, 0, 4)}),
     ]
 
     die = [
         (1, {hipc: (0, 0, 0), neck: (0, 0, 0), legL: (0, 0, 0), legR: (0, 0, 0)},
          {"interp": "LINEAR"}),
         (8, {hipc: (-28, 0, 0), neck: (-18, 0, 0), legL: (18, 0, 0), legR: (18, 0, 0),
-             armL: (-40, 0, 30), armR: (-40, 0, -30)}),
+             armL: (-40, 0, -30), armR: (-40, 0, 30)}),
         (22, {hipc: (-82, 0, 0), neck: (-30, 0, 0), legL: (52, 0, 0), legR: (48, 0, 0),
-              armL: (-70, 0, 46), armR: (-70, 0, -46)}),
+              armL: (-70, 0, -46), armR: (-70, 0, 46)}),
         (26, {hipc: (-76, 0, 0), neck: (-26, 0, 0), legL: (48, 0, 0), legR: (44, 0, 0),
-              armL: (-64, 0, 42), armR: (-64, 0, -42)}),
+              armL: (-64, 0, -42), armR: (-64, 0, 42)}),
     ]
 
     return [("idle", idle), ("walk", walk), ("attack", attack), ("hit", hit), ("die", die)]
