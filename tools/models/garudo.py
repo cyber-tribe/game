@@ -50,7 +50,7 @@ JOINTS_HALF = {
     "neck": (0.0, 0.0, 0.79),
     "head": (0.0, -0.004, 0.878),
     "crown": (0.0, 0.0, 0.93),
-    "shoulder.L": (0.100, 0.0, 0.762),
+    "shoulder.L": (0.100, 0.0, 0.748),
     "elbow.L": (0.110, 0.004, 0.505),
     "hand.L": (0.115, -0.016, 0.352),
     "thigh.L": (0.056, 0.0, 0.36),
@@ -135,11 +135,54 @@ def _segment_between(name: str, p0: Vector, p1: Vector, radius: float, segments:
 
 def _cone_at(name: str, origin: Vector, direction: Vector, radius: float, length: float,
              segments: int = 5):
-    """原点でconeを作り、directionへ向けてからoriginへ置く(髪の房用)。"""
+    """原点でconeを作り、directionへ向けてからoriginへ置く(鼻など小部品用)。"""
     tuft = C.cone(name, (0.0, 0.0, 0.0), radius, 0.004, length, segments=segments)
     tuft.rotation_euler = direction.normalized().to_track_quat("Z", "Y").to_euler()
     tuft.location = origin
     return tuft
+
+
+def _lock(name: str, points, radii, resolution: int = 4, bevel_resolution: int = 1):
+    """
+    ベジェカーブ+点ごとの半径テーパーで作る「房」。直線の円錐と違い、
+    自然に曲がりながら先細る(髪の房・眉・まぶたの線に使う)。
+    curve.bevel_depth=1.0 とし、実際の太さは各制御点の radius で与える。
+    ハンドルはAUTOで滑らかに繋ぎ、メッシュへ変換して返す。
+    """
+    curve = bpy.data.curves.new(name, "CURVE")
+    curve.dimensions = "3D"
+    curve.bevel_depth = 1.0
+    curve.bevel_resolution = bevel_resolution
+    curve.resolution_u = resolution
+    curve.fill_mode = "FULL"
+    curve.use_fill_caps = True
+    sp = curve.splines.new("BEZIER")
+    sp.bezier_points.add(len(points) - 1)
+    for bp, co, r in zip(sp.bezier_points, points, radii):
+        bp.co = co
+        bp.handle_left_type = bp.handle_right_type = "AUTO"
+        bp.radius = r
+    obj = bpy.data.objects.new(name, curve)
+    bpy.context.collection.objects.link(obj)
+    C.activate(obj)
+    bpy.ops.object.convert(target="MESH")
+    obj = bpy.context.view_layer.objects.active
+    for poly in obj.data.polygons:
+        poly.use_smooth = True
+    return obj
+
+
+def _slope_shoulders(obj, start_z: float = 0.68, span: float = 0.09,
+                     drop: float = 0.032, half_width: float = 0.087) -> None:
+    """
+    胴・袖の上部頂点を、中心から外側ほど・上ほど下げて「なで肩」の
+    斜線を作る(水平リングのロフトだけでは肩が四角い棚になるため)。
+    """
+    for v in obj.data.vertices:
+        if v.co.z > start_z:
+            t = min((v.co.z - start_z) / span, 1.0)
+            lateral = min(abs(v.co.x) / half_width, 1.0)
+            v.co.z -= t * (lateral ** 1.3) * drop
 
 
 def build() -> tuple[list, object]:
@@ -193,74 +236,116 @@ def build() -> tuple[list, object]:
                           segments=6, rings=5, scale=(0.5, 0.9, 1.2))
         add(ear, skin_mat)
 
-    # ---- 髪。頭より一回り大きい無造作な塊+房 ----
-    add(_loft("garudo_hair_mass", [
-        (0.845, 0.060, 0.062, 0.0, 0.016),
-        (0.875, 0.068, 0.068, 0.0, 0.012),
-        (0.905, 0.072, 0.070, 0.0, 0.004),
-        (0.938, 0.066, 0.066, 0.0, 0.002),
-        (0.962, 0.044, 0.046, 0.0, 0.0),
+    # ---- 髪。土台の塊(スカルプ)+ベジェカーブの房 ----
+    # 設定画の髪は円錐スパイクではなく、曲がりながら先細る房の集まり。
+    # _lock(カーブ+半径テーパー)で、前髪・こめかみ・頭頂・襟足を
+    # 1房ずつ流れの向きを変えて重ねる
+    add(_loft("garudo_hair_scalp", [
+        (0.848, 0.058, 0.060, 0.0, 0.014),
+        (0.880, 0.066, 0.066, 0.0, 0.010),
+        (0.912, 0.068, 0.064, 0.0, 0.004),
+        (0.945, 0.055, 0.056, 0.0, 0.002),
+        (0.964, 0.032, 0.036, 0.0, 0.0),
     ], cap_bottom=True), hair_mat)
-    tuft_specs = [
-        # 前髪(額に沿って5本、互い違いの長さ)
-        (Vector((-0.044, -0.048, 0.900)), Vector((-0.30, -0.35, -0.89)), 0.044),
-        (Vector((-0.021, -0.053, 0.903)), Vector((-0.08, -0.40, -0.91)), 0.050),
-        (Vector((0.003, -0.055, 0.905)), Vector((0.05, -0.38, -0.92)), 0.046),
-        (Vector((0.026, -0.052, 0.903)), Vector((0.20, -0.40, -0.89)), 0.051),
-        (Vector((0.045, -0.046, 0.900)), Vector((0.42, -0.32, -0.85)), 0.043),
-        # こめかみの横毛(耳の上に被さる)
-        (Vector((-0.064, -0.012, 0.885)), Vector((-0.85, -0.18, -0.49)), 0.040),
-        (Vector((0.064, -0.012, 0.885)), Vector((0.85, -0.18, -0.49)), 0.040),
-        # 頭頂・後頭部の跳ね(乱れた量感の輪郭)
-        (Vector((-0.036, 0.008, 0.945)), Vector((-0.45, 0.10, 0.89)), 0.046),
-        (Vector((-0.006, 0.020, 0.955)), Vector((-0.05, 0.25, 0.97)), 0.050),
-        (Vector((0.030, 0.010, 0.948)), Vector((0.42, 0.05, 0.90)), 0.044),
-        (Vector((-0.020, 0.058, 0.920)), Vector((-0.20, 0.80, 0.56)), 0.042),
-        (Vector((0.026, 0.058, 0.915)), Vector((0.30, 0.85, 0.44)), 0.040),
-        (Vector((0.000, 0.066, 0.895)), Vector((0.05, 0.95, 0.30)), 0.038),
+    lock_specs = [
+        # 前髪: 額に沿って6本、根元は生え際、先は眉の上へ垂れて左右へ流す
+        ([(-0.050, -0.026, 0.914), (-0.058, -0.048, 0.896), (-0.050, -0.058, 0.872)],
+         [0.015, 0.013, 0.003]),
+        ([(-0.030, -0.034, 0.918), (-0.038, -0.056, 0.898), (-0.030, -0.063, 0.876)],
+         [0.016, 0.013, 0.003]),
+        ([(-0.008, -0.038, 0.920), (-0.012, -0.060, 0.900), (-0.004, -0.065, 0.880)],
+         [0.016, 0.014, 0.003]),
+        ([(0.012, -0.038, 0.920), (0.018, -0.059, 0.899), (0.026, -0.064, 0.878)],
+         [0.016, 0.013, 0.003]),
+        ([(0.032, -0.032, 0.917), (0.042, -0.054, 0.897), (0.050, -0.058, 0.875)],
+         [0.015, 0.013, 0.003]),
+        ([(0.050, -0.024, 0.912), (0.060, -0.042, 0.894), (0.058, -0.048, 0.870)],
+         [0.014, 0.011, 0.003]),
+        # こめかみ: 耳の上へ被さる横毛
+        ([(-0.052, -0.006, 0.908), (-0.068, -0.014, 0.888), (-0.064, -0.018, 0.862)],
+         [0.015, 0.012, 0.003]),
+        ([(0.052, -0.006, 0.908), (0.068, -0.014, 0.888), (0.064, -0.018, 0.862)],
+         [0.015, 0.012, 0.003]),
+        # 頭頂: スカルプに沿って外へ流れ、先端だけ軽く跳ねる
+        ([(-0.030, 0.004, 0.936), (-0.048, 0.004, 0.950), (-0.062, 0.000, 0.938)],
+         [0.017, 0.013, 0.003]),
+        ([(-0.010, 0.012, 0.942), (-0.022, 0.014, 0.960), (-0.036, 0.012, 0.955)],
+         [0.018, 0.014, 0.003]),
+        ([(0.012, 0.012, 0.942), (0.024, 0.012, 0.960), (0.038, 0.008, 0.953)],
+         [0.018, 0.014, 0.003]),
+        ([(0.032, 0.002, 0.934), (0.052, 0.002, 0.948), (0.064, -0.002, 0.936)],
+         [0.017, 0.013, 0.003]),
+        # 後頭部〜襟足: 下へ流れる
+        ([(-0.026, 0.028, 0.928), (-0.038, 0.054, 0.902), (-0.032, 0.058, 0.868)],
+         [0.017, 0.014, 0.003]),
+        ([(0.000, 0.034, 0.930), (0.002, 0.062, 0.900), (0.000, 0.064, 0.862)],
+         [0.018, 0.015, 0.003]),
+        ([(0.026, 0.028, 0.928), (0.038, 0.054, 0.902), (0.032, 0.058, 0.868)],
+         [0.017, 0.014, 0.003]),
     ]
-    for i, (origin, direction, length) in enumerate(tuft_specs):
-        add(_cone_at(f"garudo_hair_tuft{i}", origin, direction, 0.016, length), hair_mat)
+    for i, (pts, radii) in enumerate(lock_specs):
+        add(_lock(f"garudo_hair_lock{i}", [Vector(p) for p in pts], radii), hair_mat)
 
     # ---- 顔の造作 ----
+    # 眉: 曲がりながら先細る太めの房(箱よりも描いた眉に近い)
     for s in (-1.0, 1.0):
-        brow = C.box(f"garudo_brow{s}", (0.022 * s, -0.059, 0.891), (0.026, 0.006, 0.007))
-        brow.rotation_euler = (0.0, 0.0, -0.15 * s)
+        brow = _lock(f"garudo_brow{s}",
+                     [Vector((0.010 * s, -0.0575, 0.9035)),
+                      Vector((0.024 * s, -0.0605, 0.9060)),
+                      Vector((0.037 * s, -0.0560, 0.9010))],
+                     [0.0040, 0.0050, 0.0018])
         add(brow, hair_mat)
-    nose = _cone_at("garudo_nose", Vector((0.0, -0.058, 0.866)),
+        # 上まぶたの線: 目の上縁を縁取る細い線。目が「顔に描かれている」
+        # 印象を決める要(設定画のくっきりした目の再現)
+        lid = _lock(f"garudo_lid{s}",
+                    [Vector((0.010 * s, -0.0585, 0.8905)),
+                     Vector((0.023 * s, -0.0620, 0.8930)),
+                     Vector((0.035 * s, -0.0575, 0.8890))],
+                    [0.0022, 0.0028, 0.0014])
+        add(lid, C.make_material("garudo_lidline", (0.16, 0.10, 0.07), roughness=0.6))
+    nose = _cone_at("garudo_nose", Vector((0.0, -0.058, 0.864)),
                     Vector((0.0, -0.9, -0.35)), 0.008, 0.014)
     add(nose, skin_mat)
-    add(C.box("garudo_mouth", (0.0, -0.058, 0.836), (0.013, 0.004, 0.004)), mouth_mat)
+    mouth = _lock("garudo_mouth",
+                  [Vector((-0.012, -0.0575, 0.8365)),
+                   Vector((0.000, -0.0590, 0.8355)),
+                   Vector((0.012, -0.0575, 0.8365))],
+                  [0.0016, 0.0022, 0.0016])
+    add(mouth, mouth_mat)
 
     # まばたき対象(白目・瞳)は本体へjoinせず、後で頭の骨へ剛体接続する
-    # (plan/models/archive/eye-blink-liveliness.md)
+    # (plan/models/archive/eye-blink-liveliness.md)。設定画の目は
+    # 大きめの虹彩がはっきり見える描き目: 白目(アーモンド形)+
+    # 大きな虹彩(こげ茶)+ハイライト
     eyes = []
     for s in (-1.0, 1.0):
-        white = C.uv_sphere(f"eyewhite{s}", Vector((0.021 * s, -0.058, 0.880)), 0.016,
-                            segments=8, rings=6, scale=(1.25, 0.30, 1.05))
+        white = C.uv_sphere(f"eyewhite{s}", Vector((0.022 * s, -0.0570, 0.881)), 0.017,
+                            segments=8, rings=6, scale=(1.20, 0.30, 1.30))
         C.assign_material(white, eyewhite_mat)
         white["blink"] = "white"
-        pupil = C.uv_sphere(f"pupil{s}", Vector((0.022 * s, -0.063, 0.879)), 0.0095,
-                            segments=6, rings=5, scale=(1.0, 0.5, 1.0))
+        pupil = C.uv_sphere(f"pupil{s}", Vector((0.023 * s, -0.0620, 0.880)), 0.0120,
+                            segments=8, rings=6, scale=(1.0, 0.45, 1.25))
         C.assign_material(pupil, eye_mat)
         pupil["blink"] = "pupil"
         eyes += [white, pupil]
         highlight = C.uv_sphere(f"garudo_eyehl{s}",
-                                Vector((0.0245 * s, -0.066, 0.883)), 0.0035,
-                                segments=4, rings=3)
+                                Vector((0.0195 * s, -0.0685, 0.885)), 0.0042,
+                                segments=6, rings=4)
         add(highlight, highlight_mat)
 
     # ---- 胴(シャツ)。肩幅があり、胸で最も広く、ベルトへ絞る ----
     add(_loft("garudo_torso", [
-        (0.438, 0.078, 0.054, 0.0, 0.0),
-        (0.500, 0.080, 0.055, 0.0, 0.0),
-        (0.580, 0.086, 0.057, 0.0, -0.002),
-        (0.660, 0.092, 0.060, 0.0, -0.004),
-        (0.720, 0.094, 0.060, 0.0, -0.004),
-        (0.755, 0.088, 0.056, 0.0, -0.002),
-        (0.772, 0.058, 0.046, 0.0, 0.0),
-        (0.784, 0.032, 0.030, 0.0, 0.0),
+        (0.438, 0.073, 0.054, 0.0, 0.0),
+        (0.500, 0.076, 0.055, 0.0, 0.0),
+        (0.580, 0.081, 0.057, 0.0, -0.002),
+        (0.660, 0.086, 0.060, 0.0, -0.004),
+        (0.706, 0.086, 0.060, 0.0, -0.004),
+        (0.728, 0.080, 0.056, 0.0, -0.003),
+        (0.744, 0.068, 0.050, 0.0, -0.002),
+        (0.758, 0.047, 0.040, 0.0, -0.001),
+        (0.770, 0.027, 0.026, 0.0, 0.0),
     ]), shirt_mat)
+    _slope_shoulders(parts_list[-1])
 
     # ---- 袖(肩〜肘。まくり口の膨らみで終わる)+前腕(素肌)+ミトン ----
     for s in (-1.0, 1.0):
@@ -270,10 +355,12 @@ def build() -> tuple[list, object]:
             (0.528, 0.030, 0.030, 0.110 * s, 0.004),
             (0.600, 0.031, 0.031, 0.107 * s, 0.003),
             (0.680, 0.033, 0.033, 0.104 * s, 0.002),
-            (0.740, 0.035, 0.035, 0.101 * s, 0.0),
-            (0.772, 0.033, 0.033, 0.099 * s, 0.0),
-            (0.783, 0.024, 0.024, 0.096 * s, 0.0),
+            (0.718, 0.035, 0.035, 0.101 * s, 0.0),
+            (0.738, 0.034, 0.034, 0.098 * s, 0.0),
+            (0.752, 0.026, 0.027, 0.094 * s, 0.0),
+            (0.760, 0.012, 0.013, 0.090 * s, 0.0),
         ], segments=12), shirt_mat)
+        _slope_shoulders(parts_list[-1])
         add(_loft(f"garudo_forearm{s}", [
             (0.360, 0.0195, 0.0195, 0.115 * s, -0.012),
             (0.400, 0.021, 0.021, 0.114 * s, -0.005),
@@ -312,7 +399,7 @@ def build() -> tuple[list, object]:
         z_hi, r_hi = apron_profile[i]
         z_lo, r_lo = apron_profile[i + 1]
         seg = C.cone(f"garudo_apron{i}", (0.0, 0.0, (z_hi + z_lo) / 2),
-                     r_lo, r_hi, z_hi - z_lo, segments=10)
+                     r_lo, r_hi, z_hi - z_lo, segments=12)
         for poly in seg.data.polygons:
             poly.use_smooth = False
         # 段同士の継ぎ目に埋まって見えないふた面を削る
@@ -352,34 +439,47 @@ def build() -> tuple[list, object]:
         ], segments=12), boot_mat, pin_bone=f"knee.{tag}-foot.{tag}")
 
     # ---- 背負いダル(背中の肩〜腰を占め、上端が肩越しに覗く) ----
-    backpack_height = 0.28
-    backpack_radius = 0.070
-    backpack_origin = Vector((0.02, 0.108, 0.50))
-    barrel_parts = props.barrel_body(
-        "garudo_backpack", props.BARREL_WOOD, props.BARREL_IRON,
-        height=backpack_height, radius=backpack_radius,
-    )
-    barrel_parts.append(props.barrel_lid(
-        "garudo_backpack", (0.46, 0.30, 0.17),
-        height=backpack_height, radius=backpack_radius,
-    ))
-    for obj in barrel_parts:
-        obj.location += backpack_origin
-        C.mark_for_pin(obj)
-        pinned.append((obj.name, "hip-chest"))
-        parts_list.append(obj)
+    # propsのbarrel_bodyは頂点リングが上下2段しかなく実際には膨らまない
+    # (角ばった円柱に見える)ため、断面リングを積んで本当に膨らむ樽を
+    # 自前で組む。12分割+フラットシェーディングで板張りに見せる
+    bp_h = 0.27
+    bp_r = 0.064
+    bp_origin = Vector((0.02, 0.104, 0.50))
+
+    def bp_radius(t: float) -> float:
+        return bp_r * (1.0 + 0.14 * math.sin(t * math.pi))
+
+    barrel = _loft("garudo_backpack_body", [
+        (0.0, bp_radius(0.0), bp_radius(0.0), 0.0, 0.0),
+        (bp_h * 0.25, bp_radius(0.25), bp_radius(0.25), 0.0, 0.0),
+        (bp_h * 0.5, bp_radius(0.5), bp_radius(0.5), 0.0, 0.0),
+        (bp_h * 0.75, bp_radius(0.75), bp_radius(0.75), 0.0, 0.0),
+        (bp_h, bp_radius(1.0), bp_radius(1.0), 0.0, 0.0),
+    ], segments=12, smooth=False)
+    barrel.location += bp_origin
+    add(barrel, apron_mat, pin_bone="hip-chest")
+    for i, t in enumerate((0.16, 0.52, 0.86)):
+        bhoop = C.cylinder(f"garudo_backpack_hoop{i}", (0.0, 0.0, bp_h * t),
+                           bp_radius(t) + 0.003, 0.013, segments=12)
+        bhoop.location += bp_origin
+        add(bhoop, hoop_mat, pin_bone="hip-chest")
+    bp_lid = C.cylinder("garudo_backpack_lid", (0.0, 0.0, bp_h + 0.011),
+                        bp_r * 0.94, 0.022, segments=12, smooth=False)
+    bp_lid.location += bp_origin
+    add(bp_lid, C.make_material("garudo_backpack_lidwood", (0.46, 0.30, 0.17),
+                                roughness=0.85), pin_bone="hip-chest")
 
     # ---- 肩ひも(設定画: 胸の前を2本、肩を越えて樽上部へ) ----
     for s in (-1.0, 1.0):
         front = _segment_between(
             f"garudo_strap_front{s}",
-            Vector((0.050 * s, -0.056, 0.470)), Vector((0.052 * s, -0.046, 0.755)),
+            Vector((0.050 * s, -0.056, 0.470)), Vector((0.052 * s, -0.046, 0.730)),
             radius=0.011, segments=6,
         )
         add(front, belt_mat, pin_bone="hip-chest")
         over = _segment_between(
             f"garudo_strap_over{s}",
-            Vector((0.052 * s, -0.046, 0.755)), Vector((0.045 * s, 0.105, 0.770)),
+            Vector((0.052 * s, -0.046, 0.730)), Vector((0.045 * s, 0.100, 0.765)),
             radius=0.011, segments=6,
         )
         add(over, belt_mat, pin_bone="hip-chest")
