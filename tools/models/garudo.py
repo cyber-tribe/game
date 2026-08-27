@@ -190,6 +190,7 @@ def build() -> tuple[list, object]:
     shirt_mat = C.make_material("garudo_shirt", SHIRT, roughness=0.85)
     trousers_mat = C.make_material("garudo_trousers", TROUSERS, roughness=0.85)
     boot_mat = C.make_material("garudo_boot", BOOT, roughness=0.7)
+    sole_mat = C.make_material("garudo_sole", (0.24, 0.15, 0.09), roughness=0.8)
     glove_mat = C.make_material("garudo_glove", GLOVE, roughness=0.75)
     hair_mat = C.make_material("garudo_hair", HAIR, roughness=0.9)
     belt_mat = C.make_material("garudo_belt", BELT, roughness=0.75)
@@ -282,6 +283,11 @@ def build() -> tuple[list, object]:
          [0.018, 0.015, 0.003]),
         ([(0.026, 0.028, 0.928), (0.038, 0.054, 0.902), (0.032, 0.058, 0.868)],
          [0.017, 0.014, 0.003]),
+        # 後頭部の側面(横後ろのボリューム)
+        ([(-0.046, 0.022, 0.912), (-0.060, 0.036, 0.888), (-0.054, 0.042, 0.860)],
+         [0.015, 0.012, 0.003]),
+        ([(0.046, 0.022, 0.912), (0.060, 0.036, 0.888), (0.054, 0.042, 0.860)],
+         [0.015, 0.012, 0.003]),
     ]
     for i, (pts, radii) in enumerate(lock_specs):
         add(_lock(f"garudo_hair_lock{i}", [Vector(p) for p in pts], radii), hair_mat,
@@ -306,7 +312,7 @@ def build() -> tuple[list, object]:
         add(lid, C.make_material("garudo_lidline", (0.16, 0.10, 0.07), roughness=0.6),
             pin_bone="neck-head")
     nose = _cone_at("garudo_nose", Vector((0.0, -0.058, 0.864)),
-                    Vector((0.0, -0.9, -0.35)), 0.008, 0.014)
+                    Vector((0.0, -0.9, -0.35)), 0.008, 0.017)
     add(nose, skin_mat, pin_bone="neck-head")
     mouth = _lock("garudo_mouth",
                   [Vector((-0.012, -0.0575, 0.8365)),
@@ -349,6 +355,13 @@ def build() -> tuple[list, object]:
     ]), shirt_mat)
     _slope_shoulders(parts_list[-1])
 
+    # ---- 襟の縁(丸首のリム) ----
+    add(_loft("garudo_collar_rim", [
+        (0.762, 0.031, 0.029, 0.0, 0.0),
+        (0.770, 0.034, 0.031, 0.0, 0.0),
+        (0.778, 0.031, 0.029, 0.0, 0.0),
+    ], segments=12), shirt_mat)
+
     # ---- 袖(肩〜肘。まくり口の膨らみで終わる)+前腕(素肌)+ミトン ----
     for s in (-1.0, 1.0):
         add(_loft(f"garudo_sleeve{s}", [
@@ -363,6 +376,10 @@ def build() -> tuple[list, object]:
             (0.760, 0.012, 0.013, 0.090 * s, 0.0),
         ], segments=12), shirt_mat)
         _slope_shoulders(parts_list[-1])
+        fold = C.cylinder(f"garudo_cuff_fold{s}", (0.0, 0.0, 0.0), 0.0385, 0.010,
+                          segments=12)
+        fold.location = Vector((0.110 * s, 0.004, 0.505))
+        add(fold, shirt_mat)
         add(_loft(f"garudo_forearm{s}", [
             (0.360, 0.0195, 0.0195, 0.115 * s, -0.012),
             (0.400, 0.021, 0.021, 0.114 * s, -0.005),
@@ -397,6 +414,13 @@ def build() -> tuple[list, object]:
         (0.226, 0.110),
         (0.192, 0.100),
     ]
+    def plank_jitter(x: float, y: float) -> float:
+        """頂点の角度から板(12分割)の番号を求め、板ごとに固有の
+        半径ゆらぎを返す。全段で同じ関数を使うため、段をまたいでも
+        同じ板は同じだけ張り出し、縦板1枚として繋がって見える。"""
+        plank = int((math.atan2(y, x) + math.tau) / (math.tau / 12)) % 12
+        return 1.0 + 0.013 * math.sin(plank * 12.9898 + 4.1414)
+
     for i in range(len(apron_profile) - 1):
         z_hi, r_hi = apron_profile[i]
         z_lo, r_lo = apron_profile[i + 1]
@@ -412,6 +436,15 @@ def build() -> tuple[list, object]:
         bmesh.ops.delete(bm, geom=hidden, context="FACES")
         bm.to_mesh(seg.data)
         bm.free()
+        # 手仕事の板張りに見せる: 板ごとの張り出しゆらぎ+裾の不揃い
+        for v in seg.data.vertices:
+            f = plank_jitter(v.co.x, v.co.y)
+            v.co.x *= f
+            v.co.y *= f
+            if i == 3 and v.co.z < z_lo + 0.004:
+                v.co.z += 0.007 * math.sin(
+                    int((math.atan2(v.co.y, v.co.x) + math.tau) / (math.tau / 12))
+                    * 7.13 + 1.7)
         add(seg, apron_mat, pin_bone="hip-chest")
     for i, (hoop_z, hoop_r) in enumerate(((0.372, 0.116), (0.226, 0.110))):
         hoop = C.cylinder(f"garudo_apron_hoop{i}", (0.0, 0.0, hoop_z),
@@ -432,13 +465,18 @@ def build() -> tuple[list, object]:
     for s in (-1.0, 1.0):
         tag = "L" if s > 0 else "R"
         add(_loft(f"garudo_boot{tag}", [
-            (0.002, 0.034, 0.056, 0.057 * s, -0.018),
-            (0.012, 0.035, 0.058, 0.057 * s, -0.018),
+            (0.008, 0.033, 0.055, 0.057 * s, -0.018),
+            (0.014, 0.035, 0.058, 0.057 * s, -0.018),
             (0.028, 0.034, 0.052, 0.057 * s, -0.016),
             (0.050, 0.033, 0.040, 0.057 * s, -0.006),
             (0.085, 0.034, 0.037, 0.057 * s, 0.0),
             (0.130, 0.035, 0.037, 0.056 * s, 0.0),
         ], segments=12), boot_mat, pin_bone=f"knee.{tag}-foot.{tag}")
+        # 靴底: 本体より一回り張り出す濃色のリム(設定画の底の段差)
+        add(_loft(f"garudo_sole{tag}", [
+            (0.000, 0.036, 0.061, 0.057 * s, -0.018),
+            (0.009, 0.037, 0.062, 0.057 * s, -0.018),
+        ], segments=12), sole_mat, pin_bone=f"knee.{tag}-foot.{tag}")
 
     # ---- 背負いダル(背中の肩〜腰を占め、上端が肩越しに覗く) ----
     # propsのbarrel_bodyは頂点リングが上下2段しかなく実際には膨らまない
@@ -468,23 +506,32 @@ def build() -> tuple[list, object]:
     bp_lid = C.cylinder("garudo_backpack_lid", (0.0, 0.0, bp_h + 0.011),
                         bp_r * 0.94, 0.022, segments=12, smooth=False)
     bp_lid.location += bp_origin
+    knob = C.box("garudo_backpack_knob", (0.0, 0.0, bp_h + 0.030), (0.020, 0.008, 0.008))
+    knob.location += bp_origin
+    add(knob, C.make_material("garudo_backpack_knobwood", (0.40, 0.26, 0.15),
+                              roughness=0.85), pin_bone="hip-chest")
     add(bp_lid, C.make_material("garudo_backpack_lidwood", (0.46, 0.30, 0.17),
                                 roughness=0.85), pin_bone="hip-chest")
 
     # ---- 肩ひも(設定画: 胸の前を2本、肩を越えて樽上部へ) ----
+    # 直線の円柱では胸から浮いて見えるため、ベルト→胸→肩→樽上部を
+    # 1本のカーブ(_lock)で通し、胸・肩の曲面に沿わせる
     for s in (-1.0, 1.0):
-        front = _segment_between(
-            f"garudo_strap_front{s}",
-            Vector((0.050 * s, -0.056, 0.470)), Vector((0.052 * s, -0.046, 0.730)),
-            radius=0.011, segments=6,
-        )
-        add(front, belt_mat, pin_bone="hip-chest")
-        over = _segment_between(
-            f"garudo_strap_over{s}",
-            Vector((0.052 * s, -0.046, 0.730)), Vector((0.045 * s, 0.100, 0.765)),
-            radius=0.011, segments=6,
-        )
-        add(over, belt_mat, pin_bone="hip-chest")
+        strap = _lock(f"garudo_strap{s}",
+                      [Vector((0.050 * s, -0.052, 0.470)),
+                       Vector((0.052 * s, -0.059, 0.600)),
+                       Vector((0.052 * s, -0.046, 0.710)),
+                       Vector((0.048 * s, -0.016, 0.750)),
+                       Vector((0.045 * s, 0.095, 0.756))],
+                      [0.011, 0.011, 0.011, 0.011, 0.011],
+                      resolution=6)
+        add(strap, belt_mat, pin_bone="hip-chest")
+
+    # 肩ひもの留め金具(胸ひもの中程に小さな鉄の締め具)
+    for s in (-1.0, 1.0):
+        clasp = C.box(f"garudo_strap_clasp{s}", (0.051 * s, -0.055, 0.560),
+                      (0.015, 0.007, 0.011))
+        add(clasp, hoop_mat, pin_bone="hip-chest")
 
     mesh = C.join(parts_list, NAME)
     armature = C.build_armature(NAME, JOINTS, BONES, mesh, root="hip")
