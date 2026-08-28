@@ -63,7 +63,6 @@ import math
 from dataclasses import dataclass
 
 import common as C
-import garudo
 from mathutils import Vector
 
 # =========================================================================== 共通基盤
@@ -89,14 +88,62 @@ FOOT_L, FOOT_R = "knee.L-foot.L", "knee.R-foot.R"
 # 腕も胸にぶら下がっているので一緒に倒れ、肩だけが前に出た猫背になる
 UPPER_BODY = ("chest", "neck", "head", "crown", "shoulder.L", "elbow.L", "hand.L")
 
-# 塗り分けのマテリアル番号。garudo.classify_body と同じ並びに揃えてある
+# 塗り分けのマテリアル番号(素肌・上衣・下衣・靴・帽子の並び)
 SKIN, TOP, BOTTOM, SHOE, CAP = 0, 1, 2, 3, 4
+
+# 村人共通の素体(関節・半径・骨)。かつては主人公の関節表を流用して
+# いたが、ガルドは設定画ベースの専用メッシュへ全面刷新され共通素体を
+# 持たなくなったため、刷新前のガルド(2.5頭身の共通素体時代)の表を
+# ここに凍結して村人専用の基盤とする。関節名・骨のつなぎ方は従来の
+# まま全村人で共有される
+BASE_JOINTS_HALF = {
+    "hip": (0.0, 0.0, 0.34),
+    "chest": (0.0, -0.01, 0.52),
+    "neck": (0.0, 0.0, 0.60),
+    "head": (0.0, -0.01, 0.72),
+    "crown": (0.0, 0.0, 0.86),
+    "shoulder.L": (0.145, 0.0, 0.555),
+    "elbow.L": (0.215, 0.01, 0.44),
+    "hand.L": (0.20, -0.04, 0.32),
+    "thigh.L": (0.082, 0.0, 0.30),
+    "knee.L": (0.088, 0.0, 0.17),
+    "foot.L": (0.092, -0.03, 0.035),
+}
+
+BASE_RADII_HALF = {
+    "hip": 0.125,
+    "chest": 0.150,
+    "neck": 0.062,
+    "head": 0.150,
+    "crown": 0.100,
+    "shoulder.L": 0.065,
+    "elbow.L": 0.050,
+    "hand.L": 0.055,
+    "thigh.L": 0.068,
+    "knee.L": 0.058,
+    "foot.L": 0.055,
+}
+
+BASE_BONES_HALF = [
+    ("hip", "chest"),
+    ("chest", "neck"),
+    ("neck", "head"),
+    ("head", "crown"),
+    ("chest", "shoulder.L"),
+    ("shoulder.L", "elbow.L"),
+    ("elbow.L", "hand.L"),
+    ("hip", "thigh.L"),
+    ("thigh.L", "knee.L"),
+    ("knee.L", "foot.L"),
+]
+
+BASE_BONES = C.mirrored_bones(BASE_BONES_HALF)
 
 
 @dataclass(frozen=True)
 class Proportions:
     """
-    ガルドの関節表(`garudo.JOINTS_HALF` / `RADII_HALF`)をどう変形して
+    村人共通の素体(`BASE_JOINTS_HALF` / `BASE_RADII_HALF`)をどう変形して
     その村人の体つきにするか。すべて倍率で、既定値(1.0)がガルドそのもの。
 
     height  背丈。ガルドの全高およそ0.95に掛かる
@@ -117,18 +164,18 @@ class Proportions:
 
 def humanoid(prop: Proportions) -> tuple[dict[str, Vector], dict[str, float], list]:
     """
-    ガルドの人型の関節表を Proportions のとおりに変形して返す。
+    村人共通の素体の関節表を Proportions のとおりに変形して返す。
 
-    関節名・骨のつなぎ方はガルドのまま変えない(村人はどれもこの
-    アーマチュアを共有する。`plan/models/model-*.md`の「関節名・ボーン構成は
+    関節名・骨のつなぎ方は変えない(村人はどれもこのアーマチュアを
+    共有する。`plan/models/model-*.md`の「関節名・ボーン構成は
     流用する」)。変わるのは座標と太さだけ。
     """
-    hip_z = garudo.JOINTS_HALF["hip"][2] * prop.height
-    neck_z = garudo.JOINTS_HALF["neck"][2] * prop.height
+    hip_z = BASE_JOINTS_HALF["hip"][2] * prop.height
+    neck_z = BASE_JOINTS_HALF["neck"][2] * prop.height
     angle = math.radians(prop.stoop)
 
     joints_half: dict[str, tuple[float, float, float]] = {}
-    for name, (x, y, z) in garudo.JOINTS_HALF.items():
+    for name, (x, y, z) in BASE_JOINTS_HALF.items():
         x, y, z = x * prop.width, y * prop.width, z * prop.height
         if name in ("head", "crown"):
             # 首を軸に頭だけ伸縮する。頭身(頭の相対的な大きさ)の調整
@@ -140,7 +187,7 @@ def humanoid(prop: Proportions) -> tuple[dict[str, Vector], dict[str, float], li
         joints_half[name] = (x, y, z)
 
     radii_half: dict[str, float] = {}
-    for name, r in garudo.RADII_HALF.items():
+    for name, r in BASE_RADII_HALF.items():
         r *= prop.width * prop.girth
         if name in ("hip", "chest"):
             r *= prop.torso
@@ -148,7 +195,7 @@ def humanoid(prop: Proportions) -> tuple[dict[str, Vector], dict[str, float], li
             r *= prop.head
         radii_half[name] = r
 
-    return C.mirrored(joints_half), C.mirrored_radii(radii_half), garudo.BONES
+    return C.mirrored(joints_half), C.mirrored_radii(radii_half), BASE_BONES
 
 
 def build_base(name: str, prop: Proportions, subsurf: int = 2):
