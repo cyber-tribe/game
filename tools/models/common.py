@@ -71,8 +71,14 @@ def linear_to_srgb(c: float) -> float:
 
 
 def make_material(name: str, color, roughness: float = 0.7, metallic: float = 0.0,
-                  emission: float = 0.0) -> bpy.types.Material:
-    """Principled BSDF のマテリアルを1つ作る。color は 0〜1 の sRGB。"""
+                  emission: float = 0.0, alpha: float = 1.0) -> bpy.types.Material:
+    """
+    Principled BSDF のマテリアルを1つ作る。color は 0〜1 の sRGB。
+
+    alpha < 1.0 で半透明になる。glTFにはalphaMode=BLENDとして書き出され、
+    エンジン側のトゥーン変換(src/view/assets.ts)がtransparent/opacityを
+    引き継ぐので、ゲーム内でも半透明で描画される(ぷるんの体など)。
+    """
     mat = bpy.data.materials.new(name)
     mat.use_nodes = True
     bsdf = mat.node_tree.nodes["Principled BSDF"]
@@ -83,6 +89,14 @@ def make_material(name: str, color, roughness: float = 0.7, metallic: float = 0.
     if emission > 0.0:
         bsdf.inputs["Emission Color"].default_value = (r, g, b, 1.0)
         bsdf.inputs["Emission Strength"].default_value = emission
+    if alpha < 1.0:
+        bsdf.inputs["Alpha"].default_value = alpha
+        # Blenderのバージョンで属性名が異なるため両対応(glTF出力の
+        # alphaMode判定に使われる)
+        if hasattr(mat, "blend_method"):
+            mat.blend_method = "BLEND"
+        if hasattr(mat, "surface_render_method"):
+            mat.surface_render_method = "BLENDED"
     return mat
 
 
@@ -190,6 +204,42 @@ def mirrored_bones(bones: Iterable[tuple[str, str]]) -> list[tuple[str, str]]:
 
 
 # --------------------------------------------------------------------------- キャラの造形
+
+def loft(name: str, rings, segments: int = 16, smooth: bool = True,
+         cap_top: bool = True, cap_bottom: bool = True) -> "bpy.types.Object":
+    """
+    断面リング(z昇順の (z, rx, ry, cx, cy))を積み、側面を貼った回転体風
+    メッシュを作る。設定画の三面図から「高さzでの横幅rx(正面図)・
+    奥行きry(側面図)・中心のずれ」を測ってそのまま並べられるのが利点
+    (ガルドの専用メッシュ化で確立した手法の共有版。設定画ベースの
+    再設計キャラはこれで部位を組む)。
+    """
+    mesh = bpy.data.meshes.new(name)
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj)
+    bm = bmesh.new()
+    angles = [i * math.tau / segments for i in range(segments)]
+    ring_verts = []
+    for z, rx, ry, cx, cy in rings:
+        ring_verts.append([
+            bm.verts.new((cx + rx * math.cos(a), cy + ry * math.sin(a), z))
+            for a in angles
+        ])
+    for lower_ring, upper_ring in zip(ring_verts, ring_verts[1:]):
+        for i in range(segments):
+            bm.faces.new((lower_ring[i], lower_ring[(i + 1) % segments],
+                          upper_ring[(i + 1) % segments], upper_ring[i]))
+    if cap_bottom:
+        bm.faces.new(list(reversed(ring_verts[0])))
+    if cap_top:
+        bm.faces.new(ring_verts[-1])
+    bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
+    bm.to_mesh(mesh)
+    bm.free()
+    for poly in mesh.polygons:
+        poly.use_smooth = smooth
+    return obj
+
 
 def build_skinned(
     name: str,

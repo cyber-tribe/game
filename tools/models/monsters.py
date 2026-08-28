@@ -56,38 +56,153 @@ PURUN_BONES = [("base", "mid"), ("mid", "top")]
 
 def build_purun():
     """
-    粘体。上に向かってすぼまる雫形にして、下端を床で潰したような形にする。
-    骨は縦に2本だけ。潰し伸ばしと跳ねる動きはこの2本で足りる。
-    """
-    body = C.build_skinned("purun", PURUN_JOINTS, PURUN_BONES, PURUN_RADII,
-                           root="base", subsurf=2)
-    # 底を平らに均して、床に乗っている感じを出す
-    for vert in body.data.vertices:
-        if vert.co.z < 0.02:
-            vert.co.z = 0.02 - (0.02 - vert.co.z) * 0.25
-    C.assign_material(body, C.make_material("purun_body", (0.30, 0.62, 0.85),
-                                            roughness=0.18, metallic=0.0))
+    確定した設定画(design/characters/purun/generated/purun-sheet.png、
+    ユーザー提供)に合わせた造形。様式化スライムの定石
+    (外殻+内核の二層・エミッシブによる偽の透明感・縁ほど濃い
+    フレネル近似)をトゥーンパイプラインの制約内で組む:
 
-    extras = []
+    - **縦長の雫+薄く波打つ裾**。
+    - **二層の半透明**: 薄い外殻(alpha0.45)+ひと回り小さい内核
+      (alpha0.85)で、ゲルの「厚み」を出す。
+    - **フレネル近似**: 外殻の頂点カラーに「縁(法線が水平)ほど
+      濃い青、中央ほど白」を焼き、透明体の縁の密度を偽装する。
+    - **目のキラキラ**: 濃青の楕円+下半分の明るいコバルトの潤み層+
+      白い光の粒(大小2つ、発光)。設定画の目の透明感の核心。
+    - 体内の虹色パステルの塊と発光気味の泡が半透明の体越しに見える。
+    """
+    rings = [
+        (0.002, 0.290, 0.290, 0.0, 0.0),   # 裾の縁(薄い)
+        (0.009, 0.296, 0.296, 0.0, 0.0),   # 裾の盛り上がり(薄く)
+        (0.026, 0.230, 0.230, 0.0, 0.0),   # 裾の上のくびれ(体本体へ)
+        (0.080, 0.224, 0.224, 0.0, 0.0),
+        (0.160, 0.216, 0.216, 0.0, 0.0),
+        (0.250, 0.206, 0.206, 0.0, 0.0),
+        (0.330, 0.186, 0.186, 0.0, 0.004),
+        (0.400, 0.140, 0.140, 0.0, 0.008),
+        (0.445, 0.078, 0.078, 0.0, 0.010),
+        (0.462, 0.030, 0.030, 0.0, 0.012),  # ふっくらした頭頂
+    ]
+
+    def lobed(obj):
+        """裾のロブ: 下のほうの頂点を角度ごとに揺らす。"""
+        for vert in obj.data.vertices:
+            if vert.co.z < 0.030:
+                t = 1.0 - vert.co.z / 0.030
+                angle = math.atan2(vert.co.y, vert.co.x)
+                factor = 1.0 + t * (0.065 * math.sin(3 * angle + 0.7)
+                                    + 0.045 * math.sin(5 * angle + 2.1))
+                vert.co.x *= factor
+                vert.co.y *= factor
+
+    body = C.loft("purun", rings, segments=20)
+    lobed(body)
+    C.assign_material(body, C.make_material("purun_body", (0.97, 0.98, 1.0),
+                                            roughness=0.08, alpha=0.45))
+
+    # 内核: ひと回り小さい同形。外殻越しに見え、ゲルの厚みになる
+    core_rings = [(z * 0.93 + 0.008, rx * 0.82, ry * 0.82, cx, cy)
+                  for z, rx, ry, cx, cy in rings]
+    core = C.loft("purun_core", core_rings, segments=16)
+    lobed(core)
+    C.assign_material(core, C.make_material("purun_core_m", (0.72, 0.83, 0.96),
+                                            roughness=0.15, alpha=0.85))
+
+    extras = [core]
+    # 体内の虹色(内核よりさらに内側。半透明二層越しに淡くにじむ)
+    for name, center, radius, color, scale in (
+        ("purun_iri_pink", (-0.075, -0.02, 0.150), 0.085, (0.95, 0.80, 0.90), (1.1, 1.0, 0.9)),
+        ("purun_iri_lav", (0.080, 0.035, 0.210), 0.075, (0.83, 0.78, 0.95), (1.0, 1.0, 1.0)),
+        ("purun_iri_blue", (0.012, 0.055, 0.305), 0.088, (0.70, 0.82, 0.97), (1.15, 1.0, 0.85)),
+        ("purun_iri_pink2", (0.02, -0.05, 0.060), 0.070, (0.95, 0.85, 0.90), (1.3, 1.1, 0.7)),
+    ):
+        blob = C.uv_sphere(name, center, radius, segments=12, rings=9, scale=scale)
+        C.assign_material(blob, C.make_material(f"{name}_m", color, roughness=0.3,
+                                                emission=0.05))
+        extras.append(blob)
+
+    # 体内の泡(発光気味の小球。透けて見えるキラキラの一部)
+    bubble_mat = C.make_material("purun_bubble", (0.93, 0.96, 1.0), roughness=0.15,
+                                 emission=0.18)
+    for i, (bx, by, bz, br) in enumerate(((0.10, -0.05, 0.36, 0.020),
+                                          (-0.12, 0.02, 0.27, 0.016),
+                                          (0.04, 0.09, 0.12, 0.018),
+                                          (-0.05, -0.09, 0.21, 0.013))):
+        bubble = C.uv_sphere(f"purun_bubble{i}", (bx, by, bz), br,
+                             segments=10, rings=8)
+        C.assign_material(bubble, bubble_mat)
+        extras.append(bubble)
+
+    # 白いつやのハイライト(頭頂の左上。表面法線に沿う薄いレンズ)
+    sheen_z = 0.408
+    ring_r, dr_dz = 0.0, 0.0
+    for (z0, r0, *_), (z1, r1, *_) in zip(rings, rings[1:]):
+        if z0 <= sheen_z <= z1:
+            ring_r = r0 + (r1 - r0) * (sheen_z - z0) / (z1 - z0)
+            dr_dz = (r1 - r0) / (z1 - z0)
+            break
+    d = Vector((-0.5, -0.86, 0.0)).normalized()
+    normal = Vector((d.x, d.y, -dr_dz)).normalized()
+    sheen = C.uv_sphere("purun_sheen", (0.0, 0.0, 0.0), 0.040,
+                        segments=12, rings=8, scale=(1.35, 0.30, 0.85))
+    sheen.rotation_euler = (-normal).to_track_quat("Y", "Z").to_euler()
+    sheen.location = d * ring_r + Vector((0.0, 0.0, sheen_z)) - normal * 0.006
+    C.assign_material(sheen, C.make_material("purun_sheen_m", (0.97, 0.98, 1.0),
+                                             roughness=0.12, emission=0.22))
+    extras.append(sheen)
+
+    # 目: 濃青の楕円+下半分の潤み層+白い光の粒(大小)。
+    # 設定画の「キラキラした透明感のある目」の様式化
+    eye_navy = C.make_material("purun_eye_navy", (0.17, 0.29, 0.58), roughness=0.15)
+    eye_wet = C.make_material("purun_eye_wet", (0.40, 0.57, 0.88), roughness=0.1)
+    gleam_mat = C.make_material("purun_eye_gleam", (1.0, 1.0, 1.0), roughness=0.1,
+                                emission=0.55)
     for side in (-1.0, 1.0):
-        extras += eyeball(f"purun_eye{side}", (0.085 * side, -0.196, 0.258), 0.054,
-                          look=(0.15 * side, -1.0, 0.0))
-    # 口
-    mouth = C.uv_sphere("purun_mouth", (0.0, -0.228, 0.158), 0.048,
-                        segments=14, rings=10, scale=(1.5, 0.5, 0.65))
-    C.assign_material(mouth, C.make_material("purun_mouth_m", (0.10, 0.22, 0.34), roughness=0.3))
+        ex = 0.082 * side
+        ey = -math.sqrt(max(0.212 ** 2 - ex ** 2, 0.0)) + 0.008
+        oval = C.uv_sphere(f"purun_eye{side}", (ex, ey, 0.270), 0.048,
+                           segments=14, rings=10, scale=(0.80, 0.36, 1.30))
+        C.assign_material(oval, eye_navy)
+        # 潤み層: 目の下半分を明るいコバルトに(下から光が透けるゼリー感)
+        wet = C.uv_sphere(f"purun_eyewet{side}", (ex, ey - 0.006, 0.240), 0.036,
+                          segments=12, rings=8, scale=(0.75, 0.32, 0.85))
+        C.assign_material(wet, eye_wet)
+        # 光の粒: 大(上外側)+小(下内側)
+        big = C.uv_sphere(f"purun_gleam_a{side}", (ex + 0.014 * side, ey - 0.014, 0.298),
+                          0.0145, segments=8, rings=6)
+        small = C.uv_sphere(f"purun_gleam_b{side}", (ex - 0.012 * side, ey - 0.012, 0.246),
+                            0.0075, segments=8, rings=6)
+        C.assign_material(big, gleam_mat)
+        C.assign_material(small, gleam_mat)
+        extras += [oval, wet, big, small]
+
+    # 口: 小さな点
+    mouth = C.uv_sphere("purun_mouth", (0.0, -0.222, 0.190), 0.015,
+                        segments=10, rings=8, scale=(1.2, 0.5, 1.0))
+    C.assign_material(mouth, C.make_material("purun_mouth_m", (0.20, 0.33, 0.64),
+                                             roughness=0.3))
     extras.append(mouth)
 
-    # まどろみの残り香が固まった芯(plan/models/sheet-purun.md、
-    # plan/models/archive/silhouette-hard-surface-parts.mdの義務項目)。
-    # 丸い体表面に唯一の角のある面を作る、正二十面体そのままの結晶。
-    # 背中側(+Y)の上寄りに半分めり込ませて生やす
-    gem_mat = C.make_material("purun_gem", (0.92, 0.72, 0.32), roughness=0.25, emission=0.15)
-    gem = C.gem("purun_gem", (0.0, 0.145, 0.285), 0.050, subdivisions=1)
-    C.assign_material(gem, gem_mat)
-    extras.append(gem)
-
     mesh = C.join([body] + extras, "purun")
+
+    # フレネル近似: 外殻(purun_body材質)の頂点カラーに「縁(法線が
+    # 水平)ほど濃い青、中央ほど白」を焼く。他の材質の面は白のまま
+    # (頂点カラーは材質色に乗算されるため)
+    attr = mesh.data.color_attributes.new("tint", type="BYTE_COLOR", domain="CORNER")
+    mesh.data.color_attributes.active_color = attr
+    body_index = next(i for i, m in enumerate(mesh.data.materials)
+                      if m.name == "purun_body")
+    edge_color = (0.58, 0.72, 0.93)
+    for poly in mesh.data.polygons:
+        is_body = poly.material_index == body_index
+        for li in poly.loop_indices:
+            if not is_body:
+                attr.data[li].color = (1.0, 1.0, 1.0, 1.0)
+                continue
+            n = mesh.data.vertices[mesh.data.loops[li].vertex_index].normal
+            t = abs(n.z) ** 0.7
+            col = [C.srgb_to_linear(e + (1.0 - e) * t) for e in edge_color]
+            attr.data[li].color = (*col, 1.0)
+
     armature = C.build_armature("purun", C.mirrored(PURUN_JOINTS), PURUN_BONES, mesh, root="base")
     return [mesh, armature], armature
 

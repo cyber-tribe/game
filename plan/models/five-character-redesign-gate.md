@@ -295,3 +295,10 @@
 ガルドと同じ経路(発注文`design/characters/<名前>/prompts/<名前>-sheet.txt`
 →ユーザーが外部ツールで設定画を生成し提供→承認→3D化)で進める。
 次のアクションはユーザーの設定画提供待ち。
+- **ぷるん(2体目)完了**(2026-08-28): ユーザー提供の設定画
+  (`design/characters/purun/generated/purun-sheet.png`)を正式版として
+  取り込み、3Dをv1→v3の相談反復で作り直してユーザーが承認
+  (「良さそう」)。半透明二層+頂点カラーのフレネル近似+キラキラの
+  目という様式化スライム手法を導入(詳細は
+  `design/characters/purun/concept.md`)。make_materialのalpha対応は
+  今後の半透明キャラにも使える。
