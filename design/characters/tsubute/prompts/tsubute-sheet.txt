@@ -1,0 +1,17 @@
+Character design sheet (settei-gasho) for a Japanese RPG video game art book, in the style of 1990s Japanese fantasy manga/anime illustration: confident clean ink linework, cel-shaded painted colors with soft shadows, patient watchful mood.
+
+Single page layout on parchment-white background containing:
+- LEFT SIDE, dominant: one full-body view of the creature from a front three-quarter angle, in a wind-up throwing pose holding its stone.
+- RIGHT SIDE: a column of smaller studies — front view, side view, a close-up of its hand gripping the angular stone, and one study of its face.
+
+CREATURE: A stocky two-legged frog creature, born from the memory of a faraway landscape once seen in a sleeping giant's dream. It never approaches — it waits at a distance and throws stone pellets. Heavy-set, grounded, about one head tall, thick haunches built for sitting still for hours.
+
+APPEARANCE:
+- Mossy green back and limbs `rgb(92,143,66)`, wide mouth, heavy-lidded patient eyes.
+- Cream/raw-cotton colored belly and throat `rgb(209,204,140)`.
+- Its signature feature: an angular faceted grey stone `rgb(115,112,107)` (like a chunky polyhedral gem shape, NOT a smooth pebble) gripped in one webbed hand, arm cocked back to throw. The hard angular stone against the soft round body is its identifying silhouette element.
+- Textured bumpy skin on the back, smooth belly.
+
+The overall look: a stubborn sentry of a frog — calm, distant, always holding its next throw.
+
+Clean game-artbook presentation, no text, no logos, no watermark, white/parchment background, all studies drawn in the same consistent style and palette.

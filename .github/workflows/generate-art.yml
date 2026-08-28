@@ -1,0 +1,75 @@
+name: 設定画の生成
+
+# 塗り込み品質の設定画はセッション内では描けないため、Gemini APIで
+# 生成する(plan/models/turnaround-drawing-craft.md参照)。APIキーは
+# リポジトリシークレット GEMINI_API_KEY に登録されている前提
+# (対話セッションのシェルにはシークレットは渡らないので、生成は
+# このワークフロー内でだけ実行できる)。
+#
+# 手動起動のみ。起動したrefのブランチに生成PNGをコミットして push
+# するので、claude/** ブランチ上で起動すれば通常のauto-pr.yml の
+# PR フローに乗る。main 上での起動は直接コミットになるため避けること。
+on:
+  workflow_dispatch:
+    inputs:
+      character:
+        description: "キャラ名(design/characters/<名前>/prompts/<名前>-sheet.txt を使う)。all で5体すべて"
+        required: false
+        default: "garudo"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    name: Gemini APIで設定画を生成しコミットする
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      # auto-pr.yml と同じ理由で、push がCI(必須チェック)を発火させる
+      # よう AUTO_PR_TOKEN があればそれを使う(GITHUB_TOKEN の push は
+      # 他のワークフローを起動しない)
+      - uses: actions/checkout@v7
+        with:
+          token: ${{ secrets.AUTO_PR_TOKEN || github.token }}
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: 生成
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          CHARACTER: ${{ inputs.character }}
+        run: |
+          if [ -z "$GEMINI_API_KEY" ]; then
+            echo "::error::リポジトリシークレット GEMINI_API_KEY が未登録です"
+            exit 1
+          fi
+          gen() {
+            python3 tools/generate_reference_art.py \
+              --prompt-file "design/characters/$1/prompts/$1-sheet.txt" \
+              --out "design/characters/$1/generated/$1-sheet.png"
+          }
+          case "$CHARACTER" in
+            all) for c in garudo purun gajiri tsubute oonebosuke; do gen "$c"; done ;;
+            *) gen "$CHARACTER" ;;
+          esac
+
+      - name: コミットして push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add design/characters/*/generated
+          if git diff --cached --quiet; then
+            echo "変更なし(生成されたファイルが既存と同一)"
+            exit 0
+          fi
+          git commit -m "設定画を生成する (${CHARACTER})"
+          git push
+        env:
+          CHARACTER: ${{ inputs.character }}

@@ -1,0 +1,17 @@
+Character design sheet (settei-gasho) for a Japanese RPG video game art book, in the style of 1990s Japanese fantasy manga/anime illustration: confident clean ink linework, cel-shaded painted colors with soft shadows, heavy drowsy imposing mood.
+
+Single page layout on parchment-white background containing:
+- LEFT SIDE, dominant: one full-body view of the creature from a front three-quarter angle, slumped in its seated sleeping pose.
+- RIGHT SIDE: a column of smaller studies — front view, side view (clearly showing the stone pillow behind its head), and one close-up study of its sleeping face with drool.
+
+CREATURE: The first region boss — an immense, vaguely humanoid embodiment of overwhelming sleepiness that slumped down long ago and never got up again. It squats at the innermost end of a mountain pilgrimage path. A huge soft rounded mass, like a giant teardrop-shaped body with the faint suggestion of a face and arms, roughly 1.3 heads tall proportionally — a settled, immovable lump.
+
+APPEARANCE:
+- Pale warm earthen skin tone `rgb(189,163,128)`, matching the dusty path it sits on; soft, sagging, mountain-like body.
+- Eyes fully closed, deeply asleep; slack peaceful expression; a trail of pale greenish-white drool `rgb(204,219,209)` from the corner of its mouth.
+- Its signature feature: an angular, beveled stone pillow in dull grey `rgb(102,97,92)` wedged behind its head, which it leans on and will never leave — the only hard, angular shape against its soft round mass, clearly readable in black silhouette.
+- Slow heavy breathing pose; arms resting limp on its belly.
+
+The overall look: not evil — just an unbudging mountain of sleep, both comical and quietly majestic, imposing enough to be a first boss.
+
+Clean game-artbook presentation, no text, no logos, no watermark, white/parchment background, all studies drawn in the same consistent style and palette.
