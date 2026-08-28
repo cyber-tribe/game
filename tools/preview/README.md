@@ -7,4 +7,4 @@
 
 | モデル | 見た目 |
 |---|---|
-| garudo | ![garudo](./garudo.gif) |
+| purun | ![purun](./purun.gif) |
