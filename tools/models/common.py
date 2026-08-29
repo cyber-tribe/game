@@ -241,6 +241,36 @@ def loft(name: str, rings, segments: int = 16, smooth: bool = True,
     return obj
 
 
+def curve_tube(name: str, points, radii, resolution: int = 4,
+               bevel_resolution: int = 1) -> "bpy.types.Object":
+    """
+    ベジェカーブ+点ごとの半径テーパーの管。曲がりながら先細る形
+    (尻尾・髪の房・ひげ等)を数点の制御点だけで作れる
+    (ガルドの髪で確立した手法の共有版)。メッシュへ変換して返す。
+    """
+    curve = bpy.data.curves.new(name, "CURVE")
+    curve.dimensions = "3D"
+    curve.bevel_depth = 1.0
+    curve.bevel_resolution = bevel_resolution
+    curve.resolution_u = resolution
+    curve.fill_mode = "FULL"
+    curve.use_fill_caps = True
+    spline = curve.splines.new("BEZIER")
+    spline.bezier_points.add(len(points) - 1)
+    for bp, co, r in zip(spline.bezier_points, points, radii):
+        bp.co = co
+        bp.handle_left_type = bp.handle_right_type = "AUTO"
+        bp.radius = r
+    obj = bpy.data.objects.new(name, curve)
+    bpy.context.collection.objects.link(obj)
+    activate(obj)
+    bpy.ops.object.convert(target="MESH")
+    obj = bpy.context.view_layer.objects.active
+    for poly in obj.data.polygons:
+        poly.use_smooth = True
+    return obj
+
+
 def build_skinned(
     name: str,
     joints: dict[str, Vector],

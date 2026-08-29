@@ -7,4 +7,4 @@
 
 | モデル | 見た目 |
 |---|---|
-| purun | ![purun](./purun.gif) |
+| gajiri | ![gajiri](./gajiri.gif) |

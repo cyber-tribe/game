@@ -302,3 +302,8 @@
   目という様式化スライム手法を導入(詳細は
   `design/characters/purun/concept.md`)。make_materialのalpha対応は
   今後の半透明キャラにも使える。
+- **ガジリねずみ(3体目)完了**(2026-08-28): ユーザー提供の設定画を
+  取り込み、相談で「座って木片をかじる基本姿勢・現行サイズ維持」を
+  決めた上で3Dとアニメーションを全面作り直し、ユーザーが承認
+  (「ガジリネズミok」)。詳細は`design/characters/gajiri/concept.md`。
+  尻尾用のカーブ管はcommon.curve_tubeとして共有化した。
