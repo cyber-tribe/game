@@ -376,144 +376,245 @@ def akubitokage_animations():
 # =================================================================== ガジリねずみ
 
 GAJIRI_HALF = {
-    "hip": (0.0, 0.15, 0.20),
-    "chest": (0.0, -0.02, 0.21),
-    "neck": (0.0, -0.15, 0.19),
-    "snout": (0.0, -0.32, 0.13),
-    "tail1": (0.0, 0.28, 0.19),
-    "tail2": (0.0, 0.42, 0.24),
-    "tail3": (0.0, 0.52, 0.32),
-    "ear.L": (0.10, -0.15, 0.34),
-    "hipF.L": (0.09, -0.06, 0.14),
-    "footF.L": (0.10, -0.10, 0.025),
-    "hipB.L": (0.11, 0.13, 0.15),
-    "footB.L": (0.12, 0.16, 0.025),
-}
-GAJIRI_RADII_HALF = {
-    "hip": 0.135, "chest": 0.145, "neck": 0.105, "snout": 0.040,
-    "tail1": 0.032, "tail2": 0.024, "tail3": 0.014,
-    "ear.L": 0.058,
-    "hipF.L": 0.040, "footF.L": 0.034,
-    "hipB.L": 0.052, "footB.L": 0.036,
+    # 設定画準拠の「座ってうずくまる」姿勢。baseが腰(接地側)、
+    # chestが胸、headが頭、snoutが鼻先。前足(pawF)は胸の前で
+    # 木片を抱える。尻尾は右側へ流れて丸まる(非対称、.L無しの
+    # 関節はmirroredでそのまま残る)
+    "base": (0.0, 0.04, 0.11),
+    "chest": (0.0, -0.045, 0.205),
+    "head": (0.0, -0.10, 0.295),
+    "snout": (0.0, -0.205, 0.245),
+    "ear.L": (0.082, -0.048, 0.395),
+    "pawF.L": (0.046, -0.172, 0.185),
+    "tail1": (0.0, 0.185, 0.075),
+    "tail2": (0.13, 0.25, 0.05),
+    "tail3": (0.245, 0.19, 0.055),
 }
 GAJIRI_BONES_HALF = [
-    ("chest", "hip"), ("chest", "neck"), ("neck", "snout"),
-    ("hip", "tail1"), ("tail1", "tail2"), ("tail2", "tail3"),
-    ("neck", "ear.L"),
-    ("chest", "hipF.L"), ("hipF.L", "footF.L"),
-    ("hip", "hipB.L"), ("hipB.L", "footB.L"),
+    ("base", "chest"), ("chest", "head"), ("head", "snout"),
+    ("head", "ear.L"), ("chest", "pawF.L"),
+    ("base", "tail1"), ("tail1", "tail2"), ("tail2", "tail3"),
 ]
 
 
 def build_gajiri():
     """
-    四つ足のねずみ。長い尻尾と大きな耳で、小さくても種類が分かるようにする。
+    確定した設定画(design/characters/gajiri/generated/gajiri-sheet.png、
+    ユーザー提供)に合わせた造形。要点:
 
-    看板モデル(plan/models/archive/flagship-model-program.md)として、
-    種族固有の質感の識別子を持たせる: 背側と腹側で色むらをはっきり分け
-    (通常の高さ切り分けに加え、gajiriは他の四つ足種族と違って腹側専用の
-    色を新設する)。毛並みの手続きテクスチャは廃止した(plan/models/
-    archive/anime-look-art-direction.md): アニメ調の方針では毛の流れは
-    シルエット(毛の房)で表す想定だが、房の形は2Dコンセプト段階で
-    決める未決事項として残る。
+    - **座ってうずくまる基本姿勢**(ユーザー選択)。丸い背中の塊に
+      頭が低く埋まり、前足で木片を胸の前に抱えてかじる。移動時は
+      前傾の跳ねで表す。
+    - 大きな薄い耳(内側ピンク)・つぶらな黒い目+白い光の粒・
+      ピンクの鼻・ひげ・前歯2本・長い尻尾(カーブ管)・
+      たたんだ後ろ足のもも(ハウンチ)と小さな後ろ足。
+    - 色は灰茶の毛+淡い腹、設定画のラフな毛並みはトゥーンの
+      フラット色面方針によりシルエットと塗り分けで表す。
     """
-    joints = C.mirrored(GAJIRI_HALF)
-    radii = C.mirrored_radii(GAJIRI_RADII_HALF)
-    bones = C.mirrored_bones(GAJIRI_BONES_HALF)
+    fur = C.make_material("gajiri_fur", (0.52, 0.45, 0.38), roughness=0.85)
+    belly = C.make_material("gajiri_belly", (0.72, 0.66, 0.58), roughness=0.8)
+    ear_in = C.make_material("gajiri_ear", (0.88, 0.62, 0.60), roughness=0.75)
+    pink = C.make_material("gajiri_pink", (0.85, 0.55, 0.52), roughness=0.6)
+    eye_black = C.make_material("gajiri_eye", (0.06, 0.05, 0.06), roughness=0.10)
+    gleam_mat = C.make_material("gajiri_gleam", (1.0, 1.0, 1.0), roughness=0.1,
+                                emission=0.5)
+    teeth_mat = C.make_material("gajiri_teeth", (0.95, 0.93, 0.84), roughness=0.35)
+    chip_mat = C.make_material("gajiri_chip", (0.55, 0.40, 0.26), roughness=0.9)
+    whisker_mat = C.make_material("gajiri_whisker", (0.85, 0.82, 0.78), roughness=0.6)
 
-    body = C.build_skinned("gajiri", joints, bones, radii, root="chest", subsurf=2)
-    fur = C.make_material("gajiri_fur", (0.52, 0.42, 0.34), roughness=0.85)
-    belly = C.make_material("gajiri_belly", (0.66, 0.56, 0.46), roughness=0.8)
-    ear_in = C.make_material("gajiri_ear", (0.72, 0.48, 0.46), roughness=0.8)
+    parts = []
+    pinned = []
 
-    # 耳だけを内側の色にする。高さで切ると背中まで巻き込むので、
-    # 耳の関節からの距離で判定する。それ以外は高さで背側/腹側を分ける
-    ears = [Vector(joints["ear.L"]), Vector(joints["ear.R"])]
-    C.assign_materials_by_region(
-        body, [fur, belly, ear_in],
-        lambda c: 2 if min((c - e).length for e in ears) < 0.072
-        else (1 if c.z < 0.135 else 0),
-    )
+    def add(obj, mat, pin_bone=None):
+        C.assign_material(obj, mat)
+        if pin_bone:
+            C.mark_for_pin(obj)
+            pinned.append((obj.name, pin_bone))
+        parts.append(obj)
+        return obj
 
-    extras = []
+    # 胴: 丸くうずくまった背中。上へ行くほど後ろ(+y)へ寄せて、
+    # 背の高い丸い背中と低い前を作る
+    add(C.loft("gajiri", [
+        (0.004, 0.185, 0.205, 0.0, 0.015),
+        (0.035, 0.200, 0.225, 0.0, 0.015),
+        (0.100, 0.200, 0.225, 0.0, 0.030),
+        (0.170, 0.180, 0.205, 0.0, 0.045),
+        (0.240, 0.145, 0.170, 0.0, 0.050),
+        (0.300, 0.100, 0.120, 0.0, 0.035),
+        (0.345, 0.045, 0.050, 0.0, 0.020),
+    ], segments=18), fur)
+
+    # 頭(体の前上に埋める)+鼻先
+    head = C.uv_sphere("gajiri_head", (0.0, -0.095, 0.290), 0.132,
+                       segments=16, rings=12, scale=(1.0, 1.08, 0.98))
+    add(head, fur)
+    muzzle = C.uv_sphere("gajiri_muzzle", (0.0, -0.185, 0.252), 0.075,
+                         segments=12, rings=9, scale=(0.85, 1.30, 0.75))
+    add(muzzle, fur, pin_bone="head-snout")
+
+    # 腹の淡色(胸の前の楕円デカール)
+    belly_patch = C.uv_sphere("gajiri_bellypatch", (0.0, -0.150, 0.155), 0.092,
+                              segments=12, rings=9, scale=(1.05, 0.40, 1.25))
+    add(belly_patch, belly)
+
+    # 耳: 大きく薄い皿+内側ピンク
     for side in (-1.0, 1.0):
-        extras += eyeball(f"gajiri_eye{side}", (0.062 * side, -0.215, 0.215), 0.040,
-                          look=(0.3 * side, -1.0, 0.1))
-    nose = C.uv_sphere("gajiri_nose", (0.0, -0.352, 0.125), 0.026, segments=12, rings=8)
-    C.assign_material(nose, C.make_material("gajiri_nose_m", (0.85, 0.45, 0.48), roughness=0.4))
-    extras.append(nose)
-    # 前歯
-    teeth = C.box("gajiri_teeth", (0.0, -0.330, 0.082), (0.046, 0.024, 0.044), bevel=0.006)
-    C.assign_material(teeth, C.make_material("gajiri_teeth_m", (0.95, 0.93, 0.84), roughness=0.35))
-    extras.append(teeth)
+        ear = C.uv_sphere(f"gajiri_ear{side}", (0.088 * side, -0.050, 0.400), 0.078,
+                          segments=14, rings=10, scale=(1.0, 0.26, 1.20))
+        ear.rotation_euler = (0.12, 0.32 * side, 0.0)
+        add(ear, fur, pin_bone=f"head-ear.{'L' if side > 0 else 'R'}")
+        inner = C.uv_sphere(f"gajiri_earin{side}", (0.086 * side, -0.062, 0.398), 0.056,
+                            segments=12, rings=8, scale=(0.85, 0.20, 1.05))
+        inner.rotation_euler = (0.12, 0.32 * side, 0.0)
+        add(inner, ear_in, pin_bone=f"head-ear.{'L' if side > 0 else 'R'}")
 
-    mesh = C.join([body] + extras, "gajiri")
-    armature = C.build_armature("gajiri", joints, bones, mesh, root="chest")
+    # 目: つぶらな黒い玉+白い光の粒(大小)。設定画のうるんだ目
+    for side in (-1.0, 1.0):
+        eye = C.uv_sphere(f"gajiri_eye{side}", (0.062 * side, -0.213, 0.303), 0.037,
+                          segments=12, rings=9, scale=(1.0, 0.55, 1.05))
+        add(eye, eye_black, pin_bone="chest-head")
+        big = C.uv_sphere(f"gajiri_gleam_a{side}", (0.071 * side, -0.238, 0.315), 0.011,
+                          segments=8, rings=6)
+        small = C.uv_sphere(f"gajiri_gleam_b{side}", (0.052 * side, -0.238, 0.291), 0.006,
+                            segments=8, rings=6)
+        add(big, gleam_mat, pin_bone="chest-head")
+        add(small, gleam_mat, pin_bone="chest-head")
+
+    # 鼻・前歯・ひげ
+    nose = C.uv_sphere("gajiri_nose", (0.0, -0.268, 0.252), 0.024,
+                       segments=10, rings=8)
+    add(nose, pink, pin_bone="head-snout")
+    for side in (-1.0, 1.0):
+        tooth = C.box(f"gajiri_tooth{side}", (0.009 * side, -0.247, 0.210),
+                      (0.011, 0.010, 0.022), bevel=0.003)
+        add(tooth, teeth_mat, pin_bone="head-snout")
+        for i, (dy, dz) in enumerate(((-0.015, 0.010), (0.0, 0.0), (0.012, -0.012))):
+            whisker = C.cylinder(f"gajiri_whisker{side}_{i}", (0.0, 0.0, 0.0),
+                                 0.0022, 0.095, segments=5)
+            direction = Vector((side, -0.15 + dy * 6, dz * 4)).normalized()
+            whisker.rotation_euler = direction.to_track_quat("Z", "Y").to_euler()
+            whisker.location = Vector((0.045 * side, -0.235 + dy, 0.247 + dz)) \
+                + direction * 0.045
+            add(whisker, whisker_mat, pin_bone="head-snout")
+
+    # 前足: 短い腕+手。胸の前で木片を抱える
+    for side in (-1.0, 1.0):
+        tag = "L" if side > 0 else "R"
+        arm = C.cylinder(f"gajiri_arm{tag}", (0.0, 0.0, 0.0), 0.020, 0.075, segments=8)
+        p0 = Vector((0.058 * side, -0.112, 0.205))
+        p1 = Vector((0.046 * side, -0.170, 0.190))
+        arm.rotation_euler = (p1 - p0).to_track_quat("Z", "Y").to_euler()
+        arm.location = (p0 + p1) / 2
+        add(arm, fur, pin_bone=f"chest-pawF.{tag}")
+        paw = C.uv_sphere(f"gajiri_paw{tag}", (0.044 * side, -0.180, 0.186), 0.028,
+                          segments=10, rings=8, scale=(0.9, 1.0, 0.9))
+        add(paw, pink, pin_bone=f"chest-pawF.{tag}")
+
+    # 木片(かじりかけ)。左前足の骨に固定して抱えたまま動く
+    chip = C.box("gajiri_chip", (0.0, -0.200, 0.200), (0.050, 0.020, 0.092),
+                 bevel=0.005)
+    chip.rotation_euler = (0.42, 0.0, 0.15)
+    add(chip, chip_mat, pin_bone="chest-pawF.L")
+
+    # 後ろ足のもも(たたんだハウンチ)と小さな足先
+    for side in (-1.0, 1.0):
+        haunch = C.uv_sphere(f"gajiri_haunch{side}", (0.150 * side, 0.045, 0.098),
+                             0.088, segments=12, rings=9, scale=(1.0, 1.15, 0.92))
+        add(haunch, fur)
+        foot = C.uv_sphere(f"gajiri_foot{side}", (0.108 * side, -0.190, 0.030), 0.036,
+                           segments=10, rings=8, scale=(1.0, 1.70, 0.55))
+        add(foot, pink)
+
+    # 尻尾: 右へ流れて丸まる細い管
+    tail = C.curve_tube("gajiri_tail",
+                        [Vector((0.0, 0.185, 0.075)), Vector((0.13, 0.255, 0.05)),
+                         Vector((0.245, 0.20, 0.055)), Vector((0.29, 0.10, 0.07))],
+                        [0.020, 0.015, 0.010, 0.005])
+    add(tail, pink)
+
+    joints = C.mirrored(GAJIRI_HALF)
+    bones = C.mirrored_bones(GAJIRI_BONES_HALF)
+    mesh = C.join(parts, "gajiri")
+    armature = C.build_armature("gajiri", joints, bones, mesh, root="base")
+    for group_name, bone in pinned:
+        C.pin_weight_to_bone(mesh, group_name, bone)
     return [mesh, armature], armature
 
 
 def gajiri_animations():
     """
-    plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
-    タメ・ツメ(LINEAR補間)・尻尾の遅れ追従(二次揺れ)を足してある。
-    尻尾(t1)は胴(neck)より、部位の長さから機械的に決めたフレーム数
-    (plan/game/archive/secondary-motion-delay-convention.md)遅れて
-    同じ揺れを追いかける。
+    座りポーズ基準のクリップ。idleは呼吸+小さくかじる+耳の
+    ひくつき、walkは前傾の跳ね、attackはかじりの連打、hitは
+    のけぞり、dieは横倒れ。尻尾は二次揺れの遅延規約どおり
+    胴より遅れて追従する。
     """
-    neck, snout = "chest-neck", "neck-snout"
-    t1, t2 = "hip-tail1", "tail1-tail2"
-    fL, fR = "chest-hipF.L", "chest-hipF.R"
-    bL, bR = "hip-hipB.L", "hip-hipB.R"
-    # 尻尾の遅延フレーム数は、尻尾全体(hip-tail1-tail2-tail3)の長さを
-    # 胴の基準長(chest-hip)で割った比から決める
+    trunk = "base-chest"
+    headb = "chest-head"
+    snout = "head-snout"
+    earL, earR = "head-ear.L", "head-ear.R"
+    pawL, pawR = "chest-pawF.L", "chest-pawF.R"
+    t1, t2 = "base-tail1", "tail1-tail2"
     tail_len = (
-        (Vector(GAJIRI_HALF["tail1"]) - Vector(GAJIRI_HALF["hip"])).length
+        (Vector(GAJIRI_HALF["tail1"]) - Vector(GAJIRI_HALF["base"])).length
         + (Vector(GAJIRI_HALF["tail2"]) - Vector(GAJIRI_HALF["tail1"])).length
         + (Vector(GAJIRI_HALF["tail3"]) - Vector(GAJIRI_HALF["tail2"])).length
     )
     tail_delay = C.secondary_delay_frames(
-        tail_len / (Vector(GAJIRI_HALF["chest"]) - Vector(GAJIRI_HALF["hip"])).length
+        tail_len / (Vector(GAJIRI_HALF["chest"]) - Vector(GAJIRI_HALF["base"])).length
     )
     return [
-        # 尻尾が首より遅れて揺れる(二次揺れ)
+        # 呼吸+ときどき小さくかじる+耳のひくつき。尻尾は遅れて揺れる
         ("idle", [
-            (1, {neck: (0, 0, 0), t1: (0, 0, 0)}),
-            (14, {neck: (-4, 0, 0), snout: (5, 0, 0)}),
-            (14 + tail_delay, {t1: (0, 0, 16)}, {"partial": True}),
-            (28, {neck: (0, 0, 0)}),
-            (28 + tail_delay, {t1: (0, 0, -16)}, {"partial": True}),
-            (42, {neck: (0, 0, 0)}),
-            (42 + tail_delay, {t1: (0, 0, 0)}, {"partial": True}),
+            (1, {trunk: {"scale": (1.0, 1.0, 1.0)}, snout: (0, 0, 0), t1: (0, 0, 0),
+                 earL: (0, 0, 0), earR: (0, 0, 0)}),
+            (8, {snout: (7, 0, 0)}),
+            (11, {snout: (0, 0, 0)}),
+            (14, {snout: (7, 0, 0)}),
+            (17, {snout: (0, 0, 0)}),
+            (24, {trunk: {"scale": (1.03, 1.03, 0.97)}}),
+            (24 + tail_delay, {t1: (0, 0, 14)}, {"partial": True}),
+            (34, {earL: (0, 0, 10)}),
+            (38, {earL: (0, 0, 0)}),
+            (48, {trunk: {"scale": (1.0, 1.0, 1.0)}}),
+            (48 + tail_delay, {t1: (0, 0, 0)}, {"partial": True}),
         ]),
+        # 前傾して小刻みに跳ねる(座りのまま急いで進む)
         ("walk", [
-            (1, {fL: (30, 0, 0), fR: (-30, 0, 0), bL: (-28, 0, 0), bR: (28, 0, 0), t1: (0, 0, 12)}),
-            (6, {fL: (0, 0, 0), fR: (0, 0, 0), bL: (0, 0, 0), bR: (0, 0, 0), t1: (0, 0, 0)}),
-            (11, {fL: (-30, 0, 0), fR: (30, 0, 0), bL: (28, 0, 0), bR: (-28, 0, 0), t1: (0, 0, -12)}),
-            (16, {fL: (0, 0, 0), fR: (0, 0, 0), bL: (0, 0, 0), bR: (0, 0, 0), t1: (0, 0, 0)}),
-            (21, {fL: (30, 0, 0), fR: (-30, 0, 0), bL: (-28, 0, 0), bR: (28, 0, 0), t1: (0, 0, 12)}),
+            (1, {trunk: {"rot": (14, 0, 0)}, t1: (0, 0, 10),
+                 pawL: (16, 0, 0), pawR: (16, 0, 0)}),
+            (5, {trunk: {"rot": (20, 0, 0), "loc": (0, 0.045, 0)}}),
+            (10, {trunk: {"rot": (14, 0, 0), "loc": (0, 0, 0)}, t1: (0, 0, -10)}),
+            (15, {trunk: {"rot": (20, 0, 0), "loc": (0, 0.045, 0)}}),
+            (20, {trunk: {"rot": (14, 0, 0), "loc": (0, 0, 0)}, t1: (0, 0, 10)}),
         ]),
-        # タメ(首を引く)→ ツメ(LINEARで鋭く噛みつく)→ 行き過ぎ → 戻り
+        # タメ(頭を引く)→ ツメ(LINEARで鋭くかじる連打)→ 戻り
         ("attack", [
-            (1, {neck: (0, 0, 0), snout: (0, 0, 0)}),
-            (4, {neck: (22, 0, 0), snout: (14, 0, 0), t2: (0, 0, 20)}, {"interp": "LINEAR"}),
-            (7, {neck: (-34, 0, 0), snout: (-20, 0, 0), t2: (0, 0, -14)}),
-            (9, {neck: (-26, 0, 0), snout: (-15, 0, 0), t2: (0, 0, -10)}),
-            (18, {neck: (0, 0, 0), snout: (0, 0, 0), t2: (0, 0, 0)}),
+            (1, {headb: (0, 0, 0), snout: (0, 0, 0)}),
+            (4, {headb: (-10, 0, 0), snout: (-8, 0, 0)}, {"interp": "LINEAR"}),
+            (6, {headb: (10, 0, 0), snout: (16, 0, 0)}),
+            (8, {headb: (2, 0, 0), snout: (-6, 0, 0)}),
+            (10, {headb: (10, 0, 0), snout: (16, 0, 0)}),
+            (12, {headb: (2, 0, 0), snout: (-6, 0, 0)}),
+            (18, {headb: (0, 0, 0), snout: (0, 0, 0)}),
         ]),
-        # 鋭く入って(LINEAR)、ゆっくり戻る
+        # 鋭くのけぞり(LINEAR)、耳が後ろへ倒れ、ゆっくり戻る
         ("hit", [
-            (1, {neck: (0, 0, 0)}, {"interp": "LINEAR"}),
-            (3, {neck: (26, 0, 0), t1: (0, 0, 24), snout: (12, 0, 0)}),
-            (14, {neck: (0, 0, 0), t1: (0, 0, 0)}),
+            (1, {trunk: {"rot": (0, 0, 0)}, earL: (0, 0, 0), earR: (0, 0, 0)},
+             {"interp": "LINEAR"}),
+            (3, {trunk: {"rot": (-18, 0, 0)}, earL: (30, 0, 0), earR: (30, 0, 0),
+                 t1: (0, 0, 22)}),
+            (14, {trunk: {"rot": (0, 0, 0)}, earL: (0, 0, 0), earR: (0, 0, 0),
+                  t1: (0, 0, 0)}),
         ]),
-        # 倒れの初動を鋭く、接地後に一度だけ小さく跳ね返る
+        # 横へ倒れて動かなくなる
         ("die", [
-            (1, {neck: (0, 0, 0)}, {"interp": "LINEAR"}),
-            (7, {neck: (30, 0, 0), fL: (-50, 0, 0), fR: (-50, 0, 0)}),
-            (20, {neck: (10, 0, 0), fL: (-90, 0, 0), fR: (-90, 0, 0),
-                  bL: (-70, 0, 0), bR: (-70, 0, 0), t1: (0, 0, 40)}),
-            (24, {neck: (14, 0, 0), fL: (-82, 0, 0), fR: (-82, 0, 0),
-                  bL: (-64, 0, 0), bR: (-64, 0, 0), t1: (0, 0, 36)}),
+            (1, {trunk: {"rot": (0, 0, 0)}}, {"interp": "LINEAR"}),
+            (8, {trunk: {"rot": (-12, 40, 0)}, earL: (18, 0, 0), earR: (18, 0, 0)}),
+            (20, {trunk: {"rot": (-6, 86, 0), "loc": (0, 0, -0.03)},
+                  snout: (10, 0, 0), t1: (0, 0, 34)}),
+            (24, {trunk: {"rot": (-6, 80, 0), "loc": (0, 0, -0.026)},
+                  t1: (0, 0, 30)}),
         ]),
     ]
 
