@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   composeAmbientLoop,
   composeBarrelOpen,
+  composeFestivalAmbient,
   composeForgeHum,
   composeGalleryAmbient,
   composeJingle,
@@ -399,6 +400,7 @@ describe("tools/audio/compose.ts(plan/sound/archive/bgm-quality-upgrade.md)", ()
     ["composeSleepHutAmbient", composeSleepHutAmbient],
     ["composeGalleryAmbient", composeGalleryAmbient],
     ["composeSmallFireAmbient", composeSmallFireAmbient],
+    ["composeFestivalAmbient", composeFestivalAmbient],
   ] as const)("%s", (_name, compose) => {
     it("指定した長さの有限な値の配列を、同じシードから決定的に返す", () => {
       const durationSec = 2;
