@@ -1,3 +1,19 @@
+> **実装済み。** `tools/audio/compose.ts`に`composeFestivalAmbient`を
+> 新設した。常時鳴る成分は持たせず、太鼓の短い連打(2〜3回のクラスタ、
+> 約6秒おき)と、跳ねた上行フレーズ(`FESTIVAL_MOTIF_DEGREES=[0,2,4,7]`、
+> 約13秒おき)だけを疎らに置く設計にした(計画書どおり)。
+> `tools/audio/build.ts`の`MOOD_SPECS`に`yoimatsuri-ambient`を追加し、
+> `src/main.ts`の`showTown()`で`this.village.setFestivalLighting(...)`の
+> 直後に`this.audio.setMoodLayer("yoimatsuri-ambient",
+> isYoimatsuri(todayKey()))`を追加した。`village-ambient`の扱いは
+> 変更していない(`setMoodLayer`はidごとの`Map`で複数レイヤーを独立に
+> 管理するため、置き換えではなく追加になる)。
+>
+> **検証**: `npx tsc --noEmit`・`npx vitest run`(136ファイル/1766件、
+> `composeFestivalAmbient`の決定性・音量上限を確認する既存の
+> `describe.each`テーブルへの追加を含む)・`npm run build`・
+> `npm run audio`(似すぎ警告0件)いずれも成功。
+
 # 宵祭りの拠点BGMレイヤー
 
 ## 経緯

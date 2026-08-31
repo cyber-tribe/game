@@ -466,6 +466,9 @@ class App {
     // 村の画面構成の再設計(plan/models/village-scene-redesign.md): 既定は
     // 明るい昼にし、宵祭りの日だけ茜色の夕暮れへ切り替える
     this.village.setFestivalLighting(isYoimatsuri(todayKey()));
+    // 宵祭りの拠点BGMレイヤー(plan/sound/archive/yoimatsuri-festival-ambient.md)。
+    // village-ambientを置き換えず、宵祭りの日だけ別idのレイヤーとして重ねる
+    this.audio.setMoodLayer("yoimatsuri-ambient", isYoimatsuri(todayKey()));
     this.village.reset();
   }
 

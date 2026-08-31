@@ -13,6 +13,7 @@ import { fileURLToPath } from "node:url";
 import {
   composeAmbientLoop,
   composeBarrelOpen,
+  composeFestivalAmbient,
   composeForgeHum,
   composeGalleryAmbient,
   composeJingle,
@@ -536,6 +537,9 @@ const MOOD_SPECS: readonly MoodSpec[] = [
   { id: "sleep-hut-ambient", durationSec: 20, seed: 10002, generate: composeSleepHutAmbient },
   { id: "gallery-ambient", durationSec: 20, seed: 10003, generate: composeGalleryAmbient },
   { id: "garudo-house-ambient", durationSec: 20, seed: 10004, generate: composeSmallFireAmbient },
+  // 宵祭りの日だけvillage-ambientに重ねる薄いレイヤー
+  // (plan/sound/archive/yoimatsuri-festival-ambient.md)
+  { id: "yoimatsuri-ambient", durationSec: 20, seed: 10005, generate: composeFestivalAmbient },
 ];
 
 function main(): void {
