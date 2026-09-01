@@ -94,7 +94,7 @@ HOOP = props.BARREL_IRON            # たが(鉄輪)
 CHIN_Z = 0.762          # あご先(顔QAの実測)
 EYE_Z = 0.8415          # 目の中心の高さ(顔QAの実測)
 EYE_X = 0.0317          # 顔の中心から目の中心まで(顔QAの実測)
-BROW_Z = 0.884          # 眉(目パッチの上端0.871より上に置く)
+BROW_Z = 0.870          # 眉(顔QAの実測。目パッチ上端0.8612のすぐ上)
 MOUTH_Z = 0.800
 NOSE_Z = 0.828
 SKULL_TOP_Z = 0.970
@@ -365,6 +365,7 @@ def _hair_card(name: str, base, tip, w_base: float, w_mid: float,
 # アーモンド(円板に対し幅0.94・高さ0.76)で埋めるとこの大きさになる
 EYE_HALF_W = 0.0171
 EYE_HALF_H = 0.0197
+EYE_TILT_DEG = 12.0     # 目尻が下がる角度(顔QAの実測)
 
 
 def _eye_texture(size: int = 128) -> "bpy.types.Image":
@@ -396,8 +397,15 @@ def _eye_texture(size: int = 128) -> "bpy.types.Image":
         m = mask[..., None]
         px[..., :3] = px[..., :3] * (1.0 - m) + np.array(color, dtype=np.float32) * m
 
-    def almond(cx, cy, rx, ry, power=1.65):
-        """角の尖ったアーモンド形(超楕円)。アニメの目の輪郭"""
+    def almond(cx, cy, rx, ry_up, ry_down=None, power=1.65):
+        """
+        角の尖ったアーモンド形(超楕円)。アニメの目の輪郭。
+        上下で半径を変えられる: 設定画の目は**目頭・目尻が縦の中心より
+        上**にあり(実測: корner z847.8に対し上瞼858・下瞼830)、
+        下まぶたが深く垂れる形をしている
+        """
+        ry_down = ry_up if ry_down is None else ry_down
+        ry = np.where(y >= cy, ry_up, ry_down)
         d = (np.abs((x - cx) / rx) ** power + np.abs((y - cy) / ry) ** power) ** (1.0 / power)
         return 1.0 - smooth(1.0 - aa * 2.0, 1.0 + aa * 2.0, d)
 
@@ -405,15 +413,16 @@ def _eye_texture(size: int = 128) -> "bpy.types.Image":
     # パッチの外周には肌を残し(顔と法線を揃えてあるので継ぎ目が出ない)、
     # その内側にアーモンド形の目を1枚の絵として描く
     px[..., :3] = np.array(SKIN, dtype=np.float32)
-    paint(almond(0.0, -0.06, 0.94, 0.76), LINE)                  # 目の輪郭線
-    paint(almond(0.0, -0.14, 0.84, 0.60), (0.97, 0.96, 0.94))    # 白目
+    paint(almond(0.0, 0.09, 0.94, 0.52, 0.90), LINE)             # 目の輪郭線
+    paint(almond(0.0, 0.03, 0.86, 0.44, 0.80), (0.97, 0.96, 0.94))  # 白目
     paint(ellipse(0.0, -0.14, 0.50, 0.56), (0.30, 0.18, 0.10))   # 虹彩の縁
     paint(ellipse(0.0, -0.16, 0.38, 0.43), (0.62, 0.38, 0.17))   # 虹彩(暖色)
     paint(ellipse(0.0, -0.17, 0.17, 0.19), (0.10, 0.065, 0.05))  # 瞳
     paint(ellipse(-0.22, 0.06, 0.16, 0.15), (1.0, 1.0, 1.0))     # ハイライト大
     paint(ellipse(0.20, -0.42, 0.085, 0.08), (1.0, 1.0, 1.0))    # ハイライト小
     # 上まぶた(太い線)。虹彩の上を少し隠すとアニメの目になる
-    lid = almond(0.0, -0.06, 0.94, 0.76) * (1.0 - almond(0.0, -0.30, 0.90, 0.72))
+    lid = almond(0.0, 0.09, 0.94, 0.52, 0.90) * \
+        (1.0 - almond(0.0, -0.10, 0.92, 0.50, 0.88))
     paint(lid, LINE)
 
     img = bpy.data.images.new("garudo_eye_tex", size, size, alpha=False)
@@ -439,6 +448,11 @@ def _eye_panel(name: str, side: float, rings: int = 5, segs: int = 16):
     up = Vector((0.0, 0.0, 1.0))
     tv = (up - d * up.dot(d)).normalized()
     tu = tv.cross(d).normalized()
+    # 設定画の目は目尻が12°下がる(実測: 目頭z851・目尻z844.5)。
+    # 接ベクトルを回してパッチごと傾ける
+    tilt = math.radians(-EYE_TILT_DEG) * (1.0 if side > 0 else -1.0)
+    tu, tv = (tu * math.cos(tilt) + tv * math.sin(tilt),
+              tv * math.cos(tilt) - tu * math.sin(tilt))
     # パッチの世界寸法 → 正規化空間での角度
     au = math.asin(min(0.9, EYE_HALF_W / FACE_R.x))
     av = math.asin(min(0.9, EYE_HALF_H / FACE_R.z))
@@ -524,7 +538,7 @@ def _body_color(pos: Vector, normal: Vector):
     # 素肌: 首から上(頭はロフトの卵形なので球の距離場は使えない。
     # 胴の肩口がz0.782なので、この高さで切れば首と頭だけが残る)+
     # 前腕のカプセル(袖まくりの先)
-    skin_field = _smoothstep(0.778, 0.790, pos.z)
+    skin_field = _smoothstep(0.760, 0.772, pos.z)
     for s in (1.0, -1.0):
         d_fore = _seg_dist(pos, Vector((0.165 * s, 0.004, 0.594)),
                            Vector((0.227 * s, 0.0, 0.452)))
@@ -741,6 +755,8 @@ def build() -> tuple[list, object]:
         (-0.018, -0.088, 0.912, 0.026, 0.021),
     ]:
         card((x0, -0.018, 0.944), (x1, -0.060, z_tip), w0, w1, thick=0.010)
+    # 眉間へ垂れる中央の房(設定画の生え際中央は z0.85 と低い)
+    card((0.004, -0.066, 0.940), (-0.004, -0.080, 0.856), 0.014, 0.010, thick=0.009)
 
     # 横の房: こめかみから耳の前へ、あご近くまで
     for s_ in (1.0, -1.0):

@@ -89,16 +89,14 @@ def classify(rgb: "np.ndarray"):
     hair = warm & (val <= 0.62) & (val > 0.10) & (sat > 0.22)
     dark = val <= 0.30
     white = (val > 0.82) & (sat < 0.14)
+    # 口の線は肌より暗いだけで「暗部」には入らない。彩度で拾う
+    line = (val < 0.70) & (sat > 0.32)
     below = np.zeros(rgb.shape[:2], dtype=bool)
     rows = np.arange(rgb.shape[0])
     below[(WIN_Z1 - rows / PX_PER_UNIT) < NECK_Z] = True
-    for key in ("skin", "hair", "dark", "white"):
-        locals()[key][below] = False
-    skin[below] = False
-    hair[below] = False
-    dark[below] = False
-    white[below] = False
-    return {"skin": skin, "hair": hair, "dark": dark, "white": white}
+    for m in (skin, hair, dark, white, line):
+        m[below] = False
+    return {"skin": skin, "hair": hair, "dark": dark, "white": white, "line": line}
 
 
 def iou(a: "np.ndarray", b: "np.ndarray") -> float:
@@ -338,6 +336,153 @@ def face_metrics(masks, eye_z: float):
     }
 
 
+
+# ---- 意味的ランドマーク(目頭・目尻・眉の輪郭・口・頬・顎・生え際) ----
+# 「その高さの全体幅」ではなく**顔の部位そのもの**を測る。同一人物性は
+# 幅の一致ではなく、こうした点の位置関係で決まる
+
+def _col_of(x: float) -> int:
+    return int(round((x + WIN_HALF_X) * PX_PER_UNIT))
+
+
+def _row_of(z: float) -> int:
+    return int(round((WIN_Z1 - z) * PX_PER_UNIT))
+
+
+def _pt(row: int, col: int):
+    return (float(col / PX_PER_UNIT - WIN_HALF_X), float(WIN_Z1 - row / PX_PER_UNIT))
+
+
+def eye_landmarks(masks, band, sign: float):
+    """目の塊から 目頭・目尻・上瞼中央・下瞼中央・中心 を取る"""
+    dark = masks["dark"].copy()
+    rows = np.arange(RES_Y)
+    zs = WIN_Z1 - rows / PX_PER_UNIT
+    dark[(zs < band[0]) | (zs > band[1])] = False
+    cols = np.arange(RES_X)
+    xs = cols / PX_PER_UNIT - WIN_HALF_X
+    dark[:, np.abs(xs) > 0.078] = False
+    dark[:, (xs * sign) <= 0.004] = False
+    best = None
+    for comp in components(dark, min_size=40):
+        w = (comp[:, 1].max() - comp[:, 1].min()) / PX_PER_UNIT
+        h = (comp[:, 0].max() - comp[:, 0].min()) / PX_PER_UNIT
+        if w < 0.060 and h < 0.036 and (best is None or len(comp) > len(best)):
+            best = comp
+    if best is None:
+        return {}
+    cs, rs = best[:, 1], best[:, 0]
+    inner_col = cs.min() if sign > 0 else cs.max()
+    outer_col = cs.max() if sign > 0 else cs.min()
+    mid_col = int(round(cs.mean()))
+    # 上下端は塊全体の外接から取る。中央列だけで見ると、まぶたの線と
+    # 虹彩が白目で切れている場合に薄い帯だけを拾ってしまう(実測)
+    col_rows = rs
+    side = "L" if sign > 0 else "R"
+    return {
+        f"目頭{side}": _pt(int(rs[cs == inner_col].mean()), int(inner_col)),
+        f"目尻{side}": _pt(int(rs[cs == outer_col].mean()), int(outer_col)),
+        f"上瞼{side}": _pt(int(col_rows.min()), mid_col) if len(col_rows) else None,
+        f"下瞼{side}": _pt(int(col_rows.max()), mid_col) if len(col_rows) else None,
+        f"目の中心{side}": _pt(int(rs.mean()), mid_col),
+    }
+
+
+def brow_landmarks_pair(masks, band):
+    """
+    眉は設定画が左右非対称に描かれている(片側だけ前髪が深くかかる)。
+    左右の同じ|x|での下端を平均して、眉の高さと傾きだけを測る
+    """
+    out = {}
+    left = brow_landmarks(masks, band, 1.0)
+    right = brow_landmarks(masks, band, -1.0)
+    for i in range(3):
+        a = left.get(f"眉下端L{i}")
+        b = right.get(f"眉下端R{i}")
+        if a is None or b is None:
+            out[f"眉下端{i}"] = None
+        else:
+            out[f"眉下端{i}"] = (abs(a[0]), (a[1] + b[1]) * 0.5)
+    return out
+
+
+def brow_landmarks(masks, band, sign: float):
+    """
+    眉は髪と同色で塊としては分離できない(設定画では前髪と融合する)。
+    代わりに**暗部の下端の輪郭**を3列で測る。眉の高さと傾きはこれで拾える
+    """
+    dark = masks["dark"]
+    r0, r1 = _row_of(band[1]), _row_of(band[0])
+    side = "L" if sign > 0 else "R"
+    out = {}
+    for i, x in enumerate((0.020, 0.032, 0.046)):
+        col = _col_of(x * sign)
+        column = dark[r0:r1, col]
+        idx = np.where(column)[0]
+        out[f"眉下端{side}{i}"] = _pt(r0 + int(idx.max()), col) if len(idx) else None
+    return out
+
+
+def mouth_landmarks(masks, band):
+    dark = (masks["dark"] | masks["line"]).copy()
+    rows = np.arange(RES_Y)
+    zs = WIN_Z1 - rows / PX_PER_UNIT
+    dark[(zs < band[0]) | (zs > band[1])] = False
+    cols = np.arange(RES_X)
+    xs = cols / PX_PER_UNIT - WIN_HALF_X
+    dark[:, np.abs(xs) > 0.040] = False
+    # 口は「横に長い小さな塊」。首の影や襟を拾わないよう形で選ぶ
+    # 口は顔の中央にある横長の小さな塊。首の影や襟を拾わないよう
+    # 「横長」かつ「中心付近」で選ぶ
+    comps = [c for c in components(dark, min_size=10)
+             if (c[:, 1].max() - c[:, 1].min()) > (c[:, 0].max() - c[:, 0].min())
+             and abs((c[:, 1].mean() / PX_PER_UNIT - WIN_HALF_X)) < 0.016]
+    if not comps:
+        return {"口左": None, "口右": None, "口中央": None}
+    comp = max(comps, key=len)
+    cs, rs = comp[:, 1], comp[:, 0]
+    return {
+        "口左": _pt(int(rs[cs == cs.max()].mean()), int(cs.max())),
+        "口右": _pt(int(rs[cs == cs.min()].mean()), int(cs.min())),
+        "口中央": _pt(int(rs.mean()), int(cs.mean())),
+    }
+
+
+def contour_landmarks(masks):
+    """頬の最大幅・顎の左右・顎先・生え際(中央)"""
+    skin = masks["skin"]
+    ys, xs = np.where(skin)
+    if not len(ys):
+        return {}
+    widths = skin.sum(axis=1)
+    row = int(np.argmax(widths))
+    cols = np.where(skin[row])[0]
+    chin_row = int(ys.max())
+    jaw_row = chin_row - int(0.012 * PX_PER_UNIT)
+    jaw_cols = np.where(skin[jaw_row])[0] if jaw_row >= 0 else []
+    center_col = _col_of(0.0)
+    column = np.where(skin[:, center_col])[0]
+    return {
+        "頬L": _pt(row, int(cols.max())),
+        "頬R": _pt(row, int(cols.min())),
+        "顎L": _pt(jaw_row, int(jaw_cols.max())) if len(jaw_cols) else None,
+        "顎R": _pt(jaw_row, int(jaw_cols.min())) if len(jaw_cols) else None,
+        "顎先": _pt(chin_row, int((xs[ys == chin_row].min()
+                                  + xs[ys == chin_row].max()) * 0.5)),
+        "生え際中央": _pt(int(column.min()), center_col) if len(column) else None,
+    }
+
+
+def all_landmarks(masks, ref):
+    out = {}
+    for sign in (1.0, -1.0):
+        out.update(eye_landmarks(masks, tuple(ref["bands"]["eye"]), sign))
+    out.update(brow_landmarks_pair(masks, tuple(ref["bands"]["brow"])))
+    out.update(mouth_landmarks(masks, tuple(ref["bands"]["mouth"])))
+    out.update(contour_landmarks(masks))
+    return out
+
+
 def main() -> int:
     name = sys.argv[1] if len(sys.argv) > 1 else "garudo"
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -359,9 +504,21 @@ def main() -> int:
     eye_ref = float(ref["bands"]["eye"][0] + ref["bands"]["eye"][1]) * 0.5
     fa, fb = face_metrics(a, eye_ref), face_metrics(b, eye_ref)
 
-    # 顔の中心を合わせてからシルエットを比べる(設定画の図は中心が
-    # 全身の外接箱の中心とわずかにずれる)
-    shift = int(round((fb["center_x"] - fa["center_x"]) * PX_PER_UNIT))
+    # 顔の中心は**両目の中点**で合わせる。設定画の顔はわずかに傾けて
+    # 描かれており、肌の外接箱の中心で合わせると全ランドマークのxに
+    # 系統的なずれ(実測6.8mm)が乗る
+    def eye_mid(masks):
+        el = eye_landmarks(masks, tuple(ref["bands"]["eye"]), 1.0)
+        er = eye_landmarks(masks, tuple(ref["bands"]["eye"]), -1.0)
+        if "目の中心L" in el and "目の中心R" in er:
+            return (el["目の中心L"][0] + er["目の中心R"][0]) * 0.5
+        return None
+
+    mid_a, mid_b = eye_mid(a), eye_mid(b)
+    if mid_a is not None and mid_b is not None:
+        shift = int(round((mid_b - mid_a) * PX_PER_UNIT))
+    else:
+        shift = int(round((fb["center_x"] - fa["center_x"]) * PX_PER_UNIT))
     a_aligned = {k: np.roll(v, shift, axis=1) for k, v in a.items()}
 
     print(f"\n=== 顔の一致度: {name} ===")
@@ -411,6 +568,33 @@ def main() -> int:
         hb = _row_span(head_b, row) * 1000
         print(f"  z={z:<18.3f} {sa:>10.1f} {sb:>10.1f} {sb - sa:>+7.1f}"
               f" | {ha:>9.1f} {hb:>10.1f} {hb - ha:>+7.1f}")
+
+    # ---- 意味的ランドマーク回帰 ----
+    la = all_landmarks(a_aligned, ref)
+    lb = all_landmarks(b, ref)
+    print(f"\n  {'ランドマーク(部位)':<18} {'設定画x,z':>17} {'モデルx,z':>17} {'誤差':>7}")
+    errors = []
+    for key in la:
+        pa, pb = la.get(key), lb.get(key)
+        if pa is None or pb is None:
+            print(f"  {key:<18} {'--':>17} {'--':>17} {'検出不能':>7}")
+            continue
+        err = math.hypot(pb[0] - pa[0], pb[1] - pa[1]) * 1000.0
+        errors.append((err, key))
+        print(f"  {key:<18} {pa[0] * 1000:>8.1f},{pa[1] * 1000:>8.1f} "
+              f"{pb[0] * 1000:>8.1f},{pb[1] * 1000:>8.1f} {err:>7.1f}")
+    if errors:
+        mean_err = sum(e for e, _ in errors) / len(errors)
+        worst, worst_key = max(errors)
+        print(f"\n  平均誤差 {mean_err:.1f}mm / 最大誤差 {worst:.1f}mm ({worst_key})"
+              f"  [{len(errors)}点]")
+        passed.append(mean_err <= 3.0)
+        passed.append(worst <= 6.0)
+        print(f"  受け入れ基準: 平均<=3.0mm {'ok' if mean_err <= 3.0 else 'NG'} / "
+              f"最大<=6.0mm {'ok' if worst <= 6.0 else 'NG'}")
+        print("  ずれの大きい順:")
+        for err, key in sorted(errors, reverse=True)[:6]:
+            print(f"    {key:<18} {err:>6.1f}mm")
 
     # 比較画像(左=設定画・中=モデル・右=重ね合わせ)
     overlay = np.ones((RES_Y, RES_X, 4), dtype=np.float32)
