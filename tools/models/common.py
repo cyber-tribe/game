@@ -276,7 +276,8 @@ def curve_tube(name: str, points, radii, resolution: int = 4,
 # 細部はテクスチャに描く」のMeshy式を自前実装した共有ヘルパー群
 
 def sculpt_merge(name: str, objs, voxel: float = 0.004,
-                 out_voxel: float | None = None) -> "bpy.types.Object":
+                 out_voxel: float | None = None,
+                 target_tris: int | None = None) -> "bpy.types.Object":
     """
     部位プリミティブ群をリメッシュで1つの連続メッシュへ融合する。
     join だけでは残る継ぎ目・貫通が消え、彫刻のように滑らかにつながる。
@@ -284,6 +285,11 @@ def sculpt_merge(name: str, objs, voxel: float = 0.004,
     (ゲーム用の目標三角形数に合わせて粗くする。Noneならvoxelのまま)。
     出力は均一な四角形主体のトポロジなので、Decimateの細長三角形による
     シルエット荒れが起きない。
+
+    target_trisを指定すると、out_voxelの手探り(モデルの体積次第で
+    結果が数千三角形ブレる)をやめ、融合後の表面積から出力解像度を
+    目標の約3倍に見積もってボクセルリメッシュし、Decimateで目標数へ
+    仕上げる(比率約1/3は知見4の安全域)。out_voxelより優先される。
     """
     merged = join(objs, name)
     activate(merged)
@@ -307,6 +313,11 @@ def sculpt_merge(name: str, objs, voxel: float = 0.004,
     # SMOOTHの出力は非多様体エッジを残す(実測323本)ので、清浄になった
     # 外皮へ改めてボクセルリメッシュを重ねて完全な多様体にする
     # (OpenVDBは自己交差の無い入力なら常に多様体を出力する)
+    if target_tris is not None:
+        # ボクセルリメッシュの三角形数 ≈ 2×表面積/voxel²(quad1枚≈voxel²)。
+        # 目標の約3倍で出してDecimateで仕上げる
+        area = sum(p.area for p in merged.data.polygons)
+        out_voxel = max(voxel, math.sqrt(2.0 * area / (3.0 * target_tris)))
     merged.data.remesh_voxel_size = out_voxel or voxel
     bpy.ops.object.voxel_remesh()
     # 法線を外向きに揃える(QuadriFlowは向きの不整合を拒否する)
@@ -344,6 +355,8 @@ def sculpt_merge(name: str, objs, voxel: float = 0.004,
         bmesh.ops.delete(bm, geom=doomed, context="VERTS")
         bm.to_mesh(merged.data)
     bm.free()
+    if target_tris is not None:
+        decimate_to(merged, target_tris)
     for poly in merged.data.polygons:
         poly.use_smooth = True
     return merged
