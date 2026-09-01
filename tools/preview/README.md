@@ -7,4 +7,4 @@
 
 | モデル | 見た目 |
 |---|---|
-| tsubute | ![tsubute](./tsubute.gif) |
+| oonebosuke | ![oonebosuke](./oonebosuke.gif) |
