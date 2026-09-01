@@ -662,6 +662,52 @@ export function composeSmallFireAmbient(params: AmbientLoopParams): Float32Array
   return out;
 }
 
+// 祭囃子の欠片の音型(跳ねた上行、ペンタトニック上の度数)。LEITMOTIF_DEGREESとは
+// 独立した、宵祭り専用の短いフレーズ
+const FESTIVAL_MOTIF_DEGREES = [0, 2, 4, 7] as const;
+
+/**
+ * 宵祭りの拠点BGMレイヤー: 常時鳴る音は持たせず、提灯の下の賑わいを疎らな
+ * 祭囃子の欠片として置く。`village-ambient`(火・葉ずれ・遠い寝息)を
+ * 置き換えず、その上に薄く重ねる別idのレイヤー(plan/sound/archive/
+ * yoimatsuri-festival-ambient.md)
+ */
+export function composeFestivalAmbient(params: AmbientLoopParams): Float32Array {
+  const { durationSec, sampleRate, seed } = params;
+  const n = Math.max(1, Math.floor(durationSec * sampleRate));
+  const out = new Float32Array(n);
+  const rng = mulberry32(seed);
+
+  // 太鼓の短い連打(2〜3回のクラスタ)を数秒おきに置く
+  const drumClusterCount = Math.max(1, Math.round(durationSec / 6));
+  for (let c = 0; c < drumClusterCount; c++) {
+    const posSec = (c + rng()) * (durationSec / drumClusterCount);
+    const hits = 2 + Math.floor(rng() * 2);
+    let elapsed = posSec;
+    for (let h = 0; h < hits; h++) {
+      const offset = Math.floor(elapsed * sampleRate);
+      mixIn(out, drumHit(0.12, sampleRate, seed + c * 10 + h + 1, 200, 0.22), offset);
+      elapsed += 0.14 + rng() * 0.05;
+    }
+  }
+
+  // 跳ねた上行フレーズ(FESTIVAL_MOTIF_DEGREES)を、太鼓よりさらに疎らに置く
+  const motifCount = Math.max(1, Math.round(durationSec / 13));
+  for (let m = 0; m < motifCount; m++) {
+    const startSec = (m + 0.3 + rng() * 0.4) * (durationSec / motifCount);
+    let elapsed = startSec;
+    for (const degree of FESTIVAL_MOTIF_DEGREES) {
+      const freq = degreeToFreq(degree + SCALE_LEN); // ねむり小屋の鈴と同様、1オクターブ上げて軽やかにする
+      const offset = Math.floor(elapsed * sampleRate);
+      mixIn(out, malletNote(freq, 0.2, sampleRate, 0.16), offset);
+      elapsed += 0.15;
+    }
+  }
+
+  normalize(out, 0.3);
+  return out;
+}
+
 /** 元素タルの5種(plan/sound/archive/village-soundscape.md) */
 export type BarrelElement = "water" | "wind" | "light" | "stone" | "sleep";
 
