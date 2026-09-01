@@ -73,6 +73,10 @@ def main() -> int:
         if preview:
             size = (420, 520) if animated else (320, 320)
             C.render_preview(name, objs, size=size, samples=40 if animated else 32)
+            # キャラクターは正面・側面・背面のコンタクトシートも出す
+            # (plan/models/garudo-quality-uplift.md 実装項目2)
+            if animated:
+                C.render_turnaround(name, objs)
         # animated=Trueはキャラクター(garudo/monsters/villagers)、Falseは
         # 地形・小物・建物。flatはanime-look-art-direction.mdの
         # 「キャラクターだけ焼き込み陰影を持たない」区分と一致する
