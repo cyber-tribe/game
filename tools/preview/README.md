@@ -7,4 +7,4 @@
 
 | モデル | 見た目 |
 |---|---|
-| oonebosuke | ![oonebosuke](./oonebosuke.gif) |
+| garudo | ![garudo](./garudo.gif) |

@@ -277,7 +277,8 @@ def curve_tube(name: str, points, radii, resolution: int = 4,
 
 def sculpt_merge(name: str, objs, voxel: float = 0.004,
                  out_voxel: float | None = None,
-                 target_tris: int | None = None) -> "bpy.types.Object":
+                 target_tris: int | None = None,
+                 clean_input: bool = False) -> "bpy.types.Object":
     """
     部位プリミティブ群をリメッシュで1つの連続メッシュへ融合する。
     join だけでは残る継ぎ目・貫通が消え、彫刻のように滑らかにつながる。
@@ -290,26 +291,36 @@ def sculpt_merge(name: str, objs, voxel: float = 0.004,
     結果が数千三角形ブレる)をやめ、融合後の表面積から出力解像度を
     目標の約3倍に見積もってボクセルリメッシュし、Decimateで目標数へ
     仕上げる(比率約1/3は知見4の安全域)。out_voxelより優先される。
+
+    clean_input=Trueは、入力が自己交差の無い閉じたプリミティブだけの
+    ときの近道。SMOOTHリメッシュ段階を飛ばして直接ボクセルリメッシュ
+    する。SMOOTH段階のuse_remove_disconnectedは「浮いた微小断片」の
+    つもりが**交差しているだけで未融合の大部品も切り捨てる**
+    (ガルドの頭がまるごと消えた実測)。スキンモディファイア等の
+    汚れた入力を通すときだけFalse(既定)にする。
     """
     merged = join(objs, name)
     activate(merged)
-    # 法線を外向きへ揃えてからリメッシュする。方式は旧Remeshモディファイア
-    # (SMOOTH)を使う: bpy.ops.object.voxel_remesh()はスキンモディファイア
-    # 由来の自己交差を含む入力で表面が穴だらけになった(実測)のに対し、
-    # SMOOTHモードは滑らかな外皮を安定して生成し、
-    # use_remove_disconnectedが微小断片も除去してくれる
+    # 法線を外向きへ揃えてからリメッシュする
     bpy.ops.object.mode_set(mode="EDIT")
     bpy.ops.mesh.select_all(action="SELECT")
     bpy.ops.mesh.normals_make_consistent(inside=False)
     bpy.ops.object.mode_set(mode="OBJECT")
-    lo, hi = bounds([merged])
-    extent = max(hi[i] - lo[i] for i in range(3))
-    depth = max(6, min(9, math.ceil(math.log2(max(extent / voxel, 2.0)))))
-    mod = merged.modifiers.new("remesh", "REMESH")
-    mod.mode = "SMOOTH"
-    mod.octree_depth = depth
-    mod.use_remove_disconnected = True
-    bpy.ops.object.modifier_apply(modifier="remesh")
+    if not clean_input:
+        # 汚れた入力(スキンモディファイア由来の自己交差等)は、まず旧Remesh
+        # モディファイア(SMOOTH)で外皮を作る: bpy.ops.object.voxel_remesh()は
+        # この種の入力で表面が穴だらけになった(実測)のに対し、SMOOTHモードは
+        # 滑らかな外皮を安定して生成し、use_remove_disconnectedが微小断片も
+        # 除去してくれる(ただし交差しているだけの未融合の大部品も消すので、
+        # クリーンな入力ではこの段階を飛ばす — docstring参照)
+        lo, hi = bounds([merged])
+        extent = max(hi[i] - lo[i] for i in range(3))
+        depth = max(6, min(9, math.ceil(math.log2(max(extent / voxel, 2.0)))))
+        mod = merged.modifiers.new("remesh", "REMESH")
+        mod.mode = "SMOOTH"
+        mod.octree_depth = depth
+        mod.use_remove_disconnected = True
+        bpy.ops.object.modifier_apply(modifier="remesh")
     # SMOOTHの出力は非多様体エッジを残す(実測323本)ので、清浄になった
     # 外皮へ改めてボクセルリメッシュを重ねて完全な多様体にする
     # (OpenVDBは自己交差の無い入力なら常に多様体を出力する)
@@ -416,7 +427,8 @@ def smart_uv(obj: "bpy.types.Object") -> None:
     bpy.ops.object.mode_set(mode="OBJECT")
 
 
-def organic_uv(obj: "bpy.types.Object", axis: int = 2) -> None:
+def organic_uv(obj: "bpy.types.Object", axis: int = 2,
+               boost: tuple | None = None) -> None:
     """
     有機的な閉曲面向けのUV展開。法線の指定軸成分の符号が変わる稜線へ
     シームを引いて2枚に開き、角度ベースunwrap+pack_islandsで
@@ -425,6 +437,12 @@ def organic_uv(obj: "bpy.types.Object", axis: int = 2) -> None:
     axisは「模様の目立つ面をシームが横切らない」向きを選ぶ:
     既定のz(赤道)は背中に模様がある四足姿勢向け、y(前後split)は
     正面の顔・腹に模様がある直立姿勢向け。
+
+    boost=((x,y,z), 半径, 倍率) を渡すと、その球内の面を独立した
+    UV島に切り出して倍率だけ拡大してからパックする。顔のように
+    「テクスチャの絵」を細かく描き込みたい部位へテクセル密度を
+    寄せるための仕組み(pack_islandsは島の相対サイズを保ったまま
+    全体を一様に縮めて詰めるので、拡大した島だけ高密度になる)。
     """
     mesh = obj.data
     if not mesh.uv_layers:
@@ -454,12 +472,38 @@ def organic_uv(obj: "bpy.types.Object", axis: int = 2) -> None:
         lf = e.link_faces
         e.seam = len(lf) == 2 and \
             (normals[lf[0].index][axis] >= 0) != (normals[lf[1].index][axis] >= 0)
+    inside: set[int] = set()
+    if boost is not None:
+        center, radius, _factor = boost
+        c = Vector(center)
+        for f in bm.faces:
+            if (f.calc_center_median() - c).length <= radius:
+                inside.add(f.index)
+        # 領域の境界エッジへシームを足し、独立した島に切り出す
+        for e in bm.edges:
+            lf = e.link_faces
+            if len(lf) == 2 and (lf[0].index in inside) != (lf[1].index in inside):
+                e.seam = True
     bm.to_mesh(mesh)
     bm.free()
     activate(obj)
     bpy.ops.object.mode_set(mode="EDIT")
     bpy.ops.mesh.select_all(action="SELECT")
     bpy.ops.uv.unwrap(method="ANGLE_BASED", margin=0.002)
+    bpy.ops.object.mode_set(mode="OBJECT")
+    if boost is not None and inside:
+        # 切り出した島のUVを重心まわりに拡大してからパックする
+        _factor = boost[2]
+        uv = mesh.uv_layers.active.data
+        loops = [li for p in mesh.polygons if p.index in inside for li in p.loop_indices]
+        cx = sum(uv[li].uv.x for li in loops) / len(loops)
+        cy = sum(uv[li].uv.y for li in loops) / len(loops)
+        for li in loops:
+            uv[li].uv.x = cx + (uv[li].uv.x - cx) * _factor
+            uv[li].uv.y = cy + (uv[li].uv.y - cy) * _factor
+    activate(obj)
+    bpy.ops.object.mode_set(mode="EDIT")
+    bpy.ops.mesh.select_all(action="SELECT")
     bpy.ops.uv.pack_islands(margin=0.015)
     bpy.ops.object.mode_set(mode="OBJECT")
 
@@ -624,31 +668,40 @@ def bake_albedo(obj: "bpy.types.Object", color_fn, size: int = 512,
     mesh.calc_loop_triangles()
     px = np.zeros((size, size, 4), dtype=np.float32)
     filled = np.zeros((size, size), dtype=bool)
-    for tri in mesh.loop_triangles:
-        uvs = [uv[li].uv for li in tri.loops]
-        pos = [mesh.vertices[vi].co for vi in tri.vertices]
-        tn = (pos[1] - pos[0]).cross(pos[2] - pos[0])
-        if tn.length_squared > 1e-16:
-            tn.normalize()
-        xs = [u.x * size for u in uvs]
-        ys = [u.y * size for u in uvs]
-        x0, x1, x2 = xs
-        y0, y1, y2 = ys
-        d = (y1 - y2) * (x0 - x2) + (x2 - x1) * (y0 - y2)
-        if abs(d) < 1e-12:
-            continue
-        for py in range(max(0, int(min(ys))), min(size - 1, int(max(ys)) + 1) + 1):
-            for pxi in range(max(0, int(min(xs))), min(size - 1, int(max(xs)) + 1) + 1):
-                cx, cy = pxi + 0.5, py + 0.5
-                l0 = ((y1 - y2) * (cx - x2) + (x2 - x1) * (cy - y2)) / d
-                l1 = ((y2 - y0) * (cx - x2) + (x0 - x2) * (cy - y2)) / d
-                l2 = 1.0 - l0 - l1
-                if l0 < -0.08 or l1 < -0.08 or l2 < -0.08:
-                    continue
-                p = pos[0] * max(l0, 0.0) + pos[1] * max(l1, 0.0) + pos[2] * max(l2, 0.0)
-                r, g, b = color_fn(p, tn)
-                px[py, pxi] = (r, g, b, 1.0)
-                filled[py, pxi] = True
+    # 二段塗り: まず厳密な内包判定(l>=0)で塗り、次に許容つき判定
+    # (-0.08)で**未塗りのテクセルだけ**を埋める。一段でやると三角形の
+    # 縁の許容帯が隣接三角形に上書きされ、判定の位置・法線が明滅して
+    # 細い線が点描に割れる(ガルドの顔で実測)。島の縁が隣の島の色を
+    # 拾う漏れも同時に防げる
+    for strict in (True, False):
+        for tri in mesh.loop_triangles:
+            uvs = [uv[li].uv for li in tri.loops]
+            pos = [mesh.vertices[vi].co for vi in tri.vertices]
+            tn = (pos[1] - pos[0]).cross(pos[2] - pos[0])
+            if tn.length_squared > 1e-16:
+                tn.normalize()
+            xs = [u.x * size for u in uvs]
+            ys = [u.y * size for u in uvs]
+            x0, x1, x2 = xs
+            y0, y1, y2 = ys
+            d = (y1 - y2) * (x0 - x2) + (x2 - x1) * (y0 - y2)
+            if abs(d) < 1e-12:
+                continue
+            tol = 0.0 if strict else -0.08
+            for py in range(max(0, int(min(ys))), min(size - 1, int(max(ys)) + 1) + 1):
+                for pxi in range(max(0, int(min(xs))), min(size - 1, int(max(xs)) + 1) + 1):
+                    if not strict and filled[py, pxi]:
+                        continue
+                    cx, cy = pxi + 0.5, py + 0.5
+                    l0 = ((y1 - y2) * (cx - x2) + (x2 - x1) * (cy - y2)) / d
+                    l1 = ((y2 - y0) * (cx - x2) + (x0 - x2) * (cy - y2)) / d
+                    l2 = 1.0 - l0 - l1
+                    if l0 < tol or l1 < tol or l2 < tol:
+                        continue
+                    p = pos[0] * max(l0, 0.0) + pos[1] * max(l1, 0.0) + pos[2] * max(l2, 0.0)
+                    r, g, b = color_fn(p, tn)
+                    px[py, pxi] = (r, g, b, 1.0)
+                    filled[py, pxi] = True
     # 島の外周を膨張(未塗りの隣接テクセルへ色を広げる)
     for _ in range(4):
         grown = filled.copy()
@@ -663,6 +716,46 @@ def bake_albedo(obj: "bpy.types.Object", color_fn, size: int = 512,
     img.pixels.foreach_set(px.ravel())
     img.pack()
     return img
+
+
+def set_origin(obj: "bpy.types.Object", point) -> None:
+    """
+    オブジェクトの原点を指定の点へ移す(頂点を相対座標へ直し、その分を
+    locationで戻す。見た目は変わらない)。
+
+    まばたき(src/view/blink.ts)はオブジェクトのローカルYスケールを潰す。
+    原点が目の位置に無いと、潰れるのではなく**原点へ向かって吹き飛ぶ**
+    (実測: 目の原点が首関節にあったため、まばたきのたびに目が足元へ
+    落ちて消えていた)。スケールで動かす部品は必ず原点をその部品の
+    中心へ置くこと。
+    """
+    p = Vector(point)
+    for v in obj.data.vertices:
+        v.co -= p
+    obj.location = obj.location + p
+
+
+def spherize_normals(obj: "bpy.types.Object", center,
+                     radius: float | None = None, strength: float = 1.0) -> None:
+    """
+    法線を「中心centerの大きな球の表面」の方向へ寄せる
+    (plan/models/hand-painted-standard.md 規約4)。素のスムーズ
+    シェーディングが生む頬の変な影・髪のデコボコを消し、どこに光が
+    当たるかを造形と別に設計する。radiusを与えるとその球内の頂点だけ、
+    strengthで元の法線とのブレンド率を指定する。
+    """
+    mesh = obj.data
+    c = Vector(center)
+    normals = []
+    for v in mesh.vertices:
+        to_v = v.co - c
+        inside = radius is None or to_v.length <= radius
+        if inside and to_v.length_squared > 1e-12:
+            sphere_n = to_v.normalized()
+            normals.append(v.normal.lerp(sphere_n, strength).normalized())
+        else:
+            normals.append(v.normal.copy())
+    mesh.normals_split_custom_set_from_vertices(normals)
 
 
 def make_textured_material(name: str, image: "bpy.types.Image",
