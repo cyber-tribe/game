@@ -8,22 +8,44 @@ import {
   animatedModelNames,
   modelNames,
 } from "../src/modelList";
+import { MODEL_HEIGHT_BASELINE, SINK_EXCEPTIONS } from "./helpers/modelBaseline";
 
 const MODEL_DIR = join(import.meta.dirname, "..", "public", "models");
 
 /**
  * .glb は「ヘッダ + チャンクの並び」という単純な容器で、最初のチャンクが
- * glTF の JSON。ライブラリを持ち込まなくても、ここだけ読めば中身を検査できる。
+ * glTF の JSON、2つ目が頂点データ等のバイナリ(BIN)。ライブラリを
+ * 持ち込まなくても、この2つを読めば中身を検査できる。
  */
+interface GltfAccessor {
+  count: number;
+  componentType: number;
+  type: string;
+  bufferView?: number;
+  byteOffset?: number;
+  min?: number[];
+  max?: number[];
+}
+
 interface Gltf {
-  meshes?: unknown[];
+  meshes?: {
+    primitives?: {
+      attributes: Record<string, number>;
+      indices?: number;
+    }[];
+  }[];
   materials?: unknown[];
   skins?: unknown[];
   animations?: { name?: string }[];
-  accessors?: { count?: number }[];
+  accessors?: GltfAccessor[];
+  bufferViews?: { byteOffset?: number; byteStride?: number }[];
 }
 
 function readGlb(name: string): Gltf {
+  return readGlbChunks(name).gltf;
+}
+
+function readGlbChunks(name: string): { gltf: Gltf; bin: Buffer | null } {
   const buffer = readFileSync(join(MODEL_DIR, `${name}.glb`));
   expect(buffer.subarray(0, 4).toString("ascii"), `${name}: glTF のヘッダではない`).toBe("glTF");
   expect(buffer.readUInt32LE(4), `${name}: glTF のバージョンが 2 ではない`).toBe(2);
@@ -32,7 +54,85 @@ function readGlb(name: string): Gltf {
   const chunkLength = buffer.readUInt32LE(12);
   // 0x4E4F534A = "JSON"
   expect(buffer.readUInt32LE(16), `${name}: 最初のチャンクが JSON ではない`).toBe(0x4e4f534a);
-  return JSON.parse(buffer.subarray(20, 20 + chunkLength).toString("utf8")) as Gltf;
+  const gltf = JSON.parse(buffer.subarray(20, 20 + chunkLength).toString("utf8")) as Gltf;
+
+  let bin: Buffer | null = null;
+  let offset = 20 + chunkLength;
+  while (offset < buffer.length) {
+    const length = buffer.readUInt32LE(offset);
+    // 0x004E4942 = "BIN"
+    if (buffer.readUInt32LE(offset + 4) === 0x004e4942) {
+      bin = buffer.subarray(offset + 8, offset + 8 + length);
+    }
+    offset += 8 + length;
+  }
+  return { gltf, bin };
+}
+
+/** 全プリミティブのPOSITIONのmin/maxから、バインドポーズの外接箱を求める */
+function boundsY(gltf: Gltf): { minY: number; maxY: number } {
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (const mesh of gltf.meshes ?? []) {
+    for (const prim of mesh.primitives ?? []) {
+      const pos = gltf.accessors?.[prim.attributes.POSITION];
+      // glTFの仕様でPOSITIONアクセサはmin/max必須
+      if (pos?.min && pos.max) {
+        minY = Math.min(minY, pos.min[1]);
+        maxY = Math.max(maxY, pos.max[1]);
+      }
+    }
+  }
+  return { minY, maxY };
+}
+
+/** 全プリミティブの三角形数の合計 */
+function triangleCount(gltf: Gltf): number {
+  let tris = 0;
+  for (const mesh of gltf.meshes ?? []) {
+    for (const prim of mesh.primitives ?? []) {
+      const count =
+        prim.indices !== undefined
+          ? (gltf.accessors?.[prim.indices]?.count ?? 0)
+          : (gltf.accessors?.[prim.attributes.POSITION]?.count ?? 0);
+      tris += count / 3;
+    }
+  }
+  return tris;
+}
+
+const COMPONENT_BYTES: Record<number, number> = { 5120: 1, 5121: 1, 5122: 2, 5123: 2, 5125: 4, 5126: 4 };
+const TYPE_COMPONENTS: Record<string, number> = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4 };
+
+/**
+ * ウェイト合計がほぼ0の頂点(どのボーンにも属さない頂点)の数。
+ * Bone Heat失敗の残骸で、動かすと置き去りになったり、全滅すると
+ * エクスポータがスキンごと落としたりする(ツブテガエルで実際に起きた)。
+ */
+function zeroWeightVertexCount(gltf: Gltf, bin: Buffer): number {
+  let zero = 0;
+  for (const mesh of gltf.meshes ?? []) {
+    for (const prim of mesh.primitives ?? []) {
+      const idx = prim.attributes.WEIGHTS_0;
+      if (idx === undefined) continue;
+      const acc = gltf.accessors?.[idx];
+      if (!acc || acc.bufferView === undefined) continue;
+      const view = gltf.bufferViews?.[acc.bufferView];
+      const start = (view?.byteOffset ?? 0) + (acc.byteOffset ?? 0);
+      const stride = view?.byteStride ?? COMPONENT_BYTES[acc.componentType] * TYPE_COMPONENTS[acc.type];
+      for (let v = 0; v < acc.count; v++) {
+        let sum = 0;
+        for (let c = 0; c < 4; c++) {
+          const at = start + v * stride + c * COMPONENT_BYTES[acc.componentType];
+          if (acc.componentType === 5126) sum += bin.readFloatLE(at);
+          else if (acc.componentType === 5121) sum += bin.readUInt8(at) / 255;
+          else if (acc.componentType === 5123) sum += bin.readUInt16LE(at) / 65535;
+        }
+        if (sum < 1e-4) zero++;
+      }
+    }
+  }
+  return zero;
 }
 
 /**
@@ -93,6 +193,44 @@ describe("3Dモデル", () => {
         700 * 1024,
       );
     }
+  });
+
+  // ---- モデル規格lint(plan/models/garudo-quality-uplift.md 実装項目1) ----
+  // 対象はキャラクター(主人公・モンスター・村人)。地形・小物は対象外
+
+  const characters = [...new Set([...animatedModelNames(), ...VILLAGER_MODELS])];
+
+  it.each(characters)("%s が床下へ沈んでいない", (name) => {
+    if (name in SINK_EXCEPTIONS) return;
+    const { minY } = boundsY(readGlb(name));
+    // 接地キャラは0、浮遊キャラは正。負に振れるのは「床にめり込む」事故だけ
+    expect(minY, `${name}: 最下端 ${minY.toFixed(3)} が床下にある`).toBeGreaterThan(-0.06);
+  });
+
+  it.each(characters)("%s の身長が基準値から無断で変わっていない", (name) => {
+    const baseline = MODEL_HEIGHT_BASELINE[name];
+    expect(baseline, `${name}: 基準身長が未登録。tests/helpers/modelBaseline.ts に追記する`).toBeDefined();
+    const { minY, maxY } = boundsY(readGlb(name));
+    const height = maxY - minY;
+    // 意図した体格変更なら、このメッセージの実測値を基準表へ書き写す
+    expect(
+      Math.abs(height - baseline) / baseline,
+      `${name}: 身長 ${height.toFixed(3)}(基準 ${baseline})が±5%を超えて変わった`,
+    ).toBeLessThan(0.05);
+  });
+
+  it.each(characters)("%s の三角形数が予算内に収まっている", (name) => {
+    // ファイルサイズとは別の予算。テクスチャを軽くしてポリゴンを湯水のように
+    // 使う逃げ道を塞ぐ(描画は同時に十数体ぶん走る)
+    const tris = triangleCount(readGlb(name));
+    expect(tris, `${name}: ${tris}三角形は多すぎる`).toBeLessThanOrEqual(12000);
+  });
+
+  it.each(characters)("%s にどのボーンにも属さない頂点が無い", (name) => {
+    const { gltf, bin } = readGlbChunks(name);
+    expect(bin, `${name}: BINチャンクが無い`).not.toBeNull();
+    const zero = zeroWeightVertexCount(gltf, bin as Buffer);
+    expect(zero, `${name}: ウェイト合計0の頂点が${zero}個ある(Bone Heat失敗の残骸)`).toBe(0);
   });
 
   it("壁と床は大量に並べるので、とりわけ小さい", () => {

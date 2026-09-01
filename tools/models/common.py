@@ -774,7 +774,52 @@ def build_armature(
     arm_obj.select_set(True)
     bpy.context.view_layer.objects.active = arm_obj
     bpy.ops.object.parent_set(type="ARMATURE_AUTO")
+
+    # 自動ウェイト(Bone Heat)は部品の多いメッシュで解を出せないことが
+    # あり、しかも同じコードでも実行ごとに失敗数が変わる。無ウェイトの
+    # 頂点はポーズ中に置き去りになり、全滅するとglTF書き出しがスキンを
+    # 丸ごと落とす。ここで必ず救済しておく(preflight_checkが検査する)
+    fix_orphan_weights(mesh_obj, joints, bones)
     return arm_obj
+
+
+def fix_orphan_weights(
+    mesh_obj: bpy.types.Object,
+    joints: dict[str, Vector],
+    bones: Sequence[tuple[str, str]],
+) -> None:
+    """
+    どのボーンにも属さない頂点を、近い2本のボーンへ距離の逆二乗で按分して
+    割り当てる(最寄り1本の剛体割り当てだと関節でちぎれて見えるため)。
+    """
+    segments = []
+    for parent, child in bones:
+        name = bone_name(parent, child)
+        vg = mesh_obj.vertex_groups.get(name)
+        if vg is None:
+            vg = mesh_obj.vertex_groups.new(name=name)
+        segments.append((vg, Vector(joints[parent]), Vector(joints[child])))
+
+    def seg_dist(p: Vector, a: Vector, b: Vector) -> float:
+        ab = b - a
+        if ab.length_squared == 0.0:
+            return (p - a).length
+        t = max(0.0, min(1.0, (p - a).dot(ab) / ab.length_squared))
+        return (p - (a + ab * t)).length
+
+    orphans = 0
+    for v in mesh_obj.data.vertices:
+        if any(g.weight > 0.001 for g in v.groups):
+            continue
+        ranked = sorted(segments, key=lambda s: seg_dist(v.co, s[1], s[2]))[:2]
+        dists = [max(seg_dist(v.co, a, b), 1e-4) for _, a, b in ranked]
+        inv = [1.0 / (d * d) for d in dists]
+        total = sum(inv)
+        for (vg, _, _), w in zip(ranked, inv):
+            vg.add([v.index], w / total, "REPLACE")
+        orphans += 1
+    if orphans:
+        print(f"  自動ウェイトの取りこぼし {orphans} 頂点を近傍ボーンへ按分した")
 
 
 def bone_name(parent: str, child: str) -> str:
@@ -1179,9 +1224,47 @@ def bake_procedural_detail(obj: bpy.types.Object, patterns: dict[str, str],
         image.pixels[:] = pixels
 
 
+def preflight_check(name: str, objs: Sequence[bpy.types.Object]) -> None:
+    """
+    エクスポート前のメッシュ検査(plan/models/garudo-quality-uplift.md
+    実装項目1)。
+
+    - **孤児ウェイト**(どのボーンにも属さない頂点)が1つでもあれば失敗。
+      Bone Heatの取りこぼしはtests/models.test.tsのglb検査でも捕まるが、
+      ビルド時に止めた方が原因のメッシュ名まで言える。
+    - **非多様体エッジ**は数えて報告だけする。ロフト部品の開いた縁や
+      重なり合う殻を持つ従来モデルが多数あり、一律の失敗にはできない。
+      彫刻パイプラインのメッシュ(ボクセルリメッシュ出力)は0件が期待値
+      なので、増えていたら作り直しの兆候として読む。
+    """
+    for obj in objs:
+        if obj.type != "MESH":
+            continue
+        has_armature = any(m.type == "ARMATURE" for m in obj.modifiers)
+        if has_armature and obj.vertex_groups:
+            orphans = 0
+            for v in obj.data.vertices:
+                if sum(g.weight for g in v.groups) < 1e-4:
+                    orphans += 1
+            if orphans:
+                raise RuntimeError(
+                    f"{name}/{obj.name}: どのボーンにも属さない頂点が{orphans}個ある。"
+                    "_fix_orphan_weights系の救済を通してからエクスポートする"
+                )
+
+        bm = bmesh.new()
+        bm.from_mesh(obj.data)
+        bad = sum(1 for e in bm.edges if len(e.link_faces) not in (0, 2))
+        bm.free()
+        if bad:
+            print(f"  [preflight] {name}/{obj.name}: 非多様体エッジ {bad}件")
+
+
 def export_glb(name: str, objs: Sequence[bpy.types.Object], flat: bool = False) -> str:
     os.makedirs(MODEL_DIR, exist_ok=True)
     path = os.path.join(MODEL_DIR, f"{name}.glb")
+
+    preflight_check(name, objs)
 
     # キャラクター(flat=True)はアニメ調の方針(plan/models/archive/
     # anime-look-art-direction.md)で、焼き込み陰影を一切持たずトゥーン階調
