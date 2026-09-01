@@ -1,27 +1,29 @@
 """
-主人公「ガルド」。
+主人公「ガルド」― 見習い樽守り。
 
-確定した2D設定画(design/characters/garudo/generated/garudo-sheet.png、
-ユーザー提供)を忠実に3D化する。`five-character-redesign-gate.md`の
-決定2-4が許可するとおり、**共通素体(build_skinnedのSkinモディファイア)を
-完全に捨て**、設定画の三面図から採寸した断面リング(高さごとの楕円)を
-積み上げる専用メッシュ(_loft)で全部位を組む。「設定画がそのまま
-動いているように見える」ことが合格基準。
+新しい2D設定画(design/characters/garudo/generated/garudo-sheet.png、
+ユーザー提供・2026-09-01)の三面図を寸法源に、彫刻+テクスチャ焼き込み
+パイプライン(plan/models/archive/sculpt-texture-pipeline.md)で組む。
+ブロックアウト承認(2026-09-01「良さそうです!」)済みの体型配分。
 
-設定画の要点(すべて本ファイルの座標に反映):
+方針(plan/models/garudo-quality-uplift.md 実装項目8):
 
-- **7頭身**(頭頂=0.95、頭身単位0.1357)。あご=1・肘=3.3・
-  股/手首=4.3・膝=5.8頭身。がっしりした少年の量感(なで肩ではなく
-  肩幅があり、腕脚も細い棒にしない)。
-- **樽板エプロン**: ベルトから膝上まで。輪郭が「膨らみ→くびれ→
-  膨らみ」で、黒塗りでも樽と読める。たが(鉄輪)2段。
-- **背負いダル**: 背中の肩〜腰を占める大きさで、上端(ふた)が
-  肩越しに覗く。肩ひもは胸の前を2本走りベルトへ届く。
-- 生成りシャツ(肘まで袖をまくり、まくり口が膨らむ。肘から先は素肌)・
-  深緑のズボン(裾をブーツに入れて膨らむ)・革ブーツ(つま先・甲の
-  実体形状)・濃茶のミトン手袋(親指つき)・茶色の無造作な髪
-  (大きな塊+前髪・こめかみ・頭頂の房)。
-- 設定画に武器は無いため、旧モデルの手斧は持たせない。
+- **約5.2頭身のゲーム内比率を直接組む**。旧版の「7頭身写実→チビ化」の
+  二段変換は廃止(設定画側がゲーム内比率になった)。全高0.97ユニットは
+  従来と同じ(身長回帰ガード・他キャラとの体格バランス維持)。
+- **有機部は1つに融合**: 頭・首・胴・袖・前腕・手袋・腰・脚・裾を
+  sculpt_merge(target_tris指定)で連続メッシュにし、塗り分け
+  (シャツ生成り/素肌/革手袋/青灰ズボン)と顔(口・鼻・眉)・
+  シャツの前立てを384²アルベドへ焼き込む。境界は球・カプセルの
+  距離場(知見8)。
+- **硬い部品は別ジオメトリのままピンで剛体追従**: 樽板エプロン
+  (背中±60°が開いた240°巻き、フラットシェードの板+たが)・
+  背負い樽(タルの小道具と同じ12面フラットの造形言語)・ベルト・
+  肩ひも・腰布(赤)・ブーツ。
+- **目は顔に沿うパッチ1枚+描いた目**(hand-painted-standard.md 規約2:
+  眼球を3Dオブジェクトとして顔に載せない)。まばたき機構は維持
+  (blinkカスタムプロパティ)。髪は房を重ねた塊で頭ボーンへ剛体追従。
+- 設定画に武器は無い(手は自然な人の手+革手袋)。
 
 Blender では -Y を正面として組む。glTF に書き出すとこれが +Z 正面になり、
 Three.js 側で rotation.y = 0 が「南向き」に対応する。
@@ -41,21 +43,20 @@ from mathutils import Vector
 
 NAME = "garudo"
 
-# 頭身単位。全高 0.95 を 7 頭身で割る
-HEAD_UNIT = 0.95 / 7.0
-
+# 三面図の採寸: 全高425px(頭頂521〜足の裏937)を0.97ユニットへ正規化。
+# 1px = 0.002282。以下の座標はすべてこの換算で三面図から読んだ値
 JOINTS_HALF = {
-    "hip": (0.0, 0.0, 0.42),
-    "chest": (0.0, -0.004, 0.70),
-    "neck": (0.0, 0.0, 0.79),
+    "hip": (0.0, 0.0, 0.46),
+    "chest": (0.0, -0.004, 0.68),
+    "neck": (0.0, 0.0, 0.775),
     "head": (0.0, -0.004, 0.878),
-    "crown": (0.0, 0.0, 0.93),
-    "shoulder.L": (0.100, 0.0, 0.748),
-    "elbow.L": (0.138, 0.004, 0.505),
-    "hand.L": (0.158, -0.016, 0.352),
-    "thigh.L": (0.056, 0.0, 0.36),
-    "knee.L": (0.056, 0.0, 0.17),
-    "foot.L": (0.057, -0.02, 0.03),
+    "crown": (0.0, 0.0, 0.955),
+    "shoulder.L": (0.078, 0.0, 0.742),
+    "elbow.L": (0.165, 0.004, 0.600),
+    "hand.L": (0.234, -0.004, 0.436),
+    "thigh.L": (0.066, 0.0, 0.42),
+    "knee.L": (0.070, 0.0, 0.27),
+    "foot.L": (0.074, -0.02, 0.04),
 }
 
 BONES_HALF = [
@@ -74,47 +75,73 @@ BONES_HALF = [
 JOINTS = C.mirrored(JOINTS_HALF)
 BONES = C.mirrored_bones(BONES_HALF)
 
-# 配色は設定画から採る
-SKIN = (0.85, 0.66, 0.48)
-SHIRT = (0.88, 0.83, 0.72)      # 生成りのシャツ
-TROUSERS = (0.25, 0.28, 0.18)   # 深緑のズボン
-BOOT = (0.38, 0.25, 0.14)       # 革のブーツ
-GLOVE = (0.32, 0.21, 0.12)      # ミトン状の手袋
-HAIR = (0.25, 0.16, 0.09)       # 茶色の無造作な髪
-BELT = (0.30, 0.19, 0.11)       # 革ベルト・肩ひも
-APRON_WOOD = props.BARREL_WOOD  # 樽板エプロン(実物の樽と同色で統一)
-HOOP = props.BARREL_IRON        # たが(鉄輪)
+# 配色は設定画のカラーパレットから採る
+SKIN = (0.93, 0.80, 0.66)
+SKIN_SHADE = (0.82, 0.64, 0.50)     # 鼻・口まわりの影色
+SHIRT = (0.88, 0.84, 0.73)          # 生成りのシャツ
+SHIRT_LINE = (0.74, 0.69, 0.58)     # 前立て・ボタンの線
+TROUSERS = (0.35, 0.41, 0.49)       # 青灰のズボン(新設定画で深緑から変更)
+LEATHER = (0.42, 0.28, 0.16)        # 革(ベルト・手袋・靴)
+HAIR = (0.29, 0.19, 0.11)           # 茶色の無造作な髪
+CLOTH = (0.60, 0.20, 0.15)          # 腰布(赤)
+APRON_WOOD = props.BARREL_WOOD      # 樽板エプロン(実物の樽と同色で統一)
+HOOP = props.BARREL_IRON            # たが(鉄輪)
+
+# 顔まわりの基準。**設定画の正面図をピクセル実測して決めた値**
+# (1px=0.002282、z=(937-y)*0.002282)。頭を球で作ると設定画と別人になる
+# (実測: 設定画の顔は目の高さで半幅0.071→あご0.023へ絞る卵形。球で
+# 作ると髪込みのシルエット幅を頭蓋に使うことになり、あごの無い団子顔)
+CHIN_Z = 0.770          # あご先
+EYE_Z = 0.851           # 目の中心の高さ
+EYE_X = 0.0360          # 顔の中心から目の中心まで
+BROW_Z = 0.884          # 眉(目パッチの上端0.871より上に置く)
+MOUTH_Z = 0.800
+NOSE_Z = 0.828
+SKULL_TOP_Z = 0.970
+
+# 目まわりの造作を置くための、顔の前面に当てた楕円体(頭ロフトの
+# 目の高さ付近と一致させてある)
+FACE_C = Vector((0.0, 0.010, 0.858))
+FACE_R = Vector((0.0770, 0.079, 0.086))
+
+# 頭のロフト断面(z, rx, ry, cx, cy)。正面図の幅と側面図の奥行きから
+HEAD_RINGS = [
+    (0.770, 0.019, 0.027, 0.0, 0.006),
+    (0.786, 0.035, 0.045, 0.0, 0.008),
+    (0.804, 0.049, 0.058, 0.0, 0.009),
+    (0.824, 0.070, 0.074, 0.0, 0.010),
+    (0.848, 0.0765, 0.079, 0.0, 0.010),
+    (0.872, 0.0775, 0.080, 0.0, 0.010),
+    (0.898, 0.0760, 0.079, 0.0, 0.011),
+    (0.924, 0.069, 0.0745, 0.0, 0.012),
+    (0.948, 0.058, 0.063, 0.0, 0.013),
+    (0.962, 0.040, 0.045, 0.0, 0.014),
+    (0.970, 0.016, 0.019, 0.0, 0.014),
+]
+
+HAND_C_L = Vector((0.234, -0.004, 0.436))
 
 
-def _loft(name: str, rings, segments: int = 16, smooth: bool = True,
-          cap_top: bool = True, cap_bottom: bool = True):
+def _arc_loft(name: str, rings, open_half_deg: float = 60.0,
+              segments: int = 20, smooth: bool = True):
     """
-    断面リングを下から上へ積み、側面を貼った回転体風メッシュを作る。
-    設定画の三面図から「高さzでの横幅rx(正面図)・奥行きry(側面図)・
-    中心のずれcx, cy」を測ってそのまま並べられるのが利点で、
-    Skinモディファイアの膨らんだソーセージ形にならない。
-
-    rings: (z, rx, ry, cx, cy) を z 昇順で並べたリスト。
+    背中側(+Y、90°)を±open_half_deg開けた弧のロフト。樽板エプロンと
+    そのたがに使う。リングはcommon.loftと同じ(z, rx, ry, cx, cy)。
     """
     mesh = bpy.data.meshes.new(name)
     obj = bpy.data.objects.new(name, mesh)
     bpy.context.collection.objects.link(obj)
     bm = bmesh.new()
-    angles = [i * math.tau / segments for i in range(segments)]
+    a0 = math.radians(90 + open_half_deg)
+    a1 = math.radians(90 - open_half_deg + 360)
+    angles = [a0 + (a1 - a0) * i / segments for i in range(segments + 1)]
     ring_verts = []
     for z, rx, ry, cx, cy in rings:
-        ring_verts.append([
-            bm.verts.new((cx + rx * math.cos(a), cy + ry * math.sin(a), z))
-            for a in angles
-        ])
+        ring_verts.append([bm.verts.new((cx + rx * math.cos(a), cy + ry * math.sin(a), z))
+                           for a in angles])
     for lower, upper in zip(ring_verts, ring_verts[1:]):
         for i in range(segments):
-            bm.faces.new((lower[i], lower[(i + 1) % segments],
-                          upper[(i + 1) % segments], upper[i]))
-    if cap_bottom:
-        bm.faces.new(list(reversed(ring_verts[0])))
-    if cap_top:
-        bm.faces.new(ring_verts[-1])
+            bm.faces.new((lower[i], lower[i + 1], upper[i + 1], upper[i]))
     bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
     bm.to_mesh(mesh)
     bm.free()
@@ -123,87 +150,510 @@ def _loft(name: str, rings, segments: int = 16, smooth: bool = True,
     return obj
 
 
-def _segment_between(name: str, p0: Vector, p1: Vector, radius: float, segments: int = 8):
-    """任意の2点を結ぶ円柱。肩ひものように3軸すべてで向きが変わる部品向け。"""
-    direction = p1 - p0
-    length = direction.length
-    seg = C.cylinder(name, (0.0, 0.0, 0.0), radius, length, segments=segments)
-    seg.rotation_euler = direction.to_track_quat("Z", "Y").to_euler()
-    seg.location = (p0 + p1) / 2
-    return seg
+def _smoothstep(edge0: float, edge1: float, x: float) -> float:
+    t = max(0.0, min(1.0, (x - edge0) / (edge1 - edge0)))
+    return t * t * (3.0 - 2.0 * t)
 
 
-def _cone_at(name: str, origin: Vector, direction: Vector, radius: float, length: float,
-             segments: int = 5):
-    """原点でconeを作り、directionへ向けてからoriginへ置く(鼻など小部品用)。"""
-    tuft = C.cone(name, (0.0, 0.0, 0.0), radius, 0.004, length, segments=segments)
-    tuft.rotation_euler = direction.normalized().to_track_quat("Z", "Y").to_euler()
-    tuft.location = origin
-    return tuft
+def _seg_dist(p: Vector, a: Vector, b: Vector) -> float:
+    ab = b - a
+    if ab.length_squared == 0.0:
+        return (p - a).length
+    t = max(0.0, min(1.0, (p - a).dot(ab) / ab.length_squared))
+    return (p - (a + ab * t)).length
 
 
-def _lock(name: str, points, radii, resolution: int = 4, bevel_resolution: int = 1):
+def _lerp3(a, b, t):
+    return (a[0] + (b[0] - a[0]) * t,
+            a[1] + (b[1] - a[1]) * t,
+            a[2] + (b[2] - a[2]) * t)
+
+
+def _h01(x: float, y: float = 0.0) -> float:
+    """決定的な擬似乱数(0〜1)。板ごとの色差・擦れの散らしに使う"""
+    return (math.sin(x * 127.1 + y * 311.7) * 43758.5453) % 1.0
+
+
+def _shade(color, f: float):
+    return (min(1.0, color[0] * f), min(1.0, color[1] * f), min(1.0, color[2] * f))
+
+
+# ---- 手描きテクスチャ(plan/models/hand-painted-standard.md 規約3) ----
+# いずれも3D位置から描くので、UV島の割れ方に依存しない
+
+APRON_HOOP_Z = (0.265, 0.390, 0.505)
+
+
+def _apron_color(pos: Vector, normal: Vector):
+    """樽板エプロン: 板ごとの色差+上明るく下暗く+たが直下の影+
+    縁の明るい線+木目+擦れ"""
+    deg = math.degrees(math.atan2(pos.y - 0.006, pos.x)) % 360.0
+    t_arc = ((deg - 200.0) % 360.0) / 140.0
+    idx = max(0, min(8, int(t_arc * 9)))
+    f = 0.94 + 0.12 * _h01(idx * 12.9898)
+    tz = max(0.0, min(1.0, (pos.z - 0.235) / (0.530 - 0.235)))
+    f *= 0.84 + 0.26 * tz
+    for hz in APRON_HOOP_Z:
+        d = hz - 0.009 - pos.z
+        if 0.0 < d < 0.022:
+            f *= 0.72 + 0.28 * _smoothstep(0.0, 0.022, d)
+    edge = abs(t_arc * 9 - idx - 0.5) * 2.0
+    if edge > 0.80:
+        f *= 1.10
+    if math.sin(deg * 9.0 + _h01(idx * 7.0) * 6.28) > 0.75:
+        f *= 0.93
+    if _h01(round(deg * 1.3), round(pos.z * 90)) > 0.965:
+        f *= 1.15
+    return _shade(APRON_WOOD, f)
+
+
+def _barrel_color(pos: Vector, normal: Vector):
+    """背負い樽(軸は前後)。板の色差+上を明るく下を暗く+たが直下の影+
+    背中側の鏡板は年輪と縁の明るい線"""
+    b_cy, b_cz, b_len = 0.120, 0.658, 0.110
+    if pos.y > b_cy + b_len / 2:
+        r = math.hypot(pos.x, pos.z - b_cz)
+        f = 1.02
+        if r > 0.082:
+            f *= 1.14
+        elif 0.022 < r < 0.028 or 0.048 < r < 0.054:
+            f *= 0.90
+        return _shade((0.50, 0.34, 0.20), f)
+    # 板は軸まわりに並ぶ(x-z平面の角度)
+    deg = math.degrees(math.atan2(pos.z - b_cz, pos.x)) % 360.0
+    idx = int(deg / 30.0)
+    f = 0.94 + 0.12 * _h01(idx * 3.71)
+    f *= 0.84 + 0.30 * max(0.0, min(1.0, (pos.z - (b_cz - 0.090)) / 0.180))
+    for hy in (b_cy - 0.034, b_cy, b_cy + 0.034):
+        d = pos.y - (hy + 0.010)
+        if 0.0 < d < 0.018:
+            f *= 0.76 + 0.24 * _smoothstep(0.0, 0.018, d)
+    if abs((deg % 30.0) - 15.0) / 15.0 > 0.86:
+        f *= 1.10
+    if math.sin(pos.y * 90.0 + idx) > 0.8:
+        f *= 0.94
+    return _shade(APRON_WOOD, f)
+
+
+def _boot_color(pos: Vector, normal: Vector):
     """
-    ベジェカーブ+点ごとの半径テーパーで作る「房」。直線の円錐と違い、
-    自然に曲がりながら先細る(髪の房・眉・まぶたの線に使う)。
-    curve.bevel_depth=1.0 とし、実際の太さは各制御点の radius で与える。
-    ハンドルはAUTOで滑らかに繋ぎ、メッシュへ変換して返す。
+    ブーツ: 靴底とヒールは濃く、甲は明るく、履き口の折り返しに線、
+    正面に編み上げの紐とハトメ。座標はブーツのローカル(原点=足の中心、
+    -Yがつま先、z0が接地)
     """
-    curve = bpy.data.curves.new(name, "CURVE")
-    curve.dimensions = "3D"
-    curve.bevel_depth = 1.0
-    curve.bevel_resolution = bevel_resolution
-    curve.resolution_u = resolution
-    curve.fill_mode = "FULL"
-    curve.use_fill_caps = True
-    sp = curve.splines.new("BEZIER")
-    sp.bezier_points.add(len(points) - 1)
-    for bp, co, r in zip(sp.bezier_points, points, radii):
-        bp.co = co
-        bp.handle_left_type = bp.handle_right_type = "AUTO"
-        bp.radius = r
-    obj = bpy.data.objects.new(name, curve)
+    if pos.z < 0.020:
+        return (0.24, 0.17, 0.11)                     # 靴底
+    if pos.y > 0.030 and pos.z < 0.048:
+        return (0.28, 0.20, 0.13)                     # ヒール
+    f = 0.90 + 0.20 * max(0.0, min(1.0, (pos.z - 0.02) / 0.16))
+    d_toe = (pos - Vector((0.0, -0.090, 0.030))).length
+    f *= 1.0 + 0.18 * (1.0 - _smoothstep(0.02, 0.055, d_toe))   # つま先の明るみ
+    if 0.156 < pos.z < 0.182:
+        f *= 1.12                                     # 履き口の折り返し
+    if pos.y < -0.020 and abs(pos.x) < 0.016 and 0.050 < pos.z < 0.150:
+        k = (pos.z - 0.050) / 0.024
+        if abs(k - round(k)) < 0.17:
+            f *= 0.68                                 # 紐
+            if abs(abs(pos.x) - 0.013) < 0.003:
+                f *= 1.60                             # ハトメ
+    return _shade((0.46, 0.31, 0.18), f)
+
+
+def _hair_color(pos: Vector, normal: Vector):
+    """髪: 上を明るく・後頭部を暗く・房の流れの筋"""
+    f = 0.86 + 0.30 * max(0.0, min(1.0, (pos.z - 0.82) / 0.17))
+    if pos.y > 0.055:
+        f *= 0.90
+    ang = math.atan2(pos.x, -(pos.y - 0.02))
+    if math.sin(ang * 16.0 + pos.z * 55.0) > 0.66:
+        f *= 0.86
+    return _shade(HAIR, f)
+
+
+def _hair_card(name: str, base, tip, w_base: float, w_mid: float,
+               thick: float = 0.007, center=(0.0, 0.016, 0.900), flat=None):
+    """
+    髪の房を**平たい板**として作る(先端は尖る)。円筒の房(curve_tube)は
+    どう並べても「丸い棒の集合」に見え、設定画の房にならない実測。
+    板の面は既定で頭の外を向き(radial)、幅は房の走る向きと直交して取る。
+
+    flatに向きを与えると、板の面をその向きへ固定する。**顔の横に垂れる
+    房**は既定のradial(=横向き)だと正面から見て板が立ってしまい、幅が
+    出ない(実測: 目の高さの頭幅が設定画より-22px)。flat=(0,-1,0)を
+    渡して面を正面へ向けると、設定画どおり顔の横に髪の幅が出る。
+    """
+    b = Vector(base)
+    t = Vector(tip)
+    c = Vector(center)
+    d = t - b
+    length = d.length
+    d.normalize()
+    radial = Vector(flat) if flat is not None else (b - c)
+    radial = radial - d * radial.dot(d)
+    if radial.length_squared < 1e-9:
+        radial = Vector((0.0, -1.0, 0.0))
+    radial.normalize()
+    u = d.cross(radial).normalized()
+
+    stations = [(0.0, w_base), (0.42, w_mid), (0.76, w_mid * 0.52), (1.0, 0.0012)]
+    mesh = bpy.data.meshes.new(name)
+    obj = bpy.data.objects.new(name, mesh)
     bpy.context.collection.objects.link(obj)
-    C.activate(obj)
-    bpy.ops.object.convert(target="MESH")
-    obj = bpy.context.view_layer.objects.active
-    for poly in obj.data.polygons:
+    bm = bmesh.new()
+    rings = []
+    for frac, half_w in stations:
+        p = b + d * (length * frac)
+        # 房は先へ行くほど薄く
+        th = thick * (1.0 - 0.55 * frac) * 0.5
+        rings.append([
+            bm.verts.new(p + radial * th + u * half_w),
+            bm.verts.new(p + radial * th - u * half_w),
+            bm.verts.new(p - radial * th - u * half_w),
+            bm.verts.new(p - radial * th + u * half_w),
+        ])
+    for lower, upper in zip(rings, rings[1:]):
+        for i in range(4):
+            j = (i + 1) % 4
+            bm.faces.new((lower[i], lower[j], upper[j], upper[i]))
+    bm.faces.new(list(reversed(rings[0])))
+    bm.faces.new(rings[-1])
+    bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
+    bm.to_mesh(mesh)
+    bm.free()
+    for poly in mesh.polygons:
         poly.use_smooth = True
     return obj
 
 
-def _slope_shoulders(obj, start_z: float = 0.68, span: float = 0.09,
-                     drop: float = 0.032, half_width: float = 0.087) -> None:
+# ---- 目(規約2: 眼球を3Dオブジェクトとして顔に載せない) ----
+# 顔の球面に沿う楕円のパッチ1枚だけを置き、目は完全に「絵」として
+# そのテクスチャへ描く。まぶたの線・虹彩・瞳・ハイライトまで1枚の
+# イラストなので、球を積んだときの「安価な3Dキャラクター」感が出ない。
+
+# 目のパッチの寸法。設定画の目(幅0.0342×高さ0.018)を、テクスチャの
+# アーモンド(円板に対し幅0.94・高さ0.76)で埋めるとこの大きさになる
+EYE_HALF_W = 0.0202
+EYE_HALF_H = 0.0197
+
+
+def _eye_texture(size: int = 128) -> "bpy.types.Image":
     """
-    胴・袖の上部頂点を、中心から外側ほど・上ほど下げて「なで肩」の
-    斜線を作る(水平リングのロフトだけでは肩が四角い棚になるため)。
+    目のイラストを1枚描く(UV円板いっぱい)。左右のパッチで共用する。
+    上まぶたを太く、虹彩は濃い縁+暖色の芯、瞳、ハイライト2粒。
     """
-    for v in obj.data.vertices:
-        if v.co.z > start_z:
-            t = min((v.co.z - start_z) / span, 1.0)
-            lateral = min(abs(v.co.x) / half_width, 1.0)
-            v.co.z -= t * (lateral ** 1.3) * drop
+    import numpy as np
+
+    ny, nx = np.mgrid[0:size, 0:size]
+    # 円板の内側を(-1,1)に正規化。+yが上
+    x = (nx + 0.5) / size * 2.0 - 1.0
+    y = (ny + 0.5) / size * 2.0 - 1.0
+    aa = 2.5 / size  # アンチエイリアスの幅(テクセル数ぶん)
+
+    def smooth(edge0, edge1, v):
+        t = np.clip((v - edge0) / (edge1 - edge0), 0.0, 1.0)
+        return t * t * (3.0 - 2.0 * t)
+
+    def ellipse(cx, cy, rx, ry):
+        """内側=1、外側=0の滑らかなマスク"""
+        d = np.sqrt(((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2)
+        return 1.0 - smooth(1.0 - aa * 2.0, 1.0 + aa * 2.0, d)
+
+    px = np.zeros((size, size, 4), dtype=np.float32)
+    px[..., 3] = 1.0
+
+    def paint(mask, color):
+        m = mask[..., None]
+        px[..., :3] = px[..., :3] * (1.0 - m) + np.array(color, dtype=np.float32) * m
+
+    def almond(cx, cy, rx, ry, power=1.65):
+        """角の尖ったアーモンド形(超楕円)。アニメの目の輪郭"""
+        d = (np.abs((x - cx) / rx) ** power + np.abs((y - cy) / ry) ** power) ** (1.0 / power)
+        return 1.0 - smooth(1.0 - aa * 2.0, 1.0 + aa * 2.0, d)
+
+    LINE = (0.12, 0.075, 0.055)
+    # パッチの外周には肌を残し(顔と法線を揃えてあるので継ぎ目が出ない)、
+    # その内側にアーモンド形の目を1枚の絵として描く
+    px[..., :3] = np.array(SKIN, dtype=np.float32)
+    paint(almond(0.0, -0.06, 0.94, 0.76), LINE)                  # 目の輪郭線
+    paint(almond(0.0, -0.14, 0.84, 0.60), (0.97, 0.96, 0.94))    # 白目
+    paint(ellipse(0.0, -0.14, 0.50, 0.56), (0.30, 0.18, 0.10))   # 虹彩の縁
+    paint(ellipse(0.0, -0.16, 0.38, 0.43), (0.62, 0.38, 0.17))   # 虹彩(暖色)
+    paint(ellipse(0.0, -0.17, 0.17, 0.19), (0.10, 0.065, 0.05))  # 瞳
+    paint(ellipse(-0.22, 0.06, 0.16, 0.15), (1.0, 1.0, 1.0))     # ハイライト大
+    paint(ellipse(0.20, -0.42, 0.085, 0.08), (1.0, 1.0, 1.0))    # ハイライト小
+    # 上まぶた(太い線)。虹彩の上を少し隠すとアニメの目になる
+    lid = almond(0.0, -0.06, 0.94, 0.76) * (1.0 - almond(0.0, -0.30, 0.90, 0.72))
+    paint(lid, LINE)
+
+    img = bpy.data.images.new("garudo_eye_tex", size, size, alpha=False)
+    img.pixels.foreach_set(px.ravel())
+    img.pack()
+    return img
+
+
+def _eye_panel(name: str, side: float, rings: int = 5, segs: int = 16):
+    """
+    顔の楕円体(FACE_C/FACE_R)に沿う楕円のパッチ。UVは円板なので、
+    目の絵をそのまま貼れる。原点はパッチの中心へ置く(まばたきの
+    スケールがその場で潰れるため)。
+
+    球ではなく楕円体に乗せるのは、設定画の顔があごへ絞る卵形で、
+    目が顔の側面近くまで回り込むため(球だと浮くか埋まる)。
+    """
+    # 正規化空間(楕円体→単位球)で組み、最後に半径を掛けて戻す
+    nx = EYE_X * side / FACE_R.x
+    nz = (EYE_Z - FACE_C.z) / FACE_R.z
+    ny = -math.sqrt(max(1e-6, 1.0 - nx * nx - nz * nz))
+    d = Vector((nx, ny, nz)).normalized()
+    up = Vector((0.0, 0.0, 1.0))
+    tv = (up - d * up.dot(d)).normalized()
+    tu = tv.cross(d).normalized()
+    # パッチの世界寸法 → 正規化空間での角度
+    au = math.asin(min(0.9, EYE_HALF_W / FACE_R.x))
+    av = math.asin(min(0.9, EYE_HALF_H / FACE_R.z))
+
+    def surface(r: float, theta: float):
+        n = (d + tu * math.tan(au) * r * math.cos(theta)
+             + tv * math.tan(av) * r * math.sin(theta)).normalized()
+        p = Vector((FACE_C.x + n.x * FACE_R.x,
+                    FACE_C.y + n.y * FACE_R.y,
+                    FACE_C.z + n.z * FACE_R.z))
+        # 楕円体の外向き法線(勾配)へ少しだけ浮かせて顔に埋まらないように
+        grad = Vector((n.x / FACE_R.x, n.y / FACE_R.y, n.z / FACE_R.z)).normalized()
+        return p + grad * 0.0025, grad
+
+    mesh = bpy.data.meshes.new(name)
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj)
+    bm = bmesh.new()
+    uv_layer = bm.loops.layers.uv.new("UVMap")
+    uvs = {}
+    normals = {}
+
+    def vert(r: float, theta: float):
+        p, grad = surface(r, theta)
+        v = bm.verts.new(p)
+        uvs[v] = (0.5 + 0.5 * r * math.cos(theta), 0.5 + 0.5 * r * math.sin(theta))
+        normals[v] = grad
+        return v
+
+    center_v = vert(0.0, 0.0)
+    ring_verts = [[vert(i / rings, math.tau * k / segs) for k in range(segs)]
+                  for i in range(1, rings + 1)]
+
+    def add_face(vs):
+        f = bm.faces.new(vs)
+        for loop in f.loops:
+            loop[uv_layer].uv = uvs[loop.vert]
+
+    for k in range(segs):
+        add_face((center_v, ring_verts[0][k], ring_verts[0][(k + 1) % segs]))
+    for lower, upper in zip(ring_verts, ring_verts[1:]):
+        for k in range(segs):
+            add_face((lower[k], upper[k], upper[(k + 1) % segs], lower[(k + 1) % segs]))
+    bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
+    # 開いたパッチではrecalcの向きが不定。顔の外向きへ揃える
+    # (裏向きだと陰になり、白目が暗く沈む)
+    probe = bm.faces[:][0]
+    if probe.normal.dot(probe.calc_center_median() - FACE_C) < 0:
+        bmesh.ops.reverse_faces(bm, faces=list(bm.faces))
+    order = [normals[v] for v in bm.verts]
+    bm.to_mesh(mesh)
+    bm.free()
+    for poly in mesh.polygons:
+        poly.use_smooth = True
+    # 法線は顔の楕円体の外向きへ。顔と同じ向きなのでパッチの継ぎ目が
+    # 陰影に出ない(set_originより前に行う: 原点を移すと頂点がローカル
+    # 座標になり、ワールドの中心では向きが狂う)
+    mesh.normals_split_custom_set_from_vertices(order)
+    aim = mesh.vertices[0].co.copy()
+    C.set_origin(obj, aim)
+    return obj
+
+
+def _body_color(pos: Vector, normal: Vector):
+    """
+    融合ボディの塗り分け(距離場)+顔・前立ての焼き込み。
+    優先順: 手袋 > 素肌(頭・前腕) > ズボン(ベルトより下) > シャツ。
+    しきい値の段差はベルト・エプロン・ブーツの実体ジオメトリの陰に隠れる。
+    """
+    # 手袋(手の球距離場)。甲の明るみ+手首側を暗く
+    d_hand = min((pos - HAND_C_L).length,
+                 (pos - Vector((-HAND_C_L.x, HAND_C_L.y, HAND_C_L.z))).length)
+    glove = 1.0 - _smoothstep(0.049, 0.057, d_hand)
+    if glove > 0.5:
+        f = 1.0
+        xc = 0.234 if pos.x >= 0 else -0.234
+        d_knuckle = (pos - Vector((xc, -0.030, 0.432))).length
+        f *= 1.0 + 0.14 * (1.0 - _smoothstep(0.012, 0.030, d_knuckle))
+        if pos.z > 0.456:
+            f *= 0.90
+        return _shade(LEATHER, f)
+
+    # 素肌: 首から上(頭はロフトの卵形なので球の距離場は使えない。
+    # 胴の肩口がz0.782なので、この高さで切れば首と頭だけが残る)+
+    # 前腕のカプセル(袖まくりの先)
+    skin_field = _smoothstep(0.778, 0.790, pos.z)
+    for s in (1.0, -1.0):
+        d_fore = _seg_dist(pos, Vector((0.165 * s, 0.004, 0.594)),
+                           Vector((0.227 * s, 0.0, 0.452)))
+        skin_field = max(skin_field, 1.0 - _smoothstep(0.036, 0.044, d_fore))
+    if skin_field > 0.5:
+        # 顔はアニメの文法で「描く」(参照スクリーンショットの指摘対応)。
+        # 太い上まぶたの線・意思のある眉・口の線+下唇の影・鼻の点。
+        # 高密度化した顔UV島(organic_uvのboost)が細い線を支える。
+        # 面法線のガードは使わない(縁テクセルで判定が明滅して線が
+        # 点描に割れた実測。後頭部の同じxz帯は髪ジオメトリが覆うので、
+        # 素の距離場だけで安全に引ける)
+        # 生え際より上と後頭部は髪色で塗る(房の隙間から地肌が覗かない)
+        if pos.z > 0.900 and pos.y > -0.060:
+            return HAIR
+        if pos.y > 0.045 and pos.z > 0.800:
+            return HAIR
+        if pos.y < 0.006:
+            xz = Vector((pos.x, 0.0, pos.z))
+            for s in (1.0, -1.0):
+                # 眉: 細く、内側が低く外側へ上がってから下がる角度
+                # (設定画の実測: z0.867〜0.878、x0.021〜0.060)
+                d = _seg_dist(xz, Vector((0.015 * s, 0.0, BROW_Z - 0.005)),
+                              Vector((0.032 * s, 0.0, BROW_Z + 0.003)))
+                d = min(d, _seg_dist(xz, Vector((0.032 * s, 0.0, BROW_Z + 0.003)),
+                                     Vector((0.047 * s, 0.0, BROW_Z + 0.001))))
+                if d < 0.0040:
+                    return _lerp3((0.20, 0.13, 0.075), SKIN,
+                                  _smoothstep(0.0027, 0.0038, d))
+            # 口: 小さな一文字(設定画の口は目の内側幅ほどしかない)
+            d = _seg_dist(xz, Vector((-0.0105, 0.0, MOUTH_Z - 0.0008)),
+                          Vector((0.0105, 0.0, MOUTH_Z - 0.0008)))
+            if d < 0.0022:
+                return _lerp3((0.44, 0.22, 0.18), SKIN,
+                              _smoothstep(0.0015, 0.0022, d))
+            # 鼻: ごく小さな点
+            if (xz - Vector((0.0, 0.0, NOSE_Z))).length < 0.0026:
+                return _lerp3(SKIN, SKIN_SHADE, 0.85)
+            # 目のくぼみ(パッチの裏。まばたきで潰れたとき肌より少し暗い)
+            for s in (1.0, -1.0):
+                d = (xz - Vector((EYE_X * s, 0.0, EYE_Z))).length
+                if d < 0.022:
+                    return _lerp3(_lerp3(SKIN, SKIN_SHADE, 0.40), SKIN,
+                                  _smoothstep(0.010, 0.022, d))
+            # 頬のほんのり赤み
+            for s in (1.0, -1.0):
+                d = (xz - Vector((0.050 * s, 0.0, 0.815))).length
+                if d < 0.022:
+                    t = 1.0 - _smoothstep(0.008, 0.022, d)
+                    return _lerp3(SKIN, (0.95, 0.70, 0.55), 0.30 * t)
+        # 顔の描き込み陰影(規約3)。トゥーン階調に頼らず、絵として
+        # 「この面は少し暗い」を焼き込む: 前髪の落ち影・こめかみ・
+        # あご下・首。照明が変わっても顔の立体が壊れない
+        shade = 0.0
+        shade = max(shade, 0.55 * _smoothstep(0.900, 0.930, pos.z))       # 前髪の影
+        shade = max(shade, 0.30 * _smoothstep(0.050, 0.072, abs(pos.x)))  # こめかみ
+        shade = max(shade, 0.45 * (1.0 - _smoothstep(0.762, 0.800, pos.z)))  # あご下
+        if pos.z < 0.800:
+            shade = max(shade, 0.50)                                       # 首の影
+        shade = max(shade, 0.25 * _smoothstep(0.010, 0.050, pos.y))       # 後頭部側
+        return _lerp3(SKIN, SKIN_SHADE, min(0.75, shade))
+
+    # ズボン(ベルトより下)。膝の明るみ・裾だまりの折れ皺・尻の落ち影
+    if pos.z < 0.545:
+        f = 1.0
+        f *= 0.90 + 0.12 * max(0.0, min(1.0, (pos.z - 0.15) / 0.40))
+        for s in (1.0, -1.0):
+            d = (pos - Vector((0.069 * s, -0.048, 0.285))).length
+            f *= 1.0 + 0.10 * (1.0 - _smoothstep(0.015, 0.038, d))
+        if pos.z < 0.205 and math.sin(pos.z * 240.0 + pos.x * 60.0) > 0.55:
+            f *= 0.88
+        if pos.z > 0.50 and pos.y > 0.02:
+            f *= 0.93
+        return _shade(TROUSERS, f)
+
+    # シャツ。前立て+ボタン+胸の明るみ+裾・脇の落ち影+布の折れ
+    if normal.y < -0.2 and abs(pos.x) < 0.0026 and 0.695 < pos.z < 0.764:
+        return SHIRT_LINE
+    for bz in (0.742, 0.718):
+        if (pos - Vector((0.0, -0.062, bz))).length < 0.0045:
+            return SHIRT_LINE
+    # 袖まくりの折り返し帯(肘の少し上)をわずかに濃く
+    for s in (1.0, -1.0):
+        d = (pos - Vector((0.112 * s, 0.004, 0.622))).length
+        if d < 0.036:
+            return _lerp3(SHIRT, SHIRT_LINE, 0.45)
+    f = 1.0
+    f *= 0.93 + 0.10 * max(0.0, min(1.0, (pos.z - 0.545) / 0.20))   # 胸を明るく
+    if pos.z > 0.760:
+        f *= 0.92                                                   # 襟もとの影
+    for s in (1.0, -1.0):
+        d = (pos - Vector((0.078 * s, 0.0, 0.700))).length          # 脇の落ち影
+        f *= 1.0 - 0.10 * (1.0 - _smoothstep(0.012, 0.034, d))
+        # 布の折れ(ベルトから胸へ抜ける柔らかい皺)
+        d = _seg_dist(pos, Vector((0.045 * s, -0.058, 0.575)),
+                      Vector((0.020 * s, -0.062, 0.640)))
+        f *= 1.0 - 0.07 * (1.0 - _smoothstep(0.004, 0.011, d))
+    return _shade(SHIRT, f)
 
 
 def build() -> tuple[list, object]:
-    skin_mat = C.make_material("garudo_skin", SKIN, roughness=0.65)
-    shirt_mat = C.make_material("garudo_shirt", SHIRT, roughness=0.85)
-    trousers_mat = C.make_material("garudo_trousers", TROUSERS, roughness=0.85)
-    boot_mat = C.make_material("garudo_boot", BOOT, roughness=0.7)
-    sole_mat = C.make_material("garudo_sole", (0.24, 0.15, 0.09), roughness=0.8)
-    glove_mat = C.make_material("garudo_glove", GLOVE, roughness=0.75)
-    hair_mat = C.make_material("garudo_hair", HAIR, roughness=0.9)
-    belt_mat = C.make_material("garudo_belt", BELT, roughness=0.75)
+    leather_mat = C.make_material("garudo_leather", LEATHER, roughness=0.75)
     hoop_mat = C.make_material("garudo_hoop", HOOP, roughness=0.45, metallic=0.7)
-    apron_mat = C.make_material("garudo_apron_wood", APRON_WOOD, roughness=0.85)
-    eye_mat = C.make_material("garudo_eye", (0.30, 0.17, 0.09), roughness=0.25)
-    eyewhite_mat = C.make_material("garudo_eyewhite", (0.95, 0.95, 0.93), roughness=0.3)
-    highlight_mat = C.make_material("garudo_eye_highlight", (1.0, 1.0, 1.0),
-                                    roughness=0.2, emission=0.4)
-    mouth_mat = C.make_material("garudo_mouth", (0.35, 0.16, 0.14), roughness=0.5)
+    cloth_mat = C.make_material("garudo_cloth", CLOTH, roughness=0.9)
+    skirt_mat = C.make_material("garudo_skirt", (0.38, 0.43, 0.50), roughness=0.9)
 
-    parts_list = []   # joinする部品
-    pinned = []       # (グループ名, ボーン名)
+    # ================= 有機部(融合してテクスチャで塗り分け) =================
+    organic = []
+    organic.append(C.loft("g_head", HEAD_RINGS))
+    organic.append(C.cylinder("g_neck", (0, 0.008, 0.782), 0.024, 0.055))
+    organic.append(C.loft("g_torso", [
+        (0.535, 0.085, 0.055, 0.0, 0.0),
+        (0.600, 0.092, 0.058, 0.0, 0.0),
+        (0.680, 0.100, 0.062, 0.0, 0.0),
+        (0.744, 0.100, 0.060, 0.0, 0.0),
+        (0.768, 0.068, 0.044, 0.0, 0.0),
+        (0.782, 0.034, 0.028, 0.0, 0.0),
+    ]))
+    for s in (1, -1):
+        # 袖(肘まで。まくり口は少し太い)→ 前腕(素肌)→ 手(手袋)
+        organic.append(C.curve_tube(f"g_sleeve{s}",
+                                    [(s * 0.078, 0.0, 0.744), (s * 0.100, 0.004, 0.690),
+                                     (s * 0.165, 0.004, 0.604)],
+                                    [0.030, 0.029, 0.031]))
+        organic.append(C.curve_tube(f"g_fore{s}",
+                                    [(s * 0.165, 0.004, 0.604), (s * 0.227, 0.0, 0.460)],
+                                    [0.021, 0.019]))
+        glove = C.uv_sphere(f"g_glove{s}", (s * 0.234, -0.004, 0.436), 0.030,
+                            scale=(0.85, 1.0, 1.25))
+        organic.append(glove)
+        organic.append(C.uv_sphere(f"g_thumb{s}", (s * 0.213, -0.012, 0.447), 0.0115))
+    # 腰(尻の量感)+脚+裾のたくれ
+    organic.append(C.loft("g_seat", [
+        (0.42, 0.086, 0.054, 0.0, 0.002),
+        (0.50, 0.090, 0.057, 0.0, 0.002),
+        (0.55, 0.086, 0.056, 0.0, 0.0),
+    ]))
+    for s in (1, -1):
+        organic.append(C.curve_tube(f"g_leg{s}",
+                                    [(s * 0.066, 0.0, 0.44), (s * 0.069, 0.0, 0.30),
+                                     (s * 0.070, 0.0, 0.21)],
+                                    [0.038, 0.040, 0.043]))
+        organic.append(C.cylinder(f"g_cuff{s}", (s * 0.070, 0.0, 0.175), 0.050, 0.055))
+
+    # 入力はすべてクリーンな閉プリミティブなのでSMOOTH段階を飛ばす
+    # (SMOOTHのremove_disconnectedは交差しているだけの頭を切り捨てた)
+    body = C.sculpt_merge(NAME, organic, voxel=0.006, target_tris=5200,
+                          clean_input=True)
+    # 直立キャラ: 前後split(顔をシームが横切らない)。頭部を独立島に
+    # 切り出して2.5倍へ拡大し、「テクスチャの絵」として描き込む顔に
+    # 十分なテクセル密度を寄せる(商用トゥーンRPGの顔はほぼテクスチャで
+    # 成立しているという指摘への対応)
+    C.organic_uv(body, axis=1, boost=(tuple(FACE_C), 0.115, 2.5))
+    C.uv_report(body, size=512, regions={"face": (tuple(FACE_C), 0.10)})
+    albedo = C.bake_albedo(body, _body_color, size=512, name="garudo_albedo")
+    C.assign_material(body, C.make_textured_material("garudo_body", albedo, roughness=0.8))
+    # 顔まわりの法線を頭中心の球へ寄せ、頬の変な影を消す(規約4)
+    C.spherize_normals(body, tuple(FACE_C), radius=0.115, strength=1.0)
+
+    parts_list = [body]  # joinする部品(bodyのUV・材質は維持される)
+    pinned = []          # (グループ名, ボーン名)
 
     def add(obj, mat, pin_bone=None):
         C.assign_material(obj, mat)
@@ -213,389 +663,259 @@ def build() -> tuple[list, object]:
         parts_list.append(obj)
         return obj
 
-    # ---- 頭(顔)。あご=0.814、頬で最も広く、頭頂へ丸く閉じる ----
-    head_obj = add(_loft("garudo_head", [
-        (0.812, 0.016, 0.020, 0.0, -0.006),
-        (0.824, 0.036, 0.042, 0.0, -0.006),
-        (0.845, 0.049, 0.055, 0.0, -0.005),
-        (0.870, 0.054, 0.058, 0.0, -0.004),
-        (0.900, 0.052, 0.056, 0.0, -0.003),
-        (0.928, 0.043, 0.048, 0.0, -0.001),
-        (0.948, 0.020, 0.026, 0.0, 0.0),
-    ]), skin_mat)
-    # 頬のふくらみ: あごと目の間・前寄りの頂点を法線方向へ少し押す
-    # (設定画の少年らしい丸い頬)
-    for v in head_obj.data.vertices:
-        if 0.832 < v.co.z < 0.872 and v.co.y < -0.015 and abs(v.co.x) > 0.012:
-            t_z = 1.0 - abs(v.co.z - 0.852) / 0.020
-            if t_z > 0.0:
-                factor = 1.0 + 0.05 * min(t_z, 1.0)
-                v.co.x *= factor
-                v.co.y = (v.co.y + 0.005) * factor - 0.005
-
-    # ---- 首 ----
-    add(_loft("garudo_neck", [
-        (0.770, 0.023, 0.022, 0.0, 0.0),
-        (0.828, 0.021, 0.021, 0.0, 0.0),
-    ], segments=10), skin_mat)
-
-    # ---- 耳 ----
-    head = Vector(JOINTS["head"])
-    for s in (-1.0, 1.0):
-        ear = C.uv_sphere(f"garudo_ear{s}", Vector((0.054 * s, -0.004, 0.872)), 0.012,
-                          segments=6, rings=5, scale=(0.5, 0.9, 1.2))
-        add(ear, skin_mat, pin_bone="neck-head")
-
-    # ---- 髪。土台の塊(スカルプ)+ベジェカーブの房 ----
-    # 設定画の髪は円錐スパイクではなく、曲がりながら先細る房の集まり。
-    # _lock(カーブ+半径テーパー)で、前髪・こめかみ・頭頂・襟足を
-    # 1房ずつ流れの向きを変えて重ねる
-    add(_loft("garudo_hair_scalp", [
-        (0.848, 0.058, 0.060, 0.0, 0.014),
-        (0.880, 0.066, 0.066, 0.0, 0.010),
-        (0.912, 0.068, 0.064, 0.0, 0.004),
-        (0.945, 0.055, 0.056, 0.0, 0.002),
-        (0.964, 0.032, 0.036, 0.0, 0.0),
-    ], cap_bottom=True), hair_mat, pin_bone="neck-head")
-    lock_specs = [
-        # 前髪: 額に沿って6本、根元は生え際、先は眉の上へ垂れて左右へ流す
-        ([(-0.050, -0.026, 0.914), (-0.058, -0.048, 0.896), (-0.050, -0.058, 0.872)],
-         [0.017, 0.0145, 0.003]),
-        ([(-0.030, -0.034, 0.918), (-0.038, -0.056, 0.898), (-0.030, -0.063, 0.876)],
-         [0.018, 0.0145, 0.003]),
-        ([(-0.008, -0.038, 0.920), (-0.012, -0.060, 0.900), (-0.004, -0.065, 0.880)],
-         [0.018, 0.0155, 0.003]),
-        ([(0.012, -0.038, 0.920), (0.018, -0.059, 0.899), (0.026, -0.064, 0.878)],
-         [0.018, 0.0145, 0.003]),
-        ([(0.032, -0.032, 0.917), (0.042, -0.054, 0.897), (0.050, -0.058, 0.875)],
-         [0.017, 0.0145, 0.003]),
-        ([(0.050, -0.024, 0.912), (0.060, -0.042, 0.894), (0.058, -0.048, 0.870)],
-         [0.016, 0.0125, 0.003]),
-        # こめかみ: 耳の上へ被さる横毛
-        ([(-0.052, -0.006, 0.908), (-0.068, -0.014, 0.888), (-0.064, -0.018, 0.862)],
-         [0.015, 0.012, 0.003]),
-        ([(0.052, -0.006, 0.908), (0.068, -0.014, 0.888), (0.064, -0.018, 0.862)],
-         [0.015, 0.012, 0.003]),
-        # 頭頂: スカルプに沿って外へ流れ、先端だけ軽く跳ねる
-        ([(-0.030, 0.004, 0.936), (-0.048, 0.004, 0.950), (-0.062, 0.000, 0.938)],
-         [0.017, 0.013, 0.003]),
-        ([(-0.010, 0.012, 0.942), (-0.022, 0.014, 0.960), (-0.036, 0.012, 0.955)],
-         [0.018, 0.014, 0.003]),
-        ([(0.012, 0.012, 0.942), (0.024, 0.012, 0.960), (0.038, 0.008, 0.953)],
-         [0.018, 0.014, 0.003]),
-        ([(0.032, 0.002, 0.934), (0.052, 0.002, 0.948), (0.064, -0.002, 0.936)],
-         [0.017, 0.013, 0.003]),
-        # 後頭部〜襟足: 下へ流れる
-        ([(-0.026, 0.028, 0.928), (-0.038, 0.054, 0.902), (-0.032, 0.058, 0.868)],
-         [0.017, 0.014, 0.003]),
-        ([(0.000, 0.034, 0.930), (0.002, 0.062, 0.900), (0.000, 0.064, 0.862)],
-         [0.018, 0.015, 0.003]),
-        ([(0.026, 0.028, 0.928), (0.038, 0.054, 0.902), (0.032, 0.058, 0.868)],
-         [0.017, 0.014, 0.003]),
-        # 後頭部の側面(横後ろのボリューム)
-        ([(-0.046, 0.022, 0.912), (-0.060, 0.036, 0.888), (-0.054, 0.042, 0.860)],
-         [0.015, 0.012, 0.003]),
-        ([(0.046, 0.022, 0.912), (0.060, 0.036, 0.888), (0.054, 0.042, 0.860)],
-         [0.015, 0.012, 0.003]),
-        # うなじの短い房
-        ([(-0.012, 0.048, 0.880), (-0.016, 0.058, 0.862), (-0.012, 0.058, 0.844)],
-         [0.013, 0.010, 0.003]),
-        ([(0.012, 0.048, 0.880), (0.016, 0.058, 0.862), (0.012, 0.058, 0.844)],
-         [0.013, 0.010, 0.003]),
-    ]
-    for i, (pts, radii) in enumerate(lock_specs):
-        add(_lock(f"garudo_hair_lock{i}", [Vector(p) for p in pts], radii), hair_mat,
-            pin_bone="neck-head")
-
-    # ---- 顔の造作 ----
-    # 眉: 曲がりながら先細る太めの房(箱よりも描いた眉に近い)
-    for s in (-1.0, 1.0):
-        brow = _lock(f"garudo_brow{s}",
-                     [Vector((0.010 * s, -0.0575, 0.9035)),
-                      Vector((0.024 * s, -0.0605, 0.9060)),
-                      Vector((0.037 * s, -0.0560, 0.9010))],
-                     [0.0040, 0.0050, 0.0018])
-        add(brow, hair_mat, pin_bone="neck-head")
-        # 上まぶたの線: 目の上縁を縁取る細い線。目が「顔に描かれている」
-        # 印象を決める要(設定画のくっきりした目の再現)
-        lid = _lock(f"garudo_lid{s}",
-                    [Vector((0.008 * s, -0.0585, 0.8900)),
-                     Vector((0.023 * s, -0.0625, 0.8932)),
-                     Vector((0.037 * s, -0.0570, 0.8882))],
-                    [0.0024, 0.0032, 0.0016])
-        add(lid, C.make_material("garudo_lidline", (0.16, 0.10, 0.07), roughness=0.6),
-            pin_bone="neck-head")
-    nose = _cone_at("garudo_nose", Vector((0.0, -0.058, 0.864)),
-                    Vector((0.0, -0.9, -0.35)), 0.008, 0.017)
-    add(nose, skin_mat, pin_bone="neck-head")
-    mouth = _lock("garudo_mouth",
-                  [Vector((-0.012, -0.0575, 0.8365)),
-                   Vector((0.000, -0.0590, 0.8355)),
-                   Vector((0.012, -0.0575, 0.8365))],
-                  [0.0016, 0.0022, 0.0016])
-    add(mouth, mouth_mat, pin_bone="neck-head")
-
-    # まばたき対象(白目・瞳)は本体へjoinせず、後で頭の骨へ剛体接続する
-    # (plan/models/archive/eye-blink-liveliness.md)。設定画の目は
-    # 大きめの虹彩がはっきり見える描き目: 白目(アーモンド形)+
-    # 大きな虹彩(こげ茶)+ハイライト
+    # ================= 目(顔に沿うパッチ1枚+描いた目) =================
+    # 規約2: 眼球を3Dオブジェクトとして顔に載せない。顔の球面に沿う
+    # 楕円パッチ1枚だけを置き、まぶたの線・虹彩・瞳・ハイライトまで
+    # すべて1枚の絵として貼る。原点はパッチ中心なので、まばたきの
+    # 縦スケールがその場で潰れる(従来は原点が首関節にあり、まばたきの
+    # たびに目が足元へ飛んでいた)
+    eye_tex = _eye_texture()
+    eye_panel_mat = C.make_textured_material("garudo_eye", eye_tex, roughness=0.35)
     eyes = []
     for s in (-1.0, 1.0):
-        white = C.uv_sphere(f"eyewhite{s}", Vector((0.022 * s, -0.0570, 0.881)), 0.017,
-                            segments=8, rings=6, scale=(1.20, 0.30, 1.30))
-        C.assign_material(white, eyewhite_mat)
-        white["blink"] = "white"
-        pupil = C.uv_sphere(f"pupil{s}", Vector((0.023 * s, -0.0620, 0.880)), 0.0120,
-                            segments=8, rings=6, scale=(1.0, 0.45, 1.25))
-        C.assign_material(pupil, eye_mat)
-        pupil["blink"] = "pupil"
-        eyes += [white, pupil]
-        highlight = C.uv_sphere(f"garudo_eyehl{s}",
-                                Vector((0.0195 * s, -0.0685, 0.885)), 0.0042,
-                                segments=6, rings=4)
-        add(highlight, highlight_mat, pin_bone="neck-head")
+        panel = _eye_panel(f"eye{s}", s)
+        C.assign_material(panel, eye_panel_mat)
+        panel["blink"] = "white"
+        eyes.append(panel)
 
-    # ---- 胴(シャツ)。肩幅があり、胸で最も広く、ベルトへ絞る ----
-    add(_loft("garudo_torso", [
-        (0.438, 0.073, 0.054, 0.0, 0.0),
-        (0.500, 0.076, 0.055, 0.0, 0.0),
-        (0.580, 0.081, 0.057, 0.0, -0.002),
-        (0.660, 0.086, 0.060, 0.0, -0.004),
-        (0.706, 0.086, 0.060, 0.0, -0.004),
-        (0.728, 0.080, 0.056, 0.0, -0.003),
-        (0.744, 0.068, 0.050, 0.0, -0.002),
-        (0.758, 0.047, 0.040, 0.0, -0.001),
-        (0.770, 0.027, 0.026, 0.0, 0.0),
-    ]), shirt_mat)
-    _slope_shoulders(parts_list[-1])
+    # ================= 髪(平たい房の板。頭ボーンへ剛体追従) =================
+    # 設定画の髪は「丸い塊」でも「丸い棒」でもなく、**平たい房が不揃いに
+    # 重なった塊**。板(_hair_card)で組み、生え際を水平に切り揃えず、
+    # 房ごとに長さ・角度・幅を散らす
+    locks = []
 
-    # ---- 襟の縁(丸首のリム) ----
-    add(_loft("garudo_collar_rim", [
-        (0.762, 0.031, 0.029, 0.0, 0.0),
-        (0.770, 0.034, 0.031, 0.0, 0.0),
-        (0.778, 0.031, 0.029, 0.0, 0.0),
-    ], segments=12), shirt_mat)
+    def card(base, tip, w0, w1, thick=0.007, flat=None):
+        locks.append(_hair_card(f"h_card{len(locks)}", base, tip, w0, w1, thick,
+                                flat=flat))
 
-    # ---- 袖(肩〜肘。まくり口の膨らみで終わる)+前腕(素肌)+ミトン ----
-    for s in (-1.0, 1.0):
-        add(_loft(f"garudo_sleeve{s}", [
-            (0.492, 0.035, 0.035, 0.139 * s, 0.004),
-            (0.516, 0.037, 0.037, 0.136 * s, 0.004),
-            (0.528, 0.030, 0.030, 0.134 * s, 0.004),
-            (0.600, 0.031, 0.031, 0.124 * s, 0.003),
-            (0.680, 0.033, 0.033, 0.112 * s, 0.002),
-            (0.718, 0.035, 0.035, 0.105 * s, 0.0),
-            (0.738, 0.034, 0.034, 0.100 * s, 0.0),
-            (0.752, 0.026, 0.027, 0.095 * s, 0.0),
-            (0.760, 0.012, 0.013, 0.091 * s, 0.0),
-        ], segments=12), shirt_mat)
-        _slope_shoulders(parts_list[-1])
-        fold = C.cylinder(f"garudo_cuff_fold{s}", (0.0, 0.0, 0.0), 0.0385, 0.010,
-                          segments=12)
-        fold.location = Vector((0.137 * s, 0.004, 0.505))
-        add(fold, shirt_mat)
-        add(_loft(f"garudo_forearm{s}", [
-            (0.360, 0.0195, 0.0195, 0.155 * s, -0.012),
-            (0.400, 0.021, 0.021, 0.151 * s, -0.005),
-            (0.450, 0.0225, 0.0225, 0.146 * s, 0.002),
-            (0.500, 0.0240, 0.0240, 0.140 * s, 0.004),
-        ], segments=12), skin_mat)
-        tag = "L" if s > 0 else "R"
-        add(_loft(f"garudo_glove{tag}", [
-            (0.292, 0.014, 0.014, 0.160 * s, -0.016),
-            (0.302, 0.026, 0.026, 0.160 * s, -0.016),
-            (0.330, 0.031, 0.031, 0.159 * s, -0.016),
-            (0.352, 0.029, 0.029, 0.158 * s, -0.015),
-            (0.368, 0.023, 0.023, 0.156 * s, -0.014),
-        ], segments=12), glove_mat, pin_bone=f"elbow.{tag}-hand.{tag}")
-        thumb = C.uv_sphere(f"garudo_thumb{tag}", Vector((0.137 * s, -0.024, 0.336)),
-                            0.011, segments=6, rings=5, scale=(1.0, 1.0, 1.5))
-        add(thumb, glove_mat, pin_bone=f"elbow.{tag}-hand.{tag}")
-        wrist_cuff = C.cylinder(f"garudo_glove_cuff{tag}", (0.0, 0.0, 0.0), 0.0255,
-                                0.012, segments=10)
-        wrist_cuff.location = Vector((0.156 * s, -0.0135, 0.365))
-        add(wrist_cuff, glove_mat, pin_bone=f"elbow.{tag}-hand.{tag}")
+    # 地肌を覆う土台(頭蓋よりひと回り大きい卵。前は生え際で止める)
+    locks.append(C.loft("h_base", [
+        # 下2段は中心を後ろへ寄せて前面を頭の中へ沈める。全周ロフトのまま
+        # 下げると額の前に「ヘルメットのつば」が出て、眉が隠れる(実測)
+        (0.862, 0.098, 0.070, 0.0, 0.042),
+        (0.892, 0.098, 0.093, 0.0, 0.022),
+        (0.918, 0.084, 0.088, 0.0, 0.018),
+        (0.944, 0.070, 0.074, 0.0, 0.019),
+        (0.962, 0.056, 0.060, 0.0, 0.019),
+    ]))
 
-    # ---- ベルト+バックル ----
-    add(_loft("garudo_belt", [
-        (0.435, 0.084, 0.062, 0.0, 0.0),
-        (0.478, 0.084, 0.062, 0.0, 0.0),
-    ]), belt_mat, pin_bone="hip-chest")
-    add(C.box("garudo_buckle", (0.0, -0.064, 0.457), (0.024, 0.007, 0.022)),
+    # 前髪: 分け目(やや右)から左右へ流れる房。先端の高さを大きく散らして
+    # 生え際が一直線に切り揃わないようにする
+    for x0, x1, z_tip, w0, w1 in [
+        (-0.012, -0.062, 0.900, 0.034, 0.030),
+        (-0.008, -0.030, 0.902, 0.028, 0.024),
+        (0.004, 0.018, 0.896, 0.032, 0.028),
+        (0.012, 0.050, 0.904, 0.028, 0.024),
+        (0.018, 0.080, 0.910, 0.026, 0.021),
+        (-0.018, -0.088, 0.912, 0.026, 0.021),
+    ]:
+        card((x0, -0.018, 0.944), (x1, -0.060, z_tip), w0, w1, thick=0.010)
+
+    # 横の房: こめかみから耳の前へ、あご近くまで
+    for s_ in (1.0, -1.0):
+        card((0.074 * s_, -0.020, 0.912), (0.078 * s_, -0.040, 0.806),
+             0.024, 0.020, flat=(0.0, -1.0, 0.0))
+        card((0.082 * s_, 0.014, 0.914), (0.086 * s_, 0.006, 0.846),
+             0.026, 0.021, flat=(0.0, -1.0, 0.0))
+
+    # 頭頂〜後頭の跳ね: 板なので細くても「角」に見えない
+    for base, tip, w0, w1 in [
+        ((-0.030, -0.002, 0.930), (-0.058, -0.024, 0.972), 0.028, 0.022),
+        ((0.014, -0.004, 0.936), (0.030, -0.030, 0.976), 0.026, 0.020),
+        ((-0.006, 0.028, 0.940), (0.002, 0.036, 0.982), 0.028, 0.022),
+        ((-0.042, 0.028, 0.914), (-0.062, 0.046, 0.946), 0.024, 0.019),
+        ((0.044, 0.026, 0.914), (0.066, 0.042, 0.944), 0.024, 0.019),
+        ((0.000, 0.054, 0.910), (0.006, 0.100, 0.924), 0.030, 0.024),
+    ]:
+        card(base, tip, w0, w1)
+
+    # 襟足
+    for s_ in (1.0, -1.0):
+        card((0.028 * s_, 0.054, 0.892), (0.034 * s_, 0.090, 0.762), 0.034, 0.028)
+
+    hair = C.join(locks, "garudo_hair")
+    # 髪も手描き: 上を明るく・房の流れの筋(3D位置から描くのでSmart UVの
+    # 島割れは問題にならない)。法線は頭の球へ寄せ、板の重なりの
+    # デコボコ陰影を抑える(規約4)
+    C.smart_uv(hair)
+    hair_img = C.bake_albedo(hair, _hair_color, size=256, name="garudo_hair_tex")
+    C.assign_material(hair, C.make_textured_material("garudo_hair", hair_img,
+                                                     roughness=0.8))
+    C.spherize_normals(hair, (0.0, 0.016, 0.900), strength=0.55)
+
+    # ================= ベルト+バックル+肩ひも(剛体) =================
+    add(C.loft("garudo_belt", [
+        (0.545, 0.088, 0.058, 0.0, 0.0),
+        (0.568, 0.088, 0.058, 0.0, 0.0),
+    ]), leather_mat, pin_bone="hip-chest")
+    add(C.box("garudo_buckle", (0, -0.0585, 0.5565), (0.030, 0.010, 0.024)),
         hoop_mat, pin_bone="hip-chest")
-    for i, trim_z in enumerate((0.4375, 0.4755)):
-        trim = _loft(f"garudo_belt_trim{i}", [
-            (trim_z - 0.004, 0.0845, 0.0625, 0.0, 0.0),
-            (trim_z + 0.004, 0.0845, 0.0625, 0.0, 0.0),
-        ], segments=12)
-        add(trim, sole_mat, pin_bone="hip-chest")
-
-    # ---- 樽板エプロン(膨らみ→くびれ→膨らみ)+たが2段 ----
-    apron_profile = [
-        (0.435, 0.086),
-        (0.372, 0.116),
-        (0.300, 0.094),
-        (0.226, 0.110),
-        (0.192, 0.100),
-    ]
-    apron_mat_dark = C.make_material(
-        "garudo_apron_wood_dark",
-        tuple(c * 0.90 for c in APRON_WOOD), roughness=0.85)
-
-    def plank_index(x: float, y: float) -> int:
-        return int((math.atan2(y, x) + math.tau) / (math.tau / 12)) % 12
-
-    def alternate_planks(obj, dark_mat) -> None:
-        """側面の板(面法線が水平寄り)を1枚おきに暗いトーンにする。"""
-        obj.data.materials.append(dark_mat)
-        for poly in obj.data.polygons:
-            if abs(poly.normal.z) < 0.7:
-                cx = sum(obj.data.vertices[v].co.x for v in poly.vertices) / len(poly.vertices)
-                cy = sum(obj.data.vertices[v].co.y for v in poly.vertices) / len(poly.vertices)
-                if plank_index(cx, cy) % 2 == 1:
-                    poly.material_index = 1
-
-    def plank_jitter(x: float, y: float) -> float:
-        """頂点の角度から板(12分割)の番号を求め、板ごとに固有の
-        半径ゆらぎを返す。全段で同じ関数を使うため、段をまたいでも
-        同じ板は同じだけ張り出し、縦板1枚として繋がって見える。"""
-        plank = int((math.atan2(y, x) + math.tau) / (math.tau / 12)) % 12
-        return 1.0 + 0.013 * math.sin(plank * 12.9898 + 4.1414)
-
-    for i in range(len(apron_profile) - 1):
-        z_hi, r_hi = apron_profile[i]
-        z_lo, r_lo = apron_profile[i + 1]
-        seg = C.cone(f"garudo_apron{i}", (0.0, 0.0, (z_hi + z_lo) / 2),
-                     r_lo, r_hi, z_hi - z_lo, segments=12)
-        for poly in seg.data.polygons:
-            poly.use_smooth = False
-        # 段同士の継ぎ目に埋まって見えないふた面を削る
-        bm = bmesh.new()
-        bm.from_mesh(seg.data)
-        hidden = [f for f in bm.faces
-                  if (f.normal.z > 0.9 and i != 0) or (f.normal.z < -0.9 and i != 3)]
-        bmesh.ops.delete(bm, geom=hidden, context="FACES")
-        bm.to_mesh(seg.data)
-        bm.free()
-        # 手仕事の板張りに見せる: 板ごとの張り出しゆらぎ+裾の不揃い
-        for v in seg.data.vertices:
-            f = plank_jitter(v.co.x, v.co.y)
-            v.co.x *= f
-            v.co.y *= f
-            if i == 3 and v.co.z < z_lo + 0.004:
-                v.co.z += 0.007 * math.sin(
-                    int((math.atan2(v.co.y, v.co.x) + math.tau) / (math.tau / 12))
-                    * 7.13 + 1.7)
-        add(seg, apron_mat, pin_bone="hip-chest")
-        alternate_planks(seg, apron_mat_dark)
-    for i, (hoop_z, hoop_r) in enumerate(((0.372, 0.116), (0.226, 0.110))):
-        hoop = C.cylinder(f"garudo_apron_hoop{i}", (0.0, 0.0, hoop_z),
-                          hoop_r + 0.004, 0.016, segments=10)
-        add(hoop, hoop_mat, pin_bone="hip-chest")
-
-    # ---- ズボン(バギー、裾をブーツに入れて絞る) ----
+    # 肩ひも。融合ボディはボクセルぶん(≈5mm)膨らむので、胸の前は
+    # y≈-0.070まで出して表面に乗せる
     for s in (-1.0, 1.0):
-        add(_loft(f"garudo_trouser{s}", [
-            (0.124, 0.033, 0.033, 0.056 * s, 0.0),
-            (0.140, 0.041, 0.041, 0.056 * s, 0.0),
-            (0.180, 0.043, 0.043, 0.056 * s, 0.0),
-            (0.245, 0.045, 0.045, 0.056 * s, 0.0),
-            (0.310, 0.046, 0.046, 0.056 * s, 0.0),
-        ], segments=12), trousers_mat)
-        knee_fold = C.cylinder(f"garudo_knee_fold{s}", (0.0, 0.0, 0.0), 0.0455, 0.009,
-                               segments=12)
-        knee_fold.location = Vector((0.056 * s, 0.0, 0.172))
-        add(knee_fold, trousers_mat)
-
-    # ---- ブーツ(甲・つま先・靴底の実体形状) ----
-    for s in (-1.0, 1.0):
-        tag = "L" if s > 0 else "R"
-        add(_loft(f"garudo_boot{tag}", [
-            (0.008, 0.033, 0.055, 0.057 * s, -0.018),
-            (0.014, 0.035, 0.058, 0.057 * s, -0.018),
-            (0.028, 0.034, 0.052, 0.057 * s, -0.016),
-            (0.050, 0.033, 0.040, 0.057 * s, -0.006),
-            (0.085, 0.034, 0.037, 0.057 * s, 0.0),
-            (0.130, 0.035, 0.037, 0.056 * s, 0.0),
-        ], segments=12), boot_mat, pin_bone=f"knee.{tag}-foot.{tag}")
-        # 履き口の折り返しカフ(設定画のブーツ上端の段)
-        add(_loft(f"garudo_bootcuff{tag}", [
-            (0.112, 0.037, 0.039, 0.056 * s, 0.0),
-            (0.132, 0.038, 0.040, 0.056 * s, 0.0),
-            (0.140, 0.035, 0.037, 0.056 * s, 0.0),
-        ], segments=12), sole_mat, pin_bone=f"knee.{tag}-foot.{tag}")
-        # 靴底: 本体より一回り張り出す濃色のリム(設定画の底の段差)
-        add(_loft(f"garudo_sole{tag}", [
-            (0.000, 0.036, 0.061, 0.057 * s, -0.018),
-            (0.009, 0.037, 0.062, 0.057 * s, -0.018),
-        ], segments=12), sole_mat, pin_bone=f"knee.{tag}-foot.{tag}")
-
-    # ---- 背負いダル(背中の肩〜腰を占め、上端が肩越しに覗く) ----
-    # propsのbarrel_bodyは頂点リングが上下2段しかなく実際には膨らまない
-    # (角ばった円柱に見える)ため、断面リングを積んで本当に膨らむ樽を
-    # 自前で組む。12分割+フラットシェーディングで板張りに見せる
-    bp_h = 0.27
-    bp_r = 0.064
-    bp_origin = Vector((0.02, 0.104, 0.475))
-
-    def bp_radius(t: float) -> float:
-        return bp_r * (1.0 + 0.14 * math.sin(t * math.pi))
-
-    barrel = _loft("garudo_backpack_body", [
-        (0.0, bp_radius(0.0), bp_radius(0.0), 0.0, 0.0),
-        (bp_h * 0.25, bp_radius(0.25), bp_radius(0.25), 0.0, 0.0),
-        (bp_h * 0.5, bp_radius(0.5), bp_radius(0.5), 0.0, 0.0),
-        (bp_h * 0.75, bp_radius(0.75), bp_radius(0.75), 0.0, 0.0),
-        (bp_h, bp_radius(1.0), bp_radius(1.0), 0.0, 0.0),
-    ], segments=12, smooth=False)
-    barrel.location += bp_origin
-    add(barrel, apron_mat, pin_bone="hip-chest")
-    alternate_planks(barrel, apron_mat_dark)
-    for i, t in enumerate((0.16, 0.52, 0.86)):
-        bhoop = C.cylinder(f"garudo_backpack_hoop{i}", (0.0, 0.0, bp_h * t),
-                           bp_radius(t) + 0.003, 0.013, segments=12)
-        bhoop.location += bp_origin
-        add(bhoop, hoop_mat, pin_bone="hip-chest")
-    bp_lid = C.cylinder("garudo_backpack_lid", (0.0, 0.0, bp_h + 0.011),
-                        bp_r * 0.94, 0.022, segments=12, smooth=False)
-    bp_lid.location += bp_origin
-    knob = C.box("garudo_backpack_knob", (0.0, 0.0, bp_h + 0.030), (0.020, 0.008, 0.008))
-    knob.location += bp_origin
-    add(knob, C.make_material("garudo_backpack_knobwood", (0.40, 0.26, 0.15),
-                              roughness=0.85), pin_bone="hip-chest")
-    add(bp_lid, C.make_material("garudo_backpack_lidwood", (0.46, 0.30, 0.17),
-                                roughness=0.85), pin_bone="hip-chest")
-
-    # ---- 肩ひも(設定画: 胸の前を2本、肩を越えて樽上部へ) ----
-    # 直線の円柱では胸から浮いて見えるため、ベルト→胸→肩→樽上部を
-    # 1本のカーブ(_lock)で通し、胸・肩の曲面に沿わせる
-    for s in (-1.0, 1.0):
-        strap = _lock(f"garudo_strap{s}",
-                      [Vector((0.050 * s, -0.052, 0.470)),
-                       Vector((0.052 * s, -0.059, 0.600)),
-                       Vector((0.052 * s, -0.046, 0.710)),
-                       Vector((0.048 * s, -0.016, 0.750)),
-                       Vector((0.045 * s, 0.095, 0.756))],
-                      [0.011, 0.011, 0.011, 0.011, 0.011],
-                      resolution=6)
-        add(strap, belt_mat, pin_bone="hip-chest")
-
-    # 肩ひもの留め金具(胸ひもの中程に小さな鉄の締め具)
-    for s in (-1.0, 1.0):
-        clasp = C.box(f"garudo_strap_clasp{s}", (0.051 * s, -0.055, 0.560),
-                      (0.015, 0.007, 0.011))
+        strap = C.curve_tube(f"garudo_strap{s}",
+                             [(s * 0.045, 0.098, 0.68), (s * 0.050, 0.032, 0.760),
+                              (s * 0.052, -0.034, 0.757), (s * 0.051, -0.0700, 0.662),
+                              (s * 0.049, -0.0640, 0.575)],
+                             [0.0095, 0.0105, 0.0105, 0.010, 0.0095], resolution=6)
+        add(strap, leather_mat, pin_bone="hip-chest")
+        clasp = C.box(f"garudo_clasp{s}", (0.051 * s, -0.0705, 0.660),
+                      (0.016, 0.007, 0.012))
         add(clasp, hoop_mat, pin_bone="hip-chest")
 
+    # ============ エプロン(前=樽板、側面〜背面=灰色の布) ============
+    # 設定画の側面図で判明した構造: **木の板は前面だけ**で、その後ろに
+    # 灰色の布が腰から膝下まで360°垂れている(側面の奥行きは布が作る)。
+    # 木を全周に回すと側面の奥行きが足りず(実測-64px)、背面も別物になる
+    cloth_rings = [
+        (0.235, 0.150, 0.108, 0.0, 0.015),
+        (0.390, 0.132, 0.105, 0.0, 0.012),
+        (0.530, 0.104, 0.082, 0.0, 0.008),
+    ]
+    skirt = C.loft("garudo_skirt", cloth_rings, segments=20, cap_top=False,
+                   cap_bottom=False)
+    add(skirt, skirt_mat, pin_bone="hip-chest")
+
+    apron_rings = [
+        (0.235, 0.172, 0.122, 0.0, 0.008),
+        (0.390, 0.148, 0.110, 0.0, 0.006),
+        (0.530, 0.110, 0.086, 0.0, 0.002),
+    ]
+    # 木の板は正面140°(200°〜340°)だけに並べる
+    n_staves = 9
+    stave_objs = []
+    for i in range(n_staves):
+        a0 = math.radians(200) + math.radians(140) * (i / n_staves)
+        a1 = math.radians(200) + math.radians(140) * ((i + 1) / n_staves)
+        gap = (a1 - a0) * 0.07
+        mesh = bpy.data.meshes.new(f"garudo_stave{i}")
+        obj = bpy.data.objects.new(f"garudo_stave{i}", mesh)
+        bpy.context.collection.objects.link(obj)
+        bm = bmesh.new()
+        ring_verts = []
+        for z, rx, ry, cx, cy in apron_rings:
+            ring_verts.append([bm.verts.new((cx + rx * math.cos(a),
+                                             cy + ry * math.sin(a), z))
+                               for a in (a0 + gap, a1 - gap)])
+        for lower, upper in zip(ring_verts, ring_verts[1:]):
+            bm.faces.new((lower[0], lower[1], upper[1], upper[0]))
+        bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
+        bm.to_mesh(mesh)
+        bm.free()
+        stave_objs.append(obj)
+    apron = C.join(stave_objs, "garudo_apron")
+    C.smart_uv(apron)
+    apron_img = C.bake_albedo(apron, _apron_color, size=256, name="garudo_apron_tex")
+    C.assign_material(apron, C.make_textured_material("garudo_apron", apron_img,
+                                                      roughness=0.85))
+    C.mark_for_pin(apron)
+    pinned.append((apron.name, "hip-chest"))
+    parts_list.append(apron)
+    # たが(鉄輪)3段。板より少し外へ、正面だけ
+    for z, t in ((0.265, 0.0), (0.390, 0.5), (0.505, 1.0)):
+        rx = 0.172 + (0.110 - 0.172) * t + 0.005
+        ry = 0.122 + (0.086 - 0.122) * t + 0.005
+        cy = 0.008 + (0.002 - 0.008) * t
+        band = _arc_loft(f"garudo_apron_hoop{z}", [
+            (z - 0.009, rx, ry, 0.0, cy),
+            (z + 0.009, rx, ry, 0.0, cy),
+        ], open_half_deg=108.0, segments=16)
+        add(band, hoop_mat, pin_bone="hip-chest")
+
+    # ================= 腰布(赤)。左腰でベルトから覗く =================
+    knot = C.uv_sphere("garudo_knot", (0.086, -0.012, 0.535), 0.017,
+                       scale=(1.0, 0.8, 0.75))
+    add(knot, cloth_mat, pin_bone="hip-chest")
+    tail = C.box("garudo_cloth_tail", (0.090, -0.008, 0.487), (0.026, 0.013, 0.085),
+                 bevel=0.005)
+    tail.rotation_euler = (math.radians(4), math.radians(-10), math.radians(6))
+    add(tail, cloth_mat, pin_bone="hip-chest")
+
+    # ================= 背負い樽(軸を前後に寝かせて背負う) =================
+    # 設定画の側面図は「たがが縦に走る」・背面図は「円い鏡板」。これは
+    # 樽の軸が前後(Y)を向いているから(実測: 直径0.244・長さ0.130・
+    # 中心 y+0.155 z0.674)。縦置きの樽は設定画と別物になる
+    b_r, b_len, b_cy, b_cz = 0.090, 0.110, 0.120, 0.658
+    barrel = C.cylinder("garudo_barrel", (0.0, b_cy, b_cz), b_r, b_len,
+                        segments=14, axis="Y", smooth=False)
+    for vert in barrel.data.vertices:
+        t = (vert.co.y - (b_cy - b_len / 2)) / b_len
+        bulge = 1.0 + 0.10 * math.sin(max(0.0, min(1.0, t)) * math.pi)
+        vert.co.x *= bulge
+        vert.co.z = b_cz + (vert.co.z - b_cz) * bulge
+    # 鏡板(背中側の面。中央に栓の突起)
+    lid = C.cylinder("garudo_blid", (0.0, b_cy + b_len / 2 + 0.008, b_cz),
+                     b_r * 0.98, 0.016, segments=14, axis="Y", smooth=False)
+    plug = C.cylinder("garudo_bplug", (0.0, b_cy + b_len / 2 + 0.020, b_cz),
+                      0.018, 0.014, segments=8, axis="Y")
+    barrel = C.join([barrel, lid, plug], "garudo_barrel")
+    C.smart_uv(barrel)
+    barrel_img = C.bake_albedo(barrel, _barrel_color, size=256, name="garudo_barrel_tex")
+    C.assign_material(barrel, C.make_textured_material("garudo_barrel", barrel_img,
+                                                       roughness=0.85))
+    C.mark_for_pin(barrel)
+    pinned.append((barrel.name, "hip-chest"))
+    parts_list.append(barrel)
+    # たが3本。軸が前後なので、リングは前後方向に並ぶ
+    for i, ty in enumerate((-0.034, 0.0, 0.034)):
+        hoop = C.cylinder(f"garudo_bhoop{i}", (0.0, b_cy + ty, b_cz),
+                          b_r * (1.0 + 0.10 * math.sin(
+                              (0.5 + ty / b_len) * math.pi)) + 0.005,
+                          0.020, segments=16, axis="Y")
+        add(hoop, hoop_mat, pin_bone="hip-chest")
+
+    # ================= ブーツ(編み上げ・革の実体形状) =================
+    # 箱+円柱では「レゴの足」になる(実測の指摘)。かかと→土踏まず→
+    # つま先で幅と高さが変わるロフトを寝かせて足の実体を作り、その下に
+    # 靴底の板、後ろにヒール、上に履き口の折り返しを重ねる
+    for s, bone in ((1.0, "knee.L-foot.L"), (-1.0, "knee.R-foot.R")):
+        parts = []
+        # 足(かかと→つま先)。ロフトは+Z方向に積むので、寝かせて
+        # 「長さ=前後・ロフトのry=高さ」にする。**回転と位置はjoinの前に
+        # 焼き込む**(C.joinは先頭オブジェクトの変換を引き継ぐため、
+        # あとから回転を上書きすると他の部品が裏返る実測)
+        shoe = C.loft(f"garudo_shoe{s}", [
+            (0.000, 0.046, 0.026, 0.0, 0.028),
+            (0.022, 0.057, 0.034, 0.0, 0.032),
+            (0.060, 0.062, 0.036, 0.0, 0.030),
+            (0.100, 0.060, 0.029, 0.0, 0.025),
+            (0.132, 0.054, 0.022, 0.0, 0.020),
+            (0.156, 0.041, 0.016, 0.0, 0.016),
+            (0.166, 0.022, 0.010, 0.0, 0.014),
+        ], segments=14)
+        shoe.rotation_euler = (math.radians(90.0), 0.0, 0.0)
+        shoe.location = (0.0, 0.045, 0.0)
+        C.activate(shoe)
+        bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+        parts.append(shoe)
+        # 靴底(前へ少しはみ出す板)+ヒール
+        parts.append(C.box(f"garudo_sole{s}", (0.0, -0.014, 0.009),
+                           (0.120, 0.196, 0.018), bevel=0.005))
+        parts.append(C.box(f"garudo_heel{s}", (0.0, 0.036, 0.021),
+                           (0.098, 0.056, 0.026), bevel=0.004))
+        # すね(履き口へ細くなる)+折り返し
+        parts.append(C.cone(f"garudo_shaft{s}", (0.0, 0.004, 0.104), 0.046, 0.039,
+                            0.110, segments=14))
+        parts.append(C.cylinder(f"garudo_cuff{s}", (0.0, 0.004, 0.166), 0.045, 0.026,
+                                segments=14))
+        boot = C.join(parts, f"garudo_boot{s}")
+        # つま先を外へ開く(設定画の立ち方)
+        boot.rotation_euler = (0.0, 0.0, math.radians(-20.0 * s))
+        boot.location = (s * 0.068, -0.010, 0.0)
+        C.smart_uv(boot)
+        boot_img = C.bake_albedo(boot, _boot_color, size=128,
+                                 name=f"garudo_boot_tex{s}")
+        C.assign_material(boot, C.make_textured_material(f"garudo_boot{s}", boot_img,
+                                                         roughness=0.8))
+        C.mark_for_pin(boot)
+        pinned.append((boot.name, bone))
+        parts_list.append(boot)
+
+    # ================= 結合・リグ =================
     mesh = C.join(parts_list, NAME)
-    _chibify_mesh(mesh)
-    for eye in eyes:
-        _chibify_mesh(eye)
-    chibi_joints = {name: Vector(_chibify_point(*pos)) for name, pos in JOINTS.items()}
-    armature = C.build_armature(NAME, chibi_joints, BONES, mesh, root="hip")
-    # 腕チェーンのボーンはロール(ローカル軸の向き)が既定計算では不定で、
-    # 腕を外側へ傾けた本モデルではXキーが前後スイングにならず内側へ
-    # 巻き込む(エプロン貫通の原因)。ローカルX=ワールドXに揃え、
-    # アニメーション表の意図(X=前後振り・Z=内外開き)と一致させる
+    armature = C.build_armature(NAME, JOINTS, BONES, mesh, root="hip")
+    # 腕・脚チェーンのロールをワールドXへ整列(Xキー=前後スイングの保証。
+    # 既定計算では不定で、内側へ巻き込む貫通不具合の原因になった)
     C.activate(armature)
     bpy.ops.object.mode_set(mode="EDIT")
     for eb in armature.data.edit_bones:
@@ -607,89 +927,11 @@ def build() -> tuple[list, object]:
     bpy.ops.object.mode_set(mode="OBJECT")
     for eye in eyes:
         C.parent_to_bone(eye, armature, "neck-head")
+    C.parent_to_bone(hair, armature, "neck-head")
     for group_name, bone in pinned:
         C.pin_weight_to_bone(mesh, group_name, bone)
-    _fix_orphan_weights(mesh, chibi_joints)
-    return [mesh, armature] + eyes, armature
+    return [mesh, armature, hair] + eyes, armature
 
-
-# ---- ゲーム内頭身(チビ化)変換 ----
-# ユーザー方針: 「設定画は人間の等身でよく、ゲーム内では等身を縮める」。
-# そこで本ファイルは設定画(7頭身)の座標系のまま全部位を組み、join後の
-# 最終段でこの区分線形マッピングにより頭を拡大・体を圧縮して、ゲーム内
-# 頭身(約2.6頭身)へ変換する。意匠・ディテールは設計空間のまま維持される。
-# 注意: z0.79〜0.812(首〜あご)は横スケールが0.92→2.34へ急変する遷移帯
-# なので、首以外の部品をこの帯に置かないこと(置くと横に引き伸ばされる)。
-CHIBI_Z_ANCHORS = [
-    (0.000, 0.000),   # 接地
-    (0.140, 0.110),   # ブーツ上端(ブーツは79%にとどめて塊感を残す)
-    (0.420, 0.260),   # 股
-    (0.790, 0.580),   # 首根本
-    (0.812, 0.600),   # あご
-    (0.970, 0.970),   # 頭頂(頭部をz方向2.34倍に拡大)
-]
-CHIBI_LAT_ANCHORS = [
-    (0.000, 1.00),
-    (0.420, 1.00),
-    (0.790, 0.92),
-    (0.812, 2.34),    # 頭部はzと同率で拡大し、球形を保つ
-    (0.970, 2.34),
-]
-
-
-def _piecewise(z: float, anchors) -> float:
-    if z <= anchors[0][0]:
-        return anchors[0][1]
-    for (z0, v0), (z1, v1) in zip(anchors, anchors[1:]):
-        if z <= z1:
-            return v0 + (v1 - v0) * (z - z0) / (z1 - z0)
-    return anchors[-1][1]
-
-
-def _chibify_point(x: float, y: float, z: float) -> tuple[float, float, float]:
-    lat = _piecewise(z, CHIBI_LAT_ANCHORS)
-    return x * lat, y * lat, _piecewise(z, CHIBI_Z_ANCHORS)
-
-
-def _chibify_mesh(mesh_obj) -> None:
-    for v in mesh_obj.data.vertices:
-        v.co = Vector(_chibify_point(v.co.x, v.co.y, v.co.z))
-
-
-def _fix_orphan_weights(mesh_obj, joints) -> None:
-    """
-    自動ウェイト(Bone Heat)は部品の多い密集メッシュで一部の頂点の
-    解を出せないことがある(「failed to find solution」警告)。無ウェイトの
-    頂点はポーズ中その場に取り残され、体が動くと部位がちぎれて見える。
-    ここでは無ウェイト頂点を最寄りのボーン(線分距離)へウェイト1.0で
-    割り当てて取りこぼしを無くす。
-    """
-    segments = []
-    for parent, child in BONES:
-        name = C.bone_name(parent, child)
-        vg = mesh_obj.vertex_groups.get(name)
-        if vg is None:
-            vg = mesh_obj.vertex_groups.new(name=name)
-        segments.append((vg, Vector(joints[parent]), Vector(joints[child])))
-
-    def seg_dist(p: Vector, a: Vector, b: Vector) -> float:
-        ab = b - a
-        if ab.length_squared == 0.0:
-            return (p - a).length
-        t = max(0.0, min(1.0, (p - a).dot(ab) / ab.length_squared))
-        return (p - (a + ab * t)).length
-
-    orphans = 0
-    for v in mesh_obj.data.vertices:
-        if not any(g.weight > 0.001 for g in v.groups):
-            vg, _, _ = min(segments, key=lambda s: seg_dist(v.co, s[1], s[2]))
-            vg.add([v.index], 1.0, "REPLACE")
-            orphans += 1
-    if orphans:
-        print(f"  自動ウェイトの取りこぼし {orphans} 頂点を最寄りボーンへ割り当てた")
-
-
-# ---------------------------------------------------------------- アニメーション
 
 def animations() -> list[tuple[str, list]]:
     """

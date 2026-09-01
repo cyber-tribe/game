@@ -7,7 +7,7 @@
 重なった部分は紫になる。赤だけ・青だけの領域がそのままずれの量。
 
     tools/venv/bin/python tools/build_models.py <名前> --silhouette
-    tools/venv/bin/python tools/overlay_sheet.py <名前> <正面図の左> <上> <右> <下>
+    tools/venv/bin/python tools/overlay_sheet.py <名前> <左> <上> <右> <下> [side]
 
 設定画の三面図の切り出し範囲(ピクセル)は目視で与える。出力は
 tools/preview/silhouettes/<名前>-sheet-overlay.png。
@@ -100,13 +100,14 @@ def main() -> int:
         return 1
     name = sys.argv[1]
     left, top, right, bottom = (int(v) for v in sys.argv[2:6])
+    view = sys.argv[6] if len(sys.argv) > 6 else "front"
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
     sheet = load(os.path.join(root, "design", "characters", name,
                               "generated", f"{name}-sheet.png"))
     sheet_mask = fit(figure_mask(sheet[top:bottom, left:right]), 700)
 
-    sil_path = os.path.join(C.PREVIEW_DIR, "silhouettes", f"{name}-front.png")
+    sil_path = os.path.join(C.PREVIEW_DIR, "silhouettes", f"{name}-{view}.png")
     model_mask = fit(figure_mask(load(sil_path), threshold=0.5), 700)
 
 
@@ -121,7 +122,8 @@ def main() -> int:
     place(sheet_mask, (1.0, 0.25, 0.25))   # 設定画=赤
     place(model_mask, (0.25, 0.25, 1.0))   # モデル=青(重なりは紫)
 
-    out_path = os.path.join(C.PREVIEW_DIR, "silhouettes", f"{name}-sheet-overlay.png")
+    out_path = os.path.join(C.PREVIEW_DIR, "silhouettes",
+                            f"{name}-sheet-overlay-{view}.png")
     out = bpy.data.images.new("overlay", width=width, height=700)
     out.pixels.foreach_set(canvas[::-1].ravel())
     out.filepath_raw = out_path
@@ -130,9 +132,14 @@ def main() -> int:
 
     # 高さごとの幅を数値で突き合わせる(どこが細い/太いかを測る)
     print(f"{'高さ%':>5} {'部位':<12} {'設定画':>7} {'モデル':>7} {'差':>6}")
-    labels = {2: "頭頂", 6: "髪", 12: "目", 18: "あご", 24: "肩", 32: "胸",
-              40: "へそ", 48: "手首/腰", 56: "エプロン上", 64: "エプロン",
-              72: "エプロン裾", 80: "ひざ下", 88: "すね", 95: "ブーツ"}
+    labels = ({2: "頭頂", 6: "髪", 12: "目", 18: "あご", 24: "肩", 32: "胸",
+               40: "へそ", 48: "手首/腰", 56: "エプロン上", 64: "エプロン",
+               72: "エプロン裾", 80: "ひざ下", 88: "すね", 95: "ブーツ"}
+              if view == "front" else
+              {2: "頭頂", 8: "髪", 14: "顔の奥行", 20: "あご", 26: "肩/樽上端",
+               34: "胸+樽", 42: "背中+樽", 50: "腰", 58: "エプロン上",
+               66: "エプロン", 74: "エプロン裾", 82: "ひざ", 90: "すね",
+               96: "靴の前後"})
     for pct in sorted(labels):
         row = int((700 - 1) * pct / 100)
 
