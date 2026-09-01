@@ -386,12 +386,15 @@ def smart_uv(obj: "bpy.types.Object") -> None:
     bpy.ops.object.mode_set(mode="OBJECT")
 
 
-def organic_uv(obj: "bpy.types.Object") -> None:
+def organic_uv(obj: "bpy.types.Object", axis: int = 2) -> None:
     """
-    有機的な閉曲面向けのUV展開。法線zの符号が変わる稜線(赤道)へ
-    シームを引いて上下2枚に開き、角度ベースunwrap+pack_islandsで
+    有機的な閉曲面向けのUV展開。法線の指定軸成分の符号が変わる稜線へ
+    シームを引いて2枚に開き、角度ベースunwrap+pack_islandsで
     重なりなしに詰める。Smart UV Projectの微小島化(実測1,649島)も、
     平行投影の裏表衝突(triplanar_uvの弱点)も起こらない。
+    axisは「模様の目立つ面をシームが横切らない」向きを選ぶ:
+    既定のz(赤道)は背中に模様がある四足姿勢向け、y(前後split)は
+    正面の顔・腹に模様がある直立姿勢向け。
     """
     mesh = obj.data
     if not mesh.uv_layers:
@@ -399,9 +402,28 @@ def organic_uv(obj: "bpy.types.Object") -> None:
     import bmesh as _bmesh
     bm = _bmesh.new()
     bm.from_mesh(mesh)
+    bm.faces.ensure_lookup_table()
+    # 素の面法線で符号を取ると、凹凸でうねる面では境界付近の符号が
+    # 細かく反転してUV島が数百の断片に割れる(断片の縁で膨張ハローが
+    # 混ざり模様がちらつく)。法線を隣接面と平滑化してから符号を取り、
+    # シームを1本の綺麗な稜線にする
+    normals = {f.index: f.normal.copy() for f in bm.faces}
+    for _ in range(8):
+        smoothed = {}
+        for f in bm.faces:
+            acc = normals[f.index].copy()
+            for e in f.edges:
+                for f2 in e.link_faces:
+                    if f2.index != f.index:
+                        acc += normals[f2.index]
+            if acc.length_squared > 1e-16:
+                acc.normalize()
+            smoothed[f.index] = acc
+        normals = smoothed
     for e in bm.edges:
         lf = e.link_faces
-        e.seam = len(lf) == 2 and (lf[0].normal.z >= 0) != (lf[1].normal.z >= 0)
+        e.seam = len(lf) == 2 and \
+            (normals[lf[0].index][axis] >= 0) != (normals[lf[1].index][axis] >= 0)
     bm.to_mesh(mesh)
     bm.free()
     activate(obj)
@@ -456,9 +478,13 @@ def triplanar_uv(obj: "bpy.types.Object") -> None:
 def bake_albedo(obj: "bpy.types.Object", color_fn, size: int = 512,
                 name: str = "albedo") -> "bpy.types.Image":
     """
-    UV三角形を走査し、テクセルごとに3D位置を復元して color_fn(Vector)->
-    (r,g,b) を評価、アルベド画像に描く。口の線・斑点・まだら等の
-    「表面の模様」はジオメトリではなくここで描く(浮きようがない)。
+    UV三角形を走査し、テクセルごとに3D位置を復元して
+    color_fn(位置Vector, 面法線Vector)->(r,g,b) を評価、アルベド画像に
+    描く。口の線・斑点・まだら等の「表面の模様」はジオメトリではなく
+    ここで描く(浮きようがない)。領域の塗り分けには位置だけでなく
+    面法線を使うこと(凹凸でうねる表面では位置のしきい値がテクセル
+    単位で反転し、境界が市松にちらつく。法線は面ごとに一定なので
+    境界が面の縁で綺麗に切れる)。
     UV島の外周は数px膨張させ、縮小表示時の継ぎ目の黒縁を防ぐ。
     """
     import numpy as np
@@ -470,6 +496,9 @@ def bake_albedo(obj: "bpy.types.Object", color_fn, size: int = 512,
     for tri in mesh.loop_triangles:
         uvs = [uv[li].uv for li in tri.loops]
         pos = [mesh.vertices[vi].co for vi in tri.vertices]
+        tn = (pos[1] - pos[0]).cross(pos[2] - pos[0])
+        if tn.length_squared > 1e-16:
+            tn.normalize()
         xs = [u.x * size for u in uvs]
         ys = [u.y * size for u in uvs]
         x0, x1, x2 = xs
@@ -486,7 +515,7 @@ def bake_albedo(obj: "bpy.types.Object", color_fn, size: int = 512,
                 if l0 < -0.08 or l1 < -0.08 or l2 < -0.08:
                     continue
                 p = pos[0] * max(l0, 0.0) + pos[1] * max(l1, 0.0) + pos[2] * max(l2, 0.0)
-                r, g, b = color_fn(p)
+                r, g, b = color_fn(p, tn)
                 px[py, pxi] = (r, g, b, 1.0)
                 filled[py, pxi] = True
     # 島の外周を膨張(未塗りの隣接テクセルへ色を広げる)

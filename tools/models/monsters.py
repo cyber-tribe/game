@@ -942,7 +942,7 @@ def build_tsubute():
         t = max(0.0, min(1.0, (p - a).dot(ab) / max(ab.length_squared, 1e-12)))
         return (p - (a + ab * t)).length
 
-    def skin_color(p):
+    def skin_color(p, n):
         x, y, z = p.x, p.y, p.z
         # 口の線(頭球表面に投影した折れ線への距離)
         md = min(_seg_dist(p, a, b) for a, b in zip(mouth_pts, mouth_pts[1:]))
@@ -7298,7 +7298,7 @@ def oomadoromi_animations():
 OONEBOSUKE_JOINTS = {
     "base": (0.0, 0.0, 0.12),
     "mid": (0.0, 0.0, 0.30),
-    "top": (0.0, 0.0, 0.495),
+    "top": (0.0, 0.0, 0.56),
 }
 OONEBOSUKE_RADII = {"base": 0.435, "mid": 0.375, "top": 0.135}
 OONEBOSUKE_BONES = [("base", "mid"), ("mid", "top")]
@@ -7306,107 +7306,263 @@ OONEBOSUKE_BONES = [("base", "mid"), ("mid", "top")]
 
 def build_oonebosuke():
     """
-    眠りこけて起き上がれなくなった、途方もない眠気そのものが人の形を
-    借りた姿。purunと同じ縦2本の骨組みをそのまま流用し、全体を
-    およそ1.5倍に拡大して、がっしりした力強いシルエットにする。
-    まぶたが重く垂れた目(nebosukegaeruと同じ手法)とよだれで、
-    決して覚めない眠気を強調する。配色は第一地方(うたたねの参道)の、
-    参道の土色に馴染む素朴な淡い色合い。
+    確定した設定画(design/characters/oonebosuke/generated/
+    oonebosuke-sheet.png、ユーザー提供)に合わせた造形。眠りこけて
+    起き上がれなくなった、途方もない眠気そのものが人の形を借りた
+    巨体(設定画では約300cm、ガルドの2倍)。
 
-    看板モデルのパイロット(plan/models/archive/flagship-model-program.md)
-    として、purunと同じ骨組みの拡大版に見えないよう、逸脱項目を
-    意図して3つ選ぶ(plan/models/archive/
-    boss-silhouette-differentiation.mdの一般則を先行適用):
-    ①左右非対称(片腕だけ低くだらりと垂れる) ②重心・比率のずらし
-    (頭頂をtopの真上ではなく片側へ傾け、寝崩れた姿勢にする)
-    ③通常種には無い大きな形(参道で被ったまま眠り込んだ、
-    掛け布団の切れ端を肩に残す)。
+    plan/models/sculpt-texture-pipeline.md(ツブテガエルで確立)の
+    2体目の適用:
+    - **彫刻式の融合**: 胴+頭のロフト・腿・足・足指・袖・手・親指・
+      鼻・頬をsculpt_mergeで1つの柔らかい塊に融合(眠りの巨体の
+      「布団ごと溶けたような」連続した量感)
+    - **顔と塗り分けはテクスチャ**: かいまき(藤紫)と素肌(淡い
+      土気色)の塗り分け・肌の紫まだら・布の柄の粒・閉じ目の重い
+      まぶた+まつげの線・眉・開いたいびきの口+舌・頬の赤み・へそを
+      bake_albedoで焼き込み(浮くデカールが構造的に無い)
+    - ジオメトリ維持: ナイトキャップ+縁+ぼんぼり+金の三日月と星・
+      乱れ髪・鼻ちょうちん(alpha半透明、purunの手法)
+    - 骨(base/mid/top縦2本)・5クリップは従来のまま
     """
-    # 逸脱項目②。topをそのまま片側へずらし、頭が寝崩れて傾いたような
-    # 不安定なシルエットにする(base/midの軸・当たり判定は変えない)
-    joints = dict(OONEBOSUKE_JOINTS)
-    joints["top"] = (0.058, 0.014, OONEBOSUKE_JOINTS["top"][2])
-    body = C.build_skinned("oonebosuke", joints, OONEBOSUKE_BONES,
-                           OONEBOSUKE_RADII, root="base", subsurf=2)
-    for vert in body.data.vertices:
-        if vert.co.z < 0.03:
-            vert.co.z = 0.03 - (0.03 - vert.co.z) * 0.25
-    skin = C.make_material("oonebosuke_skin", (0.74, 0.64, 0.50), roughness=0.7)
-    C.assign_material(body, skin)
+    # 胴体+頭を一続きのロフトで組む(座った洋梨形→肩→丸い頭)
+    body = C.loft("oonebosuke_base", [
+        (0.015, 0.360, 0.310, 0.0, 0.02),
+        (0.050, 0.430, 0.365, 0.0, 0.00),
+        (0.120, 0.455, 0.400, 0.0, -0.03),
+        (0.200, 0.440, 0.395, 0.0, -0.05),   # 腹の最大張り出し
+        (0.270, 0.400, 0.360, 0.0, -0.04),
+        (0.330, 0.345, 0.310, 0.0, -0.015),
+        (0.380, 0.285, 0.260, 0.0, 0.005),
+        (0.415, 0.225, 0.215, 0.0, 0.0),     # 肩→首の付け根
+        (0.435, 0.185, 0.175, 0.0, -0.02),
+        (0.500, 0.225, 0.210, 0.0, -0.045),  # 顔をあごの前へ張り出させる
+        (0.575, 0.235, 0.220, 0.0, -0.05),   # 頭の最大幅
+        (0.640, 0.190, 0.180, 0.0, -0.035),
+        (0.685, 0.100, 0.095, 0.0, -0.02),
+    ], segments=28)
+
+    parts = [body]
+    # 前へ投げ出した短い脚(腿)と、大きな足+足指
+    for side in (-1.0, 1.0):
+        parts.append(C.curve_tube(f"oonebosuke_thigh{side}",
+                                  [Vector((0.16 * side, -0.24, 0.12)),
+                                   Vector((0.19 * side, -0.38, 0.10)),
+                                   Vector((0.21 * side, -0.46, 0.09))],
+                                  [0.115, 0.100, 0.085]))
+        parts.append(C.uv_sphere(f"oonebosuke_foot{side}",
+                                 (0.215 * side, -0.50, 0.115), 0.095,
+                                 segments=14, rings=10, scale=(0.82, 0.55, 1.05)))
+        for ti, (dx, tr) in enumerate(zip((-0.051, -0.017, 0.017, 0.051),
+                                          (0.027, 0.024, 0.021, 0.018))):
+            parts.append(C.uv_sphere(f"oonebosuke_toe{side}_{ti}",
+                                     (0.215 * side + dx * side, -0.545, 0.185),
+                                     tr, segments=8, rings=6))
+        # 腕: 肩から腹を抱えるように前へ回り、握った手を腿の上に休める
+        # (設定画の姿勢)。袖は太くしてシルエットに張り出させる
+        parts.append(C.curve_tube(f"oonebosuke_sleeve{side}",
+                                  [Vector((0.250 * side, -0.045, 0.355)),
+                                   Vector((0.330 * side, -0.195, 0.245)),
+                                   Vector((0.285 * side, -0.320, 0.170))],
+                                  [0.108, 0.094, 0.076]))
+        parts.append(C.uv_sphere(f"oonebosuke_hand{side}",
+                                 (0.255 * side, -0.350, 0.155), 0.075,
+                                 segments=12, rings=9, scale=(1.0, 0.95, 0.85)))
+        parts.append(C.uv_sphere(f"oonebosuke_thumb{side}",
+                                 (0.205 * side, -0.365, 0.165), 0.028,
+                                 segments=8, rings=6))
+        # 頬のふくらみ(顔の量感)
+        parts.append(C.uv_sphere(f"oonebosuke_cheekm{side}",
+                                 (0.150 * side, -0.175, 0.485), 0.055,
+                                 segments=10, rings=8))
+    # 丸鼻
+    parts.append(C.uv_sphere("oonebosuke_nose", (0.0, -0.285, 0.502), 0.050,
+                             segments=12, rings=9, scale=(1.15, 0.75, 0.85)))
+
+    # 彫刻式の融合(巨体なので融合0.012・出力0.016)
+    body = C.sculpt_merge("oonebosuke", parts, voxel=0.012, out_voxel=0.016)
+    C.decimate_to(body, 7000)
+    # 顔・腹の模様が正面にあるので、シームが正面を横切らないy軸splitで展開
+    C.organic_uv(body, axis=1)
+
+    # 布の柔らかいしわ(低周波の凹凸)
+    for v in body.data.vertices:
+        px, py, pz = v.co.x, v.co.y, v.co.z
+        wave = (math.sin(px * 14.3 + pz * 9.7)
+                + math.sin(py * 12.1 + pz * 16.9)) / 2.0
+        v.co += v.normal * (wave * 0.006)
+
+    # ---- 塗り分け・まだら・顔はテクスチャに描く ----
+    skin_col = (0.80, 0.74, 0.68)
+    robe_col = (0.50, 0.44, 0.56)
+
+    def _in_ellipse(x, z, cx, cz, rx, rz):
+        return ((x - cx) / rx) ** 2 + ((z - cz) / rz) ** 2 < 1.0
+
+    def skin_color(p, n):
+        x, y, z = p.x, p.y, p.z
+        ax = abs(x)
+        q = Vector((ax, y, z))
+        # 領域は3D空間の球距離で判定する。位置のしきい値や面法線の
+        # 符号は、うねる表面では境界がテクセル/三角形単位でギザつく。
+        # 表面と斜めに交わる滑らかな距離場なら境界線が綺麗に通る
+        is_face = (p - Vector((0.0, -0.24, 0.52))).length < 0.235
+        is_belly = (p - Vector((0.0, -0.31, 0.185))).length < 0.295
+        is_hand = (q - Vector((0.255, -0.355, 0.155))).length < 0.105
+        is_foot = (q - Vector((0.215, -0.515, 0.13))).length < 0.150
+        is_skin = is_face or is_belly or is_hand or is_foot
+        if is_face:
+            # 閉じ目: 紫がかった重いまぶた+下縁のまつげの線
+            for side in (-1.0, 1.0):
+                ex = 0.090 * side
+                if _in_ellipse(x, z, ex, 0.548, 0.058, 0.036) and y < -0.18:
+                    if z < 0.535 - 0.10 * abs(x - ex):
+                        return (0.25, 0.20, 0.26)      # まつげの線
+                    return (0.60, 0.53, 0.62)          # まぶた
+                # 眉
+                if _in_ellipse(x, z, ex, 0.585, 0.055, 0.014) and y < -0.18:
+                    return (0.40, 0.34, 0.46)
+            # 開いたいびきの口+舌
+            if _in_ellipse(x, z, 0.0, 0.442, 0.072, 0.050) and y < -0.17:
+                if z < 0.432 and abs(x) < 0.036:
+                    return (0.72, 0.45, 0.47)          # 舌
+                return (0.16, 0.10, 0.12)              # 口の中
+            # 頬の赤み
+            for side in (-1.0, 1.0):
+                if _in_ellipse(x, z, 0.155 * side, 0.487, 0.045, 0.028)                         and y < -0.17:
+                    return (0.80, 0.64, 0.58)
+        if is_belly and _in_ellipse(x, z, 0.0, 0.145, 0.018, 0.013):
+            return (0.60, 0.53, 0.48)                  # へそ
+        if is_skin:
+            # 肌: 淡い土気色+紫のまだら(設定画の石のような肌)
+            blotch = (math.sin(x * 6.3 + y * 4.7) + math.sin(y * 5.9 + z * 7.1)) / 2.0
+            b = max(0.0, blotch)
+            return (skin_col[0] - 0.14 * b, skin_col[1] - 0.16 * b,
+                    skin_col[2] - 0.04 * b)
+        # かいまき: 藤紫+濃淡+淡い柄の粒(設定画の雲柄)
+        blotch = (math.sin(x * 5.1 + z * 6.7) + math.sin(y * 4.3 + z * 5.3)) / 2.0
+        b = max(0.0, blotch)
+        col = (robe_col[0] - 0.07 * b, robe_col[1] - 0.07 * b,
+               robe_col[2] - 0.05 * b)
+        dot = math.sin(x * 21 + 0.8) * math.sin(y * 19 + 1.9) * math.sin(z * 23 + 0.3)
+        if dot > 0.90:
+            return (0.66, 0.60, 0.72)
+        return col
+
+    skin_img = C.bake_albedo(body, skin_color, size=512, name="oonebosuke_skin")
+    C.assign_material(body, C.make_textured_material("oonebosuke_skin_m", skin_img,
+                                                     roughness=0.75))
 
     extras = []
-    for side in (-1.0, 1.0):
-        extras += eyeball(f"oonebosuke_eye{side}", (0.128 * side, -0.294, 0.387), 0.077,
-                          look=(0.2 * side, -0.85, -0.1), squash=0.42,
-                          white=(0.90, 0.86, 0.78), dark=(0.14, 0.10, 0.08))
-        # 重く垂れたまぶた
-        lid = C.uv_sphere(f"oonebosuke_lid{side}", (0.128 * side, -0.285, 0.408), 0.078,
-                          segments=14, rings=10, scale=(1.0, 0.85, 0.55))
-        C.assign_material(lid, skin)
-        extras.append(lid)
-    # 逸脱項目①。片腕だけ低くだらりと垂れさせ、通常のpurun系列には無い
-    # 左右非対称の重心にする
-    arm_specs = [(-1.0, -0.16, 0.20, 0.115, 0.85), (1.0, -0.235, 0.075, 0.135, 0.70)]
-    for side, ay, az, ar, asquash in arm_specs:
-        arm = C.uv_sphere(f"oonebosuke_arm{side}", (0.30 * side, ay, az), ar,
-                          segments=16, rings=12, scale=(1.0, asquash, 0.75))
-        C.assign_material(arm, skin)
-        extras.append(arm)
-    mouth = C.uv_sphere("oonebosuke_mouth", (0.0, -0.342, 0.238), 0.062,
-                        segments=14, rings=10, scale=(1.35, 0.5, 0.55))
-    C.assign_material(mouth, C.make_material("oonebosuke_mouth_m", (0.14, 0.10, 0.12), roughness=0.3))
-    extras.append(mouth)
-    # 止まらないよだれ
-    drool = C.uv_sphere("oonebosuke_drool", (-0.052, -0.320, 0.140), 0.026,
-                        segments=10, rings=8, scale=(0.7, 0.7, 1.8))
-    C.assign_material(drool, C.make_material("oonebosuke_drool_m", (0.80, 0.86, 0.82),
-                                             roughness=0.2, emission=0.1))
-    extras.append(drool)
-    # 頭頂の、寝ぼけ眼が見上げるような小さな尖り
-    cap = C.cone("oonebosuke_cap", (0.0, 0.0, 0.545), 0.05, 0.006, 0.09)
-    C.assign_material(cap, skin)
+    robe = C.make_material("oonebosuke_robe", (0.50, 0.44, 0.56), roughness=0.85)
+    cap_mat = C.make_material("oonebosuke_cap", (0.42, 0.35, 0.55), roughness=0.8)
+    hair_mat = C.make_material("oonebosuke_hair", (0.36, 0.30, 0.40), roughness=0.75)
+
+    # ナイトキャップ: 片側へ垂れる三角帽+巻き上げた縁+先端のぼんぼり
+    cap = C.loft("oonebosuke_capm", [
+        (0.600, 0.245, 0.235, 0.0, -0.045),
+        (0.645, 0.225, 0.215, -0.015, -0.04),
+        (0.700, 0.160, 0.150, -0.05, -0.02),
+        (0.745, 0.100, 0.090, -0.11, 0.0),
+        (0.775, 0.050, 0.045, -0.17, 0.01),
+        (0.790, 0.022, 0.020, -0.215, 0.015),
+    ], segments=22)
+    C.assign_material(cap, cap_mat)
     extras.append(cap)
+    brim = C.loft("oonebosuke_brim", [
+        (0.585, 0.248, 0.238, 0.0, -0.045),
+        (0.601, 0.254, 0.244, 0.0, -0.045),
+        (0.617, 0.244, 0.234, 0.0, -0.045),
+    ], segments=22)
+    C.assign_material(brim, C.make_material("oonebosuke_brim",
+                                            (0.50, 0.43, 0.62), roughness=0.8))
+    extras.append(brim)
+    pom = C.uv_sphere("oonebosuke_pom", (-0.245, 0.02, 0.790), 0.055,
+                      segments=12, rings=9)
+    C.assign_material(pom, C.make_material("oonebosuke_pom_m",
+                                           (0.86, 0.83, 0.88), roughness=0.9))
+    extras.append(pom)
 
-    # 頭を預けたまま二度と離れない石の枕(plan/models/sheet-oonebosuke.md、
-    # plan/models/archive/silhouette-hard-surface-parts.mdの義務項目)。
-    # 丸い体表面に唯一の角のある面を作る、面取りした石の直方体
-    pillow_mat = C.make_material("oonebosuke_pillow", (0.40, 0.38, 0.36), roughness=0.9)
-    pillow = C.box("oonebosuke_pillow", (0.0, 0.185, 0.435), (0.115, 0.075, 0.095),
-                   bevel=0.018, bevel_segments=2)
-    pillow.rotation_euler = (0.10, 0.0, 0.0)
-    C.assign_material(pillow, pillow_mat)
-    extras.append(pillow)
+    # 帽子の飾り: 金の三日月(カーブの弧)と星(小さな金の粒)
+    gold = C.make_material("oonebosuke_gold", (0.88, 0.74, 0.38), roughness=0.4,
+                           emission=0.2)
+    moon = C.curve_tube("oonebosuke_moon",
+                        [Vector((-0.14, -0.185, 0.645)),
+                         Vector((-0.095, -0.22, 0.660)),
+                         Vector((-0.055, -0.212, 0.676))],
+                        [0.006, 0.011, 0.006])
+    C.assign_material(moon, gold)
+    extras.append(moon)
+    for si2, (sx, sy, sz) in enumerate([(0.07, -0.235, 0.655),
+                                        (-0.04, -0.273, 0.620),
+                                        (0.13, -0.190, 0.628)]):
+        star = C.uv_sphere(f"oonebosuke_star{si2}", (sx, sy, sz), 0.014,
+                           segments=8, rings=6, scale=(1.0, 0.5, 1.0))
+        C.assign_material(star, gold)
+        extras.append(star)
 
-    # 逸脱項目③。参道で被ったまま眠り込んだ、掛け布団の切れ端を
-    # 片肩に残す(purun系列には存在しない大形状)。肌と紛れないよう、
-    # 色は褪せた藍染めにする
-    blanket_mat = C.make_material("oonebosuke_blanket", (0.30, 0.40, 0.46), roughness=0.85)
-    blanket = C.box("oonebosuke_blanket", (-0.290, 0.020, 0.300), (0.185, 0.130, 0.024),
-                    bevel=0.016, bevel_segments=2)
-    blanket.rotation_euler = (0.04, -0.16, 0.30)
-    C.assign_material(blanket, blanket_mat)
-    # 肩の掛け布団は関節から離れた位置に乗っており、自動ウェイト計算の
-    # ブレンドに任せるとdie(squashで大きく潰れる)の姿勢に追従しきれない
-    # (plan/models/archive/hard-part-bone-pinning-audit.md)。一番近い骨
-    # (base-mid)へ剛体固定する
-    C.mark_for_pin(blanket)
-    blanket_names = [blanket.name]
-    extras.append(blanket)
-    fold_mat = C.make_material("oonebosuke_blanket_fold", (0.22, 0.30, 0.36), roughness=0.85)
-    fold = C.box("oonebosuke_blanket_fold", (-0.330, -0.010, 0.245), (0.075, 0.060, 0.016),
-                bevel=0.010, bevel_segments=2)
-    fold.rotation_euler = (0.02, -0.10, 0.42)
-    C.assign_material(fold, fold_mat)
-    C.mark_for_pin(fold)
-    blanket_names.append(fold.name)
-    extras.append(fold)
+    # 帽子の縁から覗く乱れた髪(前髪の房+耳の上の房)
+    def head_front_y(x: float, rx: float, ry: float, cy: float) -> float:
+        t = max(0.0, 1.0 - (x / rx) ** 2)
+        return cy - ry * math.sqrt(t)
+
+    for hx in (-0.16, -0.05, 0.10):
+        y0 = head_front_y(hx, 0.235, 0.220, -0.05)
+        lock = C.curve_tube(f"oonebosuke_bang{hx}",
+                            [Vector((hx, y0 - 0.004, 0.588)),
+                             Vector((hx * 1.05, y0 - 0.018, 0.574)),
+                             Vector((hx * 1.10, y0 - 0.010, 0.562))],
+                            [0.016, 0.011, 0.004])
+        C.assign_material(lock, hair_mat)
+        extras.append(lock)
+    for side in (-1.0, 1.0):
+        tuft = C.curve_tube(f"oonebosuke_tuft{side}",
+                            [Vector((0.200 * side, -0.05, 0.565)),
+                             Vector((0.225 * side, -0.02, 0.525)),
+                             Vector((0.230 * side, 0.0, 0.490))],
+                            [0.020, 0.014, 0.005])
+        C.assign_material(tuft, hair_mat)
+        extras.append(tuft)
+
+    # 鼻ちょうちん: 半透明の泡(purunで確立したalpha手法)+光の粒。
+    # いびきに合わせて膨張・収縮させるため本体には結合せず、専用の
+    # 泡ボーン(鼻先bubble0を支点にbubbleへ伸びる)へ剛体で親子付けし、
+    # アニメーション側でボーンのスケールをキーする
+    bubble_mat = C.make_material("oonebosuke_bubble", (0.78, 0.88, 0.97),
+                                 roughness=0.1, alpha=0.4)
+    bubble_parts = []
+    bubble = C.uv_sphere("oonebosuke_bubble", (0.108, -0.330, 0.548), 0.060,
+                         segments=14, rings=10)
+    C.assign_material(bubble, bubble_mat)
+    bubble_parts.append(bubble)
+    stem = C.uv_sphere("oonebosuke_bubble_stem", (0.045, -0.315, 0.512), 0.02,
+                       segments=8, rings=6)
+    C.assign_material(stem, bubble_mat)
+    bubble_parts.append(stem)
+    gleam = C.uv_sphere("oonebosuke_bubble_gleam", (0.100, -0.378, 0.552), 0.012,
+                        segments=8, rings=6)
+    C.assign_material(gleam, C.make_material("oonebosuke_bubble_gleam_m",
+                                             (1.0, 1.0, 1.0), roughness=0.1,
+                                             emission=0.6))
+    bubble_parts.append(gleam)
 
     mesh = C.join([body] + extras, "oonebosuke")
-    armature = C.build_armature("oonebosuke", C.mirrored(joints), OONEBOSUKE_BONES,
-                                mesh, root="base")
-    for group_name in blanket_names:
-        C.pin_weight_to_bone(mesh, group_name, "base-mid")
-    return [mesh, armature], armature
+    arm_joints = dict(OONEBOSUKE_JOINTS)
+    arm_joints["bubble0"] = (0.045, -0.315, 0.512)   # 鼻先(膨張の支点)
+    arm_joints["bubble"] = (0.108, -0.345, 0.548)    # 泡の中心方向
+    arm_bones = list(OONEBOSUKE_BONES) + [("top", "bubble0"),
+                                          ("bubble0", "bubble")]
+    armature = C.build_armature("oonebosuke", arm_joints, arm_bones, mesh,
+                                root="base")
+    # 泡ボーンの重みが体表(顔)に混ざるとバブルの膨張で顔が歪むため、
+    # 本体メッシュからは泡ボーンの頂点グループを取り除く
+    for vg_name in ("top-bubble0", "bubble0-bubble"):
+        vg = mesh.vertex_groups.get(vg_name)
+        if vg is not None:
+            mesh.vertex_groups.remove(vg)
+    _fix_orphan_weights(mesh, OONEBOSUKE_JOINTS, OONEBOSUKE_BONES)
+    for part in bubble_parts:
+        C.parent_to_bone(part, armature, "bubble0-bubble")
+    return [mesh, armature] + bubble_parts, armature
 
 
 def oonebosuke_animations():
@@ -7417,15 +7573,20 @@ def oonebosuke_animations():
     lowerより2フレーム遅らせる形で眠たげな二次揺れを表現した。
     """
     lower, upper = "base-mid", "mid-top"
+    bubble = "bubble0-bubble"
     neutral = {"scale": (1.0, 1.0, 1.0)}
     return [
         # ほとんど動かず、寝息だけのわずかな上下。upper(上半身)がlower
-        # より2フレーム遅れて追従する眠たげな二次揺れを追加
+        # より2フレーム遅れて追従する眠たげな二次揺れを追加。
+        # 鼻ちょうちんは寝息に合わせて大きく膨らみ、すっとしぼむ
         ("idle", [
-            (1, {lower: neutral, upper: neutral}),
-            (36, {lower: {"scale": (1.03, 0.97, 1.03)}}),
+            (1, {lower: neutral, upper: neutral, bubble: {"scale": (0.8, 0.8, 0.8)}}),
+            (36, {lower: {"scale": (1.03, 0.97, 1.03)},
+                  bubble: {"scale": (1.3, 1.3, 1.3)}}),
             (38, {upper: {"scale": (0.98, 1.03, 0.98)}}, {"partial": True}),
-            (72, {lower: neutral, upper: neutral}),
+            (46, {bubble: {"scale": (1.36, 1.36, 1.36)}}, {"partial": True}),
+            (54, {bubble: {"scale": (0.82, 0.82, 0.82)}}, {"partial": True}),
+            (72, {lower: neutral, upper: neutral, bubble: {"scale": (0.8, 0.8, 0.8)}}),
         ]),
         # 重い図体を引きずるように、のっそりと進む
         ("walk", [
@@ -7438,13 +7599,15 @@ def oonebosuke_animations():
         # 緩やかな加速(7→10)→LINEARで鋭い打ち込み(10→14)→行き過ぎ
         # (14→16、upperのlocをわずかに残す)→戻り(16→24)に整理
         ("attack", [
-            (1, {lower: neutral, upper: neutral}),
-            (7, {lower: {"scale": (1.28, 0.66, 1.28)}, upper: {"scale": (0.82, 1.24, 0.82), "loc": (0, -0.05, 0)}}),
+            (1, {lower: neutral, upper: neutral, bubble: {"scale": (0.9, 0.9, 0.9)}}),
+            (7, {lower: {"scale": (1.28, 0.66, 1.28)}, upper: {"scale": (0.82, 1.24, 0.82), "loc": (0, -0.05, 0)},
+                 bubble: {"scale": (1.3, 1.3, 1.3)}}),
             (10, {lower: {"scale": (1.065, 0.97, 1.065)}, upper: {"scale": (1.03, 1.01, 1.03), "loc": (0, 0.035, 0)}},
              {"interp": "LINEAR"}),
-            (14, {lower: {"scale": (0.85, 1.28, 0.85)}, upper: {"scale": (1.24, 0.78, 1.24), "loc": (0, 0.12, 0)}}),
+            (14, {lower: {"scale": (0.85, 1.28, 0.85)}, upper: {"scale": (1.24, 0.78, 1.24), "loc": (0, 0.12, 0)},
+                  bubble: {"scale": (0.4, 0.4, 0.4)}}),
             (16, {upper: {"loc": (0, 0.16, 0)}}, {"partial": True}),
-            (24, {lower: neutral, upper: neutral}),
+            (24, {lower: neutral, upper: neutral, bubble: {"scale": (0.9, 0.9, 0.9)}}),
         ]),
         # 入りをLINEARで鋭くする。ボスなので振幅は現行どおり中程度に保ち、
         # 戻り(4f→14f)はゆっくりのまま
