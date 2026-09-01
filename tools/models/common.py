@@ -1306,18 +1306,12 @@ def export_glb(name: str, objs: Sequence[bpy.types.Object], flat: bool = False) 
 
 # --------------------------------------------------------------------------- プレビュー
 
-def render_preview(name: str, objs: Sequence[bpy.types.Object], samples: int = 48,
-                   size=(420, 520), yaw: float = 34.0, pitch: float = 11.0,
-                   zoom: float = 1.05) -> str:
+def _mute_to_rest(objs: Sequence[bpy.types.Object]) -> list:
     """
-    造形を目で確かめるための静止画。三点照明で形が読み取れるようにし、
-    カメラは対象のバウンディングボックスに合わせて自動で引く。
+    アクションを積んだあとだと NLA が効いて最後のポーズで固まってしまうので、
+    レンダーのあいだだけトラックを黙らせて素立ちに戻す。戻り値の黙らせた
+    トラック一覧を、後で mute=False に戻す。
     """
-    os.makedirs(PREVIEW_DIR, exist_ok=True)
-    path = os.path.join(PREVIEW_DIR, f"{name}.png")
-
-    # アクションを積んだあとだと NLA が効いて最後のポーズで固まってしまうので、
-    # プレビューのあいだだけトラックを黙らせて素立ちに戻す
     muted = []
     for obj in objs:
         if obj.type != "ARMATURE" or obj.animation_data is None:
@@ -1333,6 +1327,20 @@ def render_preview(name: str, objs: Sequence[bpy.types.Object], samples: int = 4
         bpy.ops.object.mode_set(mode="OBJECT")
     bpy.context.scene.frame_set(1)
     bpy.context.view_layer.update()
+    return muted
+
+
+def render_preview(name: str, objs: Sequence[bpy.types.Object], samples: int = 48,
+                   size=(420, 520), yaw: float = 34.0, pitch: float = 11.0,
+                   zoom: float = 1.05) -> str:
+    """
+    造形を目で確かめるための静止画。三点照明で形が読み取れるようにし、
+    カメラは対象のバウンディングボックスに合わせて自動で引く。
+    """
+    os.makedirs(PREVIEW_DIR, exist_ok=True)
+    path = os.path.join(PREVIEW_DIR, f"{name}.png")
+
+    muted = _mute_to_rest(objs)
 
     lo, hi = bounds(objs)
     center = (lo + hi) * 0.5
@@ -1404,22 +1412,7 @@ def render_silhouette(name: str, objs: Sequence[bpy.types.Object], view: str = "
     os.makedirs(silhouette_dir, exist_ok=True)
     path = os.path.join(silhouette_dir, f"{name}-{view}.png")
 
-    # render_previewと同じく、アクション/NLAの影響を止めて素立ちに戻す
-    muted = []
-    for obj in objs:
-        if obj.type != "ARMATURE" or obj.animation_data is None:
-            continue
-        for track in obj.animation_data.nla_tracks:
-            if not track.mute:
-                track.mute = True
-                muted.append(track)
-        obj.animation_data.action = None
-        activate(obj)
-        bpy.ops.object.mode_set(mode="POSE")
-        reset_pose(obj)
-        bpy.ops.object.mode_set(mode="OBJECT")
-    bpy.context.scene.frame_set(1)
-    bpy.context.view_layer.update()
+    muted = _mute_to_rest(objs)
 
     lo, hi = bounds(objs)
     center = (lo + hi) * 0.5
@@ -1481,6 +1474,100 @@ def render_silhouette(name: str, objs: Sequence[bpy.types.Object], view: str = "
     bg_input.default_value = original_bg
     bpy.data.objects.remove(cam, do_unlink=True)
     bpy.data.materials.remove(black_mat)
+    for track in muted:
+        track.mute = False
+    return path
+
+
+def render_turnaround(name: str, objs: Sequence[bpy.types.Object], samples: int = 24,
+                      view_size: tuple[int, int] = (300, 380)) -> str:
+    """
+    正面・側面・背面のシェーデッド3面を左からこの順で1枚に並べた
+    コンタクトシート(plan/models/garudo-quality-uplift.md 実装項目2)。
+    平行投影・素立ちで、三面図との突き合わせや承認レビューの定型提示物に
+    使う。出力は tools/preview/turnaround/<名前>.png。
+    """
+    import numpy as np
+
+    out_dir = os.path.join(PREVIEW_DIR, "turnaround")
+    os.makedirs(out_dir, exist_ok=True)
+    path = os.path.join(out_dir, f"{name}.png")
+
+    muted = _mute_to_rest(objs)
+
+    lo, hi = bounds(objs)
+    center = (lo + hi) * 0.5
+    extent = max((hi - lo).x, (hi - lo).y, (hi - lo).z, 0.3)
+
+    scene = bpy.context.scene
+    scene.render.engine = "CYCLES"
+    scene.cycles.device = "CPU"
+    scene.cycles.samples = samples
+    scene.cycles.use_denoising = True
+    scene.view_settings.view_transform = "Standard"
+    scene.view_settings.look = "None"
+    width, height = view_size
+    scene.render.resolution_x, scene.render.resolution_y = width, height
+    scene.render.film_transparent = False
+
+    floor = box("turnaround_floor", (center.x, center.y, lo.z - 0.02), (8, 8, 0.02))
+    assign_material(floor, make_material("turnaround_floor_mat", (0.16, 0.17, 0.2), roughness=0.9))
+
+    # キャラクターの顔は-Yを向く(character-design-language.md)。
+    # ベクトルは「中心から見たカメラの位置」: 正面ビューはカメラを-Y側に
+    # 置いて顔を写す。側面は-X側(=.R半身が写る。render_silhouetteの
+    # side と同じ側)、背面は+Y側
+    views = [("front", Vector((0, -1, 0))),
+             ("side", Vector((-1, 0, 0))),
+             ("back", Vector((0, 1, 0)))]
+    tiles = []
+    tmp_paths = []
+    up = Vector((0, 0, 1))
+    for view, to_camera in views:
+        cam_loc = center + to_camera * (extent * 2.2)
+        bpy.ops.object.camera_add(location=cam_loc)
+        cam = bpy.context.object
+        cam.data.type = "ORTHO"
+        # sensor_fitの既定AUTOでは、ortho_scaleは解像度の長い方に対応する。
+        # 縦長タイルなので高さ・幅どちらでも収まるよう少し余裕を持たせる
+        cam.data.ortho_scale = extent * 1.25
+        cam.rotation_euler = (center - cam_loc).to_track_quat("-Z", "Y").to_euler()
+        scene.camera = cam
+
+        # 三点照明をカメラごとに組み直す(固定光源だと背面ビューが逆光になる)
+        back = to_camera
+        right = up.cross(back)
+        add_sun(center + back * 4 + right * -2 + up * 5, center, 2.4)
+        add_area(center + back * 3 + right * 2.5 + up * 1.0, center, 40.0, size=4.0)
+        add_area(center - back * 4 + up * 2.5, center, 26.0, size=3.0)
+
+        tmp = os.path.join(out_dir, f".{name}-{view}.tmp.png")
+        scene.render.filepath = tmp
+        bpy.ops.render.render(write_still=True)
+        tmp_paths.append(tmp)
+
+        img = bpy.data.images.load(tmp)
+        px = np.empty(width * height * 4, dtype=np.float32)
+        img.pixels.foreach_get(px)
+        tiles.append(px.reshape(height, width, 4))
+        bpy.data.images.remove(img)
+
+        bpy.data.objects.remove(cam, do_unlink=True)
+        for obj in list(bpy.data.objects):
+            if obj.type == "LIGHT":
+                bpy.data.objects.remove(obj, do_unlink=True)
+
+    sheet = np.concatenate(tiles, axis=1)
+    out = bpy.data.images.new(f"{name}_turnaround", width=width * 3, height=height)
+    out.pixels.foreach_set(sheet.ravel())
+    out.filepath_raw = path
+    out.file_format = "PNG"
+    out.save()
+    bpy.data.images.remove(out)
+
+    for tmp in tmp_paths:
+        os.remove(tmp)
+    bpy.data.objects.remove(floor, do_unlink=True)
     for track in muted:
         track.mute = False
     return path
