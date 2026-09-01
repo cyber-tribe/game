@@ -1,5 +1,5 @@
 """
-5体再設計ゲート(plan/models/five-character-redesign-gate.md)の合格判定用
+5体再設計ゲート(plan/models/archive/five-character-redesign-gate.md)の合格判定用
 商品カット。再設計した5体(ガルド・ぷるん・ガジリねずみ・ツブテガエル・
 おおねぼすけ)だけを大きくパッケージ風の構図で1枚に写す。
 

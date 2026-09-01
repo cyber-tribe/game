@@ -272,7 +272,7 @@ def curve_tube(name: str, points, radii, resolution: int = 4,
 
 
 # ------------------------------------------- スカルプト+テクスチャ焼き込み
-# plan/models/sculpt-texture-pipeline.md。「高密度に彫る→ゲーム用へ削減→
+# plan/models/archive/sculpt-texture-pipeline.md。「高密度に彫る→ゲーム用へ削減→
 # 細部はテクスチャに描く」のMeshy式を自前実装した共有ヘルパー群
 
 def sculpt_merge(name: str, objs, voxel: float = 0.004,

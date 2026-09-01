@@ -822,7 +822,7 @@ def build_tsubute():
     確定した設定画(design/characters/tsubute/generated/tsubute-sheet.png、
     ユーザー提供)に合わせた造形。骨格・アニメーションは従来のまま維持。
 
-    plan/models/sculpt-texture-pipeline.md のパイロット実装:
+    plan/models/archive/sculpt-texture-pipeline.md のパイロット実装:
     - **彫刻式の融合**: 体・指・つま先・腿・眉をボクセルリメッシュで
       1つの連続メッシュに融合(継ぎ目のない造形)→ ゲーム用に削減
     - **表面の模様はテクスチャに描く**: 口の線・鼻の穴・鼓膜・斑点・
@@ -7311,7 +7311,7 @@ def build_oonebosuke():
     起き上がれなくなった、途方もない眠気そのものが人の形を借りた
     巨体(設定画では約300cm、ガルドの2倍)。
 
-    plan/models/sculpt-texture-pipeline.md(ツブテガエルで確立)の
+    plan/models/archive/sculpt-texture-pipeline.md(ツブテガエルで確立)の
     2体目の適用:
     - **彫刻式の融合**: 胴+頭のロフト・腿・足・足指・袖・手・親指・
       鼻・頬をsculpt_mergeで1つの柔らかい塊に融合(眠りの巨体の
