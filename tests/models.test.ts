@@ -27,6 +27,15 @@ interface GltfAccessor {
   max?: number[];
 }
 
+interface GltfNode {
+  mesh?: number;
+  children?: number[];
+  matrix?: number[];
+  translation?: number[];
+  rotation?: number[];
+  scale?: number[];
+}
+
 interface Gltf {
   meshes?: {
     primitives?: {
@@ -39,6 +48,9 @@ interface Gltf {
   animations?: { name?: string }[];
   accessors?: GltfAccessor[];
   bufferViews?: { byteOffset?: number; byteStride?: number }[];
+  nodes?: GltfNode[];
+  scenes?: { nodes?: number[] }[];
+  scene?: number;
 }
 
 function readGlb(name: string): Gltf {
@@ -69,20 +81,78 @@ function readGlbChunks(name: string): { gltf: Gltf; bin: Buffer | null } {
   return { gltf, bin };
 }
 
-/** 全プリミティブのPOSITIONのmin/maxから、バインドポーズの外接箱を求める */
+/** 列優先(glTFの流儀)の4x4行列の積 */
+function multiply(a: number[], b: number[]): number[] {
+  const out = new Array(16).fill(0);
+  for (let c = 0; c < 4; c++) {
+    for (let r = 0; r < 4; r++) {
+      let sum = 0;
+      for (let k = 0; k < 4; k++) sum += a[k * 4 + r] * b[c * 4 + k];
+      out[c * 4 + r] = sum;
+    }
+  }
+  return out;
+}
+
+/** ノードのローカル変換(matrixがあればそれ、無ければTRS) */
+function nodeMatrix(node: GltfNode): number[] {
+  if (node.matrix) return node.matrix;
+  const [tx, ty, tz] = node.translation ?? [0, 0, 0];
+  const [qx, qy, qz, qw] = node.rotation ?? [0, 0, 0, 1];
+  const [sx, sy, sz] = node.scale ?? [1, 1, 1];
+  // クォータニオン → 回転行列(列優先)
+  const r = [
+    1 - 2 * (qy * qy + qz * qz), 2 * (qx * qy + qz * qw), 2 * (qx * qz - qy * qw),
+    2 * (qx * qy - qz * qw), 1 - 2 * (qx * qx + qz * qz), 2 * (qy * qz + qx * qw),
+    2 * (qx * qz + qy * qw), 2 * (qy * qz - qx * qw), 1 - 2 * (qx * qx + qy * qy),
+  ];
+  return [
+    r[0] * sx, r[1] * sx, r[2] * sx, 0,
+    r[3] * sy, r[4] * sy, r[5] * sy, 0,
+    r[6] * sz, r[7] * sz, r[8] * sz, 0,
+    tx, ty, tz, 1,
+  ];
+}
+
+/**
+ * バインドポーズでの外接箱のY範囲(モデル空間)。
+ *
+ * 各メッシュのPOSITIONはそのノードのローカル空間にあるので、**ノードの
+ * ワールド変換を掛けてから**合成する。生のmin/maxをそのまま比べると、
+ * 原点を部品の中心へ置いた剛体パーツ(まばたきする目など、原点をずらすと
+ * スケールが正しく効く)が原点付近の値を持ち込み、身長・接地の判定を
+ * 壊す(実測: 目パッチのローカル-0.025が「床下」と誤検出された)。
+ */
 function boundsY(gltf: Gltf): { minY: number; maxY: number } {
   let minY = Infinity;
   let maxY = -Infinity;
-  for (const mesh of gltf.meshes ?? []) {
-    for (const prim of mesh.primitives ?? []) {
-      const pos = gltf.accessors?.[prim.attributes.POSITION];
-      // glTFの仕様でPOSITIONアクセサはmin/max必須
-      if (pos?.min && pos.max) {
-        minY = Math.min(minY, pos.min[1]);
-        maxY = Math.max(maxY, pos.max[1]);
+  const nodes = gltf.nodes ?? [];
+  const identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+
+  const visit = (index: number, parent: number[]): void => {
+    const node = nodes[index];
+    if (!node) return;
+    const world = multiply(parent, nodeMatrix(node));
+    if (node.mesh !== undefined) {
+      for (const prim of gltf.meshes?.[node.mesh]?.primitives ?? []) {
+        const pos = gltf.accessors?.[prim.attributes.POSITION];
+        // glTFの仕様でPOSITIONアクセサはmin/max必須
+        if (!pos?.min || !pos.max) continue;
+        for (let corner = 0; corner < 8; corner++) {
+          const x = corner & 1 ? pos.max[0] : pos.min[0];
+          const y = corner & 2 ? pos.max[1] : pos.min[1];
+          const z = corner & 4 ? pos.max[2] : pos.min[2];
+          const wy = world[1] * x + world[5] * y + world[9] * z + world[13];
+          minY = Math.min(minY, wy);
+          maxY = Math.max(maxY, wy);
+        }
       }
     }
-  }
+    for (const child of node.children ?? []) visit(child, world);
+  };
+
+  const scene = gltf.scenes?.[gltf.scene ?? 0];
+  for (const root of scene?.nodes ?? nodes.map((_, i) => i)) visit(root, identity);
   return { minY, maxY };
 }
 
