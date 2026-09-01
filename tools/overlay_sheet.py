@@ -1,0 +1,150 @@
+"""
+設定画の三面図とモデルのシルエットを、同じ高さへ正規化して重ねる
+(plan/models/garudo-quality-uplift.md 実装項目7の精密版)。
+
+`tools/compare_sheet.py`が「並べて見る」道具なのに対し、こちらは
+**輪郭のずれを一目で測る**道具。設定画側を赤、モデル側を青で描き、
+重なった部分は紫になる。赤だけ・青だけの領域がそのままずれの量。
+
+    tools/venv/bin/python tools/build_models.py <名前> --silhouette
+    tools/venv/bin/python tools/overlay_sheet.py <名前> <正面図の左> <上> <右> <下>
+
+設定画の三面図の切り出し範囲(ピクセル)は目視で与える。出力は
+tools/preview/silhouettes/<名前>-sheet-overlay.png。
+"""
+from __future__ import annotations
+
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "models"))
+
+import common as C  # noqa: E402  (bpyを先に読み込む)
+import bpy  # noqa: E402
+import numpy as np  # noqa: E402
+
+
+def load(path: str) -> "np.ndarray":
+    img = bpy.data.images.load(path)
+    w, h = img.size
+    px = np.empty(w * h * 4, dtype=np.float32)
+    img.pixels.foreach_get(px)
+    bpy.data.images.remove(img)
+    return px.reshape(h, w, 4)[::-1]  # 上起点へ
+
+
+def figure_mask(rgb: "np.ndarray", threshold: float = 0.55) -> "np.ndarray":
+    """
+    図の画素を拾う。明るさだけで切ると設定画の**ガイド点線**(薄い灰色)
+    まで拾ってしまい、点線が図と繋がって幅の計測が壊れる(実測: 全行が
+    切り出し幅いっぱいになった)。暗いか彩度が高いかで判定し、最後に
+    最大連結成分だけを残す。
+    """
+    c = rgb[:, :, :3]
+    mx = c.max(axis=2)
+    mn = c.min(axis=2)
+    sat = np.where(mx > 1e-5, (mx - mn) / np.maximum(mx, 1e-5), 0.0)
+    return largest_component((mx < threshold) | (sat > 0.22))
+
+
+def largest_component(mask: "np.ndarray") -> "np.ndarray":
+    """最大の連結成分だけを残す(浮いたラベル・枠線を落とす)"""
+    from collections import deque
+    seen = np.zeros_like(mask, dtype=bool)
+    height, width = mask.shape
+    best: list = []
+    for sy in range(height):
+        for sx in range(width):
+            if not mask[sy, sx] or seen[sy, sx]:
+                continue
+            queue = deque([(sy, sx)])
+            seen[sy, sx] = True
+            comp = []
+            while queue:
+                y, x = queue.popleft()
+                comp.append((y, x))
+                for dy, dx in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                    ny, nx = y + dy, x + dx
+                    if 0 <= ny < height and 0 <= nx < width and mask[ny, nx] \
+                            and not seen[ny, nx]:
+                        seen[ny, nx] = True
+                        queue.append((ny, nx))
+            if len(comp) > len(best):
+                best = comp
+    out = np.zeros_like(mask)
+    for y, x in best:
+        out[y, x] = True
+    return out
+
+
+def bbox(mask: "np.ndarray"):
+    ys, xs = np.where(mask)
+    return xs.min(), ys.min(), xs.max(), ys.max()
+
+
+def fit(mask: "np.ndarray", size: int) -> "np.ndarray":
+    """マスクを外接箱で切り出し、高さsizeへ最近傍で正規化する"""
+    x0, y0, x1, y1 = bbox(mask)
+    crop = mask[y0:y1 + 1, x0:x1 + 1]
+    h, w = crop.shape
+    scale = size / h
+    out_w = max(1, int(round(w * scale)))
+    ys = (np.arange(size) / scale).astype(int).clip(0, h - 1)
+    xs = (np.arange(out_w) / scale).astype(int).clip(0, w - 1)
+    return crop[np.ix_(ys, xs)]
+
+
+def main() -> int:
+    if len(sys.argv) < 6:
+        print(__doc__)
+        return 1
+    name = sys.argv[1]
+    left, top, right, bottom = (int(v) for v in sys.argv[2:6])
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    sheet = load(os.path.join(root, "design", "characters", name,
+                              "generated", f"{name}-sheet.png"))
+    sheet_mask = fit(figure_mask(sheet[top:bottom, left:right]), 700)
+
+    sil_path = os.path.join(C.PREVIEW_DIR, "silhouettes", f"{name}-front.png")
+    model_mask = fit(figure_mask(load(sil_path), threshold=0.5), 700)
+
+
+    width = max(sheet_mask.shape[1], model_mask.shape[1]) + 40
+    canvas = np.ones((700, width, 4), dtype=np.float32)
+
+    def place(mask, color):
+        offset = (width - mask.shape[1]) // 2
+        region = canvas[:, offset:offset + mask.shape[1], :3]
+        region[mask] = np.minimum(region[mask], np.array(color, dtype=np.float32))
+
+    place(sheet_mask, (1.0, 0.25, 0.25))   # 設定画=赤
+    place(model_mask, (0.25, 0.25, 1.0))   # モデル=青(重なりは紫)
+
+    out_path = os.path.join(C.PREVIEW_DIR, "silhouettes", f"{name}-sheet-overlay.png")
+    out = bpy.data.images.new("overlay", width=width, height=700)
+    out.pixels.foreach_set(canvas[::-1].ravel())
+    out.filepath_raw = out_path
+    out.file_format = "PNG"
+    out.save()
+
+    # 高さごとの幅を数値で突き合わせる(どこが細い/太いかを測る)
+    print(f"{'高さ%':>5} {'部位':<12} {'設定画':>7} {'モデル':>7} {'差':>6}")
+    labels = {2: "頭頂", 6: "髪", 12: "目", 18: "あご", 24: "肩", 32: "胸",
+              40: "へそ", 48: "手首/腰", 56: "エプロン上", 64: "エプロン",
+              72: "エプロン裾", 80: "ひざ下", 88: "すね", 95: "ブーツ"}
+    for pct in sorted(labels):
+        row = int((700 - 1) * pct / 100)
+
+        def span(mask):
+            xs = np.where(mask[row])[0]
+            return int(xs.max() - xs.min() + 1) if len(xs) else 0
+
+        a, b = span(sheet_mask), span(model_mask)
+        print(f"{pct:>5} {labels[pct]:<12} {a:>7} {b:>7} {b - a:>+6}")
+    print(f"→ {out_path}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
