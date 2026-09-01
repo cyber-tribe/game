@@ -464,6 +464,107 @@ def organic_uv(obj: "bpy.types.Object", axis: int = 2) -> None:
     bpy.ops.object.mode_set(mode="OBJECT")
 
 
+def uv_report(obj: "bpy.types.Object", size: int = 384,
+              regions: dict[str, tuple[tuple[float, float, float], float]] | None = None,
+              ) -> dict:
+    """
+    UV展開の品質を数値で報告する(plan/models/garudo-quality-uplift.md
+    実装項目5)。「顔だけ解像度不足」のような偏りを目視でなく数値で
+    検知するためのもの。返り値と標準出力:
+
+    - islands: UV島の数(organic_uvなら2が期待値。桁が増えたら島割れ)
+    - fill: UV空間の充填率(0〜1。低いほどテクスチャを無駄にしている)
+    - density_avg/min/max: テクセル密度(texel/ユニット、面ごとの
+      sqrt(UV面積/実面積)×size)。minがavgの半分を割る部位は模様が粗い
+    - regions: {名前: ((x,y,z), 半径)} で指定した球領域ごとの平均密度
+    """
+    import numpy as np
+
+    mesh = obj.data
+    uv = mesh.uv_layers.active.data
+    mesh.calc_loop_triangles()
+
+    dens = []
+    tri_uv = []
+    for tri in mesh.loop_triangles:
+        pts = [Vector(uv[i].uv) for i in tri.loops]
+        uv_area = abs((pts[1] - pts[0]).cross(pts[2] - pts[0])) * 0.5
+        if tri.area > 1e-12 and uv_area > 1e-12:
+            dens.append((math.sqrt(uv_area / tri.area) * size, tri))
+        tri_uv.append(pts)
+
+    # 島数: UV座標が一致するエッジで面をつなぎ、連結成分を数える
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    layer = bm.loops.layers.uv.active
+    parent = list(range(len(bm.faces)))
+
+    def find(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    bm.faces.ensure_lookup_table()
+    for e in bm.edges:
+        lf = e.link_faces
+        if len(lf) != 2:
+            continue
+        # 両面がこのエッジの2頂点で同じUVを持つなら同じ島
+        coords = []
+        for f in lf:
+            uvs = {}
+            for loop in f.loops:
+                if loop.vert in e.verts:
+                    uvs[loop.vert.index] = tuple(round(c, 6) for c in loop[layer].uv)
+            coords.append(uvs)
+        if coords[0] == coords[1]:
+            a, b = find(lf[0].index), find(lf[1].index)
+            parent[a] = b
+    islands = len({find(i) for i in range(len(bm.faces))})
+    bm.free()
+
+    # 充填率: UV三角形を粗いグリッドへ塗って被覆率を測る
+    grid = 256
+    cover = np.zeros((grid, grid), dtype=bool)
+    for pts in tri_uv:
+        xs = [p.x for p in pts]
+        ys = [p.y for p in pts]
+        x0, x1 = max(0, int(min(xs) * grid)), min(grid - 1, int(max(xs) * grid))
+        y0, y1 = max(0, int(min(ys) * grid)), min(grid - 1, int(max(ys) * grid))
+        for gy in range(y0, y1 + 1):
+            for gx in range(x0, x1 + 1):
+                p = Vector(((gx + 0.5) / grid, (gy + 0.5) / grid))
+                d0 = (pts[1] - pts[0]).cross(p - pts[0])
+                d1 = (pts[2] - pts[1]).cross(p - pts[1])
+                d2 = (pts[0] - pts[2]).cross(p - pts[2])
+                if (d0 >= 0) == (d1 >= 0) == (d2 >= 0):
+                    cover[gy, gx] = True
+    fill = float(cover.mean())
+
+    values = [d for d, _ in dens]
+    report = {
+        "islands": islands,
+        "fill": round(fill, 3),
+        "density_avg": round(sum(values) / max(len(values), 1), 1),
+        "density_min": round(min(values), 1) if values else 0.0,
+        "density_max": round(max(values), 1) if values else 0.0,
+        "regions": {},
+    }
+    for rname, (center, radius) in (regions or {}).items():
+        c = Vector(center)
+        picked = [d for d, tri in dens if (Vector(tri.center) - c).length <= radius]
+        report["regions"][rname] = round(sum(picked) / max(len(picked), 1), 1)
+
+    line = (f"  [uv] {obj.name}: 島{report['islands']} 充填{report['fill']:.0%} "
+            f"密度 avg={report['density_avg']} min={report['density_min']} "
+            f"max={report['density_max']}")
+    if report["regions"]:
+        line += " | " + " ".join(f"{k}={v}" for k, v in report["regions"].items())
+    print(line)
+    return report
+
+
 def triplanar_uv(obj: "bpy.types.Object") -> None:
     """
     有機的な閉曲面向けの決定的なUV展開。Smart UV Projectは丸い体を
