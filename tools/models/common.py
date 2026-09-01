@@ -370,9 +370,26 @@ def quad_remesh(obj: "bpy.types.Object", target_faces: int) -> None:
     Smart Topology相当)。Decimate(collapse)は細長い三角形を量産して
     シルエットが折り紙状に荒れるため、彫刻式パイプラインの削減は
     こちらを使う。入力は多様体であること(sculpt_mergeの出力は満たす)。
+
+    QuadriFlowの事前検査(object_remesh.ccのmesh_is_manifold_consistent)
+    は「compare_v3v3(頂点, 頂点, 1e-4f)」で零長エッジを判定する。距離では
+    なく**各成分の差が1e-4未満**という絶対値の閾値なので、0.5ユニット級の
+    キャラクターをボクセルリメッシュした出力に混ざる微小エッジ(実測3本)が
+    1本でもあると、メッシュ全体が「manifold/consistent normalsでない」と
+    いう紛らわしい警告で拒否される。事前に2e-4で溶接して微小エッジを
+    畳んでおく(0.2mm相当。形状影響は事実上ゼロ)。
     """
     activate(obj)
-    bpy.ops.object.quadriflow_remesh(target_faces=target_faces)
+    bpy.ops.object.mode_set(mode="EDIT")
+    bpy.ops.mesh.select_all(action="SELECT")
+    bpy.ops.mesh.remove_doubles(threshold=2e-4)
+    bpy.ops.object.mode_set(mode="OBJECT")
+    result = bpy.ops.object.quadriflow_remesh(target_faces=target_faces)
+    if "FINISHED" not in result:
+        raise RuntimeError(
+            f"{obj.name}: QuadriFlowが{result}を返した。微小エッジ溶接後も"
+            "拒否される場合は、メッシュを一時的に拡大してから再挑戦する"
+        )
     for poly in obj.data.polygons:
         poly.use_smooth = True
 
