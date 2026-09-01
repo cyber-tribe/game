@@ -12,9 +12,14 @@
 
 --silhouette を付けると、通常のプレビュー・書き出しの代わりに
 平行投影・黒塗りのシルエット(正面・側面)だけを
-tools/preview/silhouettes/ へ出力する(plan/models/
+tools/preview/silhouettes/ へ出力する(plan/models/archive/
 2d-turnaround-first-workflow.mdの三面図照合用。tools/
 compare_turnaround.mjsから呼ばれる想定)。
+
+--pose-check を付けると、各ボーンを1本ずつ曲げたポーズの
+グリッドレンダーだけを tools/preview/posecheck/ へ出力する
+(plan/models/garudo-quality-uplift.md 実装項目3。スキニングの
+破れの目視検査用)。
 """
 
 from __future__ import annotations
@@ -48,6 +53,7 @@ def main() -> int:
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     preview = "--no-preview" not in sys.argv
     silhouette = "--silhouette" in sys.argv
+    pose_check = "--pose-check" in sys.argv
 
     table = targets()
     names = args or list(table)
@@ -69,6 +75,13 @@ def main() -> int:
             C.render_silhouette(name, objs, view="front")
             C.render_silhouette(name, objs, view="side")
             print(f"  {name:<14} シルエット出力 → tools/preview/silhouettes/")
+            continue
+        if pose_check:
+            path = C.render_pose_check(name, objs)
+            if path is None:
+                print(f"  {name:<14} アーマチュアが無いので対象外")
+            else:
+                print(f"  {name:<14} ポーズチェック出力 → {path}")
             continue
         if preview:
             size = (420, 520) if animated else (320, 320)

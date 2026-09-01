@@ -1704,6 +1704,114 @@ def render_turnaround(name: str, objs: Sequence[bpy.types.Object], samples: int 
     return path
 
 
+def render_pose_check(name: str, objs: Sequence[bpy.types.Object], angle: float = 40.0,
+                      samples: int = 16, tile: tuple[int, int] = (220, 260)) -> str | None:
+    """
+    変形テストポーズのグリッドレンダー(plan/models/garudo-quality-uplift.md
+    実装項目3)。アーマチュアの各ボーンを1本ずつローカルX軸へangle度曲げ、
+    3/4ビューの小タイルを格子に並べて1枚に合成する。スキニングの破れ・
+    巻き込み(Bone Heat事故の局所版)をエクスポート前に目視できる。
+    タイルの並び順(左上→右)は標準出力に印字するボーン名の順。
+    出力は tools/preview/posecheck/<名前>.png。アーマチュアが無ければNone。
+    """
+    import numpy as np
+
+    armature = next((o for o in objs if o.type == "ARMATURE"), None)
+    if armature is None:
+        return None
+    out_dir = os.path.join(PREVIEW_DIR, "posecheck")
+    os.makedirs(out_dir, exist_ok=True)
+    path = os.path.join(out_dir, f"{name}.png")
+
+    muted = _mute_to_rest(objs)
+
+    lo, hi = bounds(objs)
+    center = (lo + hi) * 0.5
+    extent = max((hi - lo).length, 0.5)
+
+    # 3/4ビューの固定カメラ+三点照明(render_previewと同じ流儀)
+    yaw_r = math.radians(30.0)
+    pitch_r = math.radians(12.0)
+    # 曲げたポーズが素立ちの外接箱を少しはみ出す分の余白だけ取る
+    distance = extent * 1.35 + 0.35
+    offset = Vector((
+        math.sin(yaw_r) * math.cos(pitch_r),
+        -math.cos(yaw_r) * math.cos(pitch_r),
+        math.sin(pitch_r) + 0.25,
+    )) * distance
+    bpy.ops.object.camera_add(location=center + offset)
+    cam = bpy.context.object
+    cam.rotation_euler = (center - cam.location).to_track_quat("-Z", "Y").to_euler()
+    cam.data.lens = 60
+    add_sun(center + Vector((3, -4, 6)), center, 2.4)
+    add_area(center + Vector((-3.5, -2.5, 1.5)), center, 40.0, size=4.0)
+    add_area(center + Vector((0.5, 4.0, 2.5)), center, 26.0, size=3.0)
+
+    scene = bpy.context.scene
+    scene.camera = cam
+    scene.render.engine = "CYCLES"
+    scene.cycles.device = "CPU"
+    scene.cycles.samples = samples
+    scene.cycles.use_denoising = True
+    scene.view_settings.view_transform = "Standard"
+    scene.view_settings.look = "None"
+    width, height = tile
+    scene.render.resolution_x, scene.render.resolution_y = width, height
+    scene.render.film_transparent = False
+
+    bone_names = [b.name for b in armature.pose.bones]
+    print(f"  [posecheck] {name}: " + " / ".join(bone_names))
+
+    tiles = []
+    tmp = os.path.join(out_dir, f".{name}.tmp.png")
+    activate(armature)
+    bpy.ops.object.mode_set(mode="POSE")
+    for bone_name_ in bone_names:
+        pb = armature.pose.bones[bone_name_]
+        original_mode = pb.rotation_mode
+        pb.rotation_mode = "XYZ"
+        pb.rotation_euler = (math.radians(angle), 0.0, 0.0)
+        bpy.context.view_layer.update()
+
+        scene.render.filepath = tmp
+        bpy.ops.render.render(write_still=True)
+        img = bpy.data.images.load(tmp)
+        px = np.empty(width * height * 4, dtype=np.float32)
+        img.pixels.foreach_get(px)
+        tiles.append(px.reshape(height, width, 4))
+        bpy.data.images.remove(img)
+
+        pb.rotation_euler = (0.0, 0.0, 0.0)
+        pb.rotation_mode = original_mode
+    bpy.ops.object.mode_set(mode="OBJECT")
+    os.remove(tmp)
+
+    cols = max(1, math.ceil(math.sqrt(len(tiles))))
+    rows = math.ceil(len(tiles) / cols)
+    blank = np.zeros((height, width, 4), dtype=np.float32)
+    while len(tiles) < cols * rows:
+        tiles.append(blank)
+    # Blenderのピクセルは下から上なので、行の並びを反転して左上起点にする
+    grid_rows = [np.concatenate(tiles[r * cols:(r + 1) * cols], axis=1)
+                 for r in range(rows)]
+    sheet = np.concatenate(list(reversed(grid_rows)), axis=0)
+
+    out = bpy.data.images.new(f"{name}_posecheck", width=cols * width, height=rows * height)
+    out.pixels.foreach_set(sheet.ravel())
+    out.filepath_raw = path
+    out.file_format = "PNG"
+    out.save()
+    bpy.data.images.remove(out)
+
+    bpy.data.objects.remove(cam, do_unlink=True)
+    for obj in list(bpy.data.objects):
+        if obj.type == "LIGHT":
+            bpy.data.objects.remove(obj, do_unlink=True)
+    for track in muted:
+        track.mute = False
+    return path
+
+
 def add_sun(location: Vector, target: Vector, energy: float) -> None:
     bpy.ops.object.light_add(type="SUN", location=location)
     light = bpy.context.object
