@@ -271,6 +271,254 @@ def curve_tube(name: str, points, radii, resolution: int = 4,
     return obj
 
 
+# ------------------------------------------- スカルプト+テクスチャ焼き込み
+# plan/models/sculpt-texture-pipeline.md。「高密度に彫る→ゲーム用へ削減→
+# 細部はテクスチャに描く」のMeshy式を自前実装した共有ヘルパー群
+
+def sculpt_merge(name: str, objs, voxel: float = 0.004,
+                 out_voxel: float | None = None) -> "bpy.types.Object":
+    """
+    部位プリミティブ群をリメッシュで1つの連続メッシュへ融合する。
+    join だけでは残る継ぎ目・貫通が消え、彫刻のように滑らかにつながる。
+    voxelは形を融合する解像度、out_voxelは出力メッシュの解像度
+    (ゲーム用の目標三角形数に合わせて粗くする。Noneならvoxelのまま)。
+    出力は均一な四角形主体のトポロジなので、Decimateの細長三角形による
+    シルエット荒れが起きない。
+    """
+    merged = join(objs, name)
+    activate(merged)
+    # 法線を外向きへ揃えてからリメッシュする。方式は旧Remeshモディファイア
+    # (SMOOTH)を使う: bpy.ops.object.voxel_remesh()はスキンモディファイア
+    # 由来の自己交差を含む入力で表面が穴だらけになった(実測)のに対し、
+    # SMOOTHモードは滑らかな外皮を安定して生成し、
+    # use_remove_disconnectedが微小断片も除去してくれる
+    bpy.ops.object.mode_set(mode="EDIT")
+    bpy.ops.mesh.select_all(action="SELECT")
+    bpy.ops.mesh.normals_make_consistent(inside=False)
+    bpy.ops.object.mode_set(mode="OBJECT")
+    lo, hi = bounds([merged])
+    extent = max(hi[i] - lo[i] for i in range(3))
+    depth = max(6, min(9, math.ceil(math.log2(max(extent / voxel, 2.0)))))
+    mod = merged.modifiers.new("remesh", "REMESH")
+    mod.mode = "SMOOTH"
+    mod.octree_depth = depth
+    mod.use_remove_disconnected = True
+    bpy.ops.object.modifier_apply(modifier="remesh")
+    # SMOOTHの出力は非多様体エッジを残す(実測323本)ので、清浄になった
+    # 外皮へ改めてボクセルリメッシュを重ねて完全な多様体にする
+    # (OpenVDBは自己交差の無い入力なら常に多様体を出力する)
+    merged.data.remesh_voxel_size = out_voxel or voxel
+    bpy.ops.object.voxel_remesh()
+    # 法線を外向きに揃える(QuadriFlowは向きの不整合を拒否する)
+    bpy.ops.object.mode_set(mode="EDIT")
+    bpy.ops.mesh.select_all(action="SELECT")
+    bpy.ops.mesh.normals_make_consistent(inside=False)
+    bpy.ops.object.mode_set(mode="OBJECT")
+    # リメッシュは入力の自己交差から内部の泡・微小片を残すことがある
+    # (計測: ツブテガエルで最大シェル1つ+48個の断片)。外皮である
+    # 最大の連結成分だけを残す
+    bm = bmesh.new()
+    bm.from_mesh(merged.data)
+    bm.verts.ensure_lookup_table()
+    seen: set[int] = set()
+    components: list[list] = []
+    for v in bm.verts:
+        if v.index in seen:
+            continue
+        comp = []
+        stack = [v]
+        while stack:
+            cur = stack.pop()
+            if cur.index in seen:
+                continue
+            seen.add(cur.index)
+            comp.append(cur)
+            for e in cur.link_edges:
+                other = e.other_vert(cur)
+                if other.index not in seen:
+                    stack.append(other)
+        components.append(comp)
+    if len(components) > 1:
+        largest = max(components, key=len)
+        doomed = [v for comp in components if comp is not largest for v in comp]
+        bmesh.ops.delete(bm, geom=doomed, context="VERTS")
+        bm.to_mesh(merged.data)
+    bm.free()
+    for poly in merged.data.polygons:
+        poly.use_smooth = True
+    return merged
+
+
+def decimate_to(obj: "bpy.types.Object", target_tris: int) -> None:
+    """三角形数が目標以下になるまでDecimate(collapse)をかける。"""
+    activate(obj)
+    current = len(obj.data.loop_triangles) or sum(
+        max(len(p.vertices) - 2, 1) for p in obj.data.polygons)
+    if current <= target_tris:
+        return
+    mod = obj.modifiers.new("dec", "DECIMATE")
+    mod.ratio = target_tris / current
+    mod.use_collapse_triangulate = True
+    bpy.ops.object.modifier_apply(modifier="dec")
+    for poly in obj.data.polygons:
+        poly.use_smooth = True
+
+
+def quad_remesh(obj: "bpy.types.Object", target_faces: int) -> None:
+    """
+    QuadriFlowで均一な四角形トポロジへ再構成する(Meshyの
+    Smart Topology相当)。Decimate(collapse)は細長い三角形を量産して
+    シルエットが折り紙状に荒れるため、彫刻式パイプラインの削減は
+    こちらを使う。入力は多様体であること(sculpt_mergeの出力は満たす)。
+    """
+    activate(obj)
+    bpy.ops.object.quadriflow_remesh(target_faces=target_faces)
+    for poly in obj.data.polygons:
+        poly.use_smooth = True
+
+
+def smart_uv(obj: "bpy.types.Object") -> None:
+    """Smart UV Projectで全面を展開する(ハードサーフェス向け)。"""
+    activate(obj)
+    bpy.ops.object.mode_set(mode="EDIT")
+    bpy.ops.mesh.select_all(action="SELECT")
+    bpy.ops.uv.smart_project(angle_limit=1.15, island_margin=0.01)
+    bpy.ops.object.mode_set(mode="OBJECT")
+
+
+def organic_uv(obj: "bpy.types.Object") -> None:
+    """
+    有機的な閉曲面向けのUV展開。法線zの符号が変わる稜線(赤道)へ
+    シームを引いて上下2枚に開き、角度ベースunwrap+pack_islandsで
+    重なりなしに詰める。Smart UV Projectの微小島化(実測1,649島)も、
+    平行投影の裏表衝突(triplanar_uvの弱点)も起こらない。
+    """
+    mesh = obj.data
+    if not mesh.uv_layers:
+        mesh.uv_layers.new(name="UVMap")
+    import bmesh as _bmesh
+    bm = _bmesh.new()
+    bm.from_mesh(mesh)
+    for e in bm.edges:
+        lf = e.link_faces
+        e.seam = len(lf) == 2 and (lf[0].normal.z >= 0) != (lf[1].normal.z >= 0)
+    bm.to_mesh(mesh)
+    bm.free()
+    activate(obj)
+    bpy.ops.object.mode_set(mode="EDIT")
+    bpy.ops.mesh.select_all(action="SELECT")
+    bpy.ops.uv.unwrap(method="ANGLE_BASED", margin=0.002)
+    bpy.ops.uv.pack_islands(margin=0.015)
+    bpy.ops.object.mode_set(mode="OBJECT")
+
+
+def triplanar_uv(obj: "bpy.types.Object") -> None:
+    """
+    有機的な閉曲面向けの決定的なUV展開。Smart UV Projectは丸い体を
+    数百〜数千の微小島に割り、低解像度テクスチャで模様が混線する
+    (ツブテガエルで実測1,649島)。ここでは面の支配法線軸(±x/±y/±z)で
+    6グループに分け、それぞれを3×2の矩形セルへ平行投影する。
+    島は必ず6個以下で重ならない。裏表の重なりは同一セル内で起こり得るが、
+    bake_albedoの色は3D位置から決まるため、近い色の領域同士なら無害。
+    """
+    mesh = obj.data
+    if not mesh.uv_layers:
+        mesh.uv_layers.new(name="UVMap")
+    uv = mesh.uv_layers.active.data
+    lo = Vector((min(v.co.x for v in mesh.vertices),
+                 min(v.co.y for v in mesh.vertices),
+                 min(v.co.z for v in mesh.vertices)))
+    hi = Vector((max(v.co.x for v in mesh.vertices),
+                 max(v.co.y for v in mesh.vertices),
+                 max(v.co.z for v in mesh.vertices)))
+    span = Vector((max(hi.x - lo.x, 1e-6), max(hi.y - lo.y, 1e-6),
+                   max(hi.z - lo.z, 1e-6)))
+    pad = 0.012
+    for poly in mesh.polygons:
+        n = poly.normal
+        axis = max(range(3), key=lambda i: abs(n[i]))
+        cell = axis * 2 + (1 if n[axis] < 0 else 0)
+        col, row = cell % 3, cell // 3
+        for li in poly.loop_indices:
+            co = mesh.vertices[mesh.loops[li].vertex_index].co
+            if axis == 0:
+                u, w = (co.y - lo.y) / span.y, (co.z - lo.z) / span.z
+            elif axis == 1:
+                u, w = (co.x - lo.x) / span.x, (co.z - lo.z) / span.z
+            else:
+                u, w = (co.x - lo.x) / span.x, (co.y - lo.y) / span.y
+            uv[li].uv = (
+                (col + pad + u * (1.0 - 2 * pad)) / 3.0,
+                (row + pad + w * (1.0 - 2 * pad)) / 2.0,
+            )
+
+
+def bake_albedo(obj: "bpy.types.Object", color_fn, size: int = 512,
+                name: str = "albedo") -> "bpy.types.Image":
+    """
+    UV三角形を走査し、テクセルごとに3D位置を復元して color_fn(Vector)->
+    (r,g,b) を評価、アルベド画像に描く。口の線・斑点・まだら等の
+    「表面の模様」はジオメトリではなくここで描く(浮きようがない)。
+    UV島の外周は数px膨張させ、縮小表示時の継ぎ目の黒縁を防ぐ。
+    """
+    import numpy as np
+    mesh = obj.data
+    uv = mesh.uv_layers.active.data
+    mesh.calc_loop_triangles()
+    px = np.zeros((size, size, 4), dtype=np.float32)
+    filled = np.zeros((size, size), dtype=bool)
+    for tri in mesh.loop_triangles:
+        uvs = [uv[li].uv for li in tri.loops]
+        pos = [mesh.vertices[vi].co for vi in tri.vertices]
+        xs = [u.x * size for u in uvs]
+        ys = [u.y * size for u in uvs]
+        x0, x1, x2 = xs
+        y0, y1, y2 = ys
+        d = (y1 - y2) * (x0 - x2) + (x2 - x1) * (y0 - y2)
+        if abs(d) < 1e-12:
+            continue
+        for py in range(max(0, int(min(ys))), min(size - 1, int(max(ys)) + 1) + 1):
+            for pxi in range(max(0, int(min(xs))), min(size - 1, int(max(xs)) + 1) + 1):
+                cx, cy = pxi + 0.5, py + 0.5
+                l0 = ((y1 - y2) * (cx - x2) + (x2 - x1) * (cy - y2)) / d
+                l1 = ((y2 - y0) * (cx - x2) + (x0 - x2) * (cy - y2)) / d
+                l2 = 1.0 - l0 - l1
+                if l0 < -0.08 or l1 < -0.08 or l2 < -0.08:
+                    continue
+                p = pos[0] * max(l0, 0.0) + pos[1] * max(l1, 0.0) + pos[2] * max(l2, 0.0)
+                r, g, b = color_fn(p)
+                px[py, pxi] = (r, g, b, 1.0)
+                filled[py, pxi] = True
+    # 島の外周を膨張(未塗りの隣接テクセルへ色を広げる)
+    for _ in range(4):
+        grown = filled.copy()
+        for dy, dx in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            src_f = np.roll(filled, (dy, dx), axis=(0, 1))
+            src_c = np.roll(px, (dy, dx), axis=(0, 1))
+            take = src_f & ~grown
+            px[take] = src_c[take]
+            grown |= take
+        filled = grown
+    img = bpy.data.images.new(name, size, size, alpha=False)
+    img.pixels.foreach_set(px.ravel())
+    img.pack()
+    return img
+
+
+def make_textured_material(name: str, image: "bpy.types.Image",
+                           roughness: float = 0.8) -> "bpy.types.Material":
+    """Base Colorへ画像を接続した材質。エンジンのトゥーン変換はmapを引き継ぐ。"""
+    mat = bpy.data.materials.new(name)
+    mat.use_nodes = True
+    bsdf = mat.node_tree.nodes["Principled BSDF"]
+    bsdf.inputs["Roughness"].default_value = roughness
+    bsdf.inputs["Metallic"].default_value = 0.0
+    tex = mat.node_tree.nodes.new("ShaderNodeTexImage")
+    tex.image = image
+    mat.node_tree.links.new(tex.outputs["Color"], bsdf.inputs["Base Color"])
+    return mat
+
+
 def build_skinned(
     name: str,
     joints: dict[str, Vector],

@@ -7,4 +7,4 @@
 
 | モデル | 見た目 |
 |---|---|
-| gajiri | ![gajiri](./gajiri.gif) |
+| tsubute | ![tsubute](./tsubute.gif) |
