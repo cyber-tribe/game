@@ -33,6 +33,7 @@ Three.js 側で rotation.y = 0 が「南向き」に対応する。
 from __future__ import annotations
 
 import math
+import os
 
 # common が bpy を読み込む。mathutils は bpy の読み込み後でないと import できない
 import bmesh
@@ -120,6 +121,55 @@ HEAD_RINGS = [
 ]
 
 HAND_C_L = Vector((0.234, -0.004, 0.436))
+
+
+# ---- 顔のデカール(design/characters/garudo/face.svg をラスタライズしたもの) ----
+# 目・眉・鼻・口・頬は**SVGが唯一の情報源**。Pythonの数値で描くのをやめ、
+# 2Dデザインとして独立に編集できるようにした(plan/models/garudo-face-qa.md)。
+# SVGの座標系は顔一致QAのウィンドウと同一なので、QAが出す「◯mmずれ」が
+# そのままSVGの座標編集になる(1 SVG単位 = 0.5mm)。
+FACE_DECAL_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    "design", "characters", "garudo", "generated", "garudo-face-decal.png")
+DECAL_PPU = 2000.0
+DECAL_X0 = -0.16
+DECAL_Z1 = 1.02
+_decal_cache: list = []
+
+
+def _face_decal():
+    """デカール画像を(高さ, 幅, 4)のfloat配列で返す(上起点)"""
+    if not _decal_cache:
+        import numpy as np
+        img = bpy.data.images.load(FACE_DECAL_PATH)
+        w, h = img.size
+        px = np.empty(w * h * 4, dtype=np.float32)
+        img.pixels.foreach_get(px)
+        bpy.data.images.remove(img)
+        _decal_cache.append(px.reshape(h, w, 4)[::-1])
+    return _decal_cache[0]
+
+
+def _decal_sample(x: float, z: float):
+    """モデル座標(x, z)でデカールを引く。(r, g, b, a)。範囲外はa=0"""
+    dec = _face_decal()
+    h, w = dec.shape[:2]
+    sx = int((x - DECAL_X0) * DECAL_PPU)
+    sy = int((DECAL_Z1 - z) * DECAL_PPU)
+    if sx < 0 or sy < 0 or sx >= w or sy >= h:
+        return (0.0, 0.0, 0.0, 0.0)
+    r, g, b, a = dec[sy, sx]
+    return (float(r), float(g), float(b), float(a))
+
+
+def _over(base, x: float, z: float):
+    """デカールを肌などの下地へ重ねる"""
+    r, g, b, a = _decal_sample(x, z)
+    if a <= 0.004:
+        return base
+    return (base[0] + (r - base[0]) * a,
+            base[1] + (g - base[1]) * a,
+            base[2] + (b - base[2]) * a)
 
 
 def _arc_loft(name: str, rings, open_half_deg: float = 60.0,
@@ -511,9 +561,9 @@ def _eye_panel(name: str, side: float, rings: int = 5, segs: int = 16):
     # 陰影に出ない(set_originより前に行う: 原点を移すと頂点がローカル
     # 座標になり、ワールドの中心では向きが狂う)
     mesh.normals_split_custom_set_from_vertices(order)
-    aim = mesh.vertices[0].co.copy()
-    C.set_origin(obj, aim)
-    return obj
+    # 原点移動(まばたきのスケール用)は呼び出し側で行う。ここで移すと
+    # 頂点がローカル座標になり、デカールの平面投影が引けなくなる
+    return obj, mesh.vertices[0].co.copy()
 
 
 def _body_color(pos: Vector, normal: Vector):
@@ -556,38 +606,12 @@ def _body_color(pos: Vector, normal: Vector):
         if pos.y > 0.045 and pos.z > 0.800:
             return HAIR
         if pos.y < 0.006:
-            xz = Vector((pos.x, 0.0, pos.z))
-            for s in (1.0, -1.0):
-                # 眉: 細く、内側が低く外側へ上がってから下がる角度
-                # (設定画の実測: z0.867〜0.878、x0.021〜0.060)
-                d = _seg_dist(xz, Vector((0.015 * s, 0.0, BROW_Z - 0.005)),
-                              Vector((0.032 * s, 0.0, BROW_Z + 0.003)))
-                d = min(d, _seg_dist(xz, Vector((0.032 * s, 0.0, BROW_Z + 0.003)),
-                                     Vector((0.047 * s, 0.0, BROW_Z + 0.001))))
-                if d < 0.0040:
-                    return _lerp3((0.20, 0.13, 0.075), SKIN,
-                                  _smoothstep(0.0027, 0.0038, d))
-            # 口: 小さな一文字(設定画の口は目の内側幅ほどしかない)
-            d = _seg_dist(xz, Vector((-0.0105, 0.0, MOUTH_Z - 0.0008)),
-                          Vector((0.0105, 0.0, MOUTH_Z - 0.0008)))
-            if d < 0.0022:
-                return _lerp3((0.44, 0.22, 0.18), SKIN,
-                              _smoothstep(0.0015, 0.0022, d))
-            # 鼻: ごく小さな点
-            if (xz - Vector((0.0, 0.0, NOSE_Z))).length < 0.0026:
-                return _lerp3(SKIN, SKIN_SHADE, 0.85)
-            # 目のくぼみ(パッチの裏。まばたきで潰れたとき肌より少し暗い)
-            for s in (1.0, -1.0):
-                d = (xz - Vector((EYE_X * s, 0.0, EYE_Z))).length
-                if d < 0.022:
-                    return _lerp3(_lerp3(SKIN, SKIN_SHADE, 0.40), SKIN,
-                                  _smoothstep(0.010, 0.022, d))
-            # 頬のほんのり赤み
-            for s in (1.0, -1.0):
-                d = (xz - Vector((0.050 * s, 0.0, 0.815))).length
-                if d < 0.022:
-                    t = 1.0 - _smoothstep(0.008, 0.022, d)
-                    return _lerp3(SKIN, (0.95, 0.70, 0.55), 0.30 * t)
+            # 目・眉・鼻・口・頬はSVGのデカールから引く
+            # (design/characters/garudo/face.svg が唯一の情報源)
+            painted = _over(SKIN, pos.x, pos.z)
+            if painted != SKIN:
+                return painted
+
         # 顔の描き込み陰影(規約3)。トゥーン階調に頼らず、絵として
         # 「この面は少し暗い」を焼き込む: 前髪の落ち影・こめかみ・
         # あご下・首。照明が変わっても顔の立体が壊れない
@@ -714,12 +738,18 @@ def build() -> tuple[list, object]:
     # すべて1枚の絵として貼る。原点はパッチ中心なので、まばたきの
     # 縦スケールがその場で潰れる(従来は原点が首関節にあり、まばたきの
     # たびに目が足元へ飛んでいた)
-    eye_tex = _eye_texture()
-    eye_panel_mat = C.make_textured_material("garudo_eye", eye_tex, roughness=0.35)
+    # 目もSVGのデカールから焼く。パッチのUV(円板)はそのまま使い、
+    # bake_albedoが3D位置→デカールの平面投影で色を引く
+    def eye_color(pos, normal):
+        return _over(SKIN, pos.x, pos.z)
+
     eyes = []
     for s in (-1.0, 1.0):
-        panel = _eye_panel(f"eye{s}", s)
-        C.assign_material(panel, eye_panel_mat)
+        panel, aim = _eye_panel(f"eye{s}", s)
+        img = C.bake_albedo(panel, eye_color, size=192, name=f"garudo_eye_tex{s}")
+        C.assign_material(panel, C.make_textured_material(f"garudo_eye{s}", img,
+                                                          roughness=0.35))
+        C.set_origin(panel, aim)
         panel["blink"] = "white"
         eyes.append(panel)
 

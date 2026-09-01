@@ -22,6 +22,9 @@
  *
  *   node tools/render_svg.mjs --silhouette design/characters/garudo/turnarounds/garudo.svg
  *
+ * --transparent を付けると背景を透過で書き出す(顔デカールのように
+ * 3Dモデルへ重ねる画像用。透明部分は下地の色がそのまま出る)。
+ *
  * 環境変数は他のtools/*.mjsと同じ流儀。
  *   CHROMIUM_PATH    Chromium の実行ファイル
  *   PLAYWRIGHT_PATH  playwright パッケージの場所
@@ -43,7 +46,8 @@ async function loadPlaywright() {
 
 const rawArgs = process.argv.slice(2);
 const silhouette = rawArgs.includes("--silhouette");
-const inputs = rawArgs.filter((a) => a !== "--silhouette");
+const transparent = rawArgs.includes("--transparent");
+const inputs = rawArgs.filter((a) => a !== "--silhouette" && a !== "--transparent");
 if (inputs.length === 0) {
   console.error("使い方: node tools/render_svg.mjs [--silhouette] <svgファイル> [...]");
   process.exitCode = 1;
@@ -78,7 +82,7 @@ for (const input of inputs) {
   // ページも合わせるので、SVG側の余白設計がそのままPNGの余白になる)
   await page.setContent(
     `<!doctype html><meta charset="utf-8">
-     <style>html,body{margin:0;background:#fff}</style>
+     <style>html,body{margin:0;background:${transparent ? "transparent" : "#fff"}}</style>
      ${svg}`,
   );
   const el = await page.$("svg");
@@ -88,7 +92,9 @@ for (const input of inputs) {
   mkdirSync(outDir, { recursive: true });
   const suffix = silhouette ? "-silhouette" : "";
   const out = join(outDir, `${basename(input, ".svg")}${suffix}.png`);
-  await el.screenshot({ path: out });
+  // --transparent を付けると背景を透過で書き出す(顔デカールのように
+  // 3Dモデルへ重ねる画像は、透明部分がそのまま下地の色になる)
+  await el.screenshot({ path: out, omitBackground: transparent });
   console.log(`撮影: ${out}`);
 }
 
