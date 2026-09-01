@@ -19,3 +19,6 @@ playtest-shots/
 decision-density-shots/
 region1-tactical-shots/
 preview.log
+
+# 三面図シートとの比較合成(compare_sheet.py)は手元で再生成できる作業画像
+tools/preview/turnaround/*-vs-sheet.png
