@@ -1535,9 +1535,9 @@ def render_silhouette(name: str, objs: Sequence[bpy.types.Object], view: str = "
     重ね合わせ照合に使う。出力は tools/preview/silhouettes/<名前>-
     <view>.png。
 
-    view="front"は-Y方向(character-design-language.mdの正面)、
-    "side"は+X方向(mirrored()で.L側が+Xなので、この向きで見ると
-    体の左半身が見える側面図になる)から平行投影で見る。
+    view="front"はカメラを-Y側に置いて顔側(character-design-language.md
+    の正面)を、"side"はカメラを-X側に置いて右半身(.R側。mirrored()で
+    .L側が+X)を平行投影で写す。
     """
     silhouette_dir = os.path.join(PREVIEW_DIR, "silhouettes")
     os.makedirs(silhouette_dir, exist_ok=True)
@@ -1549,8 +1549,11 @@ def render_silhouette(name: str, objs: Sequence[bpy.types.Object], view: str = "
     center = (lo + hi) * 0.5
     extent = max((hi - lo).x, (hi - lo).y, (hi - lo).z, 0.5)
 
-    cam_dir = Vector((0, -1, 0)) if view == "front" else Vector((1, 0, 0))
-    cam_loc = center - cam_dir * (extent * 2)
+    # ベクトルは「中心から見たカメラの位置」。従来はこの符号が逆で、
+    # 正面と称して背面側から撮っていた(左右対称のシルエットでは実害が
+    # 出ず潜伏していた。render_turnaround導入時に発覚)
+    to_camera = Vector((0, -1, 0)) if view == "front" else Vector((-1, 0, 0))
+    cam_loc = center + to_camera * (extent * 2)
 
     bpy.ops.object.camera_add(location=cam_loc)
     cam = bpy.context.object
