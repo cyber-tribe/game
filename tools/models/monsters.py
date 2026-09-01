@@ -768,7 +768,7 @@ TSUBUTE_HALF = {
 }
 TSUBUTE_RADII_HALF = {
     "hip": 0.165, "chest": 0.175, "head": 0.145,
-    "armF.L": 0.038, "handF.L": 0.042,
+    "armF.L": 0.055, "handF.L": 0.058,
     "kneeB.L": 0.075, "ankleB.L": 0.050, "footB.L": 0.045,
 }
 TSUBUTE_BONES_HALF = [
@@ -778,46 +778,307 @@ TSUBUTE_BONES_HALF = [
 ]
 
 
+def _fix_orphan_weights(mesh_obj, joints, bones) -> None:
+    """
+    自動ウェイト(Bone Heat)は部品の多い密集メッシュで解を出せない
+    ことがある(「failed to find solution」警告)。無ウェイトの頂点は
+    ポーズ中その場に取り残される上、全滅するとglTF書き出しがスキンを
+    丸ごと落とす(garudo.pyの同名関数と同じ問題)。ここでは無ウェイト
+    頂点を近い2本のボーンへ距離の逆数で按分して割り当てる
+    (最寄り1本の剛体割り当てだと関節でちぎれて見えるため)。
+    """
+    segments = []
+    for parent, child in bones:
+        name = C.bone_name(parent, child)
+        vg = mesh_obj.vertex_groups.get(name)
+        if vg is None:
+            vg = mesh_obj.vertex_groups.new(name=name)
+        segments.append((vg, Vector(joints[parent]), Vector(joints[child])))
+
+    def seg_dist(p: Vector, a: Vector, b: Vector) -> float:
+        ab = b - a
+        if ab.length_squared == 0.0:
+            return (p - a).length
+        t = max(0.0, min(1.0, (p - a).dot(ab) / ab.length_squared))
+        return (p - (a + ab * t)).length
+
+    orphans = 0
+    for v in mesh_obj.data.vertices:
+        if any(g.weight > 0.001 for g in v.groups):
+            continue
+        ranked = sorted(segments, key=lambda s: seg_dist(v.co, s[1], s[2]))[:2]
+        dists = [max(seg_dist(v.co, a, b), 1e-4) for _, a, b in ranked]
+        inv = [1.0 / (d * d) for d in dists]
+        total = sum(inv)
+        for (vg, _, _), w in zip(ranked, inv):
+            vg.add([v.index], w / total, "REPLACE")
+        orphans += 1
+    if orphans:
+        print(f"  自動ウェイトの取りこぼし {orphans} 頂点を近傍ボーンへ按分した")
+
+
 def build_tsubute():
-    """ずんぐりした蛙。大きく張り出した後ろ足と、頭の上に飛び出した目が特徴。"""
+    """
+    確定した設定画(design/characters/tsubute/generated/tsubute-sheet.png、
+    ユーザー提供)に合わせた造形。骨格・アニメーションは従来のまま維持。
+
+    plan/models/sculpt-texture-pipeline.md のパイロット実装:
+    - **彫刻式の融合**: 体・指・つま先・腿・眉をボクセルリメッシュで
+      1つの連続メッシュに融合(継ぎ目のない造形)→ ゲーム用に削減
+    - **表面の模様はテクスチャに描く**: 口の線・鼻の穴・鼓膜・斑点・
+      まだらはUVアルベドへ焼き込み(ジオメトリのデカールは廃止)
+    - シルエットに出る形はジオメトリのまま: 背中の石の塚(黄金角
+      スパイラル)・目(まばたき機構)・投げる小石
+    """
     joints = C.mirrored(TSUBUTE_HALF)
     radii = C.mirrored_radii(TSUBUTE_RADII_HALF)
     bones = C.mirrored_bones(TSUBUTE_BONES_HALF)
 
-    body = C.build_skinned("tsubute", joints, bones, radii, root="chest", subsurf=2)
-    back = C.make_material("tsubute_back", (0.36, 0.56, 0.26), roughness=0.55)
-    belly = C.make_material("tsubute_belly", (0.82, 0.80, 0.55), roughness=0.6)
-    # 腹は下から見上げたときだけ見えるよう、真下を向いた面に限る。
-    # 高さだけで切ると横腹に水平の線が入って不自然になる。
-    C.assign_materials_by_region(
-        body, [back, belly],
-        lambda c: 1 if (c.z < 0.105 and abs(c.x) < 0.14) else 0,
-    )
+    body = C.build_skinned("tsubute_base", joints, bones, radii,
+                           root="chest", subsurf=2)
 
-    # まばたき対象(plan/models/archive/eye-blink-liveliness.md)。join()の
-    # 対象から外し、armature構築後に頭の骨(chest-head)へ直接つなぐ
-    eyes = []
+    # 下顎: 頭球の下半分が球のまま見えないよう、口の線より下の前面を
+    # 斜めの顎平面にクランプして「面」にする(形なのでリメッシュ前)
+    def jaw_limit(z: float) -> float:
+        return -0.160 - 1.43 * (z - 0.02)
+
+    for v in body.data.vertices:
+        if 0.0 <= v.co.z < 0.118 and v.co.y < jaw_limit(v.co.z):
+            t = max(0.0, min(1.0, (0.17 - abs(v.co.x)) / 0.08))
+            v.co.y += (jaw_limit(v.co.z) - v.co.y) * t
+
+    # 融合する部位。材質はあとでテクスチャとして塗るのでここでは不要
+    parts = [body]
     for side in (-1.0, 1.0):
-        # 目は頭の上に半分飛び出させる
-        eyes += eyeball(f"tsubute_eye{side}", (0.088 * side, -0.215, 0.278), 0.062,
-                        look=(0.25 * side, -0.8, 0.25), blink=True)
+        # 前足の指: 地面に着いた手から前へ3本、扇状に開く
+        hand = Vector((0.160 * side, -0.200, 0.025))
+        for fi, ang in enumerate((-0.55, 0.0, 0.55)):
+            d = Vector((math.sin(ang) * side, -math.cos(ang), 0.0))
+            parts.append(C.curve_tube(
+                f"tsubute_finger{fi}_{side}",
+                [hand, hand + d * 0.036 + Vector((0, 0, 0.005)), hand + d * 0.070],
+                [0.020, 0.015, 0.011]))
+        # 後足のつま先: 足首から外向きに3本のぞく
+        foot = Vector((0.168 * side, -0.150, 0.022))
+        for fi, ang in enumerate((0.25, 0.75, 1.15)):
+            d = Vector((math.sin(ang) * side, -math.cos(ang), 0.0))
+            parts.append(C.curve_tube(
+                f"tsubute_toe{fi}_{side}",
+                [foot, foot + d * 0.032 + Vector((0, 0, 0.004)), foot + d * 0.062],
+                [0.018, 0.013, 0.009]))
+        # 畳んだ後脚の太腿の量感
+        parts.append(C.uv_sphere(f"tsubute_thigh{side}",
+                                 (0.190 * side, 0.095, 0.185), 0.085,
+                                 segments=12, rings=9, scale=(0.75, 1.15, 0.95)))
+        # 尻まわりの張り出し: 設定画の「幅広で低い」どっしりした胴
+        parts.append(C.uv_sphere(f"tsubute_flank{side}",
+                                 (0.150 * side, 0.095, 0.140), 0.095,
+                                 segments=12, rings=9, scale=(1.1, 1.2, 0.9)))
+        # 前脚の柱: 肩から手首へまっすぐ体を支える(設定画の座り姿勢)。
+        # 肩側の端は胸に深く埋めて瘤に見えないようにする
+        parts.append(C.curve_tube(
+            f"tsubute_arm{side}",
+            [Vector((0.112 * side, -0.100, 0.165)),
+             Vector((0.150 * side, -0.168, 0.090)),
+             Vector((0.160 * side, -0.198, 0.030))],
+            [0.034, 0.030, 0.024]))
+        # 頬のふくらみ: 口角の外側の量感(大半を頭に埋めて微妙な隆起に)
+        parts.append(C.uv_sphere(f"tsubute_cheek{side}",
+                                 (0.092 * side, -0.232, 0.145), 0.038,
+                                 segments=10, rings=8))
+        # 眉の隆起: 目の上に張り出す重いひさし
+        parts.append(C.curve_tube(
+            f"tsubute_brow{side}",
+            [Vector((0.040 * side, -0.262, 0.330)),
+             Vector((0.100 * side, -0.240, 0.352)),
+             Vector((0.142 * side, -0.198, 0.328))],
+            [0.013, 0.018, 0.012]))
+
+    # 彫刻式の融合: 継ぎ目が消え、指や腿が「体から生えた」形になる。
+    # 融合は0.006で行い、出力は0.0095へ落としてゲーム用の密度にする
+    body = C.sculpt_merge("tsubute", parts, voxel=0.006, out_voxel=0.0095)
+
+    # 仕上げの削減は穏やかな比率(約1/3)で。極端な比率(1/18)は
+    # 細長い三角形でシルエットが折り紙状に荒れた
+    C.decimate_to(body, 6500)
+    # 赤道シーム+unwrapでUV展開(Smart UVは微小島化、平行投影は
+    # 裏表の衝突で模様が混線した。経緯はorganic_uvのdocstring参照)
+    C.organic_uv(body)
+
+    # 表面の凹凸(UV展開後にかける。UVは頂点に付いたまま保たれる)
+    for v in body.data.vertices:
+        px, py, pz = v.co.x, v.co.y, v.co.z
+        noise = (math.sin(px * 41.3 + py * 27.7)
+                 + math.sin(py * 53.1 + pz * 33.9)
+                 + math.sin(pz * 47.7 + px * 19.3)) / 3.0
+        amp = 0.0022 + (0.0022 if pz > 0.16 else 0.0)
+        v.co += v.normal * (noise * amp)
+
+    # ---- 表面の模様はテクスチャに描く(浮きようがない) ----
+    head_c = Vector((0.0, -0.20, 0.18))
+    mouth_raw = [Vector((-0.140, -0.250, 0.122)), Vector((-0.080, -0.318, 0.138)),
+                 Vector((0.0, -0.348, 0.142)),
+                 Vector((0.080, -0.318, 0.138)), Vector((0.140, -0.250, 0.122))]
+    mouth_pts = [head_c + (p - head_c).normalized() * 0.140 for p in mouth_raw]
+    nostril_pts = []
+    for side in (-1.0, 1.0):
+        nd = (Vector((0.030 * side, -0.322, 0.200)) - head_c).normalized()
+        nostril_pts.append(head_c + nd * 0.142)
+    # 斑点(|x|側で判定して左右対称)。顔には置かない
+    spots = [
+        (0.160, -0.090, 0.155, 0.024),   # 肩口
+        (0.155, -0.172, 0.078, 0.016),   # 前腕
+        (0.200, 0.115, 0.205, 0.022),    # 太腿上
+        (0.182, 0.042, 0.168, 0.018),    # 太腿前
+        (0.078, -0.225, 0.082, 0.018),   # 胸元
+        (0.175, 0.010, 0.130, 0.014),    # 脇腹の下
+    ]
+    back_col = (0.45, 0.47, 0.34)
+    belly_col = (0.85, 0.82, 0.66)
+    mouth_col = (0.22, 0.26, 0.16)
+
+    def _seg_dist(p, a, b):
+        ab = b - a
+        t = max(0.0, min(1.0, (p - a).dot(ab) / max(ab.length_squared, 1e-12)))
+        return (p - (a + ab * t)).length
+
+    def skin_color(p):
+        x, y, z = p.x, p.y, p.z
+        # 口の線(頭球表面に投影した折れ線への距離)
+        md = min(_seg_dist(p, a, b) for a, b in zip(mouth_pts, mouth_pts[1:]))
+        if md < 0.012:
+            return mouth_col
+        # 鼻の穴
+        for n in nostril_pts:
+            if (p - n).length < 0.0105:
+                return (0.26, 0.29, 0.19)
+        # 領域の塗り分け(腹〜胸〜あご下は生成り。設定画では生成りが
+        # 口の下まで続く)。境界はノイズで有機的に揺らす
+        wob = 0.008 * math.sin(x * 34 + z * 21) + 0.008 * math.sin(y * 27)
+        is_belly = (z < 0.112 + wob and abs(x) < 0.15 + wob and y < 0.12) \
+            or (y < -0.24 + wob and z < 0.125 + wob and abs(x) < 0.12)
+        base = belly_col if is_belly else back_col
+        # 鼓膜: 目の後ろの円環
+        td = (Vector((abs(x), y, z)) - Vector((0.132, -0.155, 0.238))).length
+        if 0.019 < td < 0.026:
+            return (base[0] * 0.72, base[1] * 0.74, base[2] * 0.70)
+        # 斑点
+        q = Vector((abs(x), y, z))
+        for sx, sy, sz, sr in spots:
+            if (q - Vector((sx, sy, sz))).length < sr:
+                return (0.62, 0.58, 0.42) if is_belly else (0.33, 0.38, 0.24)
+        # 腹の点々(設定画の生成り部分に散る濃い粒)
+        if is_belly:
+            cell = math.sin(x * 52 + 1.3) * math.sin(y * 47 + 0.4) \
+                * math.sin(z * 44 + 2.6)
+            if cell > 0.82:
+                return (0.55, 0.50, 0.36)
+        # まだら(低周波)
+        n = (math.sin(x * 9.1 + y * 6.3) + math.sin(y * 7.7 + z * 11.3)) / 2.0
+        shade = 1.0 - 0.13 * max(0.0, n)
+        green = 1.0 - 0.06 * max(0.0, -n)
+        return (base[0] * shade * green, base[1] * shade,
+                base[2] * shade * green * 0.97)
+
+    skin_img = C.bake_albedo(body, skin_color, size=384, name="tsubute_skin")
+    C.assign_material(body, C.make_textured_material("tsubute_skin_m", skin_img,
+                                                     roughness=0.85))
 
     extras = []
-    mouth = C.box("tsubute_mouth", (0.0, -0.300, 0.145), (0.19, 0.045, 0.020), bevel=0.009)
-    C.assign_material(mouth, C.make_material("tsubute_mouth_m", (0.22, 0.30, 0.16), roughness=0.5))
-    extras.append(mouth)
 
-    # 投げつける小石を手に持たせる。角のある石つぶて
-    # (plan/models/sheet-tsubute.md、plan/models/archive/
-    # silhouette-hard-surface-parts.mdの義務項目)。common.gem
-    # (正二十面体)そのままで硬い面を作る
+    # 背中〜頭の瘤(苔むした小石の群れ)。シルエットに出る形なので
+    # ジオメトリのまま。黄金角スパイラルで密に敷き詰める
+    wart_mats = [
+        C.make_material("tsubute_wart_moss", (0.42, 0.52, 0.36), roughness=0.75),
+        C.make_material("tsubute_wart_brown", (0.56, 0.46, 0.33), roughness=0.8),
+        C.make_material("tsubute_wart_slate", (0.46, 0.52, 0.56), roughness=0.7),
+        C.make_material("tsubute_wart_rust", (0.60, 0.43, 0.33), roughness=0.8),
+        C.make_material("tsubute_wart_pale", (0.55, 0.58, 0.44), roughness=0.75),
+    ]
+
+    def frac(x: float) -> float:
+        return x - math.floor(x)
+
+    golden = math.pi * (3.0 - math.sqrt(5.0))
+    lump_spheres = [
+        # (中心, 半径, 個数, 大きさ係数)
+        (Vector((0.0, -0.05, 0.19)), 0.172, 30, 1.0),   # 胸まわり
+        (Vector((0.0, 0.10, 0.17)), 0.168, 34, 1.25),   # 腰〜尻(最も大きく)
+        (Vector((0.0, -0.20, 0.18)), 0.142, 14, 0.75),  # 頭の上〜後ろ(小さめ)
+    ]
+    lump_index = 0
+    for si, (center, radius, count, size_mul) in enumerate(lump_spheres):
+        for i in range(count):
+            t = (i + 0.5) / count
+            zdir = 1.0 - t * 1.25          # 上半球中心、脇腹まで少し回り込む
+            ring = math.sqrt(max(0.0, 1.0 - zdir * zdir))
+            ang = i * golden + si * 1.7
+            d = Vector((math.cos(ang) * ring, math.sin(ang) * ring, zdir))
+            if si == 2 and d.y < 0.18:
+                continue                    # 頭は目の直後から後ろ(顔を空ける)
+            if d.z < 0.05 and d.y < -0.05:
+                continue                    # 前下(喉・腹)には置かない
+            pos = center + d * (radius * 0.99)
+            if pos.z < 0.10:
+                continue                    # 接地近くは除外
+            if pos.y < -0.13 and pos.z > 0.20:
+                continue                    # 額・眉・目のまわりには置かない
+            h = frac(math.sin((lump_index + 1) * 12.9898) * 43758.5453)
+            h2 = frac(math.sin((lump_index + 1) * 78.233) * 12735.7191)
+            h3 = frac(math.sin((lump_index + 1) * 39.425) * 26714.3583)
+            size = (0.024 + 0.030 * h) * size_mul * (1.0 + 0.45 * max(0.0, d.z))
+            # 手に持って投げる石と同じgem(角のある平面シェードの多面体)。
+            # 「ポロッと取って投げられる石」の群れに見せる。丸いuv_sphere
+            # だとマーブルチョコのような菓子の粒になってしまう。
+            wart = C.gem(f"tsubute_wart{lump_index}", (0.0, 0.0, 0.0), size,
+                         subdivisions=1,
+                         scale=(1.0 + 0.25 * h, 1.0 - 0.15 * h2, 0.80 + 0.25 * h3))
+            wart.rotation_euler = (h * 6.28, h2 * 6.28, h3 * 6.28)
+            wart.location = pos
+            C.assign_material(wart, wart_mats[lump_index % len(wart_mats)])
+            extras.append(wart)
+            lump_index += 1
+
+    # 目: 厚いまぶたのドーム+琥珀の虹彩+横長の黒い瞳+光の粒。
+    # まばたき対象(琥珀の玉・瞳)はjoinから外し、後で頭の骨へつなぐ
+    lid_mat = C.make_material("tsubute_lid", (0.45, 0.47, 0.34), roughness=0.7)
+    iris_mat = C.make_material("tsubute_iris", (0.85, 0.63, 0.20), roughness=0.15)
+    pupil_mat = C.make_material("tsubute_pupil", (0.10, 0.08, 0.06), roughness=0.15)
+    gleam_mat = C.make_material("tsubute_gleam", (1.0, 1.0, 1.0), roughness=0.1,
+                                emission=0.5)
+    eyes = []
+    for side in (-1.0, 1.0):
+        center = Vector((0.090 * side, -0.210, 0.285))
+        iris = C.uv_sphere(f"tsubute_iris{side}", center, 0.060,
+                           segments=14, rings=10)
+        C.assign_material(iris, iris_mat)
+        iris["blink"] = "white"
+        pupil = C.uv_sphere(f"tsubute_pupil{side}",
+                            center + Vector((0.004 * side, -0.046, 0.002)), 0.026,
+                            segments=10, rings=8, scale=(1.55, 0.5, 0.55))
+        C.assign_material(pupil, pupil_mat)
+        pupil["blink"] = "pupil"
+        eyes += [iris, pupil]
+        lid = C.uv_sphere(f"tsubute_lid{side}", center + Vector((0.0, 0.008, 0.034)),
+                          0.060, segments=12, rings=9, scale=(1.08, 1.0, 0.50))
+        extras.append(lid)
+        C.assign_material(lid, lid_mat)
+        gleam = C.uv_sphere(f"tsubute_gleam{side}",
+                            center + Vector((0.020 * side, -0.052, 0.014)), 0.011,
+                            segments=8, rings=6)
+        C.assign_material(gleam, gleam_mat)
+        extras.append(gleam)
+
+    # 投げつける小石(角のある石つぶて)。従来どおり右手に持つ
     stone = C.gem("tsubute_stone", (0.180, -0.225, 0.055), 0.044, subdivisions=1,
                   scale=(1.0, 0.9, 0.85))
-    C.assign_material(stone, C.make_material("tsubute_stone_m", (0.45, 0.44, 0.42), roughness=0.9))
+    C.assign_material(stone, C.make_material("tsubute_stone_m", (0.48, 0.47, 0.44),
+                                             roughness=0.9))
     extras.append(stone)
 
     mesh = C.join([body] + extras, "tsubute")
     armature = C.build_armature("tsubute", joints, bones, mesh, root="chest")
+    _fix_orphan_weights(mesh, joints, bones)
     for eye in eyes:
         C.parent_to_bone(eye, armature, "chest-head")
     return [mesh, armature] + eyes, armature
