@@ -633,59 +633,54 @@ def _hair_cap():
     return obj
 
 
-def _hair_clump_from(clump: dict):
+def _hair_major_from(major: dict):
     """
-    毛束1本。**根元は頭皮に密着し、毛先へ向かって離れる**。
+    主要毛束1本。**設定画からなぞった輪郭をそのまま形にする**
+    (plan/models/garudo-hair-clumps.md 第2次改訂)。
 
-    中心線は4点:
-      p0 = 根元(頭皮の上)
-      p1, p2 = 根元から毛先へ向かう途中。頭の表面に沿わせつつ lift だけ浮かす
-      p3 = 毛先(設定画から実測した x,z と、人手で置いた y)
+    中心線+幅で作る従来の毛束では、設定画に描かれている毛束の
+    輪郭 ―― 前髪が2つに割れた毛先、シルエットの尖り、房と房の切れ込み
+    ―― を作れなかった。正面図でなぞった閉じた輪郭 `path_xz` を入力に
+    すると、**正面のシルエットは定義により設定画と一致する**。
 
-    lift を効かせるのが要点。一定量で頭に沿わせると殻(ヘルメット)に
-    戻り、いきなり直線で飛ばすと根元が頭から浮く。
+    y(奥行き)は頭の楕円断面から取り、根元から離れるほど `lift` だけ
+    前へ浮かせる。輪郭は正面図から取ったものなので、奥行きの責任は
+    こちら側にある。
     """
-    root = clump["root"]
-    tip = Vector((clump["tip"]["x"], clump["tip"]["y"], clump["tip"]["z"]))
-    p0 = _scalp_point(root["az"], root["z"])
-    lift = clump["lift"]
-    spine = [p0]
-    for i, t in enumerate((0.34, 0.68), start=1):
-        given = clump.get("mid")
-        if given:
-            # **人手で置く中間点**(設定画の毛束の分かれ目)。x,z だけ与え、
-            # yは頭の表面から取る。前髪は「どこで割れるか」が額の露出を
-            # 決めるので、根元と毛先の自動補間では出せない
-            mx, z = given[i - 1]
-            rx, _ry, _cy = _head_at(z)
-            az = math.degrees(math.asin(max(-1.0, min(1.0, mx / rx))))
-            if abs(root["az"]) > 90.0:
-                az = 180.0 - az
-            on_head = _scalp_point(az, z)
-            p = on_head
-        else:
-            # 高さと方位角を根元から毛先へ寄せながら、頭の表面をなぞる
-            z = p0.z + (tip.z - p0.z) * t
-            tip_az = math.degrees(math.atan2(tip.x, -(tip.y - _head_at(z)[2])))
-            az = root["az"] + (tip_az - root["az"]) * t
-            on_head = _scalp_point(az, z)
-            # 毛先へ向かう向きにも寄せる(まっすぐ頭に張り付いたままにしない)
-            straight = p0 + (tip - p0) * t
-            p = on_head.lerp(straight, t * 0.55)
-        outward = Vector((on_head.x, on_head.y - _head_at(z)[2], 0.0))
-        if outward.length_squared > 1e-12:
-            outward.normalize()
-        else:
-            outward = Vector((0.0, -1.0, 0.0))
-        spine.append(p + outward * lift[i])
-    spine.append(tip)
-    _HAIR_SPINES.append(spine)
-    obj = C.hair_clump(f"h_{clump['name']}", spine,
-                       clump["width"], clump["thickness"], segments=8)
-    # 法線は**その毛束自身**を滑らかな立体として整える。髪全体を1つの
-    # 球へ寄せると、毛束を作っても一枚のヘルメットのように光る
+    outline = [(float(x), float(z)) for x, z in major["path_xz"]]
+    root = Vector((major["root"][0], 0.0, major["root"][1]))
+    lift = float(major["lift"])
+
+    def depth(x: float, z: float) -> float:
+        rx, ry, cy = _head_at(z)
+        a = math.asin(max(-1.0, min(1.0, x / max(1e-6, rx))))
+        far = math.hypot(x - root.x, z - root.z)
+        return cy - ry * math.cos(a) - lift * (0.30 + 0.70 * min(1.0, far / 0.040))
+
+    obj = C.clump_shell(f"h_{major['name']}", outline, depth,
+                        half_thick=float(major["thick"]), ramp=0.014, cuts=2)
+    # 塗り(_hair_color)が「根元から毛先へ」を知るための中心線。輪郭の
+    # 点を根元からの距離で4つの帯に分け、帯ごとの重心をつなぐ
+    order = sorted(outline, key=lambda p: math.hypot(p[0] - root.x, p[1] - root.z))
+    spine = [root.copy()]
+    bands = 4
+    for k in range(bands):
+        part = order[len(order) * k // bands: max(1, len(order) * (k + 1) // bands)]
+        if not part:
+            continue
+        mx = sum(p[0] for p in part) / len(part)
+        mz = sum(p[1] for p in part) / len(part)
+        spine.append(Vector((mx, depth(mx, mz), mz)))
+    spine[0] = Vector((root.x, depth(root.x, root.z), root.z))
+    # 塗りが「毛束の縁」を出すには、中心線からの距離を**その毛束の太さで
+    # 割る**必要がある。輪郭から作る毛束は幅が20〜80mmと差が大きく、
+    # 距離をmmのまま使うと大きい毛束が全面まっ黒になる
+    # (実測: crown_Lのモデル側の髪判定が78%まで落ちた)
+    half = sum(min((Vector((x, 0.0, z)) - Vector((q.x, 0.0, q.z))).length
+                   for q in spine) for x, z in outline) / max(1, len(outline))
+    _HAIR_SPINES.append((spine, max(0.006, half)))
     C.spherize_normals(obj, tuple(spine[0].lerp(spine[-1], 0.5)),
-                       radius=None, strength=0.35)
+                       radius=None, strength=0.30)
     return obj
 
 
@@ -697,13 +692,14 @@ def _hair_along(pos: Vector):
     `sin(方位角*16)` の縞を髪全体に掛けていたが、これは毛束の位置と
     無関係なので、せっかく毛束を作っても「縞のヘルメット」に見える。
 
-    返すのは (中心線からの距離, 根元からの長さ, 毛先までの長さ)。
+    返すのは (中心線からの距離をその毛束の太さで割った比,
+    根元からの長さ, 毛先までの長さ)。
     **割合ではなく長さ**で返すのが要点。割合で根元を暗くすると、
     長い襟足の毛束が半分まで暗くなり、後頭部に横一本の帯が出る
     (実測: 背面レンダー)。
     """
     best = (1e9, 0.0, 1.0)
-    for spine in _HAIR_SPINES:
+    for spine, half in _HAIR_SPINES:
         total = sum((b - a).length for a, b in zip(spine, spine[1:])) or 1e-9
         run = 0.0
         for a, b in zip(spine, spine[1:]):
@@ -711,7 +707,7 @@ def _hair_along(pos: Vector):
             ll = d.length_squared or 1e-12
             u = max(0.0, min(1.0, (pos - a).dot(d) / ll))
             q = a + d * u
-            dist = (pos - q).length
+            dist = (pos - q).length / half     # **その毛束の太さで割る**
             if dist < best[0]:
                 along = run + d.length * u
                 best = (dist, along, total - along)
@@ -731,7 +727,7 @@ def _hair_color(pos: Vector, normal: Vector):
     f = 1.0
     f *= 0.79 + 0.32 * _smoothstep(0.0, 0.026, from_root)  # 根元が暗い
     f *= 1.0 - 0.26 * _smoothstep(0.030, 0.0, to_tip)      # 毛先が暗い
-    f *= 1.0 - 0.40 * min(1.0, max(0.0, (dist - 0.004) / 0.012))  # 毛束の縁
+    f *= 1.0 - 0.30 * _smoothstep(0.55, 1.15, dist)        # 毛束の縁
     f *= 0.96 + 0.32 * max(0.0, min(1.0, (pos.z - 0.82) / 0.16))  # 上ほど明るい
     f *= 1.0 + 0.16 * max(0.0, normal.z) - 0.20 * max(0.0, -normal.z)
     if pos.y > 0.055:
@@ -1115,7 +1111,10 @@ def build() -> tuple[list, object]:
     # 毛束は design/characters/garudo/hair-clumps.json から読む。
     # 毛先は設定画から実測した値(tools/trace_hair_clumps.py)。
     cap = _hair_cap()
-    clumps = [_hair_clump_from(c) for c in _hair_table()["clumps"]]
+    clumps = [_hair_major_from(m) for m in _hair_table()["major"]]
+    # 主要毛束の間(髪の面積の約3割)は補助の毛束で埋める。輪郭の作りは
+    # 同じで、浮かせる量を小さくして主要毛束の**下**に敷く
+    clumps += [_hair_major_from(m) for m in _hair_table().get("aux", [])]
     # **capが輪郭を作っていないことを機械で確かめる。** 目で見ても
     # 「髪の塊」にしか見えず気付けない(旧h_baseがそうだった)
     # capは後頭部では表面そのものでよい(仕様2-5)が、**輪郭を作っては
@@ -1145,7 +1144,7 @@ def build() -> tuple[list, object]:
                                                      roughness=0.8))
     # **髪全体を1つの球へ寄せる法線補正はしない。** 顔には有効だが、髪に
     # 掛けるとせっかく毛束を作っても一枚の丸いヘルメットのように光る。
-    # 法線は毛束ごとに整えてある(_hair_clump_from の中で、その毛束の
+    # 法線は毛束ごとに整えてある(_hair_major_from の中で、その毛束の
     # 中心線を軸とする円柱へ寄せる)
 
     # ================= ベルト+バックル+肩ひも(剛体) =================

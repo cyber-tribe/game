@@ -223,17 +223,56 @@ def hair_edge(img: "np.ndarray"):
     return left, right, top
 
 
-def resolve_path(steps, left, right, top):
+def hair_bottom(img: "np.ndarray", z_hi: float = 0.945, z_lo: float = 0.835):
+    """
+    額の上の**生え際**。x ごとに、上から降りてきて髪が切れる高さ。
+
+    前髪の毛束の輪郭はここに乗せる。ここを測らずに手で多角形を引くと、
+    輪郭が額や目を丸ごと囲ってしまう(実測: 主要毛束が肌の6%を食い、
+    顔一致QAの肌IoU到達率が98%→93%へ落ちた)。
+    """
+    m = F.classify(img)
+    xs = np.arange(F.RES_X) / F.PX_PER_UNIT - F.WIN_HALF_X
+    zs = F.WIN_Z1 - np.arange(F.RES_Y) / F.PX_PER_UNIT
+    r_hi = int(np.argmin(abs(zs - z_hi)))
+    r_lo = int(np.argmin(abs(zs - z_lo)))
+    out = {}
+    for c in range(F.RES_X):
+        col = m["hair"][r_hi:r_lo, c]
+        if not col.any():
+            continue
+        # 上から連続している髪が切れるところ。1〜2画素の穴では切らない。
+        # **その列で髪が始まる高さから数える**。z_hi固定で数え始めると、
+        # 髪の上端がz_hiより下にある側頭部で即座に切れてしまう
+        r = int(np.argmax(col))
+        gap = 0
+        last = r
+        while r < len(col):
+            if col[r]:
+                last = r
+                gap = 0
+            else:
+                gap += 1
+                if gap >= 3:
+                    break
+            r += 1
+        out[round(float(xs[c]), 4)] = float(zs[r_hi + last])
+    return out
+
+
+def resolve_path(steps, left, right, top, bottom=None):
     """
     主要毛束の輪郭を組み立てる。**測れる辺は測り、測れない辺だけ手で置く**。
 
       ["edge", "L"|"R", z0, z1] : 髪の左右の輪郭を z0→z1 でなぞる(+xがL)
       ["top", x0, x1]           : 髪の上の輪郭を x0→x1 でなぞる
+      ["hairline", x0, x1]      : 額の上の生え際を x0→x1 でなぞる
       ["at", x, z]              : 手で置いた点(毛束の内側の境目)
 
     毛束の内側の境目は設定画に線として描かれてはいるが、線は毛束を
     囲っていないので自動では取れない(`--ridge`の画像を見て人が置く)。
     """
+    bottom = bottom or {}
     out = []
     for step in steps:
         kind = step[0]
@@ -252,10 +291,17 @@ def resolve_path(steps, left, right, top):
             if x1 < x0:
                 keys.reverse()
             out.extend((k, top[k]) for k in keys[::3])
+        elif kind == "hairline":
+            x0, x1 = float(step[1]), float(step[2])
+            keys = sorted(k for k in bottom
+                          if min(x0, x1) - 1e-9 <= k <= max(x0, x1) + 1e-9)
+            if x1 < x0:
+                keys.reverse()
+            out.extend((k, bottom[k]) for k in keys[::3])
     return out
 
 
-def draw_major(img, majors, left, right, top):
+def draw_major(img, majors, left, right, top, bottom=None):
     """主要毛束の輪郭を設定画へ重ねた確認画像"""
     xs = np.arange(F.RES_X) / F.PX_PER_UNIT - F.WIN_HALF_X
     zs = F.WIN_Z1 - np.arange(F.RES_Y) / F.PX_PER_UNIT
@@ -264,7 +310,7 @@ def draw_major(img, majors, left, right, top):
     palette = [(0.85,0.25,0.20),(0.20,0.45,0.85),(0.20,0.65,0.35),(0.85,0.60,0.10),
                (0.60,0.30,0.75),(0.15,0.65,0.70),(0.85,0.40,0.60),(0.45,0.45,0.20)]
     for i, clump in enumerate(majors):
-        poly = resolve_path(clump["path"], left, right, top)
+        poly = resolve_path(clump["path"], left, right, top, bottom)
         if len(poly) < 3:
             continue
         px = np.array([(p[0] + F.WIN_HALF_X) * F.PX_PER_UNIT for p in poly])
@@ -303,6 +349,7 @@ def main() -> int:
         img = front_window(name, ref)
         hair, ridge = hair_ridges(img)
         left, right, top = hair_edge(img)
+        bottom = hair_bottom(img)
         m = F.classify(img)
         pic = np.ones((F.RES_Y, F.RES_X, 3), dtype=np.float32)
         if "--ridge" in flags:
@@ -312,16 +359,32 @@ def main() -> int:
             tag = "ridge"
         else:
             with open(out_path, encoding="utf-8") as fh:
-                majors = json.load(fh).get("major", [])
-            pic, covered = draw_major(img, majors, left, right, top)
+                data = json.load(fh)
+            # 補助毛束も主要毛束と同じ形式で持ち、被覆率は合わせて測る
+            majors = data.get("major", []) + data.get("aux", [])
+            # なぞった輪郭を**点列へ焼き込む**。モデルのビルドが設定画の
+            # 画像を読まなくて済むようにする(edge/top は画像から測った
+            # 輪郭なので、ここで解決しないとビルドが画像に依存する)
+            for c in majors:
+                c["path_xz"] = [[round(x, 5), round(z, 5)]
+                                for x, z in resolve_path(c["path"], left, right, top)]
+            with open(out_path, "w", encoding="utf-8") as fh:
+                json.dump(data, fh, ensure_ascii=False, indent=2)
+            pic, covered = draw_major(img, majors, left, right, top, bottom)
             pic[ridge] = pic[ridge] * 0.3
             tag = "major"
             hit = (covered & hair).sum()
-            print(f"主要毛束が覆う髪の面積: {hit / max(1, hair.sum()) * 100:.0f}%"
-                  f"  (残りは補助の小さい毛束で埋める)\n")
+            # **肌をどれだけ食っているかも測る。** 髪の被覆率だけ見て
+            # いると、前髪の輪郭が額や目を丸ごと囲っていても気付けない
+            # (実測: 額の露出が0になり顔一致QAの肌IoUが98%→93%へ落ちた)
+            skin = m["skin"] & ~hair
+            bite = (covered & skin).sum()
+            print(f"毛束(主要+補助)が覆う髪の面積: {hit / max(1, hair.sum()) * 100:.0f}%")
+            print(f"毛束が食う肌の面積: {bite / max(1, skin.sum()) * 100:.0f}%"
+                  f"  (**0%でなければ輪郭が生え際を割っている**)\n")
             print(f"{'毛束':<14}{'点数':>6}{'x(mm)':>18}{'z(mm)':>18}")
             for c in majors:
-                poly = resolve_path(c["path"], left, right, top)
+                poly = resolve_path(c["path"], left, right, top, bottom)
                 px = [p[0] * 1000 for p in poly]
                 pz = [p[1] * 1000 for p in poly]
                 print(f"{c['name']:<14}{len(poly):>6}"
@@ -404,10 +467,11 @@ def main() -> int:
         "再生成すると上書きされる。major は主要毛束の輪郭で、"
         "測れる辺(髪の輪郭)は edge/top で指定し、毛束どうしの境目だけ"
         "at で人が置く(--ridge の画像を見て決める)。"
-        "clumps は毛束の定義。座標は顔一致QAと同じモデル座標(m)")
+        "aux は主要毛束の間を埋める補助毛束。座標は顔一致QAと同じ"
+        "モデル座標(m)")
     data["tips"] = tips
     data.setdefault("major", [])
-    data.setdefault("clumps", [])
+    data.setdefault("aux", [])
     with open(out_path, "w", encoding="utf-8") as fh:
         json.dump(data, fh, ensure_ascii=False, indent=2)
     print(f"\n毛先 {len(tips)}点 → {out_path}")

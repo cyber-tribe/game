@@ -338,6 +338,30 @@ def eye_pair(masks, band, min_size=40, max_w=0.060, max_h=0.050):
 IOU_REACH_MIN = 0.95
 
 
+def fill_polygon(poly) -> "np.ndarray":
+    """
+    モデル座標(x, z)の閉じた多角形を、顔一致QAの窓へ塗ったマスクにする。
+    毛束の輪郭を設定画・モデルの髪マスクと直接比べるために使う。
+    """
+    px = np.array([(float(x) + WIN_HALF_X) * PX_PER_UNIT for x, _z in poly])
+    pz = np.array([(WIN_Z1 - float(z)) * PX_PER_UNIT for _x, z in poly])
+    mask = np.zeros((RES_Y, RES_X), dtype=bool)
+    n = len(poly)
+    for r in range(max(0, int(pz.min())), min(RES_Y, int(pz.max()) + 1)):
+        hits = []
+        for j in range(n):
+            z0, z1 = pz[j], pz[(j + 1) % n]
+            if (z0 <= r < z1) or (z1 <= r < z0):
+                t = (r - z0) / (z1 - z0)
+                hits.append(px[j] + (px[(j + 1) % n] - px[j]) * t)
+        hits.sort()
+        for a, b in zip(hits[0::2], hits[1::2]):
+            lo, hi = int(max(0, a)), int(min(RES_X - 1, b))
+            if hi > lo:
+                mask[r, lo:hi] = True
+    return mask
+
+
 def symmetric_ceiling(mask) -> float:
     """
     **左右対称なメッシュが、この基準に対して到達できるIoUの上限。**
@@ -707,38 +731,61 @@ def main() -> int:
     # ---- 毛束の構造(外形だけを見ると「ウニ」になる) ----
     # 外形の指標は「輪郭が上下に振れること」しか見ないので、地肌へ垂直な
     # トゲを生やすだけで通ってしまう(実測54%→97%、見た目はウニ)。
-    # 毛束の毛先が**設定画で測った毛先の位置に来ているか**を別に見る。
+    #
+    # 見るのは**毛束1本ずつの輪郭**(第2次改訂)。設定画からなぞった輪郭
+    # (design/characters/<名前>/hair-clumps.json の path_xz)を正面図の
+    # 窓へ塗り、
+    #   設定画側: その輪郭が設定画の髪に乗っているか(なぞり間違い)
+    #   モデル側: その輪郭にモデルの髪が描画されているか(他の毛束や
+    #             Hair Capに飲まれていないか)
+    # の2つを測る。毛先1点だけを見ていたときは、毛束の**形**が違っても
+    # 通ってしまった。
     clump_path = os.path.join(os.path.dirname(os.path.dirname(
         os.path.abspath(__file__))), "design", "characters", name,
         "hair-clumps.json")
     if os.path.exists(clump_path):
         with open(clump_path, encoding="utf-8") as fh:
             table = json.load(fh)
-        tips = [(t["x"], t["z"]) for t in table.get("tips", [])]
-        clumps = [(c["tip"]["x"], c["tip"]["z"], c["name"])
-                  for c in table.get("clumps", [])]
-        if tips and clumps:
-            print(f"\n  {'設定画の毛先':<14}{'x,z(mm)':>16}"
-                  f"{'最寄りの毛束':>14}{'差(mm)':>9}")
-            errs = []
-            for tx, tz in tips:
-                d, cx, cz, nm = min(
-                    (math.dist((tx, tz), (cx, cz)), cx, cz, nm)
-                    for cx, cz, nm in clumps)
-                errs.append(d * 1000.0)
-                # 毛先の位置に**実際に髪が描画されているか**も見る
-                # (表に書いただけで、他の毛束に飲まれている事故を防ぐ)
-                col = int((cx + WIN_HALF_X) * PX_PER_UNIT)
-                row = int((WIN_Z1 - cz) * PX_PER_UNIT)
-                near = b["hair"][max(0, row - 4):row + 5,
-                                 max(0, col - 4):col + 5].any()
-                print(f"  {'':<14}{tx * 1000:>8.1f},{tz * 1000:>7.1f}"
-                      f"{nm:>14}{d * 1000:>9.1f}{'' if near else '  描画なし'}")
-            mean_t = sum(errs) / len(errs)
-            ok_t = mean_t <= 6.0 and max(errs) <= 12.0
-            print(f"  毛先ランドマーク  平均 {mean_t:.1f}mm / 最大 {max(errs):.1f}mm"
-                  f"  {'ok' if ok_t else 'NG'}  (基準 平均<=6.0 最大<=12.0)")
-            passed.append(ok_t)
+        majors = [(c, True) for c in table.get("major", [])]
+        majors += [(c, False) for c in table.get("aux", [])]
+        # 細い毛束は**線として描かれている**(墨の1本線)。彩度の低い
+        # 濃い画素は classify では hair に入らないので、設定画側の判定は
+        # hair と dark の和で見る(実測: 頭頂の細い跳ねは hair 判定 8%)
+        sheet_hair = a_aligned["hair"] | a_aligned["dark"]
+        # 墨の線には太さがあり、周りは中間調でどの分類にも入らない。
+        # 1.5mmだけ太らせてから比べる(輪郭は毛束の外側をなぞるので、
+        # 細い毛束ほどこの猶予が要る)
+        pad = int(round(0.0015 * PX_PER_UNIT))
+        grown = sheet_hair.copy()
+        for dr in range(-pad, pad + 1):
+            for dc in range(-pad, pad + 1):
+                grown |= np.roll(np.roll(sheet_hair, dr, axis=0), dc, axis=1)
+        sheet_hair = grown
+        rows = []
+        for clump, is_major in majors:
+            poly = clump.get("path_xz")
+            if not poly:
+                continue
+            mask = fill_polygon(poly)
+            area = int(mask.sum())
+            if area < 20:
+                continue
+            on_sheet = float((mask & sheet_hair).sum()) / area
+            on_model = float((mask & b["hair"]).sum()) / area
+            rows.append((clump["name"], is_major, area, on_sheet, on_model))
+        if rows:
+            print(f"\n  {'毛束':<14}{'面積mm2':>9}{'設定画で髪':>11}{'モデルで髪':>11}")
+            for nm, is_major, area, on_sheet, on_model in rows:
+                flag = "" if on_model >= 0.90 else "  NG"
+                print(f"  {nm:<14}{area / PX_PER_UNIT ** 2 * 1e6:>9.0f}"
+                      f"{on_sheet * 100:>10.0f}%{on_model * 100:>10.0f}%{flag}")
+            worst_sheet = min(r[3] for r in rows if r[1])
+            worst_model = min(r[4] for r in rows if r[1])
+            ok_c = worst_sheet >= 0.90 and worst_model >= 0.90
+            print(f"  毛束の輪郭  設定画で最悪 {worst_sheet * 100:.0f}% / "
+                  f"モデルで最悪 {worst_model * 100:.0f}%"
+                  f"  {'ok' if ok_c else 'NG'}  (基準 どちらも>=90%)")
+            passed.append(ok_c)
 
     ra, rb = raggedness(head_a), raggedness(head_b)
     ok_r = rb >= ra * 0.7
