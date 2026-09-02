@@ -13,6 +13,23 @@ import { MODEL_HEIGHT_BASELINE, SINK_EXCEPTIONS } from "./helpers/modelBaseline"
 const MODEL_DIR = join(import.meta.dirname, "..", "public", "models");
 
 /**
+ * 1体あたりの予算。**役どころで変える**。
+ *
+ * もとは全キャラ一律700KB/12,000三角形だったが、主人公は常時画面に
+ * 1体だけ映り、会話やカットで一番カメラに寄る。そこへ雑魚と同じ枠を
+ * 掛けると、顔テクスチャの解像度が足りずに目がドットになり、口の線が
+ * にじむ(実測: 顔1,212 texels/unit では口の線が保てない)。
+ * 同時に十数体描かれるモンスター・村人の枠は据え置く。
+ */
+const SIZE_BUDGET: Record<string, number> = { garudo: 2600 * 1024 };
+const TRI_BUDGET: Record<string, number> = { garudo: 24000 };
+const DEFAULT_SIZE_BUDGET = 700 * 1024;
+const DEFAULT_TRI_BUDGET = 12000;
+
+const sizeBudget = (name: string) => SIZE_BUDGET[name] ?? DEFAULT_SIZE_BUDGET;
+const triBudget = (name: string) => TRI_BUDGET[name] ?? DEFAULT_TRI_BUDGET;
+
+/**
  * .glb は「ヘッダ + チャンクの並び」という単純な容器で、最初のチャンクが
  * glTF の JSON、2つ目が頂点データ等のバイナリ(BIN)。ライブラリを
  * 持ち込まなくても、この2つを読めば中身を検査できる。
@@ -28,12 +45,15 @@ interface GltfAccessor {
 }
 
 interface GltfNode {
+  name?: string;
   mesh?: number;
   children?: number[];
   matrix?: number[];
   translation?: number[];
   rotation?: number[];
   scale?: number[];
+  /** モデル側のカスタムプロパティ(まばたきの指定など) */
+  extras?: Record<string, unknown>;
 }
 
 interface Gltf {
@@ -43,7 +63,7 @@ interface Gltf {
       indices?: number;
     }[];
   }[];
-  materials?: unknown[];
+  materials?: { name?: string }[];
   skins?: unknown[];
   animations?: { name?: string }[];
   accessors?: GltfAccessor[];
@@ -236,12 +256,13 @@ describe("3Dモデル", () => {
   });
 
   it("1体あたりのポリゴン数が予算内に収まっている", () => {
-    // 描画は同時に十数体ぶん走る。1体が肥大すると効いてくるので上限を決めておく
     for (const name of animatedModelNames()) {
       const bytes = statSync(join(MODEL_DIR, `${name}.glb`)).size;
-      expect(bytes, `${name}: ${Math.round(bytes / 1024)}KB は大きすぎる`).toBeLessThan(
-        700 * 1024,
-      );
+      const limit = sizeBudget(name);
+      expect(
+        bytes,
+        `${name}: ${Math.round(bytes / 1024)}KB は大きすぎる(上限 ${Math.round(limit / 1024)}KB)`,
+      ).toBeLessThan(limit);
     }
   });
 
@@ -259,9 +280,11 @@ describe("3Dモデル", () => {
   it("村人も1体あたりの大きさが予算内に収まっている", () => {
     for (const name of VILLAGER_MODELS) {
       const bytes = statSync(join(MODEL_DIR, `${name}.glb`)).size;
-      expect(bytes, `${name}: ${Math.round(bytes / 1024)}KB は大きすぎる`).toBeLessThan(
-        700 * 1024,
-      );
+      const limit = sizeBudget(name);
+      expect(
+        bytes,
+        `${name}: ${Math.round(bytes / 1024)}KB は大きすぎる(上限 ${Math.round(limit / 1024)}KB)`,
+      ).toBeLessThan(limit);
     }
   });
 
@@ -293,7 +316,29 @@ describe("3Dモデル", () => {
     // ファイルサイズとは別の予算。テクスチャを軽くしてポリゴンを湯水のように
     // 使う逃げ道を塞ぐ(描画は同時に十数体ぶん走る)
     const tris = triangleCount(readGlb(name));
-    expect(tris, `${name}: ${tris}三角形は多すぎる`).toBeLessThanOrEqual(12000);
+    const limit = triBudget(name);
+    expect(
+      tris,
+      `${name}: ${tris}三角形は多すぎる(上限 ${limit})`,
+    ).toBeLessThanOrEqual(limit);
+  });
+
+  it("garudo の顔がまばたきのアトラスを持っている", () => {
+    // テクスチャ切り替え方式(plan/models/garudo-face-qa.md 第9段階)。
+    // 目のためだけの板は貼らず、顔のUV島を別マテリアルにして
+    // open/half/closed を横に並べてある。extrasが落ちると
+    // src/view/blink.ts が対象を見つけられず、見た目は正常なのに
+    // まばたきだけ静かに止まる
+    const gltf = readGlb("garudo");
+    const tagged = (gltf.nodes ?? []).filter((n) => n.extras?.blink === "eyelid");
+    expect(tagged.length, "garudo: blink=eyelid のノードが1つ要る").toBe(1);
+    const extras = tagged[0]!.extras!;
+    expect(extras.blinkTiles, "コマ数(open/half/closed)").toBe(3);
+    const faceMaterial = String(extras.blinkMaterial ?? "");
+    expect(
+      (gltf.materials ?? []).map((m) => m.name),
+      `顔のマテリアル ${faceMaterial} が無い`,
+    ).toContain(faceMaterial);
   });
 
   it.each(characters)("%s にどのボーンにも属さない頂点が無い", (name) => {

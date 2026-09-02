@@ -474,11 +474,20 @@ def organic_uv(obj: "bpy.types.Object", axis: int = 2,
             (normals[lf[0].index][axis] >= 0) != (normals[lf[1].index][axis] >= 0)
     inside: set[int] = set()
     if boost is not None:
-        center, radius, _factor = boost
+        center, radius, _factor = boost[:3]
+        # 4つ目にyの上限を渡すと、球を**前面だけ**に切る。球だけだと
+        # 顔の高さを覆う半径が頭の奥行きを超え、裏側の面まで入って
+        # UV島が断片に割れる(実測: 顔のタイルの左半分が裏側の切れ端で
+        # 埋まり、顔が22%しか使えなかった)
+        max_y = boost[3] if len(boost) > 3 else None
         c = Vector(center)
         for f in bm.faces:
-            if (f.calc_center_median() - c).length <= radius:
-                inside.add(f.index)
+            fc = f.calc_center_median()
+            if (fc - c).length > radius:
+                continue
+            if max_y is not None and fc.y > max_y:
+                continue
+            inside.add(f.index)
         # 領域の境界エッジへシームを足し、独立した島に切り出す
         for e in bm.edges:
             lf = e.link_faces
@@ -506,6 +515,60 @@ def organic_uv(obj: "bpy.types.Object", axis: int = 2,
     bpy.ops.mesh.select_all(action="SELECT")
     bpy.ops.uv.pack_islands(margin=0.015)
     bpy.ops.object.mode_set(mode="OBJECT")
+
+
+def split_material_region(obj: "bpy.types.Object", center, radius: float,
+                          margin: float = 0.004, max_y: float | None = None) -> set:
+    """
+    球の中の面を**2つ目のマテリアルスロット**へ移し、そのUVを[0,1]いっぱいへ
+    引き伸ばす。返すのは移した面のindex集合。
+
+    顔のように「表情ぶんのコマを横に並べたアトラス」を貼りたい部位を、
+    本体のテクスチャから切り離すための仕組み。UVを部位だけで[0,1]へ
+    取り直すので、その部位専用のテクスチャを無駄なく使える。
+
+    前提: organic_uv の boost で同じ球を切り出してあること(境界に
+    シームが入っていないと、島が本体と繋がったまま引き伸ばされる)。
+    """
+    mesh = obj.data
+    c = Vector(center)
+    inside = {p.index for p in mesh.polygons
+              if (p.center - c).length <= radius
+              and (max_y is None or p.center.y <= max_y)}
+    if not inside:
+        return inside
+    while len(obj.data.materials) < 2:
+        obj.data.materials.append(None)
+    for p in mesh.polygons:
+        p.material_index = 1 if p.index in inside else 0
+    # **その部位のUV島だけを[0,1]へ詰め直す**。外接箱で正規化しては
+    # いけない: 球で切った領域はたいてい複数の島に割れており、遠くに
+    # packされた断片が箱を広げて、肝心の顔がタイルの隅の小さな領域に
+    # なる(実測: 顔がタイルの25%しか占めず、密度が1/4になった)
+    activate(obj)
+    bpy.ops.object.mode_set(mode="OBJECT")
+    for p in mesh.polygons:
+        p.select = p.index in inside
+    prev_sync = bpy.context.scene.tool_settings.use_uv_select_sync
+    bpy.context.scene.tool_settings.use_uv_select_sync = True
+    bpy.ops.object.mode_set(mode="EDIT")
+    bpy.ops.uv.pack_islands(margin=margin)
+    bpy.ops.object.mode_set(mode="OBJECT")
+    bpy.context.scene.tool_settings.use_uv_select_sync = prev_sync
+    # packで断片がひとかたまりに寄るので、そのあと外接箱で[0,1]へ伸ばす。
+    # 縦横は独立に伸ばす(縦横比を保つと細長い島でタイルの大半が空く)
+    uv = mesh.uv_layers.active.data
+    loops = [li for p in mesh.polygons if p.index in inside for li in p.loop_indices]
+    xs = [uv[li].uv.x for li in loops]
+    ys = [uv[li].uv.y for li in loops]
+    x0, x1 = min(xs), max(xs)
+    y0, y1 = min(ys), max(ys)
+    sx = (1.0 - 2 * margin) / max(1e-6, x1 - x0)
+    sy = (1.0 - 2 * margin) / max(1e-6, y1 - y0)
+    for li in loops:
+        uv[li].uv.x = margin + (uv[li].uv.x - x0) * sx
+        uv[li].uv.y = margin + (uv[li].uv.y - y0) * sy
+    return inside
 
 
 def uv_report(obj: "bpy.types.Object", size: int = 384,
@@ -651,7 +714,8 @@ def triplanar_uv(obj: "bpy.types.Object") -> None:
 
 
 def bake_albedo(obj: "bpy.types.Object", color_fn, size: int = 512,
-                name: str = "albedo") -> "bpy.types.Image":
+                name: str = "albedo",
+                material_index: int | None = None) -> "bpy.types.Image":
     """
     UV三角形を走査し、テクセルごとに3D位置を復元して
     color_fn(位置Vector, 面法線Vector)->(r,g,b) を評価、アルベド画像に
@@ -675,6 +739,8 @@ def bake_albedo(obj: "bpy.types.Object", color_fn, size: int = 512,
     # 拾う漏れも同時に防げる
     for strict in (True, False):
         for tri in mesh.loop_triangles:
+            if material_index is not None and tri.material_index != material_index:
+                continue
             uvs = [uv[li].uv for li in tri.loops]
             pos = [mesh.vertices[vi].co for vi in tri.vertices]
             tn = (pos[1] - pos[0]).cross(pos[2] - pos[0])

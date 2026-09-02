@@ -33,6 +33,7 @@ Three.js 側で rotation.y = 0 が「南向き」に対応する。
 from __future__ import annotations
 
 import math
+import os
 
 # common が bpy を読み込む。mathutils は bpy の読み込み後でないと import できない
 import bmesh
@@ -82,7 +83,7 @@ SHIRT = (0.88, 0.84, 0.73)          # 生成りのシャツ
 SHIRT_LINE = (0.74, 0.69, 0.58)     # 前立て・ボタンの線
 TROUSERS = (0.35, 0.41, 0.49)       # 青灰のズボン(新設定画で深緑から変更)
 LEATHER = (0.42, 0.28, 0.16)        # 革(ベルト・手袋・靴)
-HAIR = (0.29, 0.19, 0.11)           # 茶色の無造作な髪
+HAIR = (0.33, 0.25, 0.185)          # 茶色の無造作な髪(設定画の髪の平均色を実測)
 CLOTH = (0.60, 0.20, 0.15)          # 腰布(赤)
 APRON_WOOD = props.BARREL_WOOD      # 樽板エプロン(実物の樽と同色で統一)
 HOOP = props.BARREL_IRON            # たが(鉄輪)
@@ -91,25 +92,25 @@ HOOP = props.BARREL_IRON            # たが(鉄輪)
 # (1px=0.002282、z=(937-y)*0.002282)。頭を球で作ると設定画と別人になる
 # (実測: 設定画の顔は目の高さで半幅0.071→あご0.023へ絞る卵形。球で
 # 作ると髪込みのシルエット幅を頭蓋に使うことになり、あごの無い団子顔)
-CHIN_Z = 0.770          # あご先
-EYE_Z = 0.851           # 目の中心の高さ
-EYE_X = 0.0360          # 顔の中心から目の中心まで
-BROW_Z = 0.884          # 眉(目パッチの上端0.871より上に置く)
+CHIN_Z = 0.762          # あご先(顔QAの実測)
+EYE_Z = 0.8460          # 目の中心の高さ(顔QAの実測)
+EYE_X = 0.0317          # 顔の中心から目の中心まで(顔QAの実測)
+BROW_Z = 0.870          # 眉(顔QAの実測。目パッチ上端0.8612のすぐ上)
 MOUTH_Z = 0.800
 NOSE_Z = 0.828
 SKULL_TOP_Z = 0.970
 
 # 目まわりの造作を置くための、顔の前面に当てた楕円体(頭ロフトの
 # 目の高さ付近と一致させてある)
-FACE_C = Vector((0.0, 0.010, 0.858))
+FACE_C = Vector((0.0, 0.010, 0.852))
 FACE_R = Vector((0.0770, 0.079, 0.086))
 
 # 頭のロフト断面(z, rx, ry, cx, cy)。正面図の幅と側面図の奥行きから
 HEAD_RINGS = [
-    (0.770, 0.019, 0.027, 0.0, 0.006),
-    (0.786, 0.035, 0.045, 0.0, 0.008),
-    (0.804, 0.049, 0.058, 0.0, 0.009),
-    (0.824, 0.070, 0.074, 0.0, 0.010),
+    (0.762, 0.018, 0.026, 0.0, 0.006),
+    (0.780, 0.034, 0.044, 0.0, 0.008),
+    (0.800, 0.050, 0.058, 0.0, 0.009),
+    (0.824, 0.0735, 0.076, 0.0, 0.010),
     (0.848, 0.0765, 0.079, 0.0, 0.010),
     (0.872, 0.0775, 0.080, 0.0, 0.010),
     (0.898, 0.0760, 0.079, 0.0, 0.011),
@@ -119,7 +120,123 @@ HEAD_RINGS = [
     (0.970, 0.016, 0.019, 0.0, 0.014),
 ]
 
-HAND_C_L = Vector((0.234, -0.004, 0.436))
+HAND_C_L = Vector((0.230, -0.004, 0.442))
+
+# 手袋の指。設定画の手袋は指が分かれた革手袋で、全長110mm・うち指が半分。
+# **ジオメトリと塗りで同じ定義を使う**(別々に持つと、指の間の線が
+# ジオメトリの指とずれる)。(並びの位置, 長さ, 根元半径, 先半径, 手前への曲げ)
+FINGERS = (
+    (-0.018, 0.046, 0.0072, 0.0055, 0.006),
+    (-0.006, 0.052, 0.0076, 0.0058, 0.008),
+    (0.006, 0.048, 0.0072, 0.0055, 0.008),
+    (0.017, 0.037, 0.0062, 0.0048, 0.006),
+)
+ARM_DIR = Vector((0.386, -0.022, -0.918))     # 肘→手の向き(+x側)
+FINGER_SPREAD = Vector((0.918, 0.0, 0.386))   # 指を並べる向き(+x側)
+THUMB = ((0.216, -0.010, 0.452), (0.208, -0.018, 0.436), (0.206, -0.022, 0.422))
+
+
+def _finger_axes(side: float):
+    """片手ぶんの指の軸(根元, 先, 半径)。sideは+1/-1"""
+    arm = Vector((ARM_DIR.x * side, ARM_DIR.y, ARM_DIR.z))
+    spread = Vector((FINGER_SPREAD.x * side, 0.0, FINGER_SPREAD.z))
+    palm = Vector((HAND_C_L.x * side, HAND_C_L.y, HAND_C_L.z)) + arm * 0.018
+    out = []
+    for off, length, r0, r1, bend in FINGERS:
+        base = palm + spread * off
+        mid = base + arm * (length * 0.55) + Vector((0.0, -bend, 0.0))
+        tip = base + arm * length + Vector((0.0, -bend * 1.4, 0.0))
+        out.append((base, mid, tip, r0, r1))
+    return out
+
+
+# ---- 顔のデカール(design/characters/garudo/face.svg をラスタライズしたもの) ----
+# 目・眉・鼻・口・頬は**SVGが唯一の情報源**。Pythonの数値で描くのをやめ、
+# 2Dデザインとして独立に編集できるようにした(plan/models/garudo-face-qa.md)。
+# SVGの座標系は顔一致QAのウィンドウと同一なので、QAが出す「◯mmずれ」が
+# そのままSVGの座標編集になる(1 SVG単位 = 0.5mm)。
+FACE_DECAL_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    "design", "characters", "garudo", "generated", "garudo-face-decal.png")
+DECAL_PPU = 6000.0   # face.svgを--scale=3で焼いた画素密度
+# face.svgは**まばたきの3状態を横に並べた1枚**(open / half / closed)。
+# 同じ(x, z)へ状態ぶんの横オフセットを足して引く
+DECAL_STATES = ("open", "half", "closed")
+# 顔を本体から切り離す球(この中の面が顔のマテリアルになる)。
+# **頭全体ではなく前面だけ**にする。頭全体を1枚に取ると、後頭部が
+# タイルの大半を占めて顔の密度が半分になる(実測: 3,911→1,980 texels/unit、
+# 肌IoUが0.82→0.74へ落ちた)
+FACE_ISLAND_C = (0.0, -0.030, 0.852)
+FACE_ISLAND_R = 0.098
+FACE_ISLAND_MAX_Y = 0.004     # ここより後ろ(裏側)は顔に含めない
+# 顔のアトラス1コマの解像度。顔の幅155mmに対し768pxで約5px/mm
+FACE_TEX = 768
+DECAL_STATE_DX = 0.32
+DECAL_X0 = -0.16
+DECAL_Z1 = 1.02
+_decal_cache: list = []
+
+
+def _face_decal():
+    """デカール画像を(高さ, 幅, 4)のfloat配列で返す(上起点)"""
+    if not _decal_cache:
+        import numpy as np
+        img = bpy.data.images.load(FACE_DECAL_PATH)
+        w, h = img.size
+        px = np.empty(w * h * 4, dtype=np.float32)
+        img.pixels.foreach_get(px)
+        bpy.data.images.remove(img)
+        _decal_cache.append(px.reshape(h, w, 4)[::-1])
+    return _decal_cache[0]
+
+
+def _decal_sample(x: float, z: float, state: int = 0):
+    """
+    モデル座標(x, z)でデカールを引く。(r, g, b, a)。範囲外はa=0。
+
+    **双一次補間**で引く。最近傍(int()で切り捨て)だと、顔テクスチャの
+    密度を上げてもデカールの画素の階段がそのまま出る。ついでに切り捨ては
+    半画素ぶん常に手前へずれる(実測: x=0.030がfloat32では0.0299999に
+    なり、隣の画素を引いて色が変わった)
+    """
+    dec = _face_decal()
+    h, w = dec.shape[:2]
+    fx = (x - DECAL_X0 + state * DECAL_STATE_DX) * DECAL_PPU - 0.5
+    fy = (DECAL_Z1 - z) * DECAL_PPU - 0.5
+    x0, y0 = math.floor(fx), math.floor(fy)
+    if x0 < 0 or y0 < 0 or x0 + 1 >= w or y0 + 1 >= h:
+        return (0.0, 0.0, 0.0, 0.0)
+    tx, ty = fx - x0, fy - y0
+    p = (dec[y0, x0] * (1 - tx) + dec[y0, x0 + 1] * tx) * (1 - ty) \
+        + (dec[y0 + 1, x0] * (1 - tx) + dec[y0 + 1, x0 + 1] * tx) * ty
+    return (float(p[0]), float(p[1]), float(p[2]), float(p[3]))
+
+
+def _over(base, x: float, z: float, state: int = 0):
+    """デカールを肌などの下地へ重ねる"""
+    r, g, b, a = _decal_sample(x, z, state)
+    if a <= 0.004:
+        return base
+    return (base[0] + (r - base[0]) * a,
+            base[1] + (g - base[1]) * a,
+            base[2] + (b - base[2]) * a)
+
+
+def _atlas_h(images, name: str):
+    """画像を横に並べて1枚にする(まばたきの状態アトラス)"""
+    import numpy as np
+    tiles = []
+    for im in images:
+        w, h = im.size
+        px = np.empty(w * h * 4, dtype=np.float32)
+        im.pixels.foreach_get(px)
+        tiles.append(px.reshape(h, w, 4))
+    out = np.concatenate(tiles, axis=1)
+    for im in images:
+        bpy.data.images.remove(im)
+    img = bpy.data.images.new(name, width=out.shape[1], height=out.shape[0])
+    img.pixels.foreach_set(out.ravel())
+    return img
 
 
 def _arc_loft(name: str, rings, open_half_deg: float = 60.0,
@@ -147,6 +264,37 @@ def _arc_loft(name: str, rings, open_half_deg: float = 60.0,
     bm.free()
     for poly in mesh.polygons:
         poly.use_smooth = smooth
+    return obj
+
+
+def _hair_shell(name: str, rings, sign: float = 1.0, segments: int = 8):
+    """
+    頭の曲面に沿う横髪のシェル。板(平面)では顔の膨らみに負けて裏へ
+    隠れてしまう(実測: 目の高さで肌が45mm余計に見えた)ので、頭と同じ
+    楕円の**角度スライス**で作る。ringsは(z, rx, ry, cy, deg0, deg1)で、
+    deg0(前寄り)〜deg1(後ろ寄り)の角度範囲を高さごとに変えられる
+    (設定画の横髪は頬で引っ込み、こめかみとあごで前へ出る)。
+    """
+    mesh = bpy.data.meshes.new(name)
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj)
+    bm = bmesh.new()
+    ring_verts = []
+    for z, rx, ry, cy, deg0, deg1 in rings:
+        row = []
+        for i in range(segments + 1):
+            a = math.radians(deg0 + (deg1 - deg0) * i / segments)
+            row.append(bm.verts.new((sign * rx * math.cos(a),
+                                     cy + ry * math.sin(a), z)))
+        ring_verts.append(row)
+    for lower, upper in zip(ring_verts, ring_verts[1:]):
+        for i in range(segments):
+            bm.faces.new((lower[i], lower[i + 1], upper[i + 1], upper[i]))
+    bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
+    bm.to_mesh(mesh)
+    bm.free()
+    for poly in mesh.polygons:
+        poly.use_smooth = True
     return obj
 
 
@@ -332,8 +480,9 @@ def _hair_card(name: str, base, tip, w_base: float, w_mid: float,
 
 # 目のパッチの寸法。設定画の目(幅0.0342×高さ0.018)を、テクスチャの
 # アーモンド(円板に対し幅0.94・高さ0.76)で埋めるとこの大きさになる
-EYE_HALF_W = 0.0202
+EYE_HALF_W = 0.0171
 EYE_HALF_H = 0.0197
+
 
 
 def _eye_texture(size: int = 128) -> "bpy.types.Image":
@@ -365,8 +514,15 @@ def _eye_texture(size: int = 128) -> "bpy.types.Image":
         m = mask[..., None]
         px[..., :3] = px[..., :3] * (1.0 - m) + np.array(color, dtype=np.float32) * m
 
-    def almond(cx, cy, rx, ry, power=1.65):
-        """角の尖ったアーモンド形(超楕円)。アニメの目の輪郭"""
+    def almond(cx, cy, rx, ry_up, ry_down=None, power=1.65):
+        """
+        角の尖ったアーモンド形(超楕円)。アニメの目の輪郭。
+        上下で半径を変えられる: 設定画の目は**目頭・目尻が縦の中心より
+        上**にあり(実測: корner z847.8に対し上瞼858・下瞼830)、
+        下まぶたが深く垂れる形をしている
+        """
+        ry_down = ry_up if ry_down is None else ry_down
+        ry = np.where(y >= cy, ry_up, ry_down)
         d = (np.abs((x - cx) / rx) ** power + np.abs((y - cy) / ry) ** power) ** (1.0 / power)
         return 1.0 - smooth(1.0 - aa * 2.0, 1.0 + aa * 2.0, d)
 
@@ -374,15 +530,16 @@ def _eye_texture(size: int = 128) -> "bpy.types.Image":
     # パッチの外周には肌を残し(顔と法線を揃えてあるので継ぎ目が出ない)、
     # その内側にアーモンド形の目を1枚の絵として描く
     px[..., :3] = np.array(SKIN, dtype=np.float32)
-    paint(almond(0.0, -0.06, 0.94, 0.76), LINE)                  # 目の輪郭線
-    paint(almond(0.0, -0.14, 0.84, 0.60), (0.97, 0.96, 0.94))    # 白目
+    paint(almond(0.0, 0.09, 0.94, 0.52, 0.90), LINE)             # 目の輪郭線
+    paint(almond(0.0, 0.03, 0.86, 0.44, 0.80), (0.97, 0.96, 0.94))  # 白目
     paint(ellipse(0.0, -0.14, 0.50, 0.56), (0.30, 0.18, 0.10))   # 虹彩の縁
     paint(ellipse(0.0, -0.16, 0.38, 0.43), (0.62, 0.38, 0.17))   # 虹彩(暖色)
     paint(ellipse(0.0, -0.17, 0.17, 0.19), (0.10, 0.065, 0.05))  # 瞳
     paint(ellipse(-0.22, 0.06, 0.16, 0.15), (1.0, 1.0, 1.0))     # ハイライト大
     paint(ellipse(0.20, -0.42, 0.085, 0.08), (1.0, 1.0, 1.0))    # ハイライト小
     # 上まぶた(太い線)。虹彩の上を少し隠すとアニメの目になる
-    lid = almond(0.0, -0.06, 0.94, 0.76) * (1.0 - almond(0.0, -0.30, 0.90, 0.72))
+    lid = almond(0.0, 0.09, 0.94, 0.52, 0.90) * \
+        (1.0 - almond(0.0, -0.10, 0.92, 0.50, 0.88))
     paint(lid, LINE)
 
     img = bpy.data.images.new("garudo_eye_tex", size, size, alpha=False)
@@ -391,109 +548,52 @@ def _eye_texture(size: int = 128) -> "bpy.types.Image":
     return img
 
 
-def _eye_panel(name: str, side: float, rings: int = 5, segs: int = 16):
-    """
-    顔の楕円体(FACE_C/FACE_R)に沿う楕円のパッチ。UVは円板なので、
-    目の絵をそのまま貼れる。原点はパッチの中心へ置く(まばたきの
-    スケールがその場で潰れるため)。
-
-    球ではなく楕円体に乗せるのは、設定画の顔があごへ絞る卵形で、
-    目が顔の側面近くまで回り込むため(球だと浮くか埋まる)。
-    """
-    # 正規化空間(楕円体→単位球)で組み、最後に半径を掛けて戻す
-    nx = EYE_X * side / FACE_R.x
-    nz = (EYE_Z - FACE_C.z) / FACE_R.z
-    ny = -math.sqrt(max(1e-6, 1.0 - nx * nx - nz * nz))
-    d = Vector((nx, ny, nz)).normalized()
-    up = Vector((0.0, 0.0, 1.0))
-    tv = (up - d * up.dot(d)).normalized()
-    tu = tv.cross(d).normalized()
-    # パッチの世界寸法 → 正規化空間での角度
-    au = math.asin(min(0.9, EYE_HALF_W / FACE_R.x))
-    av = math.asin(min(0.9, EYE_HALF_H / FACE_R.z))
-
-    def surface(r: float, theta: float):
-        n = (d + tu * math.tan(au) * r * math.cos(theta)
-             + tv * math.tan(av) * r * math.sin(theta)).normalized()
-        p = Vector((FACE_C.x + n.x * FACE_R.x,
-                    FACE_C.y + n.y * FACE_R.y,
-                    FACE_C.z + n.z * FACE_R.z))
-        # 楕円体の外向き法線(勾配)へ少しだけ浮かせて顔に埋まらないように
-        grad = Vector((n.x / FACE_R.x, n.y / FACE_R.y, n.z / FACE_R.z)).normalized()
-        return p + grad * 0.0025, grad
-
-    mesh = bpy.data.meshes.new(name)
-    obj = bpy.data.objects.new(name, mesh)
-    bpy.context.collection.objects.link(obj)
-    bm = bmesh.new()
-    uv_layer = bm.loops.layers.uv.new("UVMap")
-    uvs = {}
-    normals = {}
-
-    def vert(r: float, theta: float):
-        p, grad = surface(r, theta)
-        v = bm.verts.new(p)
-        uvs[v] = (0.5 + 0.5 * r * math.cos(theta), 0.5 + 0.5 * r * math.sin(theta))
-        normals[v] = grad
-        return v
-
-    center_v = vert(0.0, 0.0)
-    ring_verts = [[vert(i / rings, math.tau * k / segs) for k in range(segs)]
-                  for i in range(1, rings + 1)]
-
-    def add_face(vs):
-        f = bm.faces.new(vs)
-        for loop in f.loops:
-            loop[uv_layer].uv = uvs[loop.vert]
-
-    for k in range(segs):
-        add_face((center_v, ring_verts[0][k], ring_verts[0][(k + 1) % segs]))
-    for lower, upper in zip(ring_verts, ring_verts[1:]):
-        for k in range(segs):
-            add_face((lower[k], upper[k], upper[(k + 1) % segs], lower[(k + 1) % segs]))
-    bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
-    # 開いたパッチではrecalcの向きが不定。顔の外向きへ揃える
-    # (裏向きだと陰になり、白目が暗く沈む)
-    probe = bm.faces[:][0]
-    if probe.normal.dot(probe.calc_center_median() - FACE_C) < 0:
-        bmesh.ops.reverse_faces(bm, faces=list(bm.faces))
-    order = [normals[v] for v in bm.verts]
-    bm.to_mesh(mesh)
-    bm.free()
-    for poly in mesh.polygons:
-        poly.use_smooth = True
-    # 法線は顔の楕円体の外向きへ。顔と同じ向きなのでパッチの継ぎ目が
-    # 陰影に出ない(set_originより前に行う: 原点を移すと頂点がローカル
-    # 座標になり、ワールドの中心では向きが狂う)
-    mesh.normals_split_custom_set_from_vertices(order)
-    aim = mesh.vertices[0].co.copy()
-    C.set_origin(obj, aim)
-    return obj
-
-
-def _body_color(pos: Vector, normal: Vector):
+def _body_color(pos: Vector, normal: Vector, state: int = 0):
     """
     融合ボディの塗り分け(距離場)+顔・前立ての焼き込み。
     優先順: 手袋 > 素肌(頭・前腕) > ズボン(ベルトより下) > シャツ。
     しきい値の段差はベルト・エプロン・ブーツの実体ジオメトリの陰に隠れる。
     """
     # 手袋(手の球距離場)。甲の明るみ+手首側を暗く
-    d_hand = min((pos - HAND_C_L).length,
-                 (pos - Vector((-HAND_C_L.x, HAND_C_L.y, HAND_C_L.z))).length)
-    glove = 1.0 - _smoothstep(0.049, 0.057, d_hand)
-    if glove > 0.5:
+    # 手袋の範囲。手のひらの球だけで判定していたので**指先がズボンの色**に
+    # なっていた(実測: レンダリングで指の先が青)。指の軸からの距離も見る
+    side = 1.0 if pos.x >= 0 else -1.0
+    palm_c = Vector((HAND_C_L.x * side, HAND_C_L.y, HAND_C_L.z))
+    d_hand = (pos - palm_c).length - 0.020
+    if d_hand > 0.075:
+        # 手から離れたテクセルで指の距離を計算しない(全身のテクセルで
+        # 走るので、これが無いとビルドが33秒→54秒になる実測)
+        return _body_color_no_hand(pos, normal, state)
+    finger_d = []
+    for base, mid, tip, r0, r1 in _finger_axes(side):
+        d = min(_seg_dist(pos, base, mid), _seg_dist(pos, mid, tip))
+        finger_d.append(d - (r0 + r1) * 0.5)
+        d_hand = min(d_hand, finger_d[-1])
+    d_hand = min(d_hand, _seg_dist(pos, Vector((THUMB[0][0] * side, THUMB[0][1], THUMB[0][2])),
+                                   Vector((THUMB[2][0] * side, THUMB[2][1], THUMB[2][2]))) - 0.008)
+    if d_hand < 0.006:
         f = 1.0
-        xc = 0.234 if pos.x >= 0 else -0.234
-        d_knuckle = (pos - Vector((xc, -0.030, 0.432))).length
+        d_knuckle = (pos - (palm_c + Vector((0.0, -0.026, -0.004)))).length
         f *= 1.0 + 0.14 * (1.0 - _smoothstep(0.012, 0.030, d_knuckle))
-        if pos.z > 0.456:
-            f *= 0.90
+        if pos.z > HAND_C_L.z + 0.020:
+            f *= 0.90                                   # 手首側を暗く
+        # **指の間の線を描く**。指は隙間を空けても、ボクセルの解像度では
+        # 埋まってヘラになる(実測: 3.8mmボクセルでは4mmの隙間が消える)。
+        # 設定画も指は接していて線で分かれているので、塗りで分ける
+        near = sorted(finger_d)
+        if len(near) > 1 and near[1] - near[0] < 0.0016 and near[0] < 0.004:
+            f *= 0.62
         return _shade(LEATHER, f)
 
+    return _body_color_no_hand(pos, normal, state)
+
+
+def _body_color_no_hand(pos: Vector, normal: Vector, state: int = 0):
+    """手袋より後ろの塗り分け(素肌・ズボン・シャツ)"""
     # 素肌: 首から上(頭はロフトの卵形なので球の距離場は使えない。
     # 胴の肩口がz0.782なので、この高さで切れば首と頭だけが残る)+
     # 前腕のカプセル(袖まくりの先)
-    skin_field = _smoothstep(0.778, 0.790, pos.z)
+    skin_field = _smoothstep(0.760, 0.772, pos.z)
     for s in (1.0, -1.0):
         d_fore = _seg_dist(pos, Vector((0.165 * s, 0.004, 0.594)),
                            Vector((0.227 * s, 0.0, 0.452)))
@@ -511,38 +611,16 @@ def _body_color(pos: Vector, normal: Vector):
         if pos.y > 0.045 and pos.z > 0.800:
             return HAIR
         if pos.y < 0.006:
-            xz = Vector((pos.x, 0.0, pos.z))
-            for s in (1.0, -1.0):
-                # 眉: 細く、内側が低く外側へ上がってから下がる角度
-                # (設定画の実測: z0.867〜0.878、x0.021〜0.060)
-                d = _seg_dist(xz, Vector((0.015 * s, 0.0, BROW_Z - 0.005)),
-                              Vector((0.032 * s, 0.0, BROW_Z + 0.003)))
-                d = min(d, _seg_dist(xz, Vector((0.032 * s, 0.0, BROW_Z + 0.003)),
-                                     Vector((0.047 * s, 0.0, BROW_Z + 0.001))))
-                if d < 0.0040:
-                    return _lerp3((0.20, 0.13, 0.075), SKIN,
-                                  _smoothstep(0.0027, 0.0038, d))
-            # 口: 小さな一文字(設定画の口は目の内側幅ほどしかない)
-            d = _seg_dist(xz, Vector((-0.0105, 0.0, MOUTH_Z - 0.0008)),
-                          Vector((0.0105, 0.0, MOUTH_Z - 0.0008)))
-            if d < 0.0022:
-                return _lerp3((0.44, 0.22, 0.18), SKIN,
-                              _smoothstep(0.0015, 0.0022, d))
-            # 鼻: ごく小さな点
-            if (xz - Vector((0.0, 0.0, NOSE_Z))).length < 0.0026:
-                return _lerp3(SKIN, SKIN_SHADE, 0.85)
-            # 目のくぼみ(パッチの裏。まばたきで潰れたとき肌より少し暗い)
-            for s in (1.0, -1.0):
-                d = (xz - Vector((EYE_X * s, 0.0, EYE_Z))).length
-                if d < 0.022:
-                    return _lerp3(_lerp3(SKIN, SKIN_SHADE, 0.40), SKIN,
-                                  _smoothstep(0.010, 0.022, d))
-            # 頬のほんのり赤み
-            for s in (1.0, -1.0):
-                d = (xz - Vector((0.050 * s, 0.0, 0.815))).length
-                if d < 0.022:
-                    t = 1.0 - _smoothstep(0.008, 0.022, d)
-                    return _lerp3(SKIN, (0.95, 0.70, 0.55), 0.30 * t)
+            # 目・眉・鼻・口・頬はSVGのデカールから引く
+            # (design/characters/garudo/face.svg が唯一の情報源)。
+            # **目も顔テクスチャそのものに描く**。まばたきは顔の島だけを
+            # 3コマのアトラスにしてUVをずらして切り替える。目のためだけに
+            # 板を貼ると、材質・解像度・法線が本体とずれて「顔に板が
+            # 乗っている」ように見えた(第6段階の顛末)
+            painted = _over(SKIN, pos.x, pos.z, state)
+            if painted != SKIN:
+                return painted
+
         # 顔の描き込み陰影(規約3)。トゥーン階調に頼らず、絵として
         # 「この面は少し暗い」を焼き込む: 前髪の落ち影・こめかみ・
         # あご下・首。照明が変わっても顔の立体が壊れない
@@ -550,8 +628,11 @@ def _body_color(pos: Vector, normal: Vector):
         shade = max(shade, 0.55 * _smoothstep(0.900, 0.930, pos.z))       # 前髪の影
         shade = max(shade, 0.30 * _smoothstep(0.050, 0.072, abs(pos.x)))  # こめかみ
         shade = max(shade, 0.45 * (1.0 - _smoothstep(0.762, 0.800, pos.z)))  # あご下
-        if pos.z < 0.800:
-            shade = max(shade, 0.50)                                       # 首の影
+        # 首の影。**zだけで段を作ると、あごを横切る水平な継ぎ目**が
+        # 顔に出る(実測: 口の高さに顔幅いっぱいの境目)。首はあごの
+        # 奥(+y)にあるので、yでも絞ってなだらかに落とす
+        shade = max(shade, 0.50 * _smoothstep(0.800, 0.775, pos.z)
+                    * _smoothstep(-0.020, 0.004, pos.y))
         shade = max(shade, 0.25 * _smoothstep(0.010, 0.050, pos.y))       # 後頭部側
         return _lerp3(SKIN, SKIN_SHADE, min(0.75, shade))
 
@@ -608,8 +689,8 @@ def build() -> tuple[list, object]:
         (0.600, 0.092, 0.058, 0.0, 0.0),
         (0.680, 0.100, 0.062, 0.0, 0.0),
         (0.744, 0.100, 0.060, 0.0, 0.0),
-        (0.768, 0.068, 0.044, 0.0, 0.0),
-        (0.782, 0.034, 0.028, 0.0, 0.0),
+        (0.752, 0.068, 0.044, 0.0, 0.0),
+        (0.766, 0.034, 0.028, 0.0, 0.0),
     ]))
     for s in (1, -1):
         # 袖(肘まで。まくり口は少し太い)→ 前腕(素肌)→ 手(手袋)
@@ -620,10 +701,21 @@ def build() -> tuple[list, object]:
         organic.append(C.curve_tube(f"g_fore{s}",
                                     [(s * 0.165, 0.004, 0.604), (s * 0.227, 0.0, 0.460)],
                                     [0.021, 0.019]))
-        glove = C.uv_sphere(f"g_glove{s}", (s * 0.234, -0.004, 0.436), 0.030,
-                            scale=(0.85, 1.0, 1.25))
+        # 手袋。設定画は**指の分かれた革手袋**なので、手のひらの球に
+        # 指を4本足す(それまでは丸い塊=ミトンだった)。指は腕の向きへ
+        # 伸ばし、手前へ少し曲げる
+        # 設定画の手袋は手首の折り返しから指先まで約110mm、うち**指が
+        # 半分**。手のひらを球1個で埋めると指を出す余地が無い
+        glove = C.uv_sphere(f"g_glove{s}", (s * HAND_C_L.x, HAND_C_L.y, HAND_C_L.z),
+                            0.024, scale=(0.95, 1.0, 1.05))
         organic.append(glove)
-        organic.append(C.uv_sphere(f"g_thumb{s}", (s * 0.213, -0.012, 0.447), 0.0115))
+        organic.append(C.curve_tube(
+            f"g_thumb{s}", [(p[0] * s, p[1], p[2]) for p in THUMB],
+            [0.0090, 0.0078, 0.0062]))
+        for i, (base, mid, tip, r0, r1) in enumerate(_finger_axes(s)):
+            organic.append(C.curve_tube(
+                f"g_finger{s}_{i}", [tuple(base), tuple(mid), tuple(tip)],
+                [r0, (r0 + r1) * 0.5, r1]))
     # 腰(尻の量感)+脚+裾のたくれ
     organic.append(C.loft("g_seat", [
         (0.42, 0.086, 0.054, 0.0, 0.002),
@@ -639,16 +731,53 @@ def build() -> tuple[list, object]:
 
     # 入力はすべてクリーンな閉プリミティブなのでSMOOTH段階を飛ばす
     # (SMOOTHのremove_disconnectedは交差しているだけの頭を切り捨てた)
-    body = C.sculpt_merge(NAME, organic, voxel=0.006, target_tris=5200,
+    # ボクセルは指(直径12〜16mm)が潰れない細かさが要る。6mmだと
+    # 指が手のひらへ吸われてミトンに戻る。上限を主人公だけ広げたので
+    # 三角形も増やせる(tests/models.test.ts の予算表)
+    body = C.sculpt_merge(NAME, organic, voxel=0.0038, target_tris=9000,
                           clean_input=True)
     # 直立キャラ: 前後split(顔をシームが横切らない)。頭部を独立島に
     # 切り出して2.5倍へ拡大し、「テクスチャの絵」として描き込む顔に
     # 十分なテクセル密度を寄せる(商用トゥーンRPGの顔はほぼテクスチャで
     # 成立しているという指摘への対応)
-    C.organic_uv(body, axis=1, boost=(tuple(FACE_C), 0.115, 2.5))
-    C.uv_report(body, size=512, regions={"face": (tuple(FACE_C), 0.10)})
-    albedo = C.bake_albedo(body, _body_color, size=512, name="garudo_albedo")
-    C.assign_material(body, C.make_textured_material("garudo_body", albedo, roughness=0.8))
+    # 顔のテクセル密度を上げ、目パッチとの差を詰める。顔が0.9px/mm・
+    # パッチが5.3px/mmだと、ぼけた顔の上に鋭い目のシールが貼ってある
+    # ように見える(レンダリングで目だけ板に見えた一因)。
+    # glbは700KBまでなので本体テクスチャは512のまま、**UVの取り分**で
+    # 稼ぐ(実測: boost 2.5→5.0 で顔 894→1212 texels/unit。6.0まで
+    # 上げても1232で頭打ちになり、他の島の最低密度だけが落ちる)
+    # 顔は**本体とは別のマテリアル**にする。まばたきで
+    # open / half / closed を切り替えるため、顔の島だけを3コマ横に
+    # 並べたアトラスにしたいから。目のためだけに板を貼るのはやめた
+    # (材質・解像度・法線が本体とずれて「顔に板が乗って」見えた)
+    C.organic_uv(body, axis=1, boost=(FACE_ISLAND_C, FACE_ISLAND_R, 1.0, FACE_ISLAND_MAX_Y))
+    C.uv_report(body, size=1024, regions={"face": (FACE_ISLAND_C, 0.09)})
+    face_polys = C.split_material_region(body, FACE_ISLAND_C, FACE_ISLAND_R,
+                                        max_y=FACE_ISLAND_MAX_Y)
+    if not face_polys:
+        raise RuntimeError("顔の島を切り出せなかった")
+    body_img = C.bake_albedo(body, _body_color, size=1024,
+                             name="garudo_albedo", material_index=0)
+    tiles = [C.bake_albedo(body, (lambda k: lambda p, n: _body_color(p, n, k))(k),
+                           size=FACE_TEX, name=f"garudo_face_{st}",
+                           material_index=1)
+             for k, st in enumerate(DECAL_STATES)]
+    face_img = _atlas_h(tiles, "garudo_face_atlas")
+    # 顔の島のUVを左端のコマへ詰める。実行時はoffset.xに k/3 を足すだけで
+    # 状態が切り替わる(three.jsは uv*repeat + offset)
+    uv = body.data.uv_layers.active.data
+    for poly in body.data.polygons:
+        if poly.material_index == 1:
+            for li in poly.loop_indices:
+                uv[li].uv[0] /= len(DECAL_STATES)
+    body.data.materials[0] = C.make_textured_material("garudo_body", body_img,
+                                                      roughness=0.8)
+    body.data.materials[1] = C.make_textured_material("garudo_face", face_img,
+                                                      roughness=0.8)
+    # まばたきの指定はノードのextrasで運ぶ(src/view/blink.ts)
+    body["blink"] = "eyelid"
+    body["blinkTiles"] = len(DECAL_STATES)
+    body["blinkMaterial"] = "garudo_face"
     # 顔まわりの法線を頭中心の球へ寄せ、頬の変な影を消す(規約4)
     C.spherize_normals(body, tuple(FACE_C), radius=0.115, strength=1.0)
 
@@ -663,20 +792,14 @@ def build() -> tuple[list, object]:
         parts_list.append(obj)
         return obj
 
-    # ================= 目(顔に沿うパッチ1枚+描いた目) =================
-    # 規約2: 眼球を3Dオブジェクトとして顔に載せない。顔の球面に沿う
-    # 楕円パッチ1枚だけを置き、まぶたの線・虹彩・瞳・ハイライトまで
-    # すべて1枚の絵として貼る。原点はパッチ中心なので、まばたきの
-    # 縦スケールがその場で潰れる(従来は原点が首関節にあり、まばたきの
-    # たびに目が足元へ飛んでいた)
-    eye_tex = _eye_texture()
-    eye_panel_mat = C.make_textured_material("garudo_eye", eye_tex, roughness=0.35)
-    eyes = []
-    for s in (-1.0, 1.0):
-        panel = _eye_panel(f"eye{s}", s)
-        C.assign_material(panel, eye_panel_mat)
-        panel["blink"] = "white"
-        eyes.append(panel)
+
+    # まばたきが成立する条件を組み立て時に確かめる:
+    # **状態によって顔の色が変わること**。デカールの状態切り替えが
+    # 効いていないと、見た目は正常なのにまばたきだけ静かに止まる
+    probe = Vector((EYE_X, -0.060, EYE_Z))
+    n = Vector((0.0, -1.0, 0.0))
+    assert _body_color(probe, n, 0) != _body_color(probe, n, 2), \
+        "目の位置で open と closed の色が同じ(まばたきが効かない)"
 
     # ================= 髪(平たい房の板。頭ボーンへ剛体追従) =================
     # 設定画の髪は「丸い塊」でも「丸い棒」でもなく、**平たい房が不揃いに
@@ -689,14 +812,22 @@ def build() -> tuple[list, object]:
                                 flat=flat))
 
     # 地肌を覆う土台(頭蓋よりひと回り大きい卵。前は生え際で止める)
+    # 顔QAの左右輪郭実測に合わせる。以前はz0.91〜0.965で左右とも
+    # 10〜21mm太く、輪郭の凹凸が設定画の54%しかない「ヘルメット」だった。
+    # 上段を絞り、中心をわずかに+x側へ寄せる(設定画の髪は+x側へ流れる)
     locks.append(C.loft("h_base", [
         # 下2段は中心を後ろへ寄せて前面を頭の中へ沈める。全周ロフトのまま
         # 下げると額の前に「ヘルメットのつば」が出て、眉が隠れる(実測)
-        (0.862, 0.098, 0.070, 0.0, 0.042),
-        (0.892, 0.098, 0.093, 0.0, 0.022),
-        (0.918, 0.084, 0.088, 0.0, 0.018),
-        (0.944, 0.070, 0.074, 0.0, 0.019),
-        (0.962, 0.056, 0.060, 0.0, 0.019),
+        # 前面のyは**高さごとに頭の前面と比べて決める**。z0.892〜0.912で
+        # 土台の前面が頭と1mm以内に重なっており、額に平らな明るい面が
+        # 出ていた(実測: 頭-68.5 / 土台-68.0)。顔のある高さでは頭の中へ
+        # 8mm以上沈め、頭頂側では逆に外へ出して髪の厚みを持たせる
+        (0.862, 0.084, 0.062, 0.0, 0.042),
+        (0.892, 0.085, 0.086, 0.004, 0.028),
+        (0.912, 0.076, 0.080, 0.005, 0.023),
+        (0.932, 0.070, 0.078, 0.003, 0.014),
+        (0.952, 0.045, 0.054, 0.001, 0.008),
+        (0.966, 0.030, 0.038, 0.004, 0.012),
     ]))
 
     # 前髪: 分け目(やや右)から左右へ流れる房。先端の高さを大きく散らして
@@ -707,27 +838,125 @@ def build() -> tuple[list, object]:
         (0.004, 0.018, 0.896, 0.032, 0.028),
         (0.012, 0.050, 0.904, 0.028, 0.024),
         (0.018, 0.080, 0.910, 0.026, 0.021),
-        (-0.018, -0.088, 0.912, 0.026, 0.021),
+        (-0.018, -0.073, 0.908, 0.026, 0.021),
     ]:
         card((x0, -0.018, 0.944), (x1, -0.060, z_tip), w0, w1, thick=0.010)
+    # 眉間へ垂れる中央の房(設定画の生え際中央は z0.85 と低い)
+    card((0.004, -0.066, 0.940), (-0.004, -0.080, 0.856), 0.014, 0.010, thick=0.009)
 
     # 横の房: こめかみから耳の前へ、あご近くまで
     for s_ in (1.0, -1.0):
-        card((0.074 * s_, -0.020, 0.912), (0.078 * s_, -0.040, 0.806),
-             0.024, 0.020, flat=(0.0, -1.0, 0.0))
-        card((0.082 * s_, 0.014, 0.914), (0.086 * s_, 0.006, 0.846),
-             0.026, 0.021, flat=(0.0, -1.0, 0.0))
+        # 顔QAのプロファイル実測: 設定画の横髪は目の高さで顔の脇を
+        # 20mmほど覆い、あご近く(z0.786)まで垂れる。頬(z0.83)では
+        # 引っ込んで頬の肌が見える。頭の曲面に沿うシェルで再現する
+        # 設定画の髪は**左右非対称**で、+x側が広い(顔QA実測:
+        # z0.790 で +80.5 / -67.0、z0.870 で +104.5 / -80.0)。
+        # 左右同じ形にすると+x側が17〜20mm足りない
+        wide = 1.0 if s_ > 0 else 0.0
+        # deg0(前側の端)は**頬の露出量の実測**で決める。設定画の
+        # 「顔の脇にある髪の厚み」は片側で z0.790:37.5 / z0.810:6.5 /
+        # z0.830:2.0 / z0.850:30.8 / z0.870:51.8mm。つまり頬の高さでは
+        # 髪が顔の前へ回り込まない。deg0を正にすると、シルエットの幅
+        # (x=rx)は保ったまま前への回り込みだけ止められる
+        # (回り込んでいた頃はモデルの頬の髪が26.5mmあり、肌の幅が
+        #  設定画より20mm狭かった)
+        # 横髪は**3本の房**に分ける。1枚のシェルだと側面から見て平たい
+        # 板になり、下端が水平に切り揃うので「板を貼った」ように見える。
+        # 房ごとに半径を0.002ずつ変えて重なりを作り、下端の角度幅を
+        # 絞って毛先を尖らせる。
+        # deg0(前側の端)は頬の露出量の実測で決めた値を守る:
+        # 設定画の「顔の脇の髪の厚み」は z0.810 で片側6.5mm、z0.830 で
+        # 2.0mm しかないので、その高さでは房を顔の前へ回り込ませない
+        for tag, dr, rings in (
+            # こめかみの房(前)。頬より上だけ前へ回り込む
+            ("a", 0.002, [
+                (0.844, 0.079, 0.082, 0.012, -42, -26),
+                (0.858, 0.082, 0.085, 0.012, -44, -14),
+                (0.872, 0.083, 0.086, 0.013, -46, -6),
+                (0.888, 0.084, 0.087, 0.014, -52, 2),
+                (0.902, 0.082, 0.088, 0.014, -60, 6),
+            ]),
+            # 耳の前を通って頬の脇へ落ちる房(中)
+            ("b", 0.000, [
+                (0.800, 0.059, 0.062, 0.012, 14, 26),
+                (0.822, 0.066, 0.070, 0.012, 8, 32),
+                (0.848, 0.079, 0.082, 0.012, 2, 34),
+                (0.872, 0.083, 0.086, 0.013, -8, 36),
+                (0.902, 0.082, 0.088, 0.014, -16, 38),
+            ]),
+            # 襟足へ流れる房(後)。一番長く垂れる
+            ("c", -0.002, [
+                (0.782, 0.056, 0.060, 0.012, 30, 40),
+                (0.806, 0.061, 0.064, 0.012, 26, 46),
+                (0.836, 0.076, 0.081, 0.012, 22, 50),
+                (0.868, 0.083, 0.086, 0.013, 20, 56),
+                (0.902, 0.082, 0.088, 0.014, 18, 62),
+            ]),
+        ):
+            locks.append(_hair_shell(
+                f"h_side{tag}{s_}",
+                [(z, rx + dr + w * wide, ry + dr, cy, d0, d1)
+                 for (z, rx, ry, cy, d0, d1), w
+                 in zip(rings, (0.014, 0.012, 0.010, 0.010, 0.006))],
+                sign=s_, segments=8))
+        # あごの脇に垂れる房(設定画では z0.79 でも髪が顔の脇にある)
+        card((0.052 * s_, -0.028, 0.802),
+             ((0.068 + 0.016 * wide) * s_, -0.036, 0.768),
+             0.011, 0.008, flat=(0.0, -1.0, 0.0))
 
-    # 頭頂〜後頭の跳ね: 板なので細くても「角」に見えない
+    # こめかみから+x側へ大きく跳ねる房。設定画の輪郭がz0.870で+104.5mm
+    # まで出るのはこれ(土台だけでは+84で20mm足りない)
+    card((0.058, -0.024, 0.900), (0.106, -0.006, 0.868), 0.020, 0.015,
+         thick=0.009, flat=(0.0, -1.0, 0.0))
+    card((0.062, -0.010, 0.886), (0.098, 0.006, 0.848), 0.016, 0.012,
+         thick=0.008, flat=(0.0, -1.0, 0.0))
+    # z0.915で+x側へ張り出す房。設定画の輪郭を1行ずつ出すと、ここだけ
+    # +100.5mmまで出ていて、モデルは+79.5mmだった(この帯の最大の差)
+    card((0.040, -0.004, 0.946), (0.100, -0.016, 0.912), 0.016, 0.011,
+         thick=0.008, flat=(0.0, -1.0, 0.0))
+
+    # 頭頂〜後頭の跳ね: 板なので細くても「角」に見えない。
+    # 長さをばらして輪郭を不揃いにする(揃えるとヘルメットに見える)
     for base, tip, w0, w1 in [
-        ((-0.030, -0.002, 0.930), (-0.058, -0.024, 0.972), 0.028, 0.022),
-        ((0.014, -0.004, 0.936), (0.030, -0.030, 0.976), 0.026, 0.020),
-        ((-0.006, 0.028, 0.940), (0.002, 0.036, 0.982), 0.028, 0.022),
-        ((-0.042, 0.028, 0.914), (-0.062, 0.046, 0.946), 0.024, 0.019),
-        ((0.044, 0.026, 0.914), (0.066, 0.042, 0.944), 0.024, 0.019),
-        ((0.000, 0.054, 0.910), (0.006, 0.100, 0.924), 0.030, 0.024),
+        ((-0.030, -0.002, 0.926), (-0.036, -0.024, 0.968), 0.026, 0.020),
+        ((0.014, -0.004, 0.930), (0.058, -0.028, 0.974), 0.024, 0.018),
+        ((-0.006, 0.028, 0.936), (0.004, 0.036, 0.977), 0.026, 0.020),
+        ((-0.042, 0.028, 0.910), (-0.060, 0.046, 0.940), 0.022, 0.017),
+        ((0.044, 0.026, 0.910), (0.062, 0.042, 0.938), 0.022, 0.017),
+        ((0.000, 0.054, 0.906), (0.006, 0.100, 0.920), 0.028, 0.022),
+        # 短い毛先を混ぜて輪郭を刻む
+        ((-0.016, 0.006, 0.930), (-0.026, -0.010, 0.962), 0.014, 0.010),
+        ((0.030, 0.008, 0.926), (0.048, -0.008, 0.952), 0.013, 0.009),
+        ((-0.052, 0.006, 0.902), (-0.070, -0.010, 0.928), 0.014, 0.010),
+        ((0.052, 0.010, 0.900), (0.074, -0.004, 0.924), 0.013, 0.009),
     ]:
         card(base, tip, w0, w1)
+
+    # 分け目(頭頂やや+x寄り)から放射状に流れる長い房。**輪郭を作るのは
+    # 土台ではなくこの房の毛先**にする。地肌に垂直な短いトゲを生やして
+    # 凹凸を稼ぐと、数値(上部輪郭の凹凸)は上がるのに見た目はウニになる
+    # (実測: 凹凸97%・見た目は毛の球)。房は頭に沿って走らせ、
+    # 毛先の位置を高さ方向にずらすことで輪郭を刻む
+    part = (0.012, -0.010, 0.958)
+    for tip, w0, w1 in [
+        ((-0.076, -0.024, 0.902), 0.015, 0.011),
+        ((-0.080, 0.010, 0.888), 0.014, 0.010),
+        ((-0.068, 0.038, 0.908), 0.013, 0.009),
+        ((-0.044, 0.056, 0.928), 0.012, 0.008),
+        ((0.084, -0.020, 0.906), 0.015, 0.011),
+        ((0.088, 0.012, 0.894), 0.014, 0.010),
+        ((0.074, 0.040, 0.912), 0.013, 0.009),
+        ((0.048, 0.058, 0.926), 0.012, 0.008),
+        ((0.004, 0.062, 0.934), 0.014, 0.010),
+        # 設定画の輪郭を1行ずつ見ると、毛先が5〜10mm刻みで出入りする。
+        # 房を足して毛先の高さを散らす(-x側 z0.933/0.939 に山、
+        # 0.927/0.945 に谷。+x側 0.963 に山、0.957 に谷)
+        ((-0.074, -0.006, 0.934), 0.011, 0.008),
+        ((-0.058, 0.024, 0.941), 0.010, 0.007),
+        ((0.058, -0.012, 0.963), 0.010, 0.007),
+        ((0.052, 0.026, 0.946), 0.010, 0.007),
+    ]:
+        card(part, tip, w0, w1, thick=0.008)
 
     # 襟足
     for s_ in (1.0, -1.0):
@@ -874,14 +1103,17 @@ def build() -> tuple[list, object]:
         # 「長さ=前後・ロフトのry=高さ」にする。**回転と位置はjoinの前に
         # 焼き込む**(C.joinは先頭オブジェクトの変換を引き継ぐため、
         # あとから回転を上書きすると他の部品が裏返る実測)
+        # 設定画は編み上げの作業靴で、**一番広いのは丸く張り出した
+        # つま先**(足首ではない)。正面95%の高さで設定画209px・
+        # モデル178pxと43mm足りなかったのは、つま先が細かったため
         shoe = C.loft(f"garudo_shoe{s}", [
-            (0.000, 0.046, 0.026, 0.0, 0.028),
-            (0.022, 0.057, 0.034, 0.0, 0.032),
-            (0.060, 0.062, 0.036, 0.0, 0.030),
-            (0.100, 0.060, 0.029, 0.0, 0.025),
-            (0.132, 0.054, 0.022, 0.0, 0.020),
-            (0.156, 0.041, 0.016, 0.0, 0.016),
-            (0.166, 0.022, 0.010, 0.0, 0.014),
+            (0.000, 0.050, 0.026, 0.0, 0.028),
+            (0.022, 0.064, 0.034, 0.0, 0.032),
+            (0.060, 0.068, 0.036, 0.0, 0.030),
+            (0.100, 0.072, 0.032, 0.0, 0.026),
+            (0.132, 0.071, 0.026, 0.0, 0.021),
+            (0.156, 0.058, 0.019, 0.0, 0.017),
+            (0.166, 0.032, 0.012, 0.0, 0.015),
         ], segments=14)
         shoe.rotation_euler = (math.radians(90.0), 0.0, 0.0)
         shoe.location = (0.0, 0.045, 0.0)
@@ -889,18 +1121,27 @@ def build() -> tuple[list, object]:
         bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
         parts.append(shoe)
         # 靴底(前へ少しはみ出す板)+ヒール
-        parts.append(C.box(f"garudo_sole{s}", (0.0, -0.014, 0.009),
-                           (0.120, 0.196, 0.018), bevel=0.005))
-        parts.append(C.box(f"garudo_heel{s}", (0.0, 0.036, 0.021),
-                           (0.098, 0.056, 0.026), bevel=0.004))
+        # 靴底は**甲より小さく**する。箱の角が回転して靴の丸みより外へ
+        # はみ出し、接地面に平たいツバが出ていた(重ねると足元だけ
+        # 一直線に青が伸びる)
+        parts.append(C.box(f"garudo_sole{s}", (0.0, -0.012, 0.009),
+                           (0.112, 0.186, 0.018), bevel=0.006))
+        parts.append(C.box(f"garudo_heel{s}", (0.0, 0.034, 0.021),
+                           (0.096, 0.054, 0.026), bevel=0.005))
         # すね(履き口へ細くなる)+折り返し
-        parts.append(C.cone(f"garudo_shaft{s}", (0.0, 0.004, 0.104), 0.046, 0.039,
-                            0.110, segments=14))
-        parts.append(C.cylinder(f"garudo_cuff{s}", (0.0, 0.004, 0.166), 0.045, 0.026,
+        # すねは円錐(直線)ではなくロフト。足首側だけ張り出す形にしないと、
+        # ブーツの高さ(正面95%)を合わせるとすね(88%)が太くなる
+        parts.append(C.loft(f"garudo_shaft{s}", [
+            (0.046, 0.058, 0.055, 0.0, 0.004),
+            (0.068, 0.050, 0.048, 0.0, 0.004),
+            (0.110, 0.046, 0.044, 0.0, 0.004),
+            (0.159, 0.043, 0.042, 0.0, 0.004),
+        ], segments=14))
+        parts.append(C.cylinder(f"garudo_cuff{s}", (0.0, 0.004, 0.166), 0.050, 0.026,
                                 segments=14))
         boot = C.join(parts, f"garudo_boot{s}")
         # つま先を外へ開く(設定画の立ち方)
-        boot.rotation_euler = (0.0, 0.0, math.radians(-20.0 * s))
+        boot.rotation_euler = (0.0, 0.0, math.radians(28.0 * s))
         boot.location = (s * 0.068, -0.010, 0.0)
         C.smart_uv(boot)
         boot_img = C.bake_albedo(boot, _boot_color, size=128,
@@ -925,12 +1166,10 @@ def build() -> tuple[list, object]:
             x_target = (Vector((1.0, 0.0, 0.0)) - y_axis * y_axis.x).normalized()
             eb.align_roll(x_target.cross(y_axis))
     bpy.ops.object.mode_set(mode="OBJECT")
-    for eye in eyes:
-        C.parent_to_bone(eye, armature, "neck-head")
     C.parent_to_bone(hair, armature, "neck-head")
     for group_name, bone in pinned:
         C.pin_weight_to_bone(mesh, group_name, bone)
-    return [mesh, armature, hair] + eyes, armature
+    return [mesh, armature, hair], armature
 
 
 def animations() -> list[tuple[str, list]]:

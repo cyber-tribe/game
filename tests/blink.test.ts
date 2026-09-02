@@ -12,6 +12,32 @@ function makeEye(kind: "white" | "pupil", radius = 0.05): THREE.Mesh {
   return mesh;
 }
 
+/**
+ * テクスチャ切り替え方式の顔(ガルド)。open/half/closedの3コマ。
+ * glTFでは顔は本体メッシュの別プリミティブなので、threeでは
+ * 「タグの付いたノード + マテリアル名で選ぶ子メッシュ」になる。
+ */
+function makeFace(shared?: THREE.MeshStandardMaterial): {
+  node: THREE.Object3D;
+  face: THREE.Mesh;
+} {
+  const node = new THREE.Group();
+  node.userData.blink = "eyelid";
+  node.userData.blinkTiles = 3;
+  node.userData.blinkMaterial = "garudo_face";
+  const material = shared ?? new THREE.MeshStandardMaterial({ map: new THREE.Texture() });
+  material.name = "garudo_face";
+  const face = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), material);
+  const bodyMat = new THREE.MeshStandardMaterial({ map: new THREE.Texture() });
+  bodyMat.name = "garudo_body";
+  node.add(face, new THREE.Mesh(new THREE.PlaneGeometry(1, 1), bodyMat));
+  return { node, face };
+}
+
+function offsetOf(mesh: THREE.Mesh): number {
+  return ((mesh.material as THREE.MeshStandardMaterial).map as THREE.Texture).offset.x;
+}
+
 /** 60fps相当の刻みで、指定秒数ぶんupdateを回す */
 function runFrames(blink: BlinkController, seconds: number, fps = 60): void {
   const dt = 1 / fps;
@@ -88,6 +114,66 @@ describe("view/blink.ts: BlinkController", () => {
     // それぞれの構築で、まばたき・サッケードの初期タイマーぶん乱数を引いている
     expect(afterA).toBeGreaterThan(before);
     expect(afterB).toBeGreaterThan(afterA);
+  });
+
+  it("テクスチャ方式では、顔のUVオフセットが open→half→closed→half→open と動く", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0); // 間隔を最短(2秒)に固定
+
+    const root = new THREE.Group();
+    const { node, face } = makeFace();
+    root.add(node);
+    const blink = new BlinkController(root);
+
+    // 3コマなので 0 / 1/3 / 2/3
+    expect(offsetOf(face)).toBeCloseTo(0);
+
+    runFrames(blink, 1.9);
+    expect(offsetOf(face)).toBeCloseTo(0); // まだ開いている
+
+    const seen = new Set<number>();
+    for (let t = 0; t < 0.3; t += 1 / 240) {
+      blink.update(1 / 240);
+      seen.add(Number(offsetOf(face).toFixed(4)));
+    }
+    // 途中で半目(1/3)と閉じ(2/3)の両方を通る
+    expect(seen.has(Number((1 / 3).toFixed(4)))).toBe(true);
+    expect(seen.has(Number((2 / 3).toFixed(4)))).toBe(true);
+
+    runFrames(blink, 1);
+    expect(offsetOf(face)).toBeCloseTo(0); // 開いた状態へ戻る
+  });
+
+  it("顔以外のマテリアル(本体)のUVは動かさない", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    const root = new THREE.Group();
+    const { node } = makeFace();
+    root.add(node);
+    const bodyMesh = node.children[1] as THREE.Mesh;
+    const blink = new BlinkController(root);
+    runFrames(blink, 2.15);
+    expect(offsetOf(bodyMesh)).toBe(0);
+  });
+
+  it("顔のテクスチャは個体ごとに複製される(1体閉じても他が閉じない)", () => {
+    // SkeletonUtils.clone はマテリアルもテクスチャも共有するので、
+    // 複製しないと同じ種族が全員同時にまばたきしてしまう
+    const shared = new THREE.MeshStandardMaterial({ map: new THREE.Texture() });
+    const a = makeFace(shared);
+    const b = makeFace(shared);
+    const rootA = new THREE.Group();
+    rootA.add(a.node);
+    const rootB = new THREE.Group();
+    rootB.add(b.node);
+    new BlinkController(rootA);
+    new BlinkController(rootB);
+
+    const mapA = (a.face.material as THREE.MeshStandardMaterial).map!;
+    const mapB = (b.face.material as THREE.MeshStandardMaterial).map!;
+    expect(mapA).not.toBe(mapB);
+    expect(mapA).not.toBe(shared.map);
+
+    mapA.offset.x = 2 / 3;
+    expect(mapB.offset.x).toBeCloseTo(0);
   });
 
   it("瞳だけ、待機中に位置がバウンディング半径の範囲内でランダムにずれる(サッケード)", () => {
