@@ -32,6 +32,7 @@ Three.js 側で rotation.y = 0 が「南向き」に対応する。
 
 from __future__ import annotations
 
+import json
 import math
 import os
 
@@ -83,6 +84,9 @@ SHIRT = (0.88, 0.84, 0.73)          # 生成りのシャツ
 SHIRT_LINE = (0.74, 0.69, 0.58)     # 前立て・ボタンの線
 TROUSERS = (0.35, 0.41, 0.49)       # 青灰のズボン(新設定画で深緑から変更)
 LEATHER = (0.42, 0.28, 0.16)        # 革(ベルト・手袋・靴)
+# Hair Cap(地肌隠し)は頭の断面をこれだけ膨らませるだけ。輪郭は毛束が作る
+HAIR_CAP_OVER = 0.004
+HAIR_CAP_TOP = 0.970
 HAIR = (0.33, 0.25, 0.185)          # 茶色の無造作な髪(設定画の髪の平均色を実測)
 CLOTH = (0.60, 0.20, 0.15)          # 腰布(赤)
 APRON_WOOD = props.BARREL_WOOD      # 樽板エプロン(実物の樽と同色で統一)
@@ -267,37 +271,6 @@ def _arc_loft(name: str, rings, open_half_deg: float = 60.0,
     return obj
 
 
-def _hair_shell(name: str, rings, sign: float = 1.0, segments: int = 8):
-    """
-    頭の曲面に沿う横髪のシェル。板(平面)では顔の膨らみに負けて裏へ
-    隠れてしまう(実測: 目の高さで肌が45mm余計に見えた)ので、頭と同じ
-    楕円の**角度スライス**で作る。ringsは(z, rx, ry, cy, deg0, deg1)で、
-    deg0(前寄り)〜deg1(後ろ寄り)の角度範囲を高さごとに変えられる
-    (設定画の横髪は頬で引っ込み、こめかみとあごで前へ出る)。
-    """
-    mesh = bpy.data.meshes.new(name)
-    obj = bpy.data.objects.new(name, mesh)
-    bpy.context.collection.objects.link(obj)
-    bm = bmesh.new()
-    ring_verts = []
-    for z, rx, ry, cy, deg0, deg1 in rings:
-        row = []
-        for i in range(segments + 1):
-            a = math.radians(deg0 + (deg1 - deg0) * i / segments)
-            row.append(bm.verts.new((sign * rx * math.cos(a),
-                                     cy + ry * math.sin(a), z)))
-        ring_verts.append(row)
-    for lower, upper in zip(ring_verts, ring_verts[1:]):
-        for i in range(segments):
-            bm.faces.new((lower[i], lower[i + 1], upper[i + 1], upper[i]))
-    bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
-    bm.to_mesh(mesh)
-    bm.free()
-    for poly in mesh.polygons:
-        poly.use_smooth = True
-    return obj
-
-
 def _smoothstep(edge0: float, edge1: float, x: float) -> float:
     t = max(0.0, min(1.0, (x - edge0) / (edge1 - edge0)))
     return t * t * (3.0 - 2.0 * t)
@@ -407,64 +380,106 @@ def _boot_color(pos: Vector, normal: Vector):
     return _shade((0.46, 0.31, 0.18), f)
 
 
-def _hair_color(pos: Vector, normal: Vector):
-    """髪: 上を明るく・後頭部を暗く・房の流れの筋"""
-    f = 0.86 + 0.30 * max(0.0, min(1.0, (pos.z - 0.82) / 0.17))
-    if pos.y > 0.055:
-        f *= 0.90
-    ang = math.atan2(pos.x, -(pos.y - 0.02))
-    if math.sin(ang * 16.0 + pos.z * 55.0) > 0.66:
-        f *= 0.86
-    return _shade(HAIR, f)
+_HAIR_TABLE: list = []
+# 毛束の中心線。塗り(_hair_color)が「どの毛束のどこか」を知るために使う
+_HAIR_SPINES: list = []
 
 
-def _hair_card(name: str, base, tip, w_base: float, w_mid: float,
-               thick: float = 0.007, center=(0.0, 0.016, 0.900), flat=None):
+def _hair_table():
+    """毛束の定義(design/characters/garudo/hair-clumps.json)を読む"""
+    if not _HAIR_TABLE:
+        path = os.path.join(os.path.dirname(os.path.dirname(
+            os.path.dirname(os.path.abspath(__file__)))),
+            "design", "characters", "garudo", "hair-clumps.json")
+        with open(path, encoding="utf-8") as fh:
+            _HAIR_TABLE.append(json.load(fh))
+    return _HAIR_TABLE[0]
+
+
+def _head_at(z: float):
+    """高さzでの頭の断面(rx, ry, cy)。HEAD_RINGSを線形で引く"""
+    rings = HEAD_RINGS
+    z = max(rings[0][0], min(rings[-1][0], z))
+    for (z0, rx0, ry0, _cx0, cy0), (z1, rx1, ry1, _cx1, cy1) in zip(rings, rings[1:]):
+        if z0 <= z <= z1:
+            t = (z - z0) / max(1e-9, z1 - z0)
+            return (rx0 + (rx1 - rx0) * t, ry0 + (ry1 - ry0) * t,
+                    cy0 + (cy1 - cy0) * t)
+    return (rings[-1][1], rings[-1][2], rings[-1][4])
+
+
+def _scalp_point(az_deg: float, z: float):
     """
-    髪の房を**平たい板**として作る(先端は尖る)。円筒の房(curve_tube)は
-    どう並べても「丸い棒の集合」に見え、設定画の房にならない実測。
-    板の面は既定で頭の外を向き(radial)、幅は房の走る向きと直交して取る。
+    頭の表面の点。方位角は0が正面(-y)、+が+x側。
 
-    flatに向きを与えると、板の面をその向きへ固定する。**顔の横に垂れる
-    房**は既定のradial(=横向き)だと正面から見て板が立ってしまい、幅が
-    出ない(実測: 目の高さの頭幅が設定画より-22px)。flat=(0,-1,0)を
-    渡して面を正面へ向けると、設定画どおり顔の横に髪の幅が出る。
+    毛束の根元をこれで置くと、**必ず頭皮の上から生える**。座標を直接
+    書くと頭から浮いた根元や埋まった根元ができる
     """
-    b = Vector(base)
-    t = Vector(tip)
-    c = Vector(center)
-    d = t - b
-    length = d.length
-    d.normalize()
-    radial = Vector(flat) if flat is not None else (b - c)
-    radial = radial - d * radial.dot(d)
-    if radial.length_squared < 1e-9:
-        radial = Vector((0.0, -1.0, 0.0))
-    radial.normalize()
-    u = d.cross(radial).normalized()
+    rx, ry, cy = _head_at(z)
+    a = math.radians(az_deg)
+    return Vector((rx * math.sin(a), cy - ry * math.cos(a), z))
 
-    stations = [(0.0, w_base), (0.42, w_mid), (0.76, w_mid * 0.52), (1.0, 0.0012)]
-    mesh = bpy.data.meshes.new(name)
-    obj = bpy.data.objects.new(name, mesh)
+
+def _cap_z0(az_deg: float) -> float:
+    """
+    Hair Capの下端(方位角ごと)。
+
+    **capは輪郭も生え際も作ってはいけない。** 額の前でcapを低くすると、
+    毛束の隙間から見えるはずの額がcapで塞がれる。実測(設定画)では
+    額の露出は最高 z=0.898 まで上がるので、正面のcapはそれより上で切る。
+    横〜後頭部は毛束の隙間から地肌が見えるのを防ぐため低くする。
+    """
+    a = abs(((az_deg + 180.0) % 360.0) - 180.0)
+    table = ((0.0, 0.906), (40.0, 0.902), (60.0, 0.878), (75.0, 0.849),
+             (110.0, 0.849), (150.0, 0.848), (180.0, 0.848))
+    for (a0, z0), (a1, z1) in zip(table, table[1:]):
+        if a0 <= a <= a1:
+            t = (a - a0) / (a1 - a0)
+            return z0 + (z1 - z0) * t
+    return table[-1][1]
+
+
+def _hair_cap():
+    """
+    地肌を隠すためだけの土台。**シルエットは絶対に作らせない。**
+
+    以前の `h_base` は z0.91〜0.965 でそれ自体が輪郭になっており、
+    それが「ヘルメット」の正体だった。ここでは頭の断面を
+    HAIR_CAP_OVER(数mm)だけ膨らませるに留め、輪郭は毛束に任せる。
+
+    下端は方位角ごとに変える(`_cap_z0`)。リングを積む `C.loft` では
+    高さが方位角に依存する形を作れないので、ここだけ直接組む。
+    正面の下端がそのまま**生え際**になる。
+    """
+    segments, rows = 28, 6
+    mesh = bpy.data.meshes.new("h_cap")
+    obj = bpy.data.objects.new("h_cap", mesh)
     bpy.context.collection.objects.link(obj)
     bm = bmesh.new()
-    rings = []
-    for frac, half_w in stations:
-        p = b + d * (length * frac)
-        # 房は先へ行くほど薄く
-        th = thick * (1.0 - 0.55 * frac) * 0.5
-        rings.append([
-            bm.verts.new(p + radial * th + u * half_w),
-            bm.verts.new(p + radial * th - u * half_w),
-            bm.verts.new(p - radial * th - u * half_w),
-            bm.verts.new(p - radial * th + u * half_w),
-        ])
-    for lower, upper in zip(rings, rings[1:]):
-        for i in range(4):
-            j = (i + 1) % 4
-            bm.faces.new((lower[i], lower[j], upper[j], upper[i]))
-    bm.faces.new(list(reversed(rings[0])))
-    bm.faces.new(rings[-1])
+    cols = []
+    for i in range(segments):
+        az = 360.0 * i / segments - 180.0
+        z0 = _cap_z0(az)
+        col = []
+        for r in range(rows):
+            t = (r / (rows - 1)) ** 0.85
+            z = z0 + (HAIR_CAP_TOP - z0) * t
+            p = _scalp_point(az, z)
+            rx, ry, _cy = _head_at(z)
+            a = math.radians(az)
+            n = Vector((math.sin(a) / rx, -math.cos(a) / ry, 0.0))
+            n.normalize()
+            # 下端は頭皮に着地させる。膨らませたまま切ると、後頭部で
+            # capの縁が**段(棚)**として見える(実測: 背面レンダー)
+            col.append(bm.verts.new(
+                p + n * HAIR_CAP_OVER * min(1.0, 0.12 + r / 2.0)))
+        cols.append(col)
+    for i in range(segments):
+        j = (i + 1) % segments
+        for r in range(rows - 1):
+            bm.faces.new((cols[i][r], cols[j][r], cols[j][r + 1], cols[i][r + 1]))
+    bm.faces.new([c[-1] for c in cols])
+    bm.faces.new(list(reversed([c[0] for c in cols])))  # 下端(頭の中で見えない)
     bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
     bm.to_mesh(mesh)
     bm.free()
@@ -473,16 +488,110 @@ def _hair_card(name: str, base, tip, w_base: float, w_mid: float,
     return obj
 
 
-# ---- 目(規約2: 眼球を3Dオブジェクトとして顔に載せない) ----
-# 顔の球面に沿う楕円のパッチ1枚だけを置き、目は完全に「絵」として
-# そのテクスチャへ描く。まぶたの線・虹彩・瞳・ハイライトまで1枚の
-# イラストなので、球を積んだときの「安価な3Dキャラクター」感が出ない。
+def _hair_clump_from(clump: dict):
+    """
+    毛束1本。**根元は頭皮に密着し、毛先へ向かって離れる**。
 
-# 目のパッチの寸法。設定画の目(幅0.0342×高さ0.018)を、テクスチャの
-# アーモンド(円板に対し幅0.94・高さ0.76)で埋めるとこの大きさになる
-EYE_HALF_W = 0.0171
-EYE_HALF_H = 0.0197
+    中心線は4点:
+      p0 = 根元(頭皮の上)
+      p1, p2 = 根元から毛先へ向かう途中。頭の表面に沿わせつつ lift だけ浮かす
+      p3 = 毛先(設定画から実測した x,z と、人手で置いた y)
 
+    lift を効かせるのが要点。一定量で頭に沿わせると殻(ヘルメット)に
+    戻り、いきなり直線で飛ばすと根元が頭から浮く。
+    """
+    root = clump["root"]
+    tip = Vector((clump["tip"]["x"], clump["tip"]["y"], clump["tip"]["z"]))
+    p0 = _scalp_point(root["az"], root["z"])
+    lift = clump["lift"]
+    spine = [p0]
+    for i, t in enumerate((0.34, 0.68), start=1):
+        given = clump.get("mid")
+        if given:
+            # **人手で置く中間点**(設定画の毛束の分かれ目)。x,z だけ与え、
+            # yは頭の表面から取る。前髪は「どこで割れるか」が額の露出を
+            # 決めるので、根元と毛先の自動補間では出せない
+            mx, z = given[i - 1]
+            rx, _ry, _cy = _head_at(z)
+            az = math.degrees(math.asin(max(-1.0, min(1.0, mx / rx))))
+            if abs(root["az"]) > 90.0:
+                az = 180.0 - az
+            on_head = _scalp_point(az, z)
+            p = on_head
+        else:
+            # 高さと方位角を根元から毛先へ寄せながら、頭の表面をなぞる
+            z = p0.z + (tip.z - p0.z) * t
+            tip_az = math.degrees(math.atan2(tip.x, -(tip.y - _head_at(z)[2])))
+            az = root["az"] + (tip_az - root["az"]) * t
+            on_head = _scalp_point(az, z)
+            # 毛先へ向かう向きにも寄せる(まっすぐ頭に張り付いたままにしない)
+            straight = p0 + (tip - p0) * t
+            p = on_head.lerp(straight, t * 0.55)
+        outward = Vector((on_head.x, on_head.y - _head_at(z)[2], 0.0))
+        if outward.length_squared > 1e-12:
+            outward.normalize()
+        else:
+            outward = Vector((0.0, -1.0, 0.0))
+        spine.append(p + outward * lift[i])
+    spine.append(tip)
+    _HAIR_SPINES.append(spine)
+    obj = C.hair_clump(f"h_{clump['name']}", spine,
+                       clump["width"], clump["thickness"], segments=8)
+    # 法線は**その毛束自身**を滑らかな立体として整える。髪全体を1つの
+    # 球へ寄せると、毛束を作っても一枚のヘルメットのように光る
+    C.spherize_normals(obj, tuple(spine[0].lerp(spine[-1], 0.5)),
+                       radius=None, strength=0.35)
+    return obj
+
+
+def _hair_along(pos: Vector):
+    """
+    点がどの毛束のどこか。(根元→毛先の進み t, 中心線からの距離) を返す。
+
+    毛束の構造を**塗りにも使う**ための関数。以前は
+    `sin(方位角*16)` の縞を髪全体に掛けていたが、これは毛束の位置と
+    無関係なので、せっかく毛束を作っても「縞のヘルメット」に見える。
+
+    返すのは (中心線からの距離, 根元からの長さ, 毛先までの長さ)。
+    **割合ではなく長さ**で返すのが要点。割合で根元を暗くすると、
+    長い襟足の毛束が半分まで暗くなり、後頭部に横一本の帯が出る
+    (実測: 背面レンダー)。
+    """
+    best = (1e9, 0.0, 1.0)
+    for spine in _HAIR_SPINES:
+        total = sum((b - a).length for a, b in zip(spine, spine[1:])) or 1e-9
+        run = 0.0
+        for a, b in zip(spine, spine[1:]):
+            d = b - a
+            ll = d.length_squared or 1e-12
+            u = max(0.0, min(1.0, (pos - a).dot(d) / ll))
+            q = a + d * u
+            dist = (pos - q).length
+            if dist < best[0]:
+                along = run + d.length * u
+                best = (dist, along, total - along)
+            run += d.length
+    return best[0], best[1], best[2]
+
+
+def _hair_color(pos: Vector, normal: Vector):
+    """
+    髪: 毛束ごとに「根元が暗い・中央が基本色・上面が明るい・毛先が暗い」。
+
+    設定画の髪は1本ずつの毛ではなく**毛束の塊**で塗られている。細い縞を
+    引くのではなく、毛束の中心線に沿った弱い階調と、中心線から離れる
+    ほど暗くする陰りで、毛束の境界を出す。
+    """
+    dist, from_root, to_tip = _hair_along(pos)
+    f = 1.0
+    f *= 0.79 + 0.32 * _smoothstep(0.0, 0.026, from_root)  # 根元が暗い
+    f *= 1.0 - 0.26 * _smoothstep(0.030, 0.0, to_tip)      # 毛先が暗い
+    f *= 1.0 - 0.40 * min(1.0, max(0.0, (dist - 0.004) / 0.012))  # 毛束の縁
+    f *= 0.96 + 0.32 * max(0.0, min(1.0, (pos.z - 0.82) / 0.16))  # 上ほど明るい
+    f *= 1.0 + 0.16 * max(0.0, normal.z) - 0.20 * max(0.0, -normal.z)
+    if pos.y > 0.055:
+        f *= 0.90                                          # 後頭部
+    return _shade(HAIR, f)
 
 
 def _eye_texture(size: int = 128) -> "bpy.types.Image":
@@ -801,168 +910,37 @@ def build() -> tuple[list, object]:
     assert _body_color(probe, n, 0) != _body_color(probe, n, 2), \
         "目の位置で open と closed の色が同じ(まばたきが効かない)"
 
-    # ================= 髪(平たい房の板。頭ボーンへ剛体追従) =================
-    # 設定画の髪は「丸い塊」でも「丸い棒」でもなく、**平たい房が不揃いに
-    # 重なった塊**。板(_hair_card)で組み、生え際を水平に切り揃えず、
-    # 房ごとに長さ・角度・幅を散らす
-    locks = []
+    # ================= 髪(立体的な大きな毛束) =================
+    # plan/models/garudo-hair-clumps.md。板(_hair_card)と頭皮に沿う殻
+    # (_hair_shell)をやめ、3層に分ける:
+    #
+    #   Hair Cap  →  Major Clumps  →  Painted Detail
+    #   (地肌隠し)     (シルエット)      (毛の流れ)
+    #
+    # 毛束は design/characters/garudo/hair-clumps.json から読む。
+    # 毛先は設定画から実測した値(tools/trace_hair_clumps.py)。
+    cap = _hair_cap()
+    clumps = [_hair_clump_from(c) for c in _hair_table()["clumps"]]
+    # **capが輪郭を作っていないことを機械で確かめる。** 目で見ても
+    # 「髪の塊」にしか見えず気付けない(旧h_baseがそうだった)
+    # capは後頭部では表面そのものでよい(仕様2-5)が、**輪郭を作っては
+    # いけない**。高さごとに「capより毛束の方が外にあるか」で見る。
+    # 面の包含(silhouette_inside)で見ると後頭部が常に外れて判定に
+    # ならなかった(実測: 側面33.6%・上面26.1%)
+    over_x = C.wider_than([cap], clumps, axis=0, min_width=0.045)
+    over_y = C.wider_than([cap], clumps, axis=1, min_width=0.045)
+    print(f"  [hair] capが輪郭を作る高さ 正面{over_x:.0%} 側面{over_y:.0%}")
+    # 残る2段(z0.940/0.948)は**頭そのものが設定画より6mm大きい**ため
+    # (顔一致QAの「髪の最大幅の高さz」参照。plan/models/garudo-face-qa.md
+    # の残差詰めで頭頂を絞ると消える)。髪側の問題ではないので許容する
+    # 残る2段(z0.940/0.948)は**頭そのものが設定画より6mm大きい**ため
+    # (顔一致QAの「髪の最大幅の高さz」。plan/models/garudo-face-qa.md の
+    # 残差詰めで頭頂を絞れば消える)。髪側の問題ではないので許容する
+    # 側面が高いのは正しい(仕様2-5: 後頭部の中央はCap主体)。
+    # 見るのは正面。ここが0でないと「輪郭を作るのは毛先」になっていない
+    assert over_x < 0.05, f"Hair Capが正面の輪郭を作っている({over_x:.0%})"
 
-    def card(base, tip, w0, w1, thick=0.007, flat=None):
-        locks.append(_hair_card(f"h_card{len(locks)}", base, tip, w0, w1, thick,
-                                flat=flat))
-
-    # 地肌を覆う土台(頭蓋よりひと回り大きい卵。前は生え際で止める)
-    # 顔QAの左右輪郭実測に合わせる。以前はz0.91〜0.965で左右とも
-    # 10〜21mm太く、輪郭の凹凸が設定画の54%しかない「ヘルメット」だった。
-    # 上段を絞り、中心をわずかに+x側へ寄せる(設定画の髪は+x側へ流れる)
-    locks.append(C.loft("h_base", [
-        # 下2段は中心を後ろへ寄せて前面を頭の中へ沈める。全周ロフトのまま
-        # 下げると額の前に「ヘルメットのつば」が出て、眉が隠れる(実測)
-        # 前面のyは**高さごとに頭の前面と比べて決める**。z0.892〜0.912で
-        # 土台の前面が頭と1mm以内に重なっており、額に平らな明るい面が
-        # 出ていた(実測: 頭-68.5 / 土台-68.0)。顔のある高さでは頭の中へ
-        # 8mm以上沈め、頭頂側では逆に外へ出して髪の厚みを持たせる
-        (0.862, 0.084, 0.062, 0.0, 0.042),
-        (0.892, 0.085, 0.086, 0.004, 0.028),
-        (0.912, 0.076, 0.080, 0.005, 0.023),
-        (0.932, 0.070, 0.078, 0.003, 0.014),
-        (0.952, 0.045, 0.054, 0.001, 0.008),
-        (0.966, 0.030, 0.038, 0.004, 0.012),
-    ]))
-
-    # 前髪: 分け目(やや右)から左右へ流れる房。先端の高さを大きく散らして
-    # 生え際が一直線に切り揃わないようにする
-    for x0, x1, z_tip, w0, w1 in [
-        (-0.012, -0.062, 0.900, 0.034, 0.030),
-        (-0.008, -0.030, 0.902, 0.028, 0.024),
-        (0.004, 0.018, 0.896, 0.032, 0.028),
-        (0.012, 0.050, 0.904, 0.028, 0.024),
-        (0.018, 0.080, 0.910, 0.026, 0.021),
-        (-0.018, -0.073, 0.908, 0.026, 0.021),
-    ]:
-        card((x0, -0.018, 0.944), (x1, -0.060, z_tip), w0, w1, thick=0.010)
-    # 眉間へ垂れる中央の房(設定画の生え際中央は z0.85 と低い)
-    card((0.004, -0.066, 0.940), (-0.004, -0.080, 0.856), 0.014, 0.010, thick=0.009)
-
-    # 横の房: こめかみから耳の前へ、あご近くまで
-    for s_ in (1.0, -1.0):
-        # 顔QAのプロファイル実測: 設定画の横髪は目の高さで顔の脇を
-        # 20mmほど覆い、あご近く(z0.786)まで垂れる。頬(z0.83)では
-        # 引っ込んで頬の肌が見える。頭の曲面に沿うシェルで再現する
-        # 設定画の髪は**左右非対称**で、+x側が広い(顔QA実測:
-        # z0.790 で +80.5 / -67.0、z0.870 で +104.5 / -80.0)。
-        # 左右同じ形にすると+x側が17〜20mm足りない
-        wide = 1.0 if s_ > 0 else 0.0
-        # deg0(前側の端)は**頬の露出量の実測**で決める。設定画の
-        # 「顔の脇にある髪の厚み」は片側で z0.790:37.5 / z0.810:6.5 /
-        # z0.830:2.0 / z0.850:30.8 / z0.870:51.8mm。つまり頬の高さでは
-        # 髪が顔の前へ回り込まない。deg0を正にすると、シルエットの幅
-        # (x=rx)は保ったまま前への回り込みだけ止められる
-        # (回り込んでいた頃はモデルの頬の髪が26.5mmあり、肌の幅が
-        #  設定画より20mm狭かった)
-        # 横髪は**3本の房**に分ける。1枚のシェルだと側面から見て平たい
-        # 板になり、下端が水平に切り揃うので「板を貼った」ように見える。
-        # 房ごとに半径を0.002ずつ変えて重なりを作り、下端の角度幅を
-        # 絞って毛先を尖らせる。
-        # deg0(前側の端)は頬の露出量の実測で決めた値を守る:
-        # 設定画の「顔の脇の髪の厚み」は z0.810 で片側6.5mm、z0.830 で
-        # 2.0mm しかないので、その高さでは房を顔の前へ回り込ませない
-        for tag, dr, rings in (
-            # こめかみの房(前)。頬より上だけ前へ回り込む
-            ("a", 0.002, [
-                (0.844, 0.079, 0.082, 0.012, -42, -26),
-                (0.858, 0.082, 0.085, 0.012, -44, -14),
-                (0.872, 0.083, 0.086, 0.013, -46, -6),
-                (0.888, 0.084, 0.087, 0.014, -52, 2),
-                (0.902, 0.082, 0.088, 0.014, -60, 6),
-            ]),
-            # 耳の前を通って頬の脇へ落ちる房(中)
-            ("b", 0.000, [
-                (0.800, 0.059, 0.062, 0.012, 14, 26),
-                (0.822, 0.066, 0.070, 0.012, 8, 32),
-                (0.848, 0.079, 0.082, 0.012, 2, 34),
-                (0.872, 0.083, 0.086, 0.013, -8, 36),
-                (0.902, 0.082, 0.088, 0.014, -16, 38),
-            ]),
-            # 襟足へ流れる房(後)。一番長く垂れる
-            ("c", -0.002, [
-                (0.782, 0.056, 0.060, 0.012, 30, 40),
-                (0.806, 0.061, 0.064, 0.012, 26, 46),
-                (0.836, 0.076, 0.081, 0.012, 22, 50),
-                (0.868, 0.083, 0.086, 0.013, 20, 56),
-                (0.902, 0.082, 0.088, 0.014, 18, 62),
-            ]),
-        ):
-            locks.append(_hair_shell(
-                f"h_side{tag}{s_}",
-                [(z, rx + dr + w * wide, ry + dr, cy, d0, d1)
-                 for (z, rx, ry, cy, d0, d1), w
-                 in zip(rings, (0.014, 0.012, 0.010, 0.010, 0.006))],
-                sign=s_, segments=8))
-        # あごの脇に垂れる房(設定画では z0.79 でも髪が顔の脇にある)
-        card((0.052 * s_, -0.028, 0.802),
-             ((0.068 + 0.016 * wide) * s_, -0.036, 0.768),
-             0.011, 0.008, flat=(0.0, -1.0, 0.0))
-
-    # こめかみから+x側へ大きく跳ねる房。設定画の輪郭がz0.870で+104.5mm
-    # まで出るのはこれ(土台だけでは+84で20mm足りない)
-    card((0.058, -0.024, 0.900), (0.106, -0.006, 0.868), 0.020, 0.015,
-         thick=0.009, flat=(0.0, -1.0, 0.0))
-    card((0.062, -0.010, 0.886), (0.098, 0.006, 0.848), 0.016, 0.012,
-         thick=0.008, flat=(0.0, -1.0, 0.0))
-    # z0.915で+x側へ張り出す房。設定画の輪郭を1行ずつ出すと、ここだけ
-    # +100.5mmまで出ていて、モデルは+79.5mmだった(この帯の最大の差)
-    card((0.040, -0.004, 0.946), (0.100, -0.016, 0.912), 0.016, 0.011,
-         thick=0.008, flat=(0.0, -1.0, 0.0))
-
-    # 頭頂〜後頭の跳ね: 板なので細くても「角」に見えない。
-    # 長さをばらして輪郭を不揃いにする(揃えるとヘルメットに見える)
-    for base, tip, w0, w1 in [
-        ((-0.030, -0.002, 0.926), (-0.036, -0.024, 0.968), 0.026, 0.020),
-        ((0.014, -0.004, 0.930), (0.058, -0.028, 0.974), 0.024, 0.018),
-        ((-0.006, 0.028, 0.936), (0.004, 0.036, 0.977), 0.026, 0.020),
-        ((-0.042, 0.028, 0.910), (-0.060, 0.046, 0.940), 0.022, 0.017),
-        ((0.044, 0.026, 0.910), (0.062, 0.042, 0.938), 0.022, 0.017),
-        ((0.000, 0.054, 0.906), (0.006, 0.100, 0.920), 0.028, 0.022),
-        # 短い毛先を混ぜて輪郭を刻む
-        ((-0.016, 0.006, 0.930), (-0.026, -0.010, 0.962), 0.014, 0.010),
-        ((0.030, 0.008, 0.926), (0.048, -0.008, 0.952), 0.013, 0.009),
-        ((-0.052, 0.006, 0.902), (-0.070, -0.010, 0.928), 0.014, 0.010),
-        ((0.052, 0.010, 0.900), (0.074, -0.004, 0.924), 0.013, 0.009),
-    ]:
-        card(base, tip, w0, w1)
-
-    # 分け目(頭頂やや+x寄り)から放射状に流れる長い房。**輪郭を作るのは
-    # 土台ではなくこの房の毛先**にする。地肌に垂直な短いトゲを生やして
-    # 凹凸を稼ぐと、数値(上部輪郭の凹凸)は上がるのに見た目はウニになる
-    # (実測: 凹凸97%・見た目は毛の球)。房は頭に沿って走らせ、
-    # 毛先の位置を高さ方向にずらすことで輪郭を刻む
-    part = (0.012, -0.010, 0.958)
-    for tip, w0, w1 in [
-        ((-0.076, -0.024, 0.902), 0.015, 0.011),
-        ((-0.080, 0.010, 0.888), 0.014, 0.010),
-        ((-0.068, 0.038, 0.908), 0.013, 0.009),
-        ((-0.044, 0.056, 0.928), 0.012, 0.008),
-        ((0.084, -0.020, 0.906), 0.015, 0.011),
-        ((0.088, 0.012, 0.894), 0.014, 0.010),
-        ((0.074, 0.040, 0.912), 0.013, 0.009),
-        ((0.048, 0.058, 0.926), 0.012, 0.008),
-        ((0.004, 0.062, 0.934), 0.014, 0.010),
-        # 設定画の輪郭を1行ずつ見ると、毛先が5〜10mm刻みで出入りする。
-        # 房を足して毛先の高さを散らす(-x側 z0.933/0.939 に山、
-        # 0.927/0.945 に谷。+x側 0.963 に山、0.957 に谷)
-        ((-0.074, -0.006, 0.934), 0.011, 0.008),
-        ((-0.058, 0.024, 0.941), 0.010, 0.007),
-        ((0.058, -0.012, 0.963), 0.010, 0.007),
-        ((0.052, 0.026, 0.946), 0.010, 0.007),
-    ]:
-        card(part, tip, w0, w1, thick=0.008)
-
-    # 襟足
-    for s_ in (1.0, -1.0):
-        card((0.028 * s_, 0.054, 0.892), (0.034 * s_, 0.090, 0.762), 0.034, 0.028)
-
-    hair = C.join(locks, "garudo_hair")
+    hair = C.join([cap] + clumps, "garudo_hair")
     # 髪も手描き: 上を明るく・房の流れの筋(3D位置から描くのでSmart UVの
     # 島割れは問題にならない)。法線は頭の球へ寄せ、板の重なりの
     # デコボコ陰影を抑える(規約4)
@@ -970,7 +948,10 @@ def build() -> tuple[list, object]:
     hair_img = C.bake_albedo(hair, _hair_color, size=256, name="garudo_hair_tex")
     C.assign_material(hair, C.make_textured_material("garudo_hair", hair_img,
                                                      roughness=0.8))
-    C.spherize_normals(hair, (0.0, 0.016, 0.900), strength=0.55)
+    # **髪全体を1つの球へ寄せる法線補正はしない。** 顔には有効だが、髪に
+    # 掛けるとせっかく毛束を作っても一枚の丸いヘルメットのように光る。
+    # 法線は毛束ごとに整えてある(_hair_clump_from の中で、その毛束の
+    # 中心線を軸とする円柱へ寄せる)
 
     # ================= ベルト+バックル+肩ひも(剛体) =================
     add(C.loft("garudo_belt", [

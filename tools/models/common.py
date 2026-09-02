@@ -517,6 +517,161 @@ def organic_uv(obj: "bpy.types.Object", axis: int = 2,
     bpy.ops.object.mode_set(mode="OBJECT")
 
 
+def hair_clump(name: str, spine, width, thickness, segments: int = 8,
+               smooth: bool = True) -> "bpy.types.Object":
+    """
+    **立体的な毛束**を1本作る(plan/models/garudo-hair-clumps.md)。
+
+    4点程度の中心線 `spine` に沿って、**レンズ(潰したダイヤ)断面**を
+    ロフトする。板(平たい面)でも殻(頭皮を切り取った面)でもない、
+    厚みを持った一房。
+
+        根元           中間             毛先
+          ◇             ◇                •
+         / \           / \
+        ████   →      ████     →        ▲
+         \ /           \ /
+
+    * 正面では太いアニメ髪に見える
+    * 横から見ても厚みがある
+    * 毛先は鋭く尖る(width/thicknessの最後を0近くにする)
+
+    `width` は中心線と直交する「横」方向の半幅、`thickness` は「面の
+    表裏」方向の半厚。どちらも spine と同じ長さの並び。
+
+    断面を丸にしないのが要点。丸い棒を並べても髪には見えない
+    (`modeling-pitfalls.md` の板・殻の失敗と同じ理由で、断面の形が
+    そのまま見え方を決める)。
+    """
+    pts = [Vector(p) for p in spine]
+    if len(pts) < 2:
+        raise ValueError(f"{name}: 中心線は2点以上要る")
+    mesh = bpy.data.meshes.new(name)
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj)
+    bm = bmesh.new()
+
+    rings = []
+    for i, p in enumerate(pts):
+        # 進行方向(前後の点から中央差分で取る)
+        if i == 0:
+            d = pts[1] - pts[0]
+        elif i == len(pts) - 1:
+            d = pts[-1] - pts[-2]
+        else:
+            d = pts[i + 1] - pts[i - 1]
+        if d.length_squared < 1e-12:
+            d = Vector((0.0, 0.0, 1.0))
+        d.normalize()
+        # 「横」は進行方向と世界のzから作る(毛束は縦に流れるので、
+        # これで正面から見た幅が素直に出る)
+        up = Vector((0.0, 0.0, 1.0))
+        side = up.cross(d)
+        if side.length_squared < 1e-9:
+            side = Vector((1.0, 0.0, 0.0))
+        side.normalize()
+        face = d.cross(side).normalized()
+        w, t = width[i], thickness[i]
+        # レンズ断面: 横に広く、表裏に薄く、上下の角が尖る
+        rings.append([bm.verts.new(p + side * (w * math.cos(a))
+                                   + face * (t * math.sin(a)))
+                      for a in (math.tau * k / segments
+                                for k in range(segments))])
+
+    for lower, upper in zip(rings, rings[1:]):
+        for i in range(segments):
+            j = (i + 1) % segments
+            try:
+                bm.faces.new((lower[i], lower[j], upper[j], upper[i]))
+            except ValueError:
+                pass                      # 毛先で潰れた面は張らない
+    try:
+        bm.faces.new(list(reversed(rings[0])))
+    except ValueError:
+        pass
+    bmesh.ops.remove_doubles(bm, verts=list(bm.verts), dist=1e-5)
+    bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
+    bm.to_mesh(mesh)
+    bm.free()
+    for poly in mesh.polygons:
+        poly.use_smooth = smooth
+    return obj
+
+
+def silhouette_inside(inner, outer, cell: float = 0.004,
+                      views=((0, 2), (1, 2), (0, 1))) -> float:
+    """
+    `inner` の投影シルエットが `outer` の内側に収まっているかを測り、
+    はみ出した割合(0=完全に内側)を返す。
+
+    髪の Hair Cap のように「地肌を隠すためだけで、輪郭を作ってはいけない
+    土台」を機械で確かめるためのもの。目で見て確かめると、土台が輪郭を
+    作っていることに気付けない(実測: 旧h_baseはz0.91〜0.965で輪郭その
+    ものだったが、正面レンダーでは髪の塊にしか見えなかった)。
+
+    viewsは投影に使う軸の組(既定は正面XZ・側面YZ・上面XY)。判定は
+    cell刻みの格子で、outer側を1マスだけ広げてから包含を見る。
+    """
+    def cells(objs, ax):
+        out = set()
+        for obj in objs:
+            m = obj.matrix_world
+            mesh = obj.data
+            for poly in mesh.polygons:
+                pts = [m @ mesh.vertices[i].co for i in poly.vertices]
+                pts.append(sum(pts, Vector((0.0, 0.0, 0.0))) / len(pts))
+                for p in pts:
+                    out.add((int(p[ax[0]] // cell), int(p[ax[1]] // cell)))
+        return out
+
+    worst = 0.0
+    for ax in views:
+        a, b = cells(inner, ax), cells(outer, ax)
+        grown = {(x + dx, y + dy) for x, y in b
+                 for dx in (-1, 0, 1) for dy in (-1, 0, 1)}
+        if not a:
+            continue
+        worst = max(worst, len(a - grown) / len(a))
+    return worst
+
+
+def wider_than(inner, outer, axis: int = 0, up: int = 2,
+               step: float = 0.004, min_width: float = 0.0) -> float:
+    """
+    高さごとに `inner` が `outer` より外へ出ている割合を返す(0=常に内側)。
+
+    `silhouette_inside` が「面として覆われているか」を見るのに対し、
+    こちらは**輪郭を作っているのは誰か**を見る。髪の Hair Cap のように
+    「後頭部では表面そのものでよいが、輪郭は毛束に作らせたい」土台には
+    こちらが正しい物差しになる。
+
+    min_width を与えると、それより内側しか無い高さは数えない
+    (生え際より下に残る土台の縁など、輪郭になりようがない部分)。
+    """
+    def profile(objs):
+        # **辺を刻んで測る。** 頂点だけを見ると、長い毛束が高さの段を
+        # 飛び越して「その高さには何も無い」ことになり、土台が輪郭を
+        # 作っていると誤判定する(実測: 毛束32.8mm vs 実際の輪郭68.5mm)
+        out: dict[int, float] = {}
+        for obj in objs:
+            m = obj.matrix_world
+            mesh = obj.data
+            for e in mesh.edges:
+                a = m @ mesh.vertices[e.vertices[0]].co
+                b = m @ mesh.vertices[e.vertices[1]].co
+                n = max(2, int((b - a).length / (step * 0.5)) + 1)
+                for i in range(n + 1):
+                    p = a.lerp(b, i / n)
+                    k = int(p[up] // step)
+                    out[k] = max(out.get(k, 0.0), abs(p[axis]))
+        return out
+
+    a, b = profile(inner), profile(outer)
+    bad = sum(1 for k, w in a.items()
+              if w > b.get(k, 0.0) + step and w >= min_width)
+    return bad / max(1, len(a))
+
+
 def split_material_region(obj: "bpy.types.Object", center, radius: float,
                           margin: float = 0.004, max_y: float | None = None) -> set:
     """
