@@ -57,7 +57,8 @@ def load_image(path: str) -> "np.ndarray":
 def save_image(path: str, rgba: "np.ndarray") -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     out = bpy.data.images.new("out", width=rgba.shape[1], height=rgba.shape[0])
-    out.pixels.foreach_set(rgba[::-1].ravel())
+    out.pixels.foreach_set(
+        np.ascontiguousarray(rgba[::-1], dtype=np.float32).ravel())
     out.filepath_raw = path
     out.file_format = "PNG"
     out.save()
@@ -614,7 +615,10 @@ def main() -> int:
     print(f"\n  {'高さz':<10} {'設定左':>8} {'モデル左':>8} {'差':>7}"
           f" {'設定右':>8} {'モデル右':>8} {'差':>7}")
     hair_pass = True
-    for z in (0.790, 0.830, 0.870, 0.890, 0.910, 0.930, 0.950, 0.965):
+    # z=0.790は使わない。設定画のその高さで左右±75mmにある濃い塊は髪では
+    # なく**肩の革当て**で、拡大して確認済み。髪は顎の角(z≒0.80)で終わる。
+    # ここを測ると「肩当てに届くまで横髪を伸ばす」方向へ引っ張られる
+    for z in (0.810, 0.830, 0.870, 0.890, 0.910, 0.930, 0.950, 0.965):
         row = int((WIN_Z1 - z) * PX_PER_UNIT)
         ca, cb = np.where(head_a[row])[0], np.where(head_b[row])[0]
         if not len(ca) or not len(cb):
@@ -634,6 +638,42 @@ def main() -> int:
             cols = np.where(mask[row])[0]
             w.append(float(cols.max() - cols.min()) if len(cols) else 0.0)
         return float(np.abs(np.diff(np.array(w))).sum())
+
+    # ---- 毛束の構造(外形だけを見ると「ウニ」になる) ----
+    # 外形の指標は「輪郭が上下に振れること」しか見ないので、地肌へ垂直な
+    # トゲを生やすだけで通ってしまう(実測54%→97%、見た目はウニ)。
+    # 毛束の毛先が**設定画で測った毛先の位置に来ているか**を別に見る。
+    clump_path = os.path.join(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__))), "design", "characters", name,
+        "hair-clumps.json")
+    if os.path.exists(clump_path):
+        with open(clump_path, encoding="utf-8") as fh:
+            table = json.load(fh)
+        tips = [(t["x"], t["z"]) for t in table.get("tips", [])]
+        clumps = [(c["tip"]["x"], c["tip"]["z"], c["name"])
+                  for c in table.get("clumps", [])]
+        if tips and clumps:
+            print(f"\n  {'設定画の毛先':<14}{'x,z(mm)':>16}"
+                  f"{'最寄りの毛束':>14}{'差(mm)':>9}")
+            errs = []
+            for tx, tz in tips:
+                d, cx, cz, nm = min(
+                    (math.dist((tx, tz), (cx, cz)), cx, cz, nm)
+                    for cx, cz, nm in clumps)
+                errs.append(d * 1000.0)
+                # 毛先の位置に**実際に髪が描画されているか**も見る
+                # (表に書いただけで、他の毛束に飲まれている事故を防ぐ)
+                col = int((cx + WIN_HALF_X) * PX_PER_UNIT)
+                row = int((WIN_Z1 - cz) * PX_PER_UNIT)
+                near = b["hair"][max(0, row - 4):row + 5,
+                                 max(0, col - 4):col + 5].any()
+                print(f"  {'':<14}{tx * 1000:>8.1f},{tz * 1000:>7.1f}"
+                      f"{nm:>14}{d * 1000:>9.1f}{'' if near else '  描画なし'}")
+            mean_t = sum(errs) / len(errs)
+            ok_t = mean_t <= 6.0 and max(errs) <= 12.0
+            print(f"  毛先ランドマーク  平均 {mean_t:.1f}mm / 最大 {max(errs):.1f}mm"
+                  f"  {'ok' if ok_t else 'NG'}  (基準 平均<=6.0 最大<=12.0)")
+            passed.append(ok_t)
 
     ra, rb = raggedness(head_a), raggedness(head_b)
     ok_r = rb >= ra * 0.7
