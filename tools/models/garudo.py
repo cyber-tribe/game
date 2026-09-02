@@ -85,13 +85,23 @@ BONES = C.mirrored_bones(BONES_HALF)
 
 # 配色は設定画のカラーパレットから採る
 SKIN = (0.93, 0.80, 0.66)
-SKIN_SHADE = (0.82, 0.64, 0.50)     # 鼻・口まわりの影色
+SKIN_SHADE = (0.82, 0.64, 0.50)
+# 耳の色。設定画の耳は肌ではなく**茶の暗部**として描かれていて、
+# 分類器も「髪」と読む。明るい肌のまま焼くと横顔で耳がのっぺりした
+# 膨らみにしか見えず、正面でも耳が肌としてはみ出す
+EAR_SHADE = (0.55, 0.41, 0.31)     # 鼻・口まわりの影色
 SHIRT = (0.88, 0.84, 0.73)          # 生成りのシャツ
 SHIRT_LINE = (0.74, 0.69, 0.58)     # 前立て・ボタンの線
 TROUSERS = (0.35, 0.41, 0.49)       # 青灰のズボン(新設定画で深緑から変更)
 LEATHER = (0.42, 0.28, 0.16)        # 革(ベルト・手袋・靴)
 # Hair Cap(地肌隠し)は頭の断面をこれだけ膨らませるだけ。輪郭は毛束が作る
 HAIR_CAP_OVER = 0.004
+# 毛束の法線を**その毛束自身の丸み**へ寄せる強さ。強くすると面の
+# 切り替わりは目立たなくなるが、髪全体が平たく明るくなって色が抜ける
+# (実測: 0.70にしたら髪が肌と判定される画素が増え、肌IoUの到達率が
+# 97%→91%へ落ちた)。髪全体を1つの球へ寄せるのは別の話で、あれは
+# ヘルメットになるのでやらない
+HAIR_NORMAL_BLEND = 0.35
 HAIR_CAP_TOP = 0.970
 HAIR = (0.33, 0.25, 0.185)          # 茶色の無造作な髪(設定画の髪の平均色を実測)
 CLOTH = (0.60, 0.20, 0.15)          # 腰布(赤)
@@ -325,9 +335,10 @@ def _decal_sample(x: float, z: float, state: int = 0):
     return (float(p[0]), float(p[1]), float(p[2]), float(p[3]))
 
 
-def _over(base, x: float, z: float, state: int = 0):
-    """デカールを肌などの下地へ重ねる"""
+def _over(base, x: float, z: float, state: int = 0, fade: float = 1.0):
+    """デカールを肌などの下地へ重ねる。fadeで薄める(横顔で消すため)"""
     r, g, b, a = _decal_sample(x, z, state)
+    a *= max(0.0, min(1.0, fade))
     if a <= 0.004:
         return base
     return (base[0] + (r - base[0]) * a,
@@ -633,6 +644,49 @@ def _hair_cap():
     return obj
 
 
+def _hair_side_from(major: dict, s: int):
+    """
+    側面図からなぞった毛束1本(左右へ鏡像で1つずつ作る)。
+
+    輪郭は (y, z) ―― 奥行きと高さ。横位置 x は頭の楕円断面から取り、
+    頭の前後端では潰れないように下限を敷く(側面図の輪郭は頭より前後へ
+    はみ出すので、そのまま解くと x=0 になって顔の真ん中に板が立つ)。
+
+    正面図と背面図だけで毛束を作ると、**横顔だけ滑らかな塊**になる。
+    """
+    outline = [(float(y), float(z)) for y, z in major["path_xz"]]
+    lift = float(major["lift"])
+    frac = float(major.get("xfrac", 0.70))
+    root = major["root"]
+
+    def depth(y: float, z: float) -> float:
+        rx, ry, cy = _head_at(z)
+        c = max(-1.0, min(1.0, (cy - y) / max(1e-6, ry)))
+        wide = rx * math.sqrt(max(0.0, 1.0 - c * c))
+        far = math.hypot(y - root[0], z - root[1])
+        out = max(wide * frac, rx * 0.45) + lift * (0.30 + 0.70 * min(1.0, far / 0.040))
+        return s * out
+
+    obj = C.clump_shell(f"h_{major['name']}{'L' if s > 0 else 'R'}", outline, depth,
+                        half_thick=float(major["thick"]), ramp=0.022,
+                        cuts=int(major.get("cuts", 1)), plane="yz")
+    order = sorted(outline, key=lambda p: math.hypot(p[0] - root[0], p[1] - root[1]))
+    spine = [Vector((depth(root[0], root[1]), root[0], root[1]))]
+    for k in range(4):
+        part = order[len(order) * k // 4: max(1, len(order) * (k + 1) // 4)]
+        if not part:
+            continue
+        my = sum(p[0] for p in part) / len(part)
+        mz = sum(p[1] for p in part) / len(part)
+        spine.append(Vector((depth(my, mz), my, mz)))
+    half = sum(min((Vector((0.0, y, z)) - Vector((0.0, q.y, q.z))).length
+                   for q in spine) for y, z in outline) / max(1, len(outline))
+    _HAIR_SPINES.append((spine, max(0.006, half)))
+    C.spherize_normals(obj, tuple(spine[0].lerp(spine[-1], 0.5)),
+                       radius=None, strength=HAIR_NORMAL_BLEND)
+    return obj
+
+
 def _hair_major_from(major: dict):
     """
     主要毛束1本。**設定画からなぞった輪郭をそのまま形にする**
@@ -666,7 +720,7 @@ def _hair_major_from(major: dict):
     # なる**ので、シルエットは分割数に依らない。2回にすると毛束だけで
     # 14,936三角形になり、モデル全体の予算(24,000)を超える
     obj = C.clump_shell(f"h_{major['name']}", outline, depth,
-                        half_thick=float(major["thick"]), ramp=0.014,
+                        half_thick=float(major["thick"]), ramp=0.022,
                         cuts=int(major.get("cuts", 1)))
     # 塗り(_hair_color)が「根元から毛先へ」を知るための中心線。輪郭の
     # 点を根元からの距離で4つの帯に分け、帯ごとの重心をつなぐ
@@ -689,7 +743,7 @@ def _hair_major_from(major: dict):
                    for q in spine) for x, z in outline) / max(1, len(outline))
     _HAIR_SPINES.append((spine, max(0.006, half)))
     C.spherize_normals(obj, tuple(spine[0].lerp(spine[-1], 0.5)),
-                       radius=None, strength=0.30)
+                       radius=None, strength=HAIR_NORMAL_BLEND)
     return obj
 
 
@@ -920,14 +974,25 @@ def _body_color_no_hand(pos: Vector, normal: Vector, state: int = 0):
             return HAIR
         if pos.y > 0.045 and pos.z > 0.800:
             return HAIR
-        if pos.y < 0.006:
+        if pos.y < 0.014:
             # 目・眉・鼻・口・頬はSVGのデカールから引く
             # (design/characters/garudo/face.svg が唯一の情報源)。
             # **目も顔テクスチャそのものに描く**。まばたきは顔の島だけを
             # 3コマのアトラスにしてUVをずらして切り替える。目のためだけに
             # 板を貼ると、材質・解像度・法線が本体とずれて「顔に板が
             # 乗っている」ように見えた(第6段階の顛末)
-            painted = _over(SKIN, pos.x, pos.z, state)
+            # **顔のデカールは正面図の投影**なので、横を向いた面に
+            # そのまま乗せると目や眉が頬・耳へ引き伸ばされて貼りつく
+            # (実測: 3/4のレンダーで頬に目の形の染みが出た)。
+            # 位置でなだらかに薄める(法線で切ると縁テクセルで判定が
+            # 明滅して線が点描に割れる)
+            # **顔のデカールは正面図の投影**なので、奥へ回り込む面に
+            # そのまま乗せると目のまわりの階調が耳や側頭部へ引き伸ばされて
+            # 貼りつく(実測: 3/4のレンダーで耳の位置に目の形の染みが出た)。
+            # **奥行きだけで薄める。** xで薄めると頬の階調まで消えて、
+            # 頬が明るい肌一色になる(実測: 肌IoUの到達率が98%→93%)
+            fade = 1.0 - _smoothstep(-0.030, 0.000, pos.y)
+            painted = _over(SKIN, pos.x, pos.z, state, fade)
             if painted != SKIN:
                 return painted
 
@@ -1147,6 +1212,9 @@ def build() -> tuple[list, object]:
     # 後頭部。輪郭は設定画の**背面図**からなぞる。ここを作らないと、
     # 正面だけ毛束・後ろは滑らかな椀という「半分だけヘルメット」になる
     clumps += [_hair_major_from(m) for m in _hair_table().get("major_back", [])]
+    # 横顔。輪郭は設定画の**側面図**から (y, z) でなぞり、左右へ鏡像で置く
+    clumps += [_hair_side_from(m, s) for m in _hair_table().get("major_side", [])
+               for s in (1, -1)]
     # **capが輪郭を作っていないことを機械で確かめる。** 目で見ても
     # 「髪の塊」にしか見えず気付けない(旧h_baseがそうだった)
     # capは後頭部では表面そのものでよい(仕様2-5)が、**輪郭を作っては

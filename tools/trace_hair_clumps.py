@@ -21,6 +21,7 @@ design/characters/<名前>/hair-clumps.json の `tips` 欄。
     tools/venv/bin/python tools/trace_hair_clumps.py garudo --ridge
     tools/venv/bin/python tools/trace_hair_clumps.py garudo --major
     tools/venv/bin/python tools/trace_hair_clumps.py garudo --back
+    tools/venv/bin/python tools/trace_hair_clumps.py garudo --side
 
 `--ridge` は設定画の髪の中に**描かれている分け目の線**を稜線として
 抜き出した画像を出す(tools/preview/face/<名前>-hair-ridge.png)。
@@ -220,6 +221,40 @@ def back_window(name: str, ref: dict):
     return np.ascontiguousarray(np.roll(img, shift, axis=1), dtype=np.float32)
 
 
+def side_window(name: str, ref: dict):
+    """
+    顔一致QAと同じウィンドウへ写した**側面図**(横軸はモデルのy=奥行き)。
+
+    設定画の側面図は顔が左を向いていて、絵の右へ行くほど後頭部。
+    モデルのyも顔が-y・後頭部が+yなので**反転は要らない**。位置合わせ
+    だけ要る。
+
+    合わせ方: 頭(髪+肌)のy方向の**中点**を、頭の断面の中心cyへ寄せる。
+    前端(額)で合わせると+43mm、後端で合わせると+21mmとずれ方が違う
+    (設定画の頭は側面図の方が8mm深い)。どちらか片方に寄せると反対側が
+    その分外れるので、中点で割る。設定画自身の前後不一致(平均20.6mm)
+    と同じ桁の話で、これ以上は詰められない。
+    """
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sheet = F.load_image(os.path.join(root, "design", "characters", name,
+                                      "generated", f"{name}-sheet.png"))
+    _, bbox = F.sheet_front_figure(sheet, ref["side_crop"])
+    img = F.resample_sheet(sheet, bbox, float(ref["model_height"]))[:, :, :3]
+    m = F.classify(np.ascontiguousarray(img, dtype=np.float32))
+    head = m["skin"] | m["hair"]
+    zs = F.WIN_Z1 - np.arange(F.RES_Y) / F.PX_PER_UNIT
+    xs = np.arange(F.RES_X) / F.PX_PER_UNIT - F.WIN_HALF_X
+    mids = []
+    for zt in (0.860, 0.880, 0.900, 0.920, 0.940):
+        r = int(np.argmin(abs(zs - zt)))
+        c = np.where(head[r])[0]
+        if len(c) > 3:
+            mids.append((xs[c.min()] + xs[c.max()]) * 0.5)
+    target = float(ref.get("side_center_y", 0.010))
+    shift = int(round((target - sum(mids) / len(mids)) * F.PX_PER_UNIT)) if mids else 0
+    return np.ascontiguousarray(np.roll(img, shift, axis=1), dtype=np.float32)
+
+
 def hair_ridges(img: "np.ndarray", cut: float = 0.40):
     """
     髪の中に**描かれている分け目の線**を、局所の平均より暗い稜線として抜く。
@@ -378,8 +413,13 @@ def main() -> int:
         ref = json.load(fh)
     out_path = os.path.join(root, "design", "characters", name, "hair-clumps.json")
 
-    if flags & {"--ridge", "--major", "--back"}:
-        img = back_window(name, ref) if "--back" in flags else front_window(name, ref)
+    if flags & {"--ridge", "--major", "--back", "--side"}:
+        if "--back" in flags:
+            img = back_window(name, ref)
+        elif "--side" in flags:
+            img = side_window(name, ref)
+        else:
+            img = front_window(name, ref)
         hair, ridge = hair_ridges(img)
         left, right, top = hair_edge(img)
         bottom = hair_bottom(img)
@@ -396,6 +436,8 @@ def main() -> int:
             # 補助毛束も主要毛束と同じ形式で持ち、被覆率は合わせて測る
             if "--back" in flags:
                 majors = data.get("major_back", [])
+            elif "--side" in flags:
+                majors = data.get("major_side", [])
             else:
                 majors = data.get("major", []) + data.get("aux", [])
             # なぞった輪郭を**点列へ焼き込む**。モデルのビルドが設定画の
@@ -409,7 +451,8 @@ def main() -> int:
                 json.dump(data, fh, ensure_ascii=False, indent=2)
             pic, covered = draw_major(img, majors, left, right, top, bottom)
             pic[ridge] = pic[ridge] * 0.3
-            tag = "back" if "--back" in flags else "major"
+            tag = ("back" if "--back" in flags else
+                   "side" if "--side" in flags else "major")
             hit = (covered & hair).sum()
             # **肌をどれだけ食っているかも測る。** 髪の被覆率だけ見て
             # いると、前髪の輪郭が額や目を丸ごと囲っていても気付けない
@@ -509,6 +552,8 @@ def main() -> int:
     data["tips"] = tips
     data.setdefault("major", [])
     data.setdefault("aux", [])
+    data.setdefault("major_back", [])
+    data.setdefault("major_side", [])
     with open(out_path, "w", encoding="utf-8") as fh:
         json.dump(data, fh, ensure_ascii=False, indent=2)
     print(f"\n毛先 {len(tips)}点 → {out_path}")

@@ -2378,7 +2378,7 @@ def _dist_to_polyline(p, loop) -> float:
 def clump_shell(name: str, outline, depth, half_thick: float = 0.010,
                 ramp: float = 0.012, edge_thick: float = 0.0005,
                 cuts: int = 2, min_edge: float = 0.0025,
-                smooth: bool = True) -> "bpy.types.Object":
+                plane: str = "xz", smooth: bool = True) -> "bpy.types.Object":
     """
     **正面から見た輪郭をそのまま形にする毛束**
     (plan/models/archive/garudo-hair-clumps.md 第2次改訂)。
@@ -2398,6 +2398,8 @@ def clump_shell(name: str, outline, depth, half_thick: float = 0.010,
                      **非多様体**の膜ができる。薄い側面を張って閉じる
         cuts       : 内部を何回4分割するか。断面の丸みの細かさ
         min_edge   : 輪郭の点をこの間隔まで間引く
+        plane      : 輪郭がどの面の座標か。"xz"=正面図(厚みはy方向)、
+                     "yz"=側面図(輪郭は(y,z)で、厚みはx方向)
 
     出来上がるのは閉じた凸レンズ状の殻。板(厚み0)でも
     殻(頭皮の切り抜き)でもない。
@@ -2460,9 +2462,13 @@ def clump_shell(name: str, outline, depth, half_thick: float = 0.010,
             d = _dist_to_polyline(p, loop)
             t = edge_thick + (half_thick - edge_thick) * math.sqrt(
                 min(1.0, d / max(1e-6, ramp)))
-        y = float(depth(p[0], p[1]))
-        front.append(bm.verts.new(Vector((p[0], y - t, p[1]))))
-        back.append(bm.verts.new(Vector((p[0], y + t, p[1]))))
+        d = float(depth(p[0], p[1]))
+        if plane == "yz":
+            front.append(bm.verts.new(Vector((d - t, p[0], p[1]))))
+            back.append(bm.verts.new(Vector((d + t, p[0], p[1]))))
+        else:
+            front.append(bm.verts.new(Vector((p[0], d - t, p[1]))))
+            back.append(bm.verts.new(Vector((p[0], d + t, p[1]))))
     for a, b, c in tris:
         for ring in ((front[a], front[b], front[c]),
                      (back[c], back[b], back[a])):

@@ -418,8 +418,19 @@ def face_metrics(masks, eye_z: float):
     row = int(np.argmax(widths))
     cols = np.where(skin[row])[0]
     hair_ys, _ = np.where(hair)
-    hair_widths = hair.sum(axis=1)
-    hair_row = int(np.argmax(hair_widths))
+    # **「髪の最大幅」は行の幅(左端から右端)で測る。** 行の画素数で
+    # 測っていたが、それは「髪がいちばん多い高さ」であって幅ではない。
+    # 前髪の隙間や毛束の間の抜けで画素数が変わるので、髪を少し足すだけで
+    # 最大の行が20mm飛ぶ(実測: 側面の毛束を足したら913.5→892.5)。
+    # 幅の山はなだらかなので、5行(2.5mm)ならして最大を取る
+    spans = np.zeros(hair.shape[0], dtype=np.float64)
+    for r in range(hair.shape[0]):
+        c = np.where(hair[r])[0]
+        if len(c) > 3:
+            spans[r] = (c.max() - c.min()) / PX_PER_UNIT
+    k = 5
+    smooth = np.convolve(spans, np.ones(k) / k, mode="same")
+    hair_row = int(np.argmax(smooth))
     eye_row = int((WIN_Z1 - eye_z) * PX_PER_UNIT)
     return {
         "chin_z": WIN_Z1 - ys.max() / PX_PER_UNIT,
