@@ -43,6 +43,11 @@ RES_Y = int(RES_X * (WIN_Z1 - WIN_Z0) / (WIN_HALF_X * 2))
 PX_PER_UNIT = RES_X / (WIN_HALF_X * 2)
 # これより下(首から下)は顔の計測に含めない
 NECK_Z = 0.775
+# 髪と見なす下限。設定画のこれより下にある茶の暗部は**肩の革当てと樽**で、
+# 髪ではない(拡大して確認済み。「髪の左右輪郭」でも z0.790 を外している)。
+# 入れたままだと髪IoUの食い違いの半分がこの肩当てになる
+# (実測: 全体の食い違い4437mm2のうち2219mm2が z775..790)
+HAIR_Z0 = 0.790
 
 
 def load_image(path: str) -> "np.ndarray":
@@ -94,9 +99,11 @@ def classify(rgb: "np.ndarray"):
     line = (val < 0.70) & (sat > 0.32)
     below = np.zeros(rgb.shape[:2], dtype=bool)
     rows = np.arange(rgb.shape[0])
-    below[(WIN_Z1 - rows / PX_PER_UNIT) < NECK_Z] = True
+    z = WIN_Z1 - rows / PX_PER_UNIT
+    below[z < NECK_Z] = True
     for m in (skin, hair, dark, white, line):
         m[below] = False
+    hair[z < HAIR_Z0] = False
     return {"skin": skin, "hair": hair, "dark": dark, "white": white, "line": line}
 
 
@@ -336,6 +343,8 @@ def eye_pair(masks, band, min_size=40, max_w=0.060, max_h=0.050):
 # 左右対称のモデルが到達できるIoUの下限保証。天井の何%まで来ていれば
 # 合格とするか(外部評価を受けて、絶対値0.90/0.80から置き換えた)
 IOU_REACH_MIN = 0.95
+# 髪は左右非対称なので対称の上限が使えない。絶対値で見る
+HAIR_IOU_MIN = 0.80
 
 
 def fill_polygon(poly) -> "np.ndarray":
@@ -623,16 +632,29 @@ def main() -> int:
     # +11.0)ので、左右対称のモデルが到達できるIoUには理論上の天井がある。
     # 天井に対する到達率で判定する(外部評価 2026-09-02:「0.90という
     # 合格基準の方が間違っていた」)。
+    #
+    # ただし**天井が効くのは左右対称に作る部位だけ**。顔の骨格は対称に
+    # すると決めているので肌には効くが、**髪型は分け目があって元から
+    # 左右非対称**なので、対称な形の上限は髪の上限ではない
+    # (実測: 髪は上限0.857に対しIoU 0.871。到達率102%になり判定に
+    # ならない)。髪は絶対値で見る(plan/models/garudo-hair-clumps.md の
+    # 当初基準 0.80)。
     print(f"\n  {'領域':<14} {'IoU':>7} {'対称の上限':>11} {'到達率':>8}")
     ious = {}
     for key in ("skin", "hair"):
         ious[key] = iou(a_aligned[key], b[key])
         cap = symmetric_ceiling(a_aligned[key])
         rate = ious[key] / cap if cap else 0.0
-        ok_r = rate >= IOU_REACH_MIN
+        if key == "skin":
+            ok_r = rate >= IOU_REACH_MIN
+            note = f"(基準 到達率>={IOU_REACH_MIN * 100:.0f}%)"
+        else:
+            ok_r = ious[key] >= HAIR_IOU_MIN
+            note = f"(基準 IoU>={HAIR_IOU_MIN:.2f}。髪型は非対称なので上限は参考)"
         print(f"  {key:<14} {ious[key]:>7.3f} {cap:>11.3f} {rate*100:>7.0f}%"
-              f"  {'ok' if ok_r else 'NG'}  (基準>={IOU_REACH_MIN*100:.0f}%)")
+              f"  {'ok' if ok_r else 'NG'}  {note}")
         ious[key + "_rate"] = rate
+        ious[key + "_ok"] = ok_r
 
     print(f"\n  {'ランドマーク':<20} {'設定画':>9} {'モデル':>9} {'差':>9}")
     passed = []
@@ -881,8 +903,7 @@ def main() -> int:
     out_path = os.path.join(C.PREVIEW_DIR, "face", f"{name}-compare.png")
     save_image(out_path, combined)
 
-    ok = all(passed) and ious["skin_rate"] >= IOU_REACH_MIN \
-        and ious["hair_rate"] >= IOU_REACH_MIN
+    ok = all(passed) and ious["skin_ok"] and ious["hair_ok"]
     print(f"\n  判定: {'PASS' if ok else 'FAIL'}   → {out_path}\n")
     return 0 if ok else 2
 
