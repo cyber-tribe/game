@@ -11,11 +11,15 @@
 - **約5.2頭身のゲーム内比率を直接組む**。旧版の「7頭身写実→チビ化」の
   二段変換は廃止(設定画側がゲーム内比率になった)。全高0.97ユニットは
   従来と同じ(身長回帰ガード・他キャラとの体格バランス維持)。
-- **有機部は1つに融合**: 頭・首・胴・袖・前腕・手袋・腰・脚・裾を
+- **有機部は1つに融合**: 頭・首・胴・袖・前腕・腰・脚・裾を
   sculpt_merge(target_tris指定)で連続メッシュにし、塗り分け
-  (シャツ生成り/素肌/革手袋/青灰ズボン)と顔(口・鼻・眉)・
+  (シャツ生成り/素肌/青灰ズボン)と顔(口・鼻・眉)・
   シャツの前立てを384²アルベドへ焼き込む。境界は球・カプセルの
   距離場(知見8)。
+- **手は素手と手袋を別々に作り、手袋を装着した状態で組む**。どちらも
+  融合に入れない(ボクセル3.8mmでは指の隙間が消え、融合の膨らみで
+  素手が手袋を突き抜ける)。同じ骨格から革の厚みぶん太らせて作るので
+  手袋は必ず素手を包む(組み立て時に`C.encloses`で検査する)。
 - **硬い部品は別ジオメトリのままピンで剛体追従**: 樽板エプロン
   (背中±60°が開いた240°巻き、フラットシェードの板+たが)・
   背負い樽(タルの小道具と同じ12面フラットの造形言語)・ベルト・
@@ -55,7 +59,9 @@ JOINTS_HALF = {
     "crown": (0.0, 0.0, 0.955),
     "shoulder.L": (0.078, 0.0, 0.742),
     "elbow.L": (0.165, 0.004, 0.600),
-    "hand.L": (0.234, -0.004, 0.436),
+    # 手のボーンは**手首**(手袋の折り返しの内側)。以前は手のひらの
+    # 中にあり、手首の回転軸として使えなかった
+    "hand.L": (0.2013, -0.004, 0.5190),
     "thigh.L": (0.066, 0.0, 0.42),
     "knee.L": (0.070, 0.0, 0.27),
     "foot.L": (0.074, -0.02, 0.04),
@@ -135,34 +141,126 @@ HEAD_RINGS = [
 ]
 
 
-HAND_C_L = Vector((0.230, -0.004, 0.442))
+# ---- 手(素手)と手袋 ----
+# 設定画の正面図から実測(革の領域と肌の領域を色で分けて高さごとに測った)。
+#   素肌の前腕は z0.533 で終わり、そこから下は手袋の折り返し
+#   手袋の折り返し: z0.505〜0.538、幅44mm(腕の傾き29.7°ぶん補正して直径38mm)
+#   手: z0.425〜0.505、幅60mm。手首から指先まで107mm(うち指が半分)
+# **素手と手袋は同じ骨格から作る**。手袋は革の厚みぶん太らせただけの
+# もので、別々に形を書くと「手袋が手に入っていない」事故になる
+HAND_WRIST_L = Vector((0.2013, -0.004, 0.5190))   # 手首の中心(=手のボーン)
+HAND_DIR = Vector((0.529, -0.060, -0.849))        # 手首→指先(+x側)
+HAND_LENGTH = 0.107                                # 手首から中指の先まで
+HAND_PALM_FRAC = 0.55                              # うち手のひらの割合
+LEATHER_T = 0.0022                                 # 革の厚み
 
-# 手袋の指。設定画の手袋は指が分かれた革手袋で、全長110mm・うち指が半分。
-# **ジオメトリと塗りで同じ定義を使う**(別々に持つと、指の間の線が
-# ジオメトリの指とずれる)。(並びの位置, 長さ, 根元半径, 先半径, 手前への曲げ)
+# 指(並びの位置, 長さ, 根元半径, 先半径, 手前への曲げ, 外への開き)。
+# 並びの位置は内側(親指側)が負。設定画では人差し指〜中指が長く、
+# 小指が短い。**付け根は寄せて先を開く**(平行に並べると熊手に見える)
 FINGERS = (
-    (-0.018, 0.046, 0.0072, 0.0055, 0.006),
-    (-0.006, 0.052, 0.0076, 0.0058, 0.008),
-    (0.006, 0.048, 0.0072, 0.0055, 0.008),
-    (0.017, 0.037, 0.0062, 0.0048, 0.006),
+    (-0.0130, 0.0420, 0.0058, 0.0046, 0.0050, -0.20),
+    (-0.0044, 0.0460, 0.0060, 0.0048, 0.0062, -0.07),
+    (0.0044, 0.0430, 0.0058, 0.0046, 0.0060, 0.07),
+    (0.0130, 0.0350, 0.0052, 0.0042, 0.0046, 0.20),
 )
-ARM_DIR = Vector((0.386, -0.022, -0.918))     # 肘→手の向き(+x側)
-FINGER_SPREAD = Vector((0.918, 0.0, 0.386))   # 指を並べる向き(+x側)
-THUMB = ((0.216, -0.010, 0.452), (0.208, -0.018, 0.436), (0.206, -0.022, 0.422))
+# 手のひら(手首→指の付け根)の半幅・半厚
+PALM_HALF_W = (0.0175, 0.0218, 0.0242)
+PALM_HALF_T = (0.0110, 0.0108, 0.0100)
 
 
-def _finger_axes(side: float):
-    """片手ぶんの指の軸(根元, 先, 半径)。sideは+1/-1"""
-    arm = Vector((ARM_DIR.x * side, ARM_DIR.y, ARM_DIR.z))
-    spread = Vector((FINGER_SPREAD.x * side, 0.0, FINGER_SPREAD.z))
-    palm = Vector((HAND_C_L.x * side, HAND_C_L.y, HAND_C_L.z)) + arm * 0.018
-    out = []
-    for off, length, r0, r1, bend in FINGERS:
-        base = palm + spread * off
-        mid = base + arm * (length * 0.55) + Vector((0.0, -bend, 0.0))
-        tip = base + arm * length + Vector((0.0, -bend * 1.4, 0.0))
-        out.append((base, mid, tip, r0, r1))
-    return out
+def _hand_frame(side: float):
+    """
+    片手の座標系。(手首, 指の付け根, 手の向き, 指を並べる向き, 手の甲の法線)
+
+    手の甲がほぼ前(-y)を向くAポーズなので、手のひらの法線を+y起点に取り、
+    そこから指の並ぶ向きを外積で決める。**向きを外積で決める**のが要点で、
+    座標を直接書くと手のひらと指の面がねじれる
+    """
+    arm = Vector((HAND_DIR.x * side, HAND_DIR.y, HAND_DIR.z))
+    arm.normalize()
+    palm_n = Vector((0.0, 1.0, 0.0))
+    palm_n = palm_n - arm * arm.dot(palm_n)
+    palm_n.normalize()
+    spread = arm.cross(palm_n) * side          # 外側(小指側)が正
+    spread.normalize()
+    wrist = Vector((HAND_WRIST_L.x * side, HAND_WRIST_L.y, HAND_WRIST_L.z))
+    knuckle = wrist + arm * (HAND_LENGTH * HAND_PALM_FRAC)
+    return wrist, knuckle, arm, spread, palm_n
+
+
+def _hand_parts(side: float, grow: float, prefix: str) -> list:
+    """
+    片手ぶんの部品(手のひら・指4本・親指)。
+
+    grow=0 が素手、grow=革の厚み が手袋。**同じ関数から両方を作る**ので、
+    手袋は必ず素手を包む。
+    """
+    wrist, knuckle, arm, spread, palm_n = _hand_frame(side)
+    mid = wrist + arm * (HAND_LENGTH * HAND_PALM_FRAC * 0.55)
+    parts = [C.tapered_slab(
+        f"{prefix}_palm{side:+.0f}",
+        [wrist - arm * grow, mid, knuckle + arm * grow],
+        [w + grow for w in PALM_HALF_W], [t + grow for t in PALM_HALF_T],
+        spread, segments=12)]
+    for i, (off, length, r0, r1, bend, fan) in enumerate(FINGERS):
+        base = knuckle + spread * off - arm * 0.004
+        dir_f = (arm + spread * fan).normalized()
+        curl = palm_n * -bend            # 指は手のひら側(甲の逆)へ曲がる
+        tip = base + dir_f * (length + grow) + curl * 1.5
+        mid_p = base + dir_f * (length * 0.55) + curl * 0.55
+        # **両端とも grow ぶん伸ばす**。半径だけ太らせると、根元と先の
+        # 蓋が素手と同じ平面に来て「手袋の面の上に素手の面がある」状態に
+        # なる(装着の検査が指と親指で落ちた実測)
+        parts.append(C.curve_tube(
+            f"{prefix}_finger{side:+.0f}_{i}",
+            [tuple(base - dir_f * grow), tuple(mid_p), tuple(tip)],
+            [r0 + grow, (r0 + r1) * 0.5 + grow, r1 + grow]))
+    # 親指。内側(spreadの負)に離れて付き、手前(-y)へ出る
+    t0 = wrist + arm * 0.014 - spread * 0.021 + palm_n * -0.005
+    t1 = t0 + arm * 0.019 - spread * 0.008 + palm_n * -0.011
+    t2 = t1 + arm * 0.018 - spread * 0.004 + palm_n * -0.012
+    tdir = (t1 - t0).normalized()
+    parts.append(C.curve_tube(
+        f"{prefix}_thumb{side:+.0f}",
+        [tuple(t0 - tdir * grow), tuple(t1), tuple(t2 + tdir * grow)],
+        [0.0068 + grow, 0.0058 + grow, 0.0044 + grow]))
+    return parts
+
+
+def _glove_cuff(side: float):
+    """手袋の折り返し。**前腕との継ぎ目をこれが隠す**ので必ず腕へ被せる"""
+    wrist, _knuckle, arm, _spread, _palm_n = _hand_frame(side)
+    pts = [wrist - arm * 0.002, wrist - arm * 0.016,
+           wrist - arm * 0.032, wrist - arm * 0.046]
+    return C.curve_tube(f"garudo_cuff{side:+.0f}", [tuple(p) for p in pts],
+                        [0.0215, 0.0198, 0.0190, 0.0176])
+
+
+def _hand_dist(pos: Vector, side: float, grow: float = 0.0):
+    """
+    手(または手袋)の表面までのおおよその距離と、指ごとの距離。
+
+    造形と塗りで**同じ骨格**を使う(別々に持つと、指の間の線が
+    ジオメトリの指とずれる)。
+    """
+    wrist, knuckle, arm, spread, palm_n = _hand_frame(side)
+    mid = wrist + arm * (HAND_LENGTH * HAND_PALM_FRAC * 0.55)
+    d = _seg_dist(pos, wrist, knuckle) - (PALM_HALF_W[1] * 0.8 + grow)
+    fingers = []
+    for off, length, r0, r1, bend, fan in FINGERS:
+        base = knuckle + spread * off - arm * 0.004
+        dir_f = (arm + spread * fan).normalized()
+        curl = palm_n * -bend
+        tip = base + dir_f * (length + grow) + curl * 1.5
+        mid_p = base + dir_f * (length * 0.55) + curl * 0.55
+        fd = min(_seg_dist(pos, base, mid_p), _seg_dist(pos, mid_p, tip)) \
+            - ((r0 + r1) * 0.5 + grow)
+        fingers.append(fd)
+        d = min(d, fd)
+    t0 = wrist + arm * 0.016 - spread * 0.019 + palm_n * -0.004
+    t2 = t0 + arm * 0.039 - spread * 0.007 + palm_n * -0.019
+    d = min(d, _seg_dist(pos, t0, t2) - (0.0052 + grow))
+    return d, fingers
 
 
 # ---- 顔のデカール(design/characters/garudo/face.svg をラスタライズしたもの) ----
@@ -668,43 +766,86 @@ def _eye_texture(size: int = 128) -> "bpy.types.Image":
     return img
 
 
+def _hand_color(pos: Vector, normal: Vector):
+    """
+    素手(手袋の下)。爪・指の分かれ目・関節の陰。
+
+    手袋を脱がせた状態でもそのまま使えるように塗る。**見えないから
+    適当でよい、にしない**(手袋を外す表現を足すときに作り直しになる)
+    """
+    side = 1.0 if pos.x >= 0 else -1.0
+    wrist, knuckle, arm, spread, palm_n = _hand_frame(side)
+    f = 1.0
+    f *= 1.0 + 0.06 * max(0.0, -normal.dot(palm_n))      # 甲は明るい
+    f *= 1.0 - 0.10 * max(0.0, normal.dot(palm_n))       # 手のひらは暗い
+    d, fingers = _hand_dist(pos, side)
+    near = sorted(fingers)
+    if len(near) > 1 and near[1] - near[0] < 0.0018 and near[0] < 0.005:
+        f *= 0.86                                        # 指の分かれ目
+    # 爪(甲側の指先)
+    for i, (off, length, r0, r1, bend, fan) in enumerate(FINGERS):
+        base = knuckle + spread * off - arm * 0.004
+        tip = base + (arm + spread * fan).normalized() * length \
+            + palm_n * (-bend * 1.5)
+        if (pos - (tip - arm * 0.006 - palm_n * 0.002)).length < 0.0034 \
+                and normal.dot(palm_n) < -0.1:
+            return _shade(SKIN, 1.06)
+    if (pos - wrist).dot(arm) < 0.004:
+        f *= 0.94                                        # 手首側を少し暗く
+    return _shade(SKIN, f)
+
+
+def _glove_color(pos: Vector, normal: Vector):
+    """
+    手袋(別ジオメトリ)。革の陰影・指の分かれ目の線・折り返しの段・
+    甲の明るみ・手首のリベット。
+
+    **手袋を本体の距離場で塗るのをやめた。** 以前は融合ボディの表面を
+    「手のひらの球からの距離」で手袋色に塗っていたので、指の隙間が
+    ボクセルで埋まり(実測: 3.8mmボクセルでは4mmの隙間が消える)、
+    線を描いてごまかしていた。手袋を別ジオメトリにすると隙間が残る
+    """
+    side = 1.0 if pos.x >= 0 else -1.0
+    wrist, knuckle, arm, spread, palm_n = _hand_frame(side)
+    along = (pos - wrist).dot(arm)
+    f = 1.0
+    # 甲(palm_n の逆側)を明るく、手のひら側を暗く
+    f *= 1.0 + 0.10 * max(0.0, -normal.dot(palm_n)) \
+        - 0.12 * max(0.0, normal.dot(palm_n))
+    # 指の付け根(ナックル)の張り
+    f *= 1.0 + 0.12 * (1.0 - _smoothstep(0.010, 0.030, (pos - knuckle).length))
+    if along < 0.0:
+        # 折り返し。下端に段(縫い目)、上へ向かって少し暗く
+        f *= 0.92 - 0.12 * _smoothstep(-0.004, -0.040, along)
+        if -0.008 < along < -0.003:
+            f *= 0.72                                   # 折り返しの縁の線
+        # 甲側のリベット
+        rivet = (pos - (wrist - arm * 0.026 - palm_n * 0.019)).length
+        if rivet < 0.005:
+            return _shade(HOOP, 1.0 + 0.2 * (1.0 - rivet / 0.005))
+    else:
+        _d, fingers = _hand_dist(pos, side, LEATHER_T)
+        near = sorted(fingers)
+        if len(near) > 1 and near[1] - near[0] < 0.0022 and near[0] < 0.006:
+            f *= 0.60                                   # 指の分かれ目
+        # 甲の腱の線(付け根から手首へ)
+        lateral = abs((pos - wrist).dot(spread))
+        if normal.dot(palm_n) < -0.3 and 0.012 < along < 0.048:
+            for t in (-0.011, 0.0, 0.011):
+                if abs(lateral - abs(t)) < 0.0012 and t <= 0:
+                    f *= 0.94
+    return _shade(LEATHER, f)
+
+
 def _body_color(pos: Vector, normal: Vector, state: int = 0):
     """
     融合ボディの塗り分け(距離場)+顔・前立ての焼き込み。
-    優先順: 手袋 > 素肌(頭・前腕) > ズボン(ベルトより下) > シャツ。
+    優先順: 素肌(頭・前腕・手) > ズボン(ベルトより下) > シャツ。
     しきい値の段差はベルト・エプロン・ブーツの実体ジオメトリの陰に隠れる。
-    """
-    # 手袋(手の球距離場)。甲の明るみ+手首側を暗く
-    # 手袋の範囲。手のひらの球だけで判定していたので**指先がズボンの色**に
-    # なっていた(実測: レンダリングで指の先が青)。指の軸からの距離も見る
-    side = 1.0 if pos.x >= 0 else -1.0
-    palm_c = Vector((HAND_C_L.x * side, HAND_C_L.y, HAND_C_L.z))
-    d_hand = (pos - palm_c).length - 0.020
-    if d_hand > 0.075:
-        # 手から離れたテクセルで指の距離を計算しない(全身のテクセルで
-        # 走るので、これが無いとビルドが33秒→54秒になる実測)
-        return _body_color_no_hand(pos, normal, state)
-    finger_d = []
-    for base, mid, tip, r0, r1 in _finger_axes(side):
-        d = min(_seg_dist(pos, base, mid), _seg_dist(pos, mid, tip))
-        finger_d.append(d - (r0 + r1) * 0.5)
-        d_hand = min(d_hand, finger_d[-1])
-    d_hand = min(d_hand, _seg_dist(pos, Vector((THUMB[0][0] * side, THUMB[0][1], THUMB[0][2])),
-                                   Vector((THUMB[2][0] * side, THUMB[2][1], THUMB[2][2]))) - 0.008)
-    if d_hand < 0.006:
-        f = 1.0
-        d_knuckle = (pos - (palm_c + Vector((0.0, -0.026, -0.004)))).length
-        f *= 1.0 + 0.14 * (1.0 - _smoothstep(0.012, 0.030, d_knuckle))
-        if pos.z > HAND_C_L.z + 0.020:
-            f *= 0.90                                   # 手首側を暗く
-        # **指の間の線を描く**。指は隙間を空けても、ボクセルの解像度では
-        # 埋まってヘラになる(実測: 3.8mmボクセルでは4mmの隙間が消える)。
-        # 設定画も指は接していて線で分かれているので、塗りで分ける
-        near = sorted(finger_d)
-        if len(near) > 1 and near[1] - near[0] < 0.0016 and near[0] < 0.004:
-            f *= 0.62
-        return _shade(LEATHER, f)
 
+    **手袋はここでは塗らない。** 手袋は別ジオメトリ(garudo_glove)で、
+    この下にある手は素肌のまま。
+    """
     return _body_color_no_hand(pos, normal, state)
 
 
@@ -716,8 +857,12 @@ def _body_color_no_hand(pos: Vector, normal: Vector, state: int = 0):
     skin_field = _smoothstep(0.760, 0.772, pos.z)
     for s in (1.0, -1.0):
         d_fore = _seg_dist(pos, Vector((0.165 * s, 0.004, 0.594)),
-                           Vector((0.227 * s, 0.0, 0.452)))
-        skin_field = max(skin_field, 1.0 - _smoothstep(0.036, 0.044, d_fore))
+                           Vector((HAND_WRIST_L.x * s, HAND_WRIST_L.y,
+                                   HAND_WRIST_L.z)))
+        skin_field = max(skin_field, 1.0 - _smoothstep(0.030, 0.038, d_fore))
+        # 手(手袋の下の素手)。**手袋を脱がせても手として成立する**
+        d_hand, _f = _hand_dist(pos, s)
+        skin_field = max(skin_field, 1.0 - _smoothstep(0.002, 0.008, d_hand))
     if skin_field > 0.5:
         # 顔はアニメの文法で「描く」(参照スクリーンショットの指摘対応)。
         # 太い上まぶたの線・意思のある眉・口の線+下唇の影・鼻の点。
@@ -813,29 +958,19 @@ def build() -> tuple[list, object]:
         (0.766, 0.034, 0.028, 0.0, 0.0),
     ]))
     for s in (1, -1):
-        # 袖(肘まで。まくり口は少し太い)→ 前腕(素肌)→ 手(手袋)
+        # 袖(肘まで。まくり口は少し太い)→ 前腕(素肌)→ 手(素手)
         organic.append(C.curve_tube(f"g_sleeve{s}",
                                     [(s * 0.078, 0.0, 0.744), (s * 0.100, 0.004, 0.690),
                                      (s * 0.165, 0.004, 0.604)],
                                     [0.030, 0.029, 0.031]))
-        organic.append(C.curve_tube(f"g_fore{s}",
-                                    [(s * 0.165, 0.004, 0.604), (s * 0.227, 0.0, 0.460)],
-                                    [0.021, 0.019]))
-        # 手袋。設定画は**指の分かれた革手袋**なので、手のひらの球に
-        # 指を4本足す(それまでは丸い塊=ミトンだった)。指は腕の向きへ
-        # 伸ばし、手前へ少し曲げる
-        # 設定画の手袋は手首の折り返しから指先まで約110mm、うち**指が
-        # 半分**。手のひらを球1個で埋めると指を出す余地が無い
-        glove = C.uv_sphere(f"g_glove{s}", (s * HAND_C_L.x, HAND_C_L.y, HAND_C_L.z),
-                            0.024, scale=(0.95, 1.0, 1.05))
-        organic.append(glove)
+        # 前腕は**手首(z0.519)で終える**。設定画の素肌の前腕は z0.533 で
+        # 終わり、そこから下は手袋の折り返しに隠れる。以前は z0.460 まで
+        # 伸びていて、前腕が50mm長く手が短かった
         organic.append(C.curve_tube(
-            f"g_thumb{s}", [(p[0] * s, p[1], p[2]) for p in THUMB],
-            [0.0090, 0.0078, 0.0062]))
-        for i, (base, mid, tip, r0, r1) in enumerate(_finger_axes(s)):
-            organic.append(C.curve_tube(
-                f"g_finger{s}_{i}", [tuple(base), tuple(mid), tuple(tip)],
-                [r0, (r0 + r1) * 0.5, r1]))
+            f"g_fore{s}",
+            [(s * 0.165, 0.004, 0.604),
+             (s * HAND_WRIST_L.x, HAND_WRIST_L.y, HAND_WRIST_L.z)],
+            [0.021, 0.011]))
     # 腰(尻の量感)+脚+裾のたくれ
     organic.append(C.loft("g_seat", [
         (0.42, 0.086, 0.054, 0.0, 0.002),
@@ -1084,6 +1219,47 @@ def build() -> tuple[list, object]:
                               (0.5 + ty / b_len) * math.pi)) + 0.005,
                           0.020, segments=16, axis="Y")
         add(hoop, hoop_mat, pin_bone="hip-chest")
+
+    # ================= 手袋(素手の上から装着) =================
+    # 設定画の手袋は指の分かれた革手袋。**融合ボディに含めない**のが要点で、
+    # ボクセル(3.8mm)で融合すると指の隙間が埋まってヘラになる。
+    # 素手と同じ骨格から革の厚みぶん太らせて作り、手のボーンへ剛体で
+    # 追従させる。前腕との継ぎ目は折り返しが隠す
+    for s in (1.0, -1.0):
+        bone = C.bone_name("elbow.L" if s > 0 else "elbow.R",
+                           "hand.L" if s > 0 else "hand.R")
+        # **素手も融合ボディに入れない。** ボクセル(3.8mm)で融合すると
+        # 指の隙間が埋まってヘラになるうえ、融合で表面が数mm膨らんで
+        # 手袋を突き抜ける(実測: 指だけ素肌色で出た)
+        hand_parts = _hand_parts(s, 0.0, "garudo_hand")
+        glove_parts = _hand_parts(s, LEATHER_T, "garudo_glove") + [_glove_cuff(s)]
+        # **装着できているかを機械で確かめる。** 手袋の色で塗られるので、
+        # 素手が手袋を突き抜けていても見た目では気付けない
+        out = C.encloses(hand_parts, glove_parts, margin=0.0004)
+        if out >= 0.005:
+            for o in hand_parts:
+                bad = C.encloses([o], glove_parts, margin=0.0004)
+                print(f"    [glove] {o.name}: はみ出し {bad:.1%}")
+        assert out < 0.005, f"素手が手袋からはみ出している({out:.1%})"
+        hand = C.join(hand_parts, f"garudo_hand{s:+.0f}")
+        C.smart_uv(hand)
+        hand_img = C.bake_albedo(hand, _hand_color, size=96,
+                                 name=f"garudo_hand_tex{s:+.0f}")
+        C.assign_material(hand, C.make_textured_material(
+            f"garudo_hand{s:+.0f}", hand_img, roughness=0.62))
+        C.mark_for_pin(hand)
+        pinned.append((hand.name, bone))
+        parts_list.append(hand)
+
+        glove = C.join(glove_parts, f"garudo_glove{s:+.0f}")
+        C.smart_uv(glove)
+        glove_img = C.bake_albedo(glove, _glove_color, size=128,
+                                  name=f"garudo_glove_tex{s:+.0f}")
+        C.assign_material(glove, C.make_textured_material(
+            f"garudo_glove{s:+.0f}", glove_img, roughness=0.75))
+        C.mark_for_pin(glove)
+        pinned.append((glove.name, bone))
+        parts_list.append(glove)
 
     # ================= ブーツ(編み上げ・革の実体形状) =================
     # 箱+円柱では「レゴの足」になる(実測の指摘)。かかと→土踏まず→
