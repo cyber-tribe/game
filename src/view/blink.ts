@@ -2,7 +2,7 @@ import * as THREE from "three";
 
 /**
  * まばたき・視線の微揺れ(plan/models/archive/eye-blink-liveliness.md、
- * plan/models/garudo-face-qa.md 第9段階)。
+ * plan/models/archive/garudo-face-qa.md 第9段階)。
  *
  * 対象は`userData.blink`を持つオブジェクトだけ。名前ではなくカスタム
  * プロパティ(tools/models/common.pyのparent_to_bone、glTF extras経由)で

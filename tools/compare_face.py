@@ -4,7 +4,7 @@
 `tools/overlay_sheet.py`が全身シルエットの検査なのに対し、こちらは
 **顔だけを同じ物理スケールへ写して機械が判定する**道具。
 「似ている気がする」という自己評価を最終判定にしないための評価関数
-(plan/models/garudo-face-qa.md)。
+(plan/models/archive/garudo-face-qa.md)。
 
     tools/venv/bin/python tools/compare_face.py <名前>
 
@@ -648,7 +648,7 @@ def main() -> int:
     # すると決めているので肌には効くが、**髪型は分け目があって元から
     # 左右非対称**なので、対称な形の上限は髪の上限ではない
     # (実測: 髪は上限0.857に対しIoU 0.871。到達率102%になり判定に
-    # ならない)。髪は絶対値で見る(plan/models/garudo-hair-clumps.md の
+    # ならない)。髪は絶対値で見る(plan/models/archive/garudo-hair-clumps.md の
     # 当初基準 0.80)。
     print(f"\n  {'領域':<14} {'IoU':>7} {'対称の上限':>11} {'到達率':>8}")
     ious = {}

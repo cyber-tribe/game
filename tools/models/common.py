@@ -520,7 +520,7 @@ def organic_uv(obj: "bpy.types.Object", axis: int = 2,
 def hair_clump(name: str, spine, width, thickness, segments: int = 8,
                smooth: bool = True) -> "bpy.types.Object":
     """
-    **立体的な毛束**を1本作る(plan/models/garudo-hair-clumps.md)。
+    **立体的な毛束**を1本作る(plan/models/archive/garudo-hair-clumps.md)。
 
     4点程度の中心線 `spine` に沿って、**レンズ(潰したダイヤ)断面**を
     ロフトする。板(平たい面)でも殻(頭皮を切り取った面)でもない、
@@ -2381,7 +2381,7 @@ def clump_shell(name: str, outline, depth, half_thick: float = 0.010,
                 smooth: bool = True) -> "bpy.types.Object":
     """
     **正面から見た輪郭をそのまま形にする毛束**
-    (plan/models/garudo-hair-clumps.md 第2次改訂)。
+    (plan/models/archive/garudo-hair-clumps.md 第2次改訂)。
 
     中心線+幅で作る `hair_clump` は「1本の細長い房」しか作れず、設定画に
     描かれている**毛束の輪郭**(切れ込み・2つに割れた毛先・シルエットの

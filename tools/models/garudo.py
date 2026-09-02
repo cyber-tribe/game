@@ -265,7 +265,7 @@ def _hand_dist(pos: Vector, side: float, grow: float = 0.0):
 
 # ---- 顔のデカール(design/characters/garudo/face.svg をラスタライズしたもの) ----
 # 目・眉・鼻・口・頬は**SVGが唯一の情報源**。Pythonの数値で描くのをやめ、
-# 2Dデザインとして独立に編集できるようにした(plan/models/garudo-face-qa.md)。
+# 2Dデザインとして独立に編集できるようにした(plan/models/archive/garudo-face-qa.md)。
 # SVGの座標系は顔一致QAのウィンドウと同一なので、QAが出す「◯mmずれ」が
 # そのままSVGの座標編集になる(1 SVG単位 = 0.5mm)。
 FACE_DECAL_PATH = os.path.join(
@@ -636,7 +636,7 @@ def _hair_cap():
 def _hair_major_from(major: dict):
     """
     主要毛束1本。**設定画からなぞった輪郭をそのまま形にする**
-    (plan/models/garudo-hair-clumps.md 第2次改訂)。
+    (plan/models/archive/garudo-hair-clumps.md 第2次改訂)。
 
     中心線+幅で作る従来の毛束では、設定画に描かれている毛束の
     輪郭 ―― 前髪が2つに割れた毛先、シルエットの尖り、房と房の切れ込み
@@ -1131,7 +1131,7 @@ def build() -> tuple[list, object]:
         "目の位置で open と closed の色が同じ(まばたきが効かない)"
 
     # ================= 髪(立体的な大きな毛束) =================
-    # plan/models/garudo-hair-clumps.md。板(_hair_card)と頭皮に沿う殻
+    # plan/models/archive/garudo-hair-clumps.md。板(_hair_card)と頭皮に沿う殻
     # (_hair_shell)をやめ、3層に分ける:
     #
     #   Hair Cap  →  Major Clumps  →  Painted Detail
@@ -1157,10 +1157,10 @@ def build() -> tuple[list, object]:
     over_y = C.wider_than([cap], clumps, axis=1, min_width=0.045)
     print(f"  [hair] capが輪郭を作る高さ 正面{over_x:.0%} 側面{over_y:.0%}")
     # 残る2段(z0.940/0.948)は**頭そのものが設定画より6mm大きい**ため
-    # (顔一致QAの「髪の最大幅の高さz」参照。plan/models/garudo-face-qa.md
+    # (顔一致QAの「髪の最大幅の高さz」参照。plan/models/archive/garudo-face-qa.md
     # の残差詰めで頭頂を絞ると消える)。髪側の問題ではないので許容する
     # 残る2段(z0.940/0.948)は**頭そのものが設定画より6mm大きい**ため
-    # (顔一致QAの「髪の最大幅の高さz」。plan/models/garudo-face-qa.md の
+    # (顔一致QAの「髪の最大幅の高さz」。plan/models/archive/garudo-face-qa.md の
     # 残差詰めで頭頂を絞れば消える)。髪側の問題ではないので許容する
     # 側面が高いのは正しい(仕様2-5: 後頭部の中央はCap主体)。
     # 見るのは正面。ここが0でないと「輪郭を作るのは毛先」になっていない

@@ -324,7 +324,7 @@ describe("3Dモデル", () => {
   });
 
   it("garudo の顔がまばたきのアトラスを持っている", () => {
-    // テクスチャ切り替え方式(plan/models/garudo-face-qa.md 第9段階)。
+    // テクスチャ切り替え方式(plan/models/archive/garudo-face-qa.md 第9段階)。
     // 目のためだけの板は貼らず、顔のUV島を別マテリアルにして
     // open/half/closed を横に並べてある。extrasが落ちると
     // src/view/blink.ts が対象を見つけられず、見た目は正常なのに

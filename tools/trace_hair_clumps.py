@@ -1,6 +1,6 @@
 """
 設定画から**毛束(clump)の毛先**を測り、hair-clumps.json の下ごしらえをする
-(plan/models/garudo-hair-clumps.md 実装順序1)。
+(plan/models/archive/garudo-hair-clumps.md 実装順序1)。
 
 髪を「シルエットに幅を合わせた殻」ではなく「設定画に描かれている毛束の
 集合」として作り直すための第一歩。顔で得た原則「なぞれるものを手で
@@ -499,7 +499,7 @@ def main() -> int:
         with open(out_path, encoding="utf-8") as fh:
             data = json.load(fh)
     data["_comment"] = (
-        "髪の毛束の基準(plan/models/garudo-hair-clumps.md)。"
+        "髪の毛束の基準(plan/models/archive/garudo-hair-clumps.md)。"
         "tips は tools/trace_hair_clumps.py が設定画から測った毛先で、"
         "再生成すると上書きされる。major は主要毛束の輪郭で、"
         "測れる辺(髪の輪郭)は edge/top で指定し、毛束どうしの境目だけ"
