@@ -2570,3 +2570,61 @@ def clump_volume(name: str, path, width, thickness, normals,
     for poly in mesh.polygons:
         poly.use_smooth = smooth
     return obj
+
+
+def depth_order(front, back, direction, cell: float = 0.004) -> tuple[float, int]:
+    """
+    ある視線方向から見て、`front` が `back` より手前にある割合を測る
+    (plan/models/garudo-side-hair-volume.md 受け入れ基準4)。
+
+    設定画には3/4図が無いので、その角度ではIoUで測れない。代わりに
+    **毛束の重なり順**を見る。前髪 > こめかみ毛束 > 耳 > 後頭部毛束 の
+    順になっていれば、少なくとも「板が何枚も無関係に重なっている」事故は
+    起きていない。
+
+    `direction` はカメラから被写体へ向かう単位ベクトル。その方向へ光線を
+    飛ばし、両方の集合に当たった光線について front の方が手前かを数える。
+
+    返すのは (正しい割合, 両方に当たった光線の数)。光線が少なすぎるときは
+    判定に使わない(重なりが無ければ順序も無い)。
+    """
+    d = Vector(direction).normalized()
+    lo, hi = bounds(list(front) + list(back))
+    span = hi - lo
+    origin_mid = (lo + hi) * 0.5 - d * (span.length + 0.05)
+    up = Vector((0.0, 0.0, 1.0))
+    if abs(up.dot(d)) > 0.99:
+        up = Vector((0.0, 1.0, 0.0))
+    ax = d.cross(up).normalized()
+    ay = ax.cross(d).normalized()
+    half = span.length * 0.5
+
+    import mathutils
+
+    trees = []
+    for group in (front, back):
+        bm = bmesh.new()
+        for obj in group:
+            bm.from_mesh(obj.data)
+        tree = mathutils.bvhtree.BVHTree.FromBMesh(bm)
+        bm.free()
+        trees.append(tree)
+
+    ok = 0
+    both = 0
+    n = max(4, int(half * 2.0 / cell))
+    for i in range(n):
+        for j in range(n):
+            u = (i / (n - 1) - 0.5) * 2.0 * half
+            v = (j / (n - 1) - 0.5) * 2.0 * half
+            origin = origin_mid + ax * u + ay * v
+            hits = []
+            for tree in trees:
+                loc, _nor, _idx, dist = tree.ray_cast(origin, d)
+                hits.append(dist if loc is not None else None)
+            if hits[0] is None or hits[1] is None:
+                continue
+            both += 1
+            if hits[0] < hits[1]:
+                ok += 1
+    return (ok / both if both else 1.0), both

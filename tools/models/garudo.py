@@ -584,10 +584,12 @@ def _cap_z0(az_deg: float) -> float:
     毛束の隙間から見えるはずの額がcapで塞がれる。実測(設定画)では
     額の露出は最高 z=0.898 まで上がるので、正面のcapはそれより上で切る。
     横〜後頭部は毛束の隙間から地肌が見えるのを防ぐため低くする。
+    **後ろは襟足まで下ろす。** z0.848で切っていたら、真横から見たときに
+    そこが水平な段になり、下の地肌が露出していた(実測: 4方向レンダー)。
     """
     a = abs(((az_deg + 180.0) % 360.0) - 180.0)
-    table = ((0.0, 0.906), (40.0, 0.902), (60.0, 0.878), (75.0, 0.849),
-             (110.0, 0.849), (150.0, 0.848), (180.0, 0.848))
+    table = ((0.0, 0.906), (40.0, 0.902), (60.0, 0.878), (75.0, 0.845),
+             (110.0, 0.822), (150.0, 0.818), (180.0, 0.818))
     for (a0, z0), (a1, z1) in zip(table, table[1:]):
         if a0 <= a <= a1:
             t = (a - a0) / (a1 - a0)
@@ -641,6 +643,45 @@ def _hair_cap():
     bm.free()
     for poly in mesh.polygons:
         poly.use_smooth = True
+    return obj
+
+
+def _hair_lock_from(lock: dict):
+    """
+    **頭を回り込む1本の毛束**(plan/models/garudo-side-hair-volume.md)。
+
+    正面図・側面図をそれぞれ別の殻にすると、3/4から見たときに
+    「髪型」ではなく**複数方向から貼った殻**に見える。横髪は
+    分け目→こめかみ→耳の前→頬 と3D空間を回り込む1つの物体なので、
+    中心線をそのまま3Dで持つ。
+
+    左右は鏡像にしない。分け目があるので設定画の輪郭が左右で9〜14mm違い
+    (z880で -88 対 +98)、鏡像にすると必ず片側がはみ出す。
+
+    各点は**部位**で置く ―― 方位角(0が正面、+が+x側)と高さ。
+    `_scalp_point` で頭皮の上に落としてから `lift` だけ外へ浮かせるので、
+    毛束は必ず頭に沿って回る。断面の向きは頭皮の法線で決まる。
+
+    幅と厚みは点ごとに変える。一律だと「太いソーセージ」か「カード」の
+    どちらかにしかならない(根元 薄い → 中間 厚い → 毛先 薄い)。
+    """
+    s = int(lock.get("sign", 1))
+    pts, ws, ts, ns = [], [], [], []
+    for p in lock["points"]:
+        az = float(p["az"]) * s
+        z = float(p["z"])
+        rx, ry, _cy = _head_at(z)
+        a = math.radians(az)
+        n = Vector((math.sin(a) / rx, -math.cos(a) / ry, 0.0))
+        n.normalize()
+        pts.append(_scalp_point(az, z) + n * float(p["lift"]))
+        ns.append(n)
+        ws.append(float(p["w"]))
+        ts.append(float(p["t"]))
+    obj = C.clump_volume(f"h_{lock['name']}", pts, ws, ts, ns, segments=10)
+    _HAIR_SPINES.append((pts, max(0.006, max(ws))))
+    C.spherize_normals(obj, tuple(pts[0].lerp(pts[-1], 0.5)),
+                       radius=None, strength=HAIR_NORMAL_BLEND)
     return obj
 
 
@@ -1205,16 +1246,52 @@ def build() -> tuple[list, object]:
     # 毛束は design/characters/garudo/hair-clumps.json から読む。
     # 毛先は設定画から実測した値(tools/trace_hair_clumps.py)。
     cap = _hair_cap()
-    clumps = [_hair_major_from(m) for m in _hair_table()["major"]]
+    by_name: dict = {}
+
+    def _keep(obj, name):
+        by_name[name] = obj
+        return obj
+
+    front_clumps = [_keep(_hair_major_from(m), m["name"])
+                    for m in _hair_table()["major"]]
     # 主要毛束の間(髪の面積の約3割)は補助の毛束で埋める。輪郭の作りは
     # 同じで、浮かせる量を小さくして主要毛束の**下**に敷く
-    clumps += [_hair_major_from(m) for m in _hair_table().get("aux", [])]
+    front_clumps += [_keep(_hair_major_from(m), m["name"])
+                     for m in _hair_table().get("aux", [])]
     # 後頭部。輪郭は設定画の**背面図**からなぞる。ここを作らないと、
     # 正面だけ毛束・後ろは滑らかな椀という「半分だけヘルメット」になる
-    clumps += [_hair_major_from(m) for m in _hair_table().get("major_back", [])]
-    # 横顔。輪郭は設定画の**側面図**から (y, z) でなぞり、左右へ鏡像で置く
-    clumps += [_hair_side_from(m, s) for m in _hair_table().get("major_side", [])
-               for s in (1, -1)]
+    back_clumps = [_keep(_hair_major_from(m), m["name"])
+                   for m in _hair_table().get("major_back", [])]
+    # 横髪。**投影ごとの殻をやめ、頭を回り込む1本の毛束にする**
+    # (plan/models/garudo-side-hair-volume.md)。側面専用の
+    # clump_shell(plane="yz") は使わない
+    side_locks = [_keep(_hair_lock_from(m), m["name"])
+                  for m in _hair_table().get("major_3d", [])]
+    clumps = front_clumps + back_clumps + side_locks
+
+    # **3/4から見た重なり順を機械で確かめる**(仕様の受け入れ基準4)。
+    # 設定画に3/4図は無いのでIoUでは測れない。前髪 > 横髪 > 後頭部の
+    # 順になっていれば「板が何枚も無関係に重なっている」事故は防げる。
+    # 0°(正面)と45°(3/4)の両方で見る
+    # 順序を見るのは**額にかかる前髪**と**こめかみの毛束**と**後頭部**。
+    # 「主要毛束」全部を前髪として数えると、頭頂の板や跳ねまで入って
+    # 意味を成さない(実測: そう数えたら15%になった)
+    fringe = [by_name[n] for n in ("fringe_L", "fringe_R", "aux_part")
+              if n in by_name]
+    rear = back_clumps
+    for ang in (0.0, 45.0):
+        a = math.radians(ang)
+        d = Vector((math.sin(a), math.cos(a), 0.0))
+        for label, fg, bg in (("前髪>横髪", fringe, side_locks),
+                              ("横髪>後頭部", side_locks, rear)):
+            if not fg or not bg:
+                continue
+            rate, rays = C.depth_order(fg, bg, d, cell=0.003)
+            if rays < 150:
+                continue                   # 重なりが無ければ順序も無い
+            print(f"  [hair] {ang:.0f}° {label} {rate:.0%} ({rays}本)")
+            assert rate >= 0.85, \
+                f"{ang:.0f}°で{label}の重なり順が崩れている({rate:.0%})"
     # **capが輪郭を作っていないことを機械で確かめる。** 目で見ても
     # 「髪の塊」にしか見えず気付けない(旧h_baseがそうだった)
     # capは後頭部では表面そのものでよい(仕様2-5)が、**輪郭を作っては
