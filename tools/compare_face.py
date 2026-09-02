@@ -573,9 +573,32 @@ def main() -> int:
     # 目は縦32mm程度。これを超える塊は髪と融合しているので採らない
     eyes_a = eye_pair(a, tuple(ref["bands"]["eye"]), max_h=0.036)
     eyes_b = eye_pair(b, tuple(ref["bands"]["eye"]), max_h=0.036)
-    for field, jp, tol in (("gap", "目の間隔", 4.0), ("z", "目の高さz", 3.0),
-                           ("w", "目の幅", 4.0), ("h", "目の高さ", 3.0)):
-        passed.append(report(jp, eyes_a[field] if eyes_a else None,
+    # **目の大きさは「デカールの出所」と比べる。**
+    # 目の絵は表情の区画「通常」からトレースしている(顔の解像度が
+    # 1.5倍細かいため)。一方この窓の基準は三面図の正面図で、同じ設定画の
+    # 中でも**2つの図は目の高さが2.5mm食い違う**(正面図26.0 / 通常23.5、
+    # 実測)。位置(間隔・高さz)は窓の基準=正面図で、大きさ(幅・高さ)は
+    # 絵の出所=通常で比べないと、モデルの出来と無関係な差を測ることになる
+    eyes_src = eyes_a
+    src_name = "正面図"
+    if "通常" in ref.get("expressions", {}):
+        try:
+            import importlib
+            import trace_face_svg as _T
+            panel, _cal = _T.expression_window(sheet, ref["expressions"]["通常"],
+                                               importlib.import_module(name), ref)
+            got = eye_pair(classify(np.ascontiguousarray(panel[:, :, :3],
+                                                         dtype=np.float32)),
+                           tuple(ref["bands"]["eye"]), max_h=0.036)
+            if got:
+                eyes_src, src_name = got, "表情『通常』"
+        except Exception as exc:          # noqa: BLE001
+            print(f"  (目の大きさの基準を表情から取れず: {exc})")
+    for field, jp, tol, src in (("gap", "目の間隔", 4.0, eyes_a),
+                                ("z", "目の高さz", 3.0, eyes_a),
+                                ("w", f"目の幅({src_name})", 4.0, eyes_src),
+                                ("h", f"目の高さ({src_name})", 3.0, eyes_src)):
+        passed.append(report(jp, src[field] if src else None,
                              eyes_b[field] if eyes_b else None, tol))
     brows_a = eye_pair(a, tuple(ref["bands"]["brow"]), min_size=25, max_h=0.020)
     brows_b = eye_pair(b, tuple(ref["bands"]["brow"]), min_size=25, max_h=0.020)
