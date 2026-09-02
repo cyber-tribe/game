@@ -130,8 +130,12 @@ def main() -> int:
     out.file_format = "PNG"
     out.save()
 
-    # 高さごとの幅を数値で突き合わせる(どこが細い/太いかを測る)
-    print(f"{'高さ%':>5} {'部位':<12} {'設定画':>7} {'モデル':>7} {'差':>6}")
+    # 高さごとの幅を数値で突き合わせる(どこが細い/太いかを測る)。
+    # **左右別も出す**。幅(span)だけだと、片側が出て片側が引っ込んだ
+    # 差し引きゼロを見逃す(実測: 腕が幅では合っているのに、重ねると
+    # 上腕の外側が赤・手が青だった=腕の角度が違う)
+    print(f"{'高さ%':>5} {'部位':<12} {'設定画':>7} {'モデル':>7} {'差':>6}"
+          f" | {'左(設)':>7} {'左(モ)':>7} {'差':>6} | {'右(設)':>7} {'右(モ)':>7} {'差':>6}")
     labels = ({2: "頭頂", 6: "髪", 12: "目", 18: "あご", 24: "肩", 32: "胸",
                40: "へそ", 48: "手首/腰", 56: "エプロン上", 64: "エプロン",
                72: "エプロン裾", 80: "ひざ下", 88: "すね", 95: "ブーツ"}
@@ -143,12 +147,22 @@ def main() -> int:
     for pct in sorted(labels):
         row = int((700 - 1) * pct / 100)
 
-        def span(mask):
+        def edges(mask):
+            """中心を揃えた座標での左端・右端(canvasと同じ中央合わせ)"""
             xs = np.where(mask[row])[0]
-            return int(xs.max() - xs.min() + 1) if len(xs) else 0
+            if not len(xs):
+                return None
+            off = (width - mask.shape[1]) // 2 - width // 2
+            return int(xs.min()) + off, int(xs.max()) + off
 
-        a, b = span(sheet_mask), span(model_mask)
-        print(f"{pct:>5} {labels[pct]:<12} {a:>7} {b:>7} {b - a:>+6}")
+        ea, eb = edges(sheet_mask), edges(model_mask)
+        if ea is None or eb is None:
+            print(f"{pct:>5} {labels[pct]:<12} {'--':>7}")
+            continue
+        a, b = ea[1] - ea[0] + 1, eb[1] - eb[0] + 1
+        print(f"{pct:>5} {labels[pct]:<12} {a:>7} {b:>7} {b - a:>+6}"
+              f" | {ea[0]:>7} {eb[0]:>7} {eb[0] - ea[0]:>+6}"
+              f" | {ea[1]:>7} {eb[1]:>7} {eb[1] - ea[1]:>+6}")
     print(f"→ {out_path}")
     return 0
 

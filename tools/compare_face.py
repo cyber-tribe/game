@@ -209,8 +209,21 @@ def sheet_front_figure(sheet: "np.ndarray", crop):
     return figure, (xs.min() + left, ys.min() + top, xs.max() + left, ys.max() + top)
 
 
-def resample_sheet(sheet: "np.ndarray", bbox, model_height: float) -> "np.ndarray":
-    """設定画の正面図を、モデルと同じウィンドウ・同じ倍率へ写す"""
+def resample_sheet(sheet: "np.ndarray", bbox, model_height: float,
+                   smooth: bool = True) -> "np.ndarray":
+    """
+    設定画の正面図を、モデルと同じウィンドウ・同じ倍率へ写す。
+
+    既定は**双一次補間**。設定画は顔の幅で0.65px/mmしかないので、
+    最近傍だと2.2mm角のブロックになる。モデル側のレンダーは滑らかなので、
+    基準だけギザギザだと**滑らかにするほどIoUが下がる**という逆向きの
+    圧力がかかる(実測: デカールを滑らかにしたら肌IoUが0.82→0.76)。
+    smooth=Falseで従来の最近傍(整合の重心を測る用。ぼかすと目と眉が
+    繋がって重心が動く)。
+
+    標本位置は箱の再構成に合わせて0.5引く(最近傍のsheet[floor(f)]は
+    画素kの中心をk+0.5とみなすため)。
+    """
     x0, y0, x1, y1 = bbox
     units_per_px = model_height / (y1 - y0)
     center_x = (x0 + x1) * 0.5
@@ -219,9 +232,22 @@ def resample_sheet(sheet: "np.ndarray", bbox, model_height: float) -> "np.ndarra
     cols = np.arange(RES_X)
     xs_model = cols / PX_PER_UNIT - WIN_HALF_X
     zs_model = WIN_Z1 - rows / PX_PER_UNIT
-    sx = np.clip((center_x + xs_model / units_per_px).astype(int), 0, sheet.shape[1] - 1)
-    sy = np.clip((sole_y - zs_model / units_per_px).astype(int), 0, sheet.shape[0] - 1)
-    return sheet[np.ix_(sy, sx)]
+    if not smooth:
+        sx = np.clip((center_x + xs_model / units_per_px).astype(int),
+                     0, sheet.shape[1] - 1)
+        sy = np.clip((sole_y - zs_model / units_per_px).astype(int),
+                     0, sheet.shape[0] - 1)
+        return sheet[np.ix_(sy, sx)]
+    fx = np.clip(center_x + xs_model / units_per_px - 0.5, 0, sheet.shape[1] - 1.001)
+    fy = np.clip(sole_y - zs_model / units_per_px - 0.5, 0, sheet.shape[0] - 1.001)
+    ix, iy = fx.astype(int), fy.astype(int)
+    tx = (fx - ix)[None, :, None]
+    ty = (fy - iy)[:, None, None]
+    a = sheet[np.ix_(iy, ix)]
+    b = sheet[np.ix_(iy, ix + 1)]
+    c = sheet[np.ix_(iy + 1, ix)]
+    d = sheet[np.ix_(iy + 1, ix + 1)]
+    return (a * (1 - tx) + b * tx) * (1 - ty) + (c * (1 - tx) + d * tx) * ty
 
 
 def blob_metrics(masks, band_z, x_sign, min_size=40, max_w=0.060, max_h=0.050):
@@ -299,6 +325,7 @@ def eye_pair(masks, band, min_size=40, max_w=0.060, max_h=0.050):
     b = max(right, key=lambda c: c["n"])
     return {
         "gap": a["cx"] - b["cx"],
+        "mid_x": (a["cx"] + b["cx"]) * 0.5,
         "z": (a["cz"] + b["cz"]) * 0.5,
         "w": (a["w"] + b["w"]) * 0.5,
         "h": (a["h"] + b["h"]) * 0.5,
@@ -514,11 +541,21 @@ def main() -> int:
             return (el["目の中心L"][0] + er["目の中心R"][0]) * 0.5
         return None
 
-    mid_a, mid_b = eye_mid(a), eye_mid(b)
-    if mid_a is not None and mid_b is not None:
-        shift = int(round((mid_b - mid_a) * PX_PER_UNIT))
+    # 設定画側の両目の中点を**モデルの正中(x=0)**へ合わせる。
+    # 以前はモデル側で測った中点へ合わせていたが、それだとモデルを
+    # 少し変えるたびに基準が動き、モデルの良し悪しと無関係にIoUが上下する
+    # (実測: 目の描かれ方が1.5mm変わっただけで肌IoUが0.80→0.74)。
+    # モデルは左右対称に作ってあるので、正中が動かない基準になる
+    mid_a = eye_mid(a)
+    if mid_a is not None:
+        shift = int(round(-mid_a * PX_PER_UNIT))
     else:
         shift = int(round((fb["center_x"] - fa["center_x"]) * PX_PER_UNIT))
+    # 整合量を固定して比べたいとき用(モデルを変えたときのIoUの増減が、
+    # 本当にモデルのせいか整合のずれかを切り分ける)
+    forced = os.environ.get("FACE_QA_SHIFT")
+    if forced:
+        shift = int(forced)
     a_aligned = {k: np.roll(v, shift, axis=1) for k, v in a.items()}
 
     print(f"\n=== 顔の一致度: {name} ===")
@@ -568,6 +605,44 @@ def main() -> int:
         hb = _row_span(head_b, row) * 1000
         print(f"  z={z:<18.3f} {sa:>10.1f} {sb:>10.1f} {sb - sa:>+7.1f}"
               f" | {ha:>9.1f} {hb:>10.1f} {hb - ha:>+7.1f}")
+
+    # ---- 髪の輪郭(左右別) ----
+    # 幅(span)だけでは足りない。設定画の髪は左右非対称に跳ねており、
+    # 幅が合っていても**どちら側が出ているか**が違うと別人に見える。
+    # さらに輪郭の凹凸量を測る: 房の尖りが無い「ヘルメット」は、幅が
+    # 合っていてもこの値が設定画の半分になる(実測: 319 vs 589)
+    print(f"\n  {'高さz':<10} {'設定左':>8} {'モデル左':>8} {'差':>7}"
+          f" {'設定右':>8} {'モデル右':>8} {'差':>7}")
+    hair_pass = True
+    for z in (0.790, 0.830, 0.870, 0.890, 0.910, 0.930, 0.950, 0.965):
+        row = int((WIN_Z1 - z) * PX_PER_UNIT)
+        ca, cb = np.where(head_a[row])[0], np.where(head_b[row])[0]
+        if not len(ca) or not len(cb):
+            continue
+        to_x = lambda c: (c / PX_PER_UNIT - WIN_HALF_X) * 1000.0
+        l0, r0 = to_x(ca.min()), to_x(ca.max())
+        l1, r1 = to_x(cb.min()), to_x(cb.max())
+        if max(abs(l1 - l0), abs(r1 - r0)) > 12.0:
+            hair_pass = False
+        print(f"  z={z:<8.3f} {l0:>8.1f} {l1:>8.1f} {l1 - l0:>+7.1f}"
+              f" {r0:>8.1f} {r1:>8.1f} {r1 - r0:>+7.1f}")
+
+    def raggedness(mask):
+        w = []
+        for row in range(int((WIN_Z1 - 0.975) * PX_PER_UNIT),
+                         int((WIN_Z1 - 0.860) * PX_PER_UNIT)):
+            cols = np.where(mask[row])[0]
+            w.append(float(cols.max() - cols.min()) if len(cols) else 0.0)
+        return float(np.abs(np.diff(np.array(w))).sum())
+
+    ra, rb = raggedness(head_a), raggedness(head_b)
+    ok_r = rb >= ra * 0.7
+    print(f"  上部輪郭の凹凸  設定画 {ra:.0f}px / モデル {rb:.0f}px "
+          f"({rb / max(ra, 1) * 100:.0f}%)  {'ok' if ok_r else 'NG'}"
+          f"  (基準>=70%: 毛先の尖りがあるか)")
+    print(f"  髪の左右輪郭   {'ok' if hair_pass else 'NG'}  (許容±12mm)")
+    passed.append(hair_pass)
+    passed.append(ok_r)
 
     # ---- 意味的ランドマーク回帰 ----
     la = all_landmarks(a_aligned, ref)
