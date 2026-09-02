@@ -333,6 +333,39 @@ def eye_pair(masks, band, min_size=40, max_w=0.060, max_h=0.050):
     }
 
 
+# 左右対称のモデルが到達できるIoUの下限保証。天井の何%まで来ていれば
+# 合格とするか(外部評価を受けて、絶対値0.90/0.80から置き換えた)
+IOU_REACH_MIN = 0.95
+
+
+def symmetric_ceiling(mask) -> float:
+    """
+    **左右対称なメッシュが、この基準に対して到達できるIoUの上限。**
+
+    設定画が左右非対称に描かれていると、左右対称なモデルはどう作っても
+    その差のぶんだけ外す。鏡映で対になる画素の組を数えると上限が出る:
+    両方1の組をn11、片方だけ1の組をn10として
+
+        上限 = (2*n11 + n10) / (2*n11 + 2*n10)
+
+    (片側だけの画素も「塗る」方が必ずIoUが高いので、この形になる)。
+    鏡映軸は少しずれているので±30pxを探索して最大を採る。
+
+    実測(ガルド): 肌0.825・髪0.860。肌はすでに0.813で天井の98%であり、
+    **目標値0.90は左右対称である限り到達できなかった**。
+    """
+    best = 0.0
+    for shift in range(-30, 31):
+        m = np.roll(mask, shift, axis=1)
+        mirrored = m[:, ::-1]
+        n11 = float((m & mirrored).sum()) / 2.0
+        n10 = float((m ^ mirrored).sum()) / 2.0
+        if n11 + n10 <= 0:
+            continue
+        best = max(best, (2 * n11 + n10) / (2 * n11 + 2 * n10))
+    return best
+
+
 def _row_span(mask, row):
     cols = np.where(mask[row])[0]
     return float((cols.max() - cols.min() + 1) / PX_PER_UNIT) if len(cols) else 0.0
@@ -561,12 +594,21 @@ def main() -> int:
 
     print(f"\n=== 顔の一致度: {name} ===")
     print(f"  設定画の正面図 外接箱={bbox}  中心合わせ={shift:+d}px")
-    print(f"\n  {'領域':<20} {'IoU':>8}")
+    # **IoUは絶対値で判定しない。**
+    # 設定画は左右非対称に描かれている(頬 +78.0/-63.5、顎先は中心から
+    # +11.0)ので、左右対称のモデルが到達できるIoUには理論上の天井がある。
+    # 天井に対する到達率で判定する(外部評価 2026-09-02:「0.90という
+    # 合格基準の方が間違っていた」)。
+    print(f"\n  {'領域':<14} {'IoU':>7} {'対称の上限':>11} {'到達率':>8}")
     ious = {}
-    for key, tol in (("skin", 0.90), ("hair", 0.80)):
+    for key in ("skin", "hair"):
         ious[key] = iou(a_aligned[key], b[key])
-        print(f"  {key:<20} {ious[key]:>8.3f}  {'ok' if ious[key] >= tol else 'NG'}"
-              f"  (目標>={tol})")
+        cap = symmetric_ceiling(a_aligned[key])
+        rate = ious[key] / cap if cap else 0.0
+        ok_r = rate >= IOU_REACH_MIN
+        print(f"  {key:<14} {ious[key]:>7.3f} {cap:>11.3f} {rate*100:>7.0f}%"
+              f"  {'ok' if ok_r else 'NG'}  (基準>={IOU_REACH_MIN*100:.0f}%)")
+        ious[key + "_rate"] = rate
 
     print(f"\n  {'ランドマーク':<20} {'設定画':>9} {'モデル':>9} {'差':>9}")
     passed = []
@@ -748,7 +790,8 @@ def main() -> int:
     out_path = os.path.join(C.PREVIEW_DIR, "face", f"{name}-compare.png")
     save_image(out_path, combined)
 
-    ok = all(passed) and ious["skin"] >= 0.90 and ious["hair"] >= 0.80
+    ok = all(passed) and ious["skin_rate"] >= IOU_REACH_MIN \
+        and ious["hair_rate"] >= IOU_REACH_MIN
     print(f"\n  判定: {'PASS' if ok else 'FAIL'}   → {out_path}\n")
     return 0 if ok else 2
 
