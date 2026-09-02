@@ -7,9 +7,14 @@
 重なった部分は紫になる。赤だけ・青だけの領域がそのままずれの量。
 
     tools/venv/bin/python tools/build_models.py <名前> --silhouette
+    tools/venv/bin/python tools/overlay_sheet.py <名前> [side]
     tools/venv/bin/python tools/overlay_sheet.py <名前> <左> <上> <右> <下> [side]
 
-設定画の三面図の切り出し範囲(ピクセル)は目視で与える。出力は
+切り出し範囲は既定で design/characters/<名前>/face-reference.json の
+`front_crop` を使う(顔一致QAと**同じ矩形**にして、二重管理を避ける)。
+狭い矩形を渡すと外接箱がAポーズの手で切れ、「設定画の腕が途中で
+消える」という測定事故になる(実測: 手首の高さで設定画側の幅が
+切り出し幅そのものになっていた)。出力は
 tools/preview/silhouettes/<名前>-sheet-overlay.png。
 """
 from __future__ import annotations
@@ -95,13 +100,21 @@ def fit(mask: "np.ndarray", size: int) -> "np.ndarray":
 
 
 def main() -> int:
-    if len(sys.argv) < 6:
+    if len(sys.argv) < 2:
         print(__doc__)
         return 1
     name = sys.argv[1]
-    left, top, right, bottom = (int(v) for v in sys.argv[2:6])
-    view = sys.argv[6] if len(sys.argv) > 6 else "front"
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    rest = sys.argv[2:]
+    if len(rest) >= 4:
+        left, top, right, bottom = (int(v) for v in rest[:4])
+        rest = rest[4:]
+    else:
+        import json
+        with open(os.path.join(root, "design", "characters", name,
+                               "face-reference.json"), encoding="utf-8") as fh:
+            left, top, right, bottom = json.load(fh)["front_crop"]
+    view = rest[0] if rest else "front"
 
     sheet = load(os.path.join(root, "design", "characters", name,
                               "generated", f"{name}-sheet.png"))

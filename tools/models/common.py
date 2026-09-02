@@ -1841,7 +1841,7 @@ def render_preview(name: str, objs: Sequence[bpy.types.Object], samples: int = 4
 
 
 def render_silhouette(name: str, objs: Sequence[bpy.types.Object], view: str = "front",
-                      size: int = 400) -> str:
+                      size: int = 1200) -> str:
     """
     平行投影・黒塗りのシルエットレンダー(plan/models/
     2d-turnaround-first-workflow.mdの受け入れ基準2)。三面図
