@@ -413,6 +413,24 @@ def _shade(color, f: float):
 
 APRON_HOOP_Z = (0.265, 0.390, 0.505)
 
+# 背負い樽。**軸は縦**(設定画の背面図・側面図の実測)。
+# 断面は楕円で、背面図で幅220mm・側面図で奥行き130mm。前面(y小)を
+# 背中へ付けたいので、リングの中心cyは奥行きに合わせて動かす
+BARREL_FRONT_Y = 0.070          # 樽の前面(融合ボディの背中の外)
+BARREL_RINGS = (
+    # (z, 半幅rx, 半奥行ry)
+    (0.5385, 0.083, 0.043),
+    (0.5600, 0.098, 0.053),
+    (0.6000, 0.108, 0.059),
+    (0.6550, 0.111, 0.060),
+    (0.7000, 0.109, 0.058),
+    (0.7400, 0.104, 0.055),
+    (0.7748, 0.084, 0.042),
+)
+BARREL_HOOP_Z = (0.550, 0.602, 0.706, 0.758)   # たが4本(背面図で実測)
+BARREL_PLUG_Z = 0.6552                          # 栓(背面図の中央の突起)
+BARREL_SEGMENTS = 14
+
 
 def _apron_color(pos: Vector, normal: Vector):
     """樽板エプロン: 板ごとの色差+上明るく下暗く+たが直下の影+
@@ -437,31 +455,48 @@ def _apron_color(pos: Vector, normal: Vector):
     return _shade(APRON_WOOD, f)
 
 
+def _barrel_ring(z: float):
+    """高さzでの樽の断面(rx, ry, cy)"""
+    rings = BARREL_RINGS
+    z = max(rings[0][0], min(rings[-1][0], z))
+    for (z0, rx0, ry0), (z1, rx1, ry1) in zip(rings, rings[1:]):
+        if z0 <= z <= z1:
+            t = (z - z0) / max(1e-9, z1 - z0)
+            rx = rx0 + (rx1 - rx0) * t
+            ry = ry0 + (ry1 - ry0) * t
+            return rx, ry, BARREL_FRONT_Y + ry
+    rx, ry = rings[-1][1], rings[-1][2]
+    return rx, ry, BARREL_FRONT_Y + ry
+
+
 def _barrel_color(pos: Vector, normal: Vector):
-    """背負い樽(軸は前後)。板の色差+上を明るく下を暗く+たが直下の影+
-    背中側の鏡板は年輪と縁の明るい線"""
-    b_cy, b_cz, b_len = 0.120, 0.658, 0.110
-    if pos.y > b_cy + b_len / 2:
-        r = math.hypot(pos.x, pos.z - b_cz)
-        f = 1.02
-        if r > 0.082:
-            f *= 1.14
-        elif 0.022 < r < 0.028 or 0.048 < r < 0.054:
-            f *= 0.90
-        return _shade((0.50, 0.34, 0.20), f)
-    # 板は軸まわりに並ぶ(x-z平面の角度)
-    deg = math.degrees(math.atan2(pos.z - b_cz, pos.x)) % 360.0
-    idx = int(deg / 30.0)
+    """
+    背負い樽(**軸は縦**)。板は縦に並び、たがは横に走る。
+    板ごとの色差+上を明るく+たが直下の影+板の合わせ目の明るい線。
+    """
+    rx, ry, cy = _barrel_ring(pos.z)
+    if pos.z > BARREL_RINGS[-1][0] - 0.004 and normal.z > 0.5:
+        return _shade((0.50, 0.34, 0.20), 1.06)         # 天面(鏡板)
+    if pos.z < BARREL_RINGS[0][0] + 0.004 and normal.z < -0.5:
+        return _shade((0.50, 0.34, 0.20), 0.84)         # 底
+    # 栓(背面の中央に突き出た飲み口)
+    if (pos - Vector((0.0, cy + ry, BARREL_PLUG_Z))).length < 0.020 \
+            and pos.y > cy + ry * 0.90:
+        return _shade((0.44, 0.30, 0.18), 1.0)
+    # 板は軸(z)まわりに並ぶ
+    step = 360.0 / BARREL_SEGMENTS
+    deg = math.degrees(math.atan2(pos.y - cy, pos.x)) % 360.0
+    idx = int(deg / step)
     f = 0.94 + 0.12 * _h01(idx * 3.71)
-    f *= 0.84 + 0.30 * max(0.0, min(1.0, (pos.z - (b_cz - 0.090)) / 0.180))
-    for hy in (b_cy - 0.034, b_cy, b_cy + 0.034):
-        d = pos.y - (hy + 0.010)
-        if 0.0 < d < 0.018:
-            f *= 0.76 + 0.24 * _smoothstep(0.0, 0.018, d)
-    if abs((deg % 30.0) - 15.0) / 15.0 > 0.86:
-        f *= 1.10
-    if math.sin(pos.y * 90.0 + idx) > 0.8:
-        f *= 0.94
+    f *= 0.86 + 0.26 * max(0.0, min(1.0, (pos.z - 0.535) / 0.240))
+    for hz in BARREL_HOOP_Z:                            # たがの真下の影
+        d = pos.z - (hz - 0.012)
+        if -0.014 < d < 0.0:
+            f *= 0.78 + 0.22 * _smoothstep(-0.014, 0.0, d)
+    if abs((deg % step) - step * 0.5) / (step * 0.5) > 0.86:
+        f *= 1.10                                       # 板の合わせ目
+    if math.sin(pos.z * 90.0 + idx) > 0.8:
+        f *= 0.94                                       # 木目
     return _shade(APRON_WOOD, f)
 
 
@@ -1187,24 +1222,22 @@ def build() -> tuple[list, object]:
     tail.rotation_euler = (math.radians(4), math.radians(-10), math.radians(6))
     add(tail, cloth_mat, pin_bone="hip-chest")
 
-    # ================= 背負い樽(軸を前後に寝かせて背負う) =================
-    # 設定画の側面図は「たがが縦に走る」・背面図は「円い鏡板」。これは
-    # 樽の軸が前後(Y)を向いているから(実測: 直径0.244・長さ0.130・
-    # 中心 y+0.155 z0.674)。縦置きの樽は設定画と別物になる
-    b_r, b_len, b_cy, b_cz = 0.090, 0.110, 0.120, 0.658
-    barrel = C.cylinder("garudo_barrel", (0.0, b_cy, b_cz), b_r, b_len,
-                        segments=14, axis="Y", smooth=False)
-    for vert in barrel.data.vertices:
-        t = (vert.co.y - (b_cy - b_len / 2)) / b_len
-        bulge = 1.0 + 0.10 * math.sin(max(0.0, min(1.0, t)) * math.pi)
-        vert.co.x *= bulge
-        vert.co.z = b_cz + (vert.co.z - b_cz) * bulge
-    # 鏡板(背中側の面。中央に栓の突起)
-    lid = C.cylinder("garudo_blid", (0.0, b_cy + b_len / 2 + 0.008, b_cz),
-                     b_r * 0.98, 0.016, segments=14, axis="Y", smooth=False)
-    plug = C.cylinder("garudo_bplug", (0.0, b_cy + b_len / 2 + 0.020, b_cz),
-                      0.018, 0.014, segments=8, axis="Y")
-    barrel = C.join([barrel, lid, plug], "garudo_barrel")
+    # ================= 背負い樽(軸は縦) =================
+    # **以前は軸を前後に寝かせていた(誤り)。** 「側面図でたがが縦に
+    # 走る・背面図は円い鏡板」と読んでいたが、拡大して見直すと側面図も
+    # 背面図も「板が縦・たがが横・中央がふくらむ」縦置きの樽で、背面に
+    # あるのは鏡板ではなく**栓(飲み口)**だった。
+    # 断面は楕円(幅220mm×奥行き130mm)。背中へ密着させるため前面のyを
+    # 固定し、奥行きに合わせて中心を後ろへずらす
+    barrel = C.loft("garudo_barrel",
+                    [(z, rx, ry, 0.0, BARREL_FRONT_Y + ry)
+                     for z, rx, ry in BARREL_RINGS],
+                    segments=BARREL_SEGMENTS, smooth=False)
+    # 栓(背面の中央)。樽の背面へ水平に突き出す
+    prx, pry, pcy = _barrel_ring(BARREL_PLUG_Z)
+    plug = C.cylinder("garudo_bplug", (0.0, pcy + pry + 0.006, BARREL_PLUG_Z),
+                      0.015, 0.020, segments=10, axis="Y")
+    barrel = C.join([barrel, plug], "garudo_barrel")
     C.smart_uv(barrel)
     barrel_img = C.bake_albedo(barrel, _barrel_color, size=256, name="garudo_barrel_tex")
     C.assign_material(barrel, C.make_textured_material("garudo_barrel", barrel_img,
@@ -1212,13 +1245,14 @@ def build() -> tuple[list, object]:
     C.mark_for_pin(barrel)
     pinned.append((barrel.name, "hip-chest"))
     parts_list.append(barrel)
-    # たが3本。軸が前後なので、リングは前後方向に並ぶ
-    for i, ty in enumerate((-0.034, 0.0, 0.034)):
-        hoop = C.cylinder(f"garudo_bhoop{i}", (0.0, b_cy + ty, b_cz),
-                          b_r * (1.0 + 0.10 * math.sin(
-                              (0.5 + ty / b_len) * math.pi)) + 0.005,
-                          0.020, segments=16, axis="Y")
-        add(hoop, hoop_mat, pin_bone="hip-chest")
+    # たが4本。軸が縦なので**横に走る**(設定画の背面図どおり)
+    for i, hz in enumerate(BARREL_HOOP_Z):
+        rings = []
+        for dz in (-0.010, 0.010):
+            rx, ry, cy = _barrel_ring(hz + dz)
+            rings.append((hz + dz, rx + 0.004, ry + 0.004, 0.0, cy))
+        add(C.loft(f"garudo_bhoop{i}", rings, segments=BARREL_SEGMENTS,
+                   smooth=False), hoop_mat, pin_bone="hip-chest")
 
     # ================= 手袋(素手の上から装着) =================
     # 設定画の手袋は指の分かれた革手袋。**融合ボディに含めない**のが要点で、

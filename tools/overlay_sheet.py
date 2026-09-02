@@ -122,6 +122,12 @@ def main() -> int:
 
     sil_path = os.path.join(C.PREVIEW_DIR, "silhouettes", f"{name}-{view}.png")
     model_mask = fit(figure_mask(load(sil_path), threshold=0.5), 700)
+    if view == "side":
+        # **側面は左右を反転する。** モデルのシルエットは-X側にカメラを
+        # 置くので画面の右が顔側、設定画の側面図は左が顔側。反転せずに
+        # 「左(設)/左(モ)」を並べると、前後が入れ替わったまま比べる
+        # ことになる(実測: 靴の前後で差が+74/+83mmと出ていた)
+        model_mask = model_mask[:, ::-1]
 
 
     width = max(sheet_mask.shape[1], model_mask.shape[1]) + 40
