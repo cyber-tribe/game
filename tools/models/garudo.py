@@ -650,15 +650,24 @@ def _hair_major_from(major: dict):
     outline = [(float(x), float(z)) for x, z in major["path_xz"]]
     root = Vector((major["root"][0], 0.0, major["root"][1]))
     lift = float(major["lift"])
+    # 背面図からなぞった毛束は、同じ x,z のまま**頭の裏側**へ置く
+    # (`tools/trace_hair_clumps.py --back` が背面図を左右反転して
+    #  モデル座標へ揃えているので、輪郭は正面と同じ書き方でよい)
+    back = major.get("side") == "back"
 
     def depth(x: float, z: float) -> float:
         rx, ry, cy = _head_at(z)
         a = math.asin(max(-1.0, min(1.0, x / max(1e-6, rx))))
         far = math.hypot(x - root.x, z - root.z)
-        return cy - ry * math.cos(a) - lift * (0.30 + 0.70 * min(1.0, far / 0.040))
+        out = (ry * math.cos(a) + lift * (0.30 + 0.70 * min(1.0, far / 0.040)))
+        return cy + out if back else cy - out
 
+    # 内部の分割は1回で足りる。**輪郭は間引き前の点列がそのまま境界に
+    # なる**ので、シルエットは分割数に依らない。2回にすると毛束だけで
+    # 14,936三角形になり、モデル全体の予算(24,000)を超える
     obj = C.clump_shell(f"h_{major['name']}", outline, depth,
-                        half_thick=float(major["thick"]), ramp=0.014, cuts=2)
+                        half_thick=float(major["thick"]), ramp=0.014,
+                        cuts=int(major.get("cuts", 1)))
     # 塗り(_hair_color)が「根元から毛先へ」を知るための中心線。輪郭の
     # 点を根元からの距離で4つの帯に分け、帯ごとの重心をつなぐ
     order = sorted(outline, key=lambda p: math.hypot(p[0] - root.x, p[1] - root.z))
@@ -732,7 +741,11 @@ def _hair_color(pos: Vector, normal: Vector):
     f *= 1.0 + 0.16 * max(0.0, normal.z) - 0.20 * max(0.0, -normal.z)
     if pos.y > 0.055:
         f *= 0.90                                          # 後頭部
-    return _shade(HAIR, f)
+    # **暗い側に床を敷く。** 掛け算を重ねると最悪 0.28 まで落ち、髪が
+    # ほぼ黒い塊になる。設定画の髪は中間調で、黒くなるのは輪郭線だけ。
+    # 黒い塊は顔一致QAの目の検出も壊す(暗部の連結成分が眉・髪と
+    # 繋がって「目」として拾われる。実測: 目尻が+7.5mm外へ飛んだ)
+    return _shade(HAIR, max(0.62, f))
 
 
 def _eye_texture(size: int = 128) -> "bpy.types.Image":
@@ -1131,6 +1144,9 @@ def build() -> tuple[list, object]:
     # 主要毛束の間(髪の面積の約3割)は補助の毛束で埋める。輪郭の作りは
     # 同じで、浮かせる量を小さくして主要毛束の**下**に敷く
     clumps += [_hair_major_from(m) for m in _hair_table().get("aux", [])]
+    # 後頭部。輪郭は設定画の**背面図**からなぞる。ここを作らないと、
+    # 正面だけ毛束・後ろは滑らかな椀という「半分だけヘルメット」になる
+    clumps += [_hair_major_from(m) for m in _hair_table().get("major_back", [])]
     # **capが輪郭を作っていないことを機械で確かめる。** 目で見ても
     # 「髪の塊」にしか見えず気付けない(旧h_baseがそうだった)
     # capは後頭部では表面そのものでよい(仕様2-5)が、**輪郭を作っては

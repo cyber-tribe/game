@@ -20,13 +20,16 @@ design/characters/<名前>/hair-clumps.json の `tips` 欄。
     tools/venv/bin/python tools/trace_hair_clumps.py garudo
     tools/venv/bin/python tools/trace_hair_clumps.py garudo --ridge
     tools/venv/bin/python tools/trace_hair_clumps.py garudo --major
+    tools/venv/bin/python tools/trace_hair_clumps.py garudo --back
 
 `--ridge` は設定画の髪の中に**描かれている分け目の線**を稜線として
 抜き出した画像を出す(tools/preview/face/<名前>-hair-ridge.png)。
 毛束の意味的な分解はこれを見て人が決める。
 
 `--major` は hair-clumps.json の `major`(主要毛束の輪郭)を設定画へ
-重ねた確認画像を出す。
+重ねた確認画像を出す。`--back` は同じことを**背面図**と `major_back`
+で行う。背面図は左右を反転してモデル座標へ揃えるので、背面の毛束も
+正面と同じ x,z で書ける(奥行き y だけ頭の裏側から取る)。
 
 座標系は顔一致QA(tools/compare_face.py)と同一のモデル座標(m)。
 """
@@ -184,6 +187,36 @@ def front_window(name: str, ref: dict):
                              smooth=False)[:, :, :3]
     pair = F.eye_pair(F.classify(crisp), ref["bands"]["eye"])
     shift = int(round(-pair["mid_x"] * F.PX_PER_UNIT))
+    return np.ascontiguousarray(np.roll(img, shift, axis=1), dtype=np.float32)
+
+
+def back_window(name: str, ref: dict):
+    """
+    顔一致QAと同じウィンドウへ写した**背面図**(モデル座標)。
+
+    背面図は後ろから見た絵なので、絵の左がモデルの+x。ここで左右を
+    反転して、正面図と同じ「+xが絵の右」に揃える。こうすると背面の
+    毛束も正面と同じ x,z で書ける(奥行きyだけ頭の裏側から取る)。
+
+    中心合わせは頭の輪郭の中央で行う(背面には目が無い)。
+    """
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sheet = F.load_image(os.path.join(root, "design", "characters", name,
+                                      "generated", f"{name}-sheet.png"))
+    _, bbox = F.sheet_front_figure(sheet, ref["back_crop"])
+    img = F.resample_sheet(sheet, bbox, float(ref["model_height"]))[:, :, :3]
+    img = img[:, ::-1]                      # 絵の左 = モデルの+x
+    m = F.classify(np.ascontiguousarray(img, dtype=np.float32))
+    head = m["skin"] | m["hair"]
+    zs = F.WIN_Z1 - np.arange(F.RES_Y) / F.PX_PER_UNIT
+    xs = np.arange(F.RES_X) / F.PX_PER_UNIT - F.WIN_HALF_X
+    mids = []
+    for zt in (0.86, 0.88, 0.90, 0.92):
+        r = int(np.argmin(abs(zs - zt)))
+        c = np.where(head[r])[0]
+        if len(c) > 3:
+            mids.append((xs[c.min()] + xs[c.max()]) * 0.5)
+    shift = int(round(-(sum(mids) / len(mids)) * F.PX_PER_UNIT)) if mids else 0
     return np.ascontiguousarray(np.roll(img, shift, axis=1), dtype=np.float32)
 
 
@@ -345,8 +378,8 @@ def main() -> int:
         ref = json.load(fh)
     out_path = os.path.join(root, "design", "characters", name, "hair-clumps.json")
 
-    if flags & {"--ridge", "--major"}:
-        img = front_window(name, ref)
+    if flags & {"--ridge", "--major", "--back"}:
+        img = back_window(name, ref) if "--back" in flags else front_window(name, ref)
         hair, ridge = hair_ridges(img)
         left, right, top = hair_edge(img)
         bottom = hair_bottom(img)
@@ -361,18 +394,22 @@ def main() -> int:
             with open(out_path, encoding="utf-8") as fh:
                 data = json.load(fh)
             # 補助毛束も主要毛束と同じ形式で持ち、被覆率は合わせて測る
-            majors = data.get("major", []) + data.get("aux", [])
+            if "--back" in flags:
+                majors = data.get("major_back", [])
+            else:
+                majors = data.get("major", []) + data.get("aux", [])
             # なぞった輪郭を**点列へ焼き込む**。モデルのビルドが設定画の
             # 画像を読まなくて済むようにする(edge/top は画像から測った
             # 輪郭なので、ここで解決しないとビルドが画像に依存する)
             for c in majors:
                 c["path_xz"] = [[round(x, 5), round(z, 5)]
-                                for x, z in resolve_path(c["path"], left, right, top)]
+                                for x, z in resolve_path(c["path"], left, right, top,
+                                                          bottom)]
             with open(out_path, "w", encoding="utf-8") as fh:
                 json.dump(data, fh, ensure_ascii=False, indent=2)
             pic, covered = draw_major(img, majors, left, right, top, bottom)
             pic[ridge] = pic[ridge] * 0.3
-            tag = "major"
+            tag = "back" if "--back" in flags else "major"
             hit = (covered & hair).sum()
             # **肌をどれだけ食っているかも測る。** 髪の被覆率だけ見て
             # いると、前髪の輪郭が額や目を丸ごと囲っていても気付けない

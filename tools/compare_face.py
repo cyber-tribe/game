@@ -321,6 +321,9 @@ def eye_pair(masks, band, min_size=40, max_w=0.060, max_h=0.050):
         h = (comp[:, 0].max() - comp[:, 0].min()) / PX_PER_UNIT
         if w >= max_w or h >= max_h:
             continue
+        # 目は帯の下側まで届く。眉は届かない(eye_landmarks と同じ理由)
+        if zs[comp[:, 0].max()] > band[0] + (band[1] - band[0]) * 0.35:
+            continue
         cx = (comp[:, 1] / PX_PER_UNIT - WIN_HALF_X).mean()
         cz = (WIN_Z1 - comp[:, 0] / PX_PER_UNIT).mean()
         cands.append({"cx": float(cx), "cz": float(cz), "w": float(w),
@@ -457,11 +460,19 @@ def eye_landmarks(masks, band, sign: float):
     xs = cols / PX_PER_UNIT - WIN_HALF_X
     dark[:, np.abs(xs) > 0.078] = False
     dark[:, (xs * sign) <= 0.004] = False
+    # **目は帯の下側まで届く。眉は届かない。** 大きさだけで選ぶと眉を拾う。
+    # 眉が髪と繋がっているうちは幅の上限で落ちていたが、前髪を設定画の
+    # 生え際まで正しく伸ばしたら眉が髪から切り離され、眉の塊(1349px)が
+    # 目の塊(1153px)より大きくなって「目」として拾われた
+    # (実測: 目尻が+7.5mm外・上瞼が+18.5mm上へ飛んだ)
+    reach = band[0] + (band[1] - band[0]) * 0.35
     best = None
     for comp in components(dark, min_size=40):
         w = (comp[:, 1].max() - comp[:, 1].min()) / PX_PER_UNIT
         h = (comp[:, 0].max() - comp[:, 0].min()) / PX_PER_UNIT
-        if w < 0.060 and h < 0.036 and (best is None or len(comp) > len(best)):
+        low = zs[comp[:, 0].max()]
+        if w < 0.060 and h < 0.036 and low <= reach \
+                and (best is None or len(comp) > len(best)):
             best = comp
     if best is None:
         return {}
