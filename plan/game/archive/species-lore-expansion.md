@@ -10,7 +10,7 @@
 > 種族id(`HAJIME_NO_YUME_ID` 定数参照の「はじめの夢」を含む)は
 > 68件。既存5件+新規63件=68件で、`species.ts` の全idが
 > `SPECIES_LORE` でカバーされていることをスクリプトで突き合わせて確認した
-> (未カバーのidは0件)。並行で進んでいた`plan/models/model-akubitokage.md`
+> (未カバーのidは0件)。並行で進んでいた`plan/models/archive/model-akubitokage.md`
 > (あくびとかげの3Dモデル追加、`species.ts`の`model`フィールドと
 > `tools/models/`のみ変更)は、rebase・マージ直前の再確認時点でも
 > `species.ts`のid一覧(68件)に変更は無かった。

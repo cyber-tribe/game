@@ -6,7 +6,7 @@
 # かすみウツボ(kasumiutsubo)のモンスター実装
 
 `src/entities/species.ts`にすでに実装済みの内容を、正式なplanとして
-書き起こす(3Dモデルは`plan/models/model-kasumiutsubo.md`で別途扱う)。
+書き起こす(3Dモデルは`plan/models/archive/model-kasumiutsubo.md`で別途扱う)。
 
 ## 位置づけ
 

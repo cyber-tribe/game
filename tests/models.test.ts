@@ -288,7 +288,7 @@ describe("3Dモデル", () => {
     }
   });
 
-  // ---- モデル規格lint(plan/models/garudo-quality-uplift.md 実装項目1) ----
+  // ---- モデル規格lint(plan/models/archive/garudo-quality-uplift.md 実装項目1) ----
   // 対象はキャラクター(主人公・モンスター・村人)。地形・小物は対象外
 
   const characters = [...new Set([...animatedModelNames(), ...VILLAGER_MODELS])];

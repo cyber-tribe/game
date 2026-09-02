@@ -50,6 +50,6 @@ range 4)。背中一面が苔むした丸石の塚のように瘤で埋まり、
   距離按分するフォールバック(`_fix_orphan_weights`)を追加して解決。
 - 8,948三角形・573KB(1体700KB制限内)。テスト204件通過。
 
-パイプラインの落とし穴と対処は plan/models/sculpt-texture-pipeline.md
+パイプラインの落とし穴と対処は plan/models/archive/sculpt-texture-pipeline.md
 「得られた知見」に集約(ボクセルリメッシュの穴、QuadriFlowの拒否、
 Smart UV Projectの微小島化、Decimate比率の上限など)。

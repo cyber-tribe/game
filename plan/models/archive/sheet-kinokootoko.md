@@ -6,7 +6,7 @@ plan/models/archive/character-design-language.mdのデザインシート
 1. **三語コンセプト**: 眠気を吸い込んだ茸・成長・人の形
 2. **シルエットの記号**: 胴に食い込む、面取りした硬い樹皮質の
    パッチを新設する(`C.box`+ベベル。マドロミダケの木質のつば
-   (plan/models/sheet-madoromi.md)と意匠を揃える。
+   (plan/models/archive/sheet-madoromi.md)と意匠を揃える。
    plan/models/archive/silhouette-hard-surface-parts.mdの義務項目)
 3. **図形と頭身**: 人型のきのこ、2頭身程度のずんぐりした比率
 4. **パレット**: 基色=体の焦茶 `(0.40, 0.29, 0.19)` / 従色=傘の山吹

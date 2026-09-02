@@ -2,7 +2,7 @@
 
 ## 取り下げ
 
-`plan/models/anime-look-art-direction.md`の方針(キャラクターの目は
+`plan/models/archive/anime-look-art-direction.md`の方針(キャラクターの目は
 解剖学的な眼窩+眼球ではなく、顔の面に沿う「描き目」で作る)が本書の
 達成手段(眼窩を彫って球を沈め、まぶたの縁で覆う)と正面から
 矛盾するため、本書は**未実装のまま取り下げる**。「板を貼っただけに

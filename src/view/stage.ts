@@ -106,7 +106,7 @@ export class Stage {
   private readonly effectRoot = new THREE.Group();
 
   /**
-   * ヒットストップ(plan/models/toon-advanced-techniques.md施策E-2)。
+   * ヒットストップ(plan/models/archive/toon-advanced-techniques.md施策E-2)。
    * 打撃が当たった瞬間、時間を数フレーム止めて重さを出す
    * (「絵ではなく時間で打撃の重さを出す」、アクション表現の基本)。
    * 短すぎると気づかれず、長すぎるとモッサりするので3フレーム

@@ -463,7 +463,7 @@ class App {
     // だけ広場に現れる。章そのものはdeepest/storyClearedから導出される
     // (entities/story.ts)ので、新しいセーブ項目は増やさない
     this.village.setStoryChapter(storyChapter(this.save.defeatedRegionBosses.length, this.save.storyCleared));
-    // 村の画面構成の再設計(plan/models/village-scene-redesign.md): 既定は
+    // 村の画面構成の再設計(plan/models/archive/village-scene-redesign.md): 既定は
     // 明るい昼にし、宵祭りの日だけ茜色の夕暮れへ切り替える
     this.village.setFestivalLighting(isYoimatsuri(todayKey()));
     // 宵祭りの拠点BGMレイヤー(plan/sound/archive/yoimatsuri-festival-ambient.md)。
@@ -1284,7 +1284,7 @@ class App {
       case "rotateLeft":
         // 手動カメラ操作(plan/gallery-interactive-camera.md): 図鑑ギャラリー表示中は
         // ダンジョンのカメラではなく回転台を回す。村なか歩き中は村の
-        // カメラを回す(plan/models/village-camera-manual-rotate.md)
+        // カメラを回す(plan/models/archive/village-camera-manual-rotate.md)
         if (this.town.gallerySpeciesId) this.gallery.rotate(1);
         else if (this.villageActive) this.village.rotate(1);
         else this.renderer.rotate(1);

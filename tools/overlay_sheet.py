@@ -1,6 +1,6 @@
 """
 設定画の三面図とモデルのシルエットを、同じ高さへ正規化して重ねる
-(plan/models/garudo-quality-uplift.md 実装項目7の精密版)。
+(plan/models/archive/garudo-quality-uplift.md 実装項目7の精密版)。
 
 `tools/compare_sheet.py`が「並べて見る」道具なのに対し、こちらは
 **輪郭のずれを一目で測る**道具。設定画側を赤、モデル側を青で描き、

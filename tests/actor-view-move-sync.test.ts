@@ -169,7 +169,7 @@ describe("view/actorView.ts: 歩行(walk)の再生速度倍率", () => {
 });
 
 /**
- * スメア(残像変形、plan/models/toon-advanced-techniques.md施策E-1)。
+ * スメア(残像変形、plan/models/archive/toon-advanced-techniques.md施策E-1)。
  * 攻撃の踏み込み(lunge)の立ち上がりだけ、進行方向へルートを伸ばして
  * 手描きアニメの「線が流れる」速さを出す
  */

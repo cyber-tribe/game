@@ -814,7 +814,7 @@ def uv_report(obj: "bpy.types.Object", size: int = 384,
               regions: dict[str, tuple[tuple[float, float, float], float]] | None = None,
               ) -> dict:
     """
-    UV展開の品質を数値で報告する(plan/models/garudo-quality-uplift.md
+    UV展開の品質を数値で報告する(plan/models/archive/garudo-quality-uplift.md
     実装項目5)。「顔だけ解像度不足」のような偏りを目視でなく数値で
     検知するためのもの。返り値と標準出力:
 
@@ -1755,7 +1755,7 @@ def bake_procedural_detail(obj: bpy.types.Object, patterns: dict[str, str],
 
 def preflight_check(name: str, objs: Sequence[bpy.types.Object]) -> None:
     """
-    エクスポート前のメッシュ検査(plan/models/garudo-quality-uplift.md
+    エクスポート前のメッシュ検査(plan/models/archive/garudo-quality-uplift.md
     実装項目1)。
 
     - **孤児ウェイト**(どのボーンにも属さない頂点)が1つでもあれば失敗。
@@ -2016,7 +2016,7 @@ def render_turnaround(name: str, objs: Sequence[bpy.types.Object], samples: int 
                       view_size: tuple[int, int] = (300, 380)) -> str:
     """
     正面・側面・背面のシェーデッド3面を左からこの順で1枚に並べた
-    コンタクトシート(plan/models/garudo-quality-uplift.md 実装項目2)。
+    コンタクトシート(plan/models/archive/garudo-quality-uplift.md 実装項目2)。
     平行投影・素立ちで、三面図との突き合わせや承認レビューの定型提示物に
     使う。出力は tools/preview/turnaround/<名前>.png。
     """
@@ -2109,7 +2109,7 @@ def render_turnaround(name: str, objs: Sequence[bpy.types.Object], samples: int 
 def render_pose_check(name: str, objs: Sequence[bpy.types.Object], angle: float = 40.0,
                       samples: int = 16, tile: tuple[int, int] = (220, 260)) -> str | None:
     """
-    変形テストポーズのグリッドレンダー(plan/models/garudo-quality-uplift.md
+    変形テストポーズのグリッドレンダー(plan/models/archive/garudo-quality-uplift.md
     実装項目3)。アーマチュアの各ボーンを1本ずつローカルX軸へangle度曲げ、
     3/4ビューの小タイルを格子に並べて1枚に合成する。スキニングの破れ・
     巻き込み(Bone Heat事故の局所版)をエクスポート前に目視できる。

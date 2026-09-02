@@ -6,7 +6,7 @@
 パイプライン(plan/models/archive/sculpt-texture-pipeline.md)で組む。
 ブロックアウト承認(2026-09-01「良さそうです!」)済みの体型配分。
 
-方針(plan/models/garudo-quality-uplift.md 実装項目8):
+方針(plan/models/archive/garudo-quality-uplift.md 実装項目8):
 
 - **約5.2頭身のゲーム内比率を直接組む**。旧版の「7頭身写実→チビ化」の
   二段変換は廃止(設定画側がゲーム内比率になった)。全高0.97ユニットは

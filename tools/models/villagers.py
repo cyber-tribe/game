@@ -167,7 +167,7 @@ def humanoid(prop: Proportions) -> tuple[dict[str, Vector], dict[str, float], li
     村人共通の素体の関節表を Proportions のとおりに変形して返す。
 
     関節名・骨のつなぎ方は変えない(村人はどれもこのアーマチュアを
-    共有する。`plan/models/model-*.md`の「関節名・ボーン構成は
+    共有する。`plan/models/archive/model-*.md`の「関節名・ボーン構成は
     流用する」)。変わるのは座標と太さだけ。
     """
     hip_z = BASE_JOINTS_HALF["hip"][2] * prop.height

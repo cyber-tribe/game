@@ -1,6 +1,6 @@
 """
 ユーザー提供のPNG設定画(三面図シート)とモデルの3面コンタクトシートを
-上下に並べた比較画像を作る(plan/models/garudo-quality-uplift.md
+上下に並べた比較画像を作る(plan/models/archive/garudo-quality-uplift.md
 実装項目7)。SVG三面図の重畳照合(compare_turnaround.mjs)と違い、
 画像生成ツール由来のシートにそのまま使える。
 

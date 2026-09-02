@@ -78,7 +78,7 @@ export interface VillageScenery {
 }
 
 /**
- * 村なかカメラ(plan/models/village-scene-redesign.mdの「カメラワーク」)。
+ * 村なかカメラ(plan/models/archive/village-scene-redesign.mdの「カメラワーク」)。
  * 俯瞰をやめ、主人公の背後・低めに寄った三人称の追従カメラにする。
  * 距離4m・高さ2m・注視点の高さ1.1mで、見下ろし角はatan((2-1.1)/4)≈13°と
  * doc指定の10〜15度に収まる
@@ -161,7 +161,7 @@ export const VILLAGE_SCENERY: readonly VillageScenery[] = [
   { id: "hokoragiB2", model: "prop_hokoragi_b", x: 2.5, z: 8.3, rotationY: 3.4 },
   { id: "hokoragiA3", model: "prop_hokoragi_a", x: 8.3, z: -7.5, rotationY: 5.0 },
   { id: "hokoragiStump1", model: "prop_hokoragi_stump", x: 6.6, z: 2.8, rotationY: 0.8 },
-  // 周辺リング(plan/models/village-surroundings.md「1. 周辺リング」)。
+  // 周辺リング(plan/models/archive/village-surroundings.md「1. 周辺リング」)。
   // プレイ可能範囲(VILLAGE_BOUNDS)の外に、村内より密に祠木を植えて
   // 境界を林でぼかす。真のInstancedMeshは、非同期に届くGLTFから
   // ジオメトリを取り出す口が今の`Assets`に無く導入コストが見合わないため
@@ -182,7 +182,7 @@ export const VILLAGE_SCENERY: readonly VillageScenery[] = [
 
 /**
  * 窓の明かりを漏らす、壁を持つ家屋の建物id
- * (plan/models/village-scene-redesign.mdの「各建物の窓・入口から暖色の
+ * (plan/models/archive/village-scene-redesign.mdの「各建物の窓・入口から暖色の
  * 明かりを漏らす」)。東屋(development)や壁の無い小道具(board・
  * questBoard)、広場(npcSquare)・洞窟(cave)は含めない
  */
@@ -248,7 +248,7 @@ export function shortestAngleDelta(from: number, to: number): number {
 
 /**
  * カメラと注視点(主人公)を結ぶ線分の上に、この建物が割り込んでいるか
- * (plan/models/village-scene-redesign.mdの「遮蔽」)。XZ平面だけで判定する
+ * (plan/models/archive/village-scene-redesign.mdの「遮蔽」)。XZ平面だけで判定する
  * (村の建物・カメラ・主人公はどれも高さの差が小さいため、平面の当たり
  * 判定で十分)。線分の両端近く(`t`が0または1に近い側)は除外し、
  * カメラ自身や主人公自身の位置にたまたま建物が重なった扱いにならない
@@ -433,7 +433,7 @@ function buildStructure(building: VillageBuilding): BuiltStructure {
     }
   }
 
-  // 窓・入口から漏れる暖色の明かり(plan/models/village-scene-redesign.md
+  // 窓・入口から漏れる暖色の明かり(plan/models/archive/village-scene-redesign.md
   // 「各建物の窓・入口から暖色の明かりを漏らす(生活の気配)」)。壁を持つ
   // 家屋だけに付ける(東屋の村の発展の受付、壁の無い依頼板・看板・広場・
   // 洞窟には付けない)。`primitive`ではなく`group`に足すのは、焚き火の
@@ -453,7 +453,7 @@ function buildStructure(building: VillageBuilding): BuiltStructure {
     glow.position.set(0, 0.75, 0.79);
     group.add(glow);
     // 明るさは昼/宵祭りでVillageView.setFestivalLightingが切り替える
-    // (plan/models/village-scene-redesign.md「昼は控えめ、宵祭り時のみ強調」)。
+    // (plan/models/archive/village-scene-redesign.md「昼は控えめ、宵祭り時のみ強調」)。
     // 既定値はここでは触れず、setFestivalLighting側の初期呼び出しに委ねる
     windowGlow = new THREE.PointLight(glowColor, 2.2, 3.5, 1.8);
     windowGlow.translateY(0.75).translateZ(0.7);
@@ -465,7 +465,7 @@ function buildStructure(building: VillageBuilding): BuiltStructure {
 }
 
 /**
- * 低周波のなめらかな疑似ノイズ(plan/models/village-mountain-gradient.mdの
+ * 低周波のなめらかな疑似ノイズ(plan/models/archive/village-mountain-gradient.mdの
  * 「稜線の輪郭に低周波のゆらぎを入れ、定規で引いた線に見せない」)。
  * `Math.random`は使わず、周波数の異なる正弦の合成だけで確定的に波打たせる
  */
@@ -475,7 +475,7 @@ function ridgeNoise(x: number): number {
 
 /**
  * ヨリシロ本体(眠る巨人の山、design/world.mdの考証)の「うずくまった
- * 背中」(plan/models/village-mountain-gradient.md)。手前の稜線
+ * 背中」(plan/models/archive/village-mountain-gradient.md)。手前の稜線
  * (z=-19、最も濃い層)にだけ、隣り合う2つの緩やかな山を足して、
  * こぶのようなシルエットを作る。露骨な人型にはしない、「言われれば
  * 見える」程度の起伏に留める
@@ -487,7 +487,7 @@ function yorishiroHunch(x: number): number {
 }
 
 /**
- * ヨリシロの稜線を模した遠景の山影(plan/models/village-scene-redesign.md
+ * ヨリシロの稜線を模した遠景の山影(plan/models/archive/village-scene-redesign.md
  * 「山を背景に置く」)。村の奥(北=-Z側)に、霧がかった大きな山影を
  * 常に見せる。低ポリの四角錐を3層に重ね、奥ほど不透明度を下げて霧がかって
  * 見せることで遠近を表す。`material.fog = false`にしてあるのは、
@@ -495,10 +495,10 @@ function yorishiroHunch(x: number): number {
  * 見えなくなってしまうため、代わりに層ごとの不透明度で「霧をまとった
  * 遠景」を表現している。
  *
- * plan/models/village-surroundings.md「山頂の孤島」対応: 裾(y=0)を
+ * plan/models/archive/village-surroundings.md「山頂の孤島」対応: 裾(y=0)を
  * 地面に接地させる(以前は`height/2 - 1`で裾が地面より下に浮いていた)。
  *
- * plan/models/village-mountain-gradient.md対応: 各峰は単色ベタをやめ、
+ * plan/models/archive/village-mountain-gradient.md対応: 各峰は単色ベタをやめ、
  * 裾(山肌)→頂(稜線の霞)の頂点カラーグラデーションにした。霧色は
  * 昼/宵祭りで変わる(`recolorMountainBackdrop`)ので、稜線の峰
  * (`THREE.Mesh`)を`peaks`として返し、`setFestivalLighting`から
@@ -574,7 +574,7 @@ function applyVerticalGradient(
 }
 
 /**
- * 中景の丘(plan/models/village-surroundings.mdの「2. 中景」)。
+ * 中景の丘(plan/models/archive/village-surroundings.mdの「2. 中景」)。
  * 周辺リングの外に、緑〜黄緑のグラデーションを持つなだらかな丘の
  * シルエットを数枚置き、地面から山の裾野へ地続きに見せる。北側
  * (山側、-Z)は他より大きく・高くし、山影の裾と重なるようにしてある
@@ -610,7 +610,7 @@ function buildHills(): THREE.Group {
 }
 
 /**
- * その(x, z)地点での丘の表面の高さ(plan/models/village-mountain-gradient.md
+ * その(x, z)地点での丘の表面の高さ(plan/models/archive/village-mountain-gradient.md
  * 「1. 樹層のグラデーション」の「裾野の斜面に木を...生やし」対応)。
  * `buildHills`のドーム(扁平半球)の式をそのまま使い、複数の丘が重なる
  * 場所は高い方を採る。丘の外なら0(平らな地面)。木をこの高さに乗せることで、
@@ -630,7 +630,7 @@ function hillHeightAt(x: number, z: number): number {
 }
 
 /**
- * 山の裾に登る樹層(plan/models/village-mountain-gradient.mdの「1. 樹層の
+ * 山の裾に登る樹層(plan/models/archive/village-mountain-gradient.mdの「1. 樹層の
  * グラデーション」)。村の祠木の林(`VILLAGE_SCENERY`)と山影
  * (`buildMountainBackdrop`)の間に質感と色の飛びがあった問題を、林を
  * そのまま山の裾まで登らせることで繋ぐ。円錐+球ではなく円錐だけの
@@ -685,7 +685,7 @@ function buildForestSlope(): THREE.InstancedMesh {
 }
 
 /**
- * 木々の塊 → 森の輪郭への移行(plan/models/village-mountain-gradient.mdの
+ * 木々の塊 → 森の輪郭への移行(plan/models/archive/village-mountain-gradient.mdの
  * 「1. 樹層のグラデーション」)。個々の木を描き分けるにはもう遠い距離に、
  * 樹冠のもこもこした輪郭を持つ帯を2枚重ねる。上端だけをノイズで波打たせ、
  * 定規で引いた直線に見せない。奥の帯ほど色を青灰へ寄せ、山肌の色へ繋ぐ。
@@ -725,7 +725,7 @@ function buildTreeCanopyFringe(): THREE.Group {
 }
 
 /**
- * 空のグラデーション(plan/models/village-surroundings.mdの「3. 遠景」)。
+ * 空のグラデーション(plan/models/archive/village-surroundings.mdの「3. 遠景」)。
  * 単色べたのシーン背景(`scene.background`)の代わりに、地平線際が
  * 明るく天頂ほど濃い半球ドームを頂点カラーで描く。カメラを覆う内側から
  * 見るので`side: THREE.BackSide`。フォグの影響は受けない(空自体が
@@ -752,7 +752,7 @@ function recolorSkyDome(mesh: THREE.Mesh, horizon: number, zenith: number): void
 }
 
 /**
- * 薄い雲(plan/models/village-surroundings.mdの「3. 遠景」)。平たく
+ * 薄い雲(plan/models/archive/village-surroundings.mdの「3. 遠景」)。平たく
  * 引き伸ばした半透明の塊を高い位置に静止させて浮かべる(ゲンドの工房の
  * 煙と同じ考え方の、動かないビルボード相当の表現)
  */
@@ -786,7 +786,7 @@ function buildClouds(): THREE.Group {
 }
 
 /**
- * 地平線際の遠霞(plan/models/village-surroundings.mdの「3. 遠景」、
+ * 地平線際の遠霞(plan/models/archive/village-surroundings.mdの「3. 遠景」、
  * 「中景の丘との境を溶かす」)。丘のてっぺんあたりの高さに、内側を
  * 向いた半透明の帯(円柱の側面)を1枚置くだけの簡単な表現にした
  */
@@ -806,7 +806,7 @@ function buildHorizonMist(): THREE.Mesh {
 }
 
 /**
- * 畑のうね(plan/models/village-surroundings.mdの「1. 周辺リング」)。
+ * 畑のうね(plan/models/archive/village-surroundings.mdの「1. 周辺リング」)。
  * design/village-buildings.mdの生業の考証と矛盾しない範囲で、実装側の
  * 裁量(未決事項)として倉庫寄りの東側に置いた。低い畝を並べただけの
  * 簡単な表現
@@ -823,7 +823,7 @@ function buildFieldFurrows(): THREE.Group {
 }
 
 /**
- * 村から山の口へ続く土の小道(plan/models/village-surroundings.mdの
+ * 村から山の口へ続く土の小道(plan/models/archive/village-surroundings.mdの
  * 「1. 周辺リング」)。洞窟の入口(cave、x:3, z:-6)からさらに山側
  * (-Z方向)へ延ばした帯
  */
@@ -837,7 +837,7 @@ function buildPathToCave(): THREE.Mesh {
 }
 
 /**
- * 小川(plan/models/village-surroundings.mdの「1. 周辺リング」)。
+ * 小川(plan/models/archive/village-surroundings.mdの「1. 周辺リング」)。
  * 細長い水色の帯でよい、という指定どおりの簡単な表現
  */
 function buildStream(): THREE.Mesh {
@@ -851,7 +851,7 @@ function buildStream(): THREE.Mesh {
 }
 
 /**
- * 昼/宵祭りの光の切り替え(plan/models/village-scene-redesign.mdの
+ * 昼/宵祭りの光の切り替え(plan/models/archive/village-scene-redesign.mdの
  * 「ライティング・色」節)。既定は明るい昼(現実=日なたの明るさ)にし、
  * `design/village-festivals.md`の宵祭りの日だけ茜色の夕暮れへ切り替える。
  * 「常に夕暮れ〜宵」という当初案は撤回されているので、この2値だけで足りる。
@@ -873,13 +873,13 @@ interface VillageLightingPreset {
   /** 窓・入口の明かりの強さ。昼は控えめ、宵祭りだけ強調する */
   windowGlowIntensity: number;
   /**
-   * 空のグラデーション(plan/models/village-surroundings.mdの「3. 遠景」)。
+   * 空のグラデーション(plan/models/archive/village-surroundings.mdの「3. 遠景」)。
    * 地平線際(horizon)は明るく、天頂(zenith)ほど濃い色にする
    */
   skyHorizon: number;
   skyZenith: number;
   /**
-   * 山肌の色(plan/models/village-mountain-gradient.mdの色階段
+   * 山肌の色(plan/models/archive/village-mountain-gradient.mdの色階段
    * 「山肌(青緑〜青灰)」)。稜線(頂)は`skyHorizon`と同じ色にして、
    * 最遠の山と空の境を溶かす(`buildMountainBackdrop`/`recolorMountainBackdrop`)
    */
@@ -945,7 +945,7 @@ export class VillageView {
    * 正面に見る。これは旧来の俯瞰カメラの位置(pos.z+7)と同じ側なので、
    * 静止時の見た目は変えていない)。
    *
-   * plan/models/village-camera-manual-rotate.mdにより、移動しても
+   * plan/models/archive/village-camera-manual-rotate.mdにより、移動しても
    * 勝手には変わらない(自動追従は廃止した)。`rotate()`(Q/E・
    * 二本指回転、ダンジョンと同じ操作)でのみ90度単位の`targetYaw`が
    * 動き、`yaw`はそこへ指数補間で滑らかに寄っていく
@@ -1001,7 +1001,7 @@ export class VillageView {
     this.scene.add(this.fillLight);
 
     // 地面はプレイ可能範囲(VILLAGE_BOUNDS)の見た目そのままに、そこだけ
-    // 4倍の広さへ延長する(plan/models/village-surroundings.mdの
+    // 4倍の広さへ延長する(plan/models/archive/village-surroundings.mdの
     // 「山頂の孤島」対応。地面が急に途切れて見える問題を解消する)
     const GROUND_EXTENSION_FACTOR = 4;
     const ground = new THREE.Mesh(
@@ -1067,7 +1067,7 @@ export class VillageView {
   }
 
   /**
-   * 昼/宵祭りの光を切り替える(plan/models/village-scene-redesign.md)。
+   * 昼/宵祭りの光を切り替える(plan/models/archive/village-scene-redesign.md)。
    * `active`は`isYoimatsuri(todayKey())`をそのまま渡す想定
    * (`design/village-festivals.md`と同じ、新規セーブ項目を増やさない設計)。
    * 空・霧・環境光・陽光・窓明かりの強さをまとめて切り替える
@@ -1221,7 +1221,7 @@ export class VillageView {
    * (村の`cameraQuadrant`で補正済みの、画面基準の入力)。
    *
    * カメラの向きは`rotate()`を明示的に呼ばない限り変わらない
-   * (plan/models/village-camera-manual-rotate.md)。旧
+   * (plan/models/archive/village-camera-manual-rotate.md)。旧
    * `village-scene-redesign.md`が挙げていた「移動方向へ自動で回り込む」
    * 追従は、実機で向きが安定しないと分かったため廃止した。位置の追従
    * (プレイヤーの後方に付いていく動き)だけは変わらず残っている
@@ -1261,7 +1261,7 @@ export class VillageView {
   }
 
   /**
-   * カメラを90度単位で回す(plan/models/village-camera-manual-rotate.md、
+   * カメラを90度単位で回す(plan/models/archive/village-camera-manual-rotate.md、
    * ダンジョンの`Renderer.rotate`と同じ操作・同じ考え方)。Q/E・二本指回転が
    * ここへ届く(`main.ts`の`handleGlobalAction`参照)
    */

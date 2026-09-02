@@ -88,6 +88,6 @@
 - 結論: **「Blender本体・tools/venv が無い」ことは、この種の環境では
   それ自体が制約ではない。** `tools/setup_blender.sh` を1回実行すれば
   済む(Python 3.11 が使える前提)。新規モンスターの3Dモデルを求める
-  plan文書(例: `plan/models/model-*.md`)は、このセットアップを行った上で
+  plan文書(例: `plan/models/archive/model-*.md`)は、このセットアップを行った上で
   `tools/models/monsters.py` に該当種族の `build_*`/`*_animations` 関数
   を追加し `MONSTERS` に登録する、既存5種と同じ手順で対応できる。

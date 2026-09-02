@@ -11,7 +11,7 @@
 そこに立っていて、メニューはその場面の上で開く**ようにする。
 「誰の所へ何をしに行くか」が絵として伝わる村にする。
 
-前提として、村人8人の専用モデルは `plan/models/model-*.md`
+前提として、村人8人の専用モデルは `plan/models/archive/model-*.md`
 (mogurabaa / gendo / otone / okiyo / pochi / otama / fuku / ito)で
 仕様化済み。本書はそれらを置く「内装」と画面遷移を扱う。
 
@@ -48,7 +48,7 @@
   `buildStructure` の内装版)。Blenderパイプラインは使わない
   (棚・机・タル程度の箱物にBlenderアセットは過剰。既存のタルの
   メッシュ等、流用できるものは流用してよい)。
-- 村人モデルは `Assets` からロードし(`plan/models/model-*.md`)、
+- 村人モデルは `Assets` からロードし(`plan/models/archive/model-*.md`)、
   `idle` クリップをループ再生して定位置に立たせる。
 - カメラは固定1アングル(部屋の入口から見た斜め俯瞰)。歩き回りは
   させない(メニュー操作の背景としての内装なので、自由移動を

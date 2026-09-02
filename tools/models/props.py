@@ -1541,7 +1541,7 @@ def build_prop_hokoragi_stump():
 def build_prop_barrel_bed():
     """
     ねむり小屋のタルの寝床(design/village-buildings.md「ねむり小屋の
-    タルの寝床」、plan/models/model-village-structures.mdのpropBarrelBed)。
+    タルの寝床」、plan/models/archive/model-village-structures.mdのpropBarrelBed)。
     横倒しのタル+掛け布+名札。`src/view/villageInterior.ts`の内装から
     使う(内装用の専用モデル)。
     """
@@ -1590,7 +1590,7 @@ def build_prop_barrel_bed():
 def build_prop_shelf_barrel():
     """
     古タル転用の棚(design/village-buildings.md「倉庫の棚はすべて伏せた
-    タルを転用したもの」、plan/models/model-village-structures.mdの
+    タルを転用したもの」、plan/models/archive/model-village-structures.mdの
     propShelfBarrel)。棚板を大タルの底板(円い板)に見立てる。
     `src/view/villageInterior.ts`の内装から使う(内装用の専用モデル)。
     """

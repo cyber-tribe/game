@@ -10,7 +10,7 @@
 おおねぼすけ・掘り杭の主の各装飾)も、同じセッション内でまとめて
 修正した。修正前後の挙動を確認し(受け入れ基準1)、修正は
 シルエット・配色に影響しない(受け入れ基準2)。詳細は
-`plan/models/hard-part-bone-pinning-findings.md`(受け入れ基準3)に
+`plan/models/archive/hard-part-bone-pinning-findings.md`(受け入れ基準3)に
 完了記録として残した。`silhouette-hard-surface-parts.md`に今後の
 新規追加への規律を追記した。
 
@@ -98,7 +98,7 @@ tools/models/garudo.py:332:  C.pin_weight_to_bone(mesh, group_name, bone)
    コマを抜き出して確認したとき、硬い部品が本体と一緒に動く。
 2. 修正後もシルエット・配色に変化がない(位置の追従だけを直す)。
 3. 残りの種についても、優先順位付けした確認リストが
-   `plan/models/hard-part-bone-pinning-findings.md`(新規)に
+   `plan/models/archive/hard-part-bone-pinning-findings.md`(新規)に
    残り、以後のPRで順次消化できる状態になる。
 
 ## 対象外

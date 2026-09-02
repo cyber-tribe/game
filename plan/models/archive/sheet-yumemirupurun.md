@@ -5,7 +5,7 @@ plan/models/archive/character-design-language.mdのデザインシート
 
 1. **三語コンセプト**: 混ざり合う夢・眠気の粒・まどろみ
 2. **シルエットの記号**: 体の周りに浮く、角のある小さな胞子の結晶を
-   新設する(`common.gem`。ぷるんの結晶(plan/models/sheet-purun.md)に
+   新設する(`common.gem`。ぷるんの結晶(plan/models/archive/sheet-purun.md)に
    マドロミダケの胞子が混ざった姿という位置づけ。
    plan/models/archive/silhouette-hard-surface-parts.mdの義務項目)
 3. **図形と頭身**: ぷるんと同じ雫形、色がラベンダーに変化
