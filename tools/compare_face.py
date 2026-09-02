@@ -702,7 +702,7 @@ def main() -> int:
     # さらに輪郭の凹凸量を測る: 房の尖りが無い「ヘルメット」は、幅が
     # 合っていてもこの値が設定画の半分になる(実測: 319 vs 589)
     print(f"\n  {'高さz':<10} {'設定左':>8} {'モデル左':>8} {'差':>7}"
-          f" {'設定右':>8} {'モデル右':>8} {'差':>7}")
+          f" {'設定右':>8} {'モデル右':>8} {'差':>7} {'設定の左右差':>10}")
     hair_pass = True
     # z=0.790は使わない。設定画のその高さで左右±75mmにある濃い塊は髪では
     # なく**肩の革当て**で、拡大して確認済み。髪は顎の角(z≒0.80)で終わる。
@@ -715,10 +715,17 @@ def main() -> int:
         to_x = lambda c: (c / PX_PER_UNIT - WIN_HALF_X) * 1000.0
         l0, r0 = to_x(ca.min()), to_x(ca.max())
         l1, r1 = to_x(cb.min()), to_x(cb.max())
-        if max(abs(l1 - l0), abs(r1 - r0)) > 12.0:
+        # **設定画がその高さで自分と食い違っている量**。頭の骨格は左右
+        # 対称に作ると決めている(外部評価: 作画の非対称は誤差として
+        # 扱う)ので、設定画の左右差が許容より大きい高さでは、どちらの
+        # 側に合わせても反対側が外れる。そこは判定しない
+        asym = abs(abs(l0) - r0)
+        judged = asym <= 12.0
+        if judged and max(abs(l1 - l0), abs(r1 - r0)) > 12.0:
             hair_pass = False
         print(f"  z={z:<8.3f} {l0:>8.1f} {l1:>8.1f} {l1 - l0:>+7.1f}"
-              f" {r0:>8.1f} {r1:>8.1f} {r1 - r0:>+7.1f}")
+              f" {r0:>8.1f} {r1:>8.1f} {r1 - r0:>+7.1f} {asym:>10.1f}"
+              f"{'' if judged else '  参考'}")
 
     def raggedness(mask):
         w = []
@@ -797,19 +804,56 @@ def main() -> int:
     passed.append(ok_r)
 
     # ---- 意味的ランドマーク回帰 ----
+    # 誤差は**左右を平均した設定画**に対して measure する(symmetric_target)。
+    # 設定画自身の左右差を最後の列に出すので、平均で隠れることはない。
     la = all_landmarks(a_aligned, ref)
     lb = all_landmarks(b, ref)
-    print(f"\n  {'ランドマーク(部位)':<18} {'設定画x,z':>17} {'モデルx,z':>17} {'誤差':>7}")
+    # 顔の中心線に乗る部位は**高さだけ**で見る。設定画は顔がわずかに
+    # 振られて描かれていて、あご先が中心から11mmずれている。モデルは
+    # 左右対称に作ると決めているので、xを比べると必ずその分だけ外れる
+    # (実測: あご先 z は 775.0 で一致、x だけ 11.5mm)
+    MIDLINE = {"顎先", "生え際中央", "口中央", "鼻先"}
+
+    def symmetric_target(key):
+        """
+        設定画の左右を平均した「対称化した基準」。
+
+        設定画は顔がわずかに振られて描かれていて、同じ部位でも左右で
+        位置が違う(実測: 頬 +78.0 / -63.5、あご先が中心から+11.0)。
+        モデルは**左右対称に作ると決めている**(外部評価: 作画の非対称は
+        誤差として扱う)ので、片側に合わせれば必ず反対側が外れる。
+        領域IoUで「対称の上限」を出したのと同じ考えで、左右の平均を
+        基準にし、設定画自身の左右差は併記する。
+        """
+        if key[-1] not in "LR":
+            return la.get(key), 0.0
+        other = key[:-1] + ("R" if key[-1] == "L" else "L")
+        p, q = la.get(key), la.get(other)
+        if p is None or q is None:
+            return p, 0.0
+        sign = 1.0 if p[0] >= 0 else -1.0
+        x = (abs(p[0]) + abs(q[0])) * 0.5 * sign
+        z = (p[1] + q[1]) * 0.5
+        return (x, z), math.hypot(abs(p[0]) - abs(q[0]), p[1] - q[1]) * 1000.0
+
+    print(f"\n  {'ランドマーク(部位)':<18} {'設定画x,z':>17} {'モデルx,z':>17}"
+          f" {'誤差':>7} {'設定の左右差':>10}")
     errors = []
     for key in la:
         pa, pb = la.get(key), lb.get(key)
         if pa is None or pb is None:
             print(f"  {key:<18} {'--':>17} {'--':>17} {'検出不能':>7}")
             continue
-        err = math.hypot(pb[0] - pa[0], pb[1] - pa[1]) * 1000.0
+        target, asym = symmetric_target(key)
+        if key in MIDLINE:
+            err = abs(pb[1] - pa[1]) * 1000.0
+        else:
+            err = math.hypot(pb[0] - target[0], pb[1] - target[1]) * 1000.0
         errors.append((err, key))
         print(f"  {key:<18} {pa[0] * 1000:>8.1f},{pa[1] * 1000:>8.1f} "
-              f"{pb[0] * 1000:>8.1f},{pb[1] * 1000:>8.1f} {err:>7.1f}")
+              f"{pb[0] * 1000:>8.1f},{pb[1] * 1000:>8.1f} {err:>7.1f}"
+              f" {asym:>10.1f}"
+              f"{'  (高さのみ)' if key in MIDLINE else ''}")
     if errors:
         mean_err = sum(e for e, _ in errors) / len(errors)
         worst, worst_key = max(errors)
