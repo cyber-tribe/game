@@ -2488,3 +2488,143 @@ def clump_shell(name: str, outline, depth, half_thick: float = 0.010,
     for poly in mesh.polygons:
         poly.use_smooth = smooth
     return obj
+
+
+def clump_volume(name: str, path, width, thickness, normals,
+                 segments: int = 10, smooth: bool = True) -> "bpy.types.Object":
+    """
+    **頭を回り込む1本の毛束**を、3Dの中心線に沿ったレンズ断面のロフトで作る
+    (plan/models/garudo-side-hair-volume.md)。
+
+    `clump_shell` は正面図(または側面図)の輪郭を面にするので、
+    「正面用の殻・側面用の殻・背面用の殻」が別々に重なり、3/4から見ると
+    髪型ではなく**複数方向から貼った殻**に見える。実際の毛束は
+    頭頂→こめかみ→耳の前→頬 と3D空間を回り込む1つの物体なので、
+    中心線をそのまま3Dで持つ。
+
+        path      : 中心線の3D点(4〜6点)
+        width     : 各点の半幅。頭皮に沿う方向(進行方向と法線の両方に直交)
+        thickness : 各点の半厚。頭皮の**法線方向**
+        normals   : 各点での頭皮の外向き。**断面の向きはこれで決まる**
+
+    `hair_clump` との違いは normals を外から渡すこと。あちらは「横」を
+    world の +Z から作るので、真下へ流れる毛束では横方向が定まらず、
+    頭の側面を回り込む房で断面がねじれる。
+
+    断面は丸ではなくレンズ(潰したダイヤ)。丸い棒を並べても髪には
+    見えない(`handbook/modeling-pitfalls.md` の板・殻の失敗と同じ理由)。
+    """
+    pts = [Vector(p) for p in path]
+    ns = [Vector(n) for n in normals]
+    if len(pts) < 2:
+        raise ValueError(f"{name}: 中心線は2点以上要る")
+    if not (len(pts) == len(ns) == len(width) == len(thickness)):
+        raise ValueError(f"{name}: path/width/thickness/normals の長さが違う")
+
+    mesh = bpy.data.meshes.new(name)
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj)
+    bm = bmesh.new()
+
+    rings = []
+    for i, p in enumerate(pts):
+        if i == 0:
+            d = pts[1] - pts[0]
+        elif i == len(pts) - 1:
+            d = pts[-1] - pts[-2]
+        else:
+            d = pts[i + 1] - pts[i - 1]
+        if d.length_squared < 1e-12:
+            d = Vector((0.0, 0.0, -1.0))
+        d.normalize()
+        n = ns[i].copy()
+        n -= d * n.dot(d)                  # 法線を進行方向へ直交させる
+        if n.length_squared < 1e-12:
+            n = Vector((0.0, -1.0, 0.0))
+        n.normalize()
+        side = n.cross(d)
+        if side.length_squared < 1e-12:
+            side = Vector((1.0, 0.0, 0.0))
+        side.normalize()
+        w, t = width[i], thickness[i]
+        rings.append([bm.verts.new(p + side * (w * math.cos(a))
+                                   + n * (t * math.sin(a)))
+                      for a in (math.tau * k / segments for k in range(segments))])
+
+    for lower, upper in zip(rings, rings[1:]):
+        for i in range(segments):
+            j = (i + 1) % segments
+            try:
+                bm.faces.new((lower[i], lower[j], upper[j], upper[i]))
+            except ValueError:
+                pass                       # 毛先で潰れた面は張らない
+    for ring, flip in ((rings[0], True), (rings[-1], False)):
+        try:
+            bm.faces.new(list(reversed(ring)) if flip else list(ring))
+        except ValueError:
+            pass
+    bmesh.ops.remove_doubles(bm, verts=list(bm.verts), dist=1e-5)
+    bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
+    bm.to_mesh(mesh)
+    bm.free()
+    for poly in mesh.polygons:
+        poly.use_smooth = smooth
+    return obj
+
+
+def depth_order(front, back, direction, cell: float = 0.004) -> tuple[float, int]:
+    """
+    ある視線方向から見て、`front` が `back` より手前にある割合を測る
+    (plan/models/garudo-side-hair-volume.md 受け入れ基準4)。
+
+    設定画には3/4図が無いので、その角度ではIoUで測れない。代わりに
+    **毛束の重なり順**を見る。前髪 > こめかみ毛束 > 耳 > 後頭部毛束 の
+    順になっていれば、少なくとも「板が何枚も無関係に重なっている」事故は
+    起きていない。
+
+    `direction` はカメラから被写体へ向かう単位ベクトル。その方向へ光線を
+    飛ばし、両方の集合に当たった光線について front の方が手前かを数える。
+
+    返すのは (正しい割合, 両方に当たった光線の数)。光線が少なすぎるときは
+    判定に使わない(重なりが無ければ順序も無い)。
+    """
+    d = Vector(direction).normalized()
+    lo, hi = bounds(list(front) + list(back))
+    span = hi - lo
+    origin_mid = (lo + hi) * 0.5 - d * (span.length + 0.05)
+    up = Vector((0.0, 0.0, 1.0))
+    if abs(up.dot(d)) > 0.99:
+        up = Vector((0.0, 1.0, 0.0))
+    ax = d.cross(up).normalized()
+    ay = ax.cross(d).normalized()
+    half = span.length * 0.5
+
+    import mathutils
+
+    trees = []
+    for group in (front, back):
+        bm = bmesh.new()
+        for obj in group:
+            bm.from_mesh(obj.data)
+        tree = mathutils.bvhtree.BVHTree.FromBMesh(bm)
+        bm.free()
+        trees.append(tree)
+
+    ok = 0
+    both = 0
+    n = max(4, int(half * 2.0 / cell))
+    for i in range(n):
+        for j in range(n):
+            u = (i / (n - 1) - 0.5) * 2.0 * half
+            v = (j / (n - 1) - 0.5) * 2.0 * half
+            origin = origin_mid + ax * u + ay * v
+            hits = []
+            for tree in trees:
+                loc, _nor, _idx, dist = tree.ray_cast(origin, d)
+                hits.append(dist if loc is not None else None)
+            if hits[0] is None or hits[1] is None:
+                continue
+            both += 1
+            if hits[0] < hits[1]:
+                ok += 1
+    return (ok / both if both else 1.0), both
