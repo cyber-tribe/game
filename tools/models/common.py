@@ -672,6 +672,90 @@ def wider_than(inner, outer, axis: int = 0, up: int = 2,
     return bad / max(1, len(a))
 
 
+def tapered_slab(name: str, spine, half_width, half_thick, side_dir,
+                 segments: int = 12, smooth: bool = True) -> "bpy.types.Object":
+    """
+    中心線に沿って**楕円断面**を積む。断面の向きを side_dir で決められる。
+
+    `hair_clump` がレンズ断面(毛束用)で断面の向きを自動で決めるのに対し、
+    こちらは楕円で、向きを呼び出し側が握る。「向きの決まった平たい部位」
+    — 手のひら・足の甲・指の付け根 — はこれで作る。手のひらを球で作ると
+    ミトンになり、指を足しても付け根が丸くて手に見えない。
+
+    spine: 中心線の点(3点以上)
+    half_width: 各点の半幅(side_dir方向)
+    half_thick: 各点の半厚(side_dir と中心線の両方に直交する方向)
+    """
+    mesh = bpy.data.meshes.new(name)
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj)
+    bm = bmesh.new()
+    pts = [Vector(p) for p in spine]
+    rings = []
+    for i, p in enumerate(pts):
+        if i == 0:
+            d = pts[1] - pts[0]
+        elif i == len(pts) - 1:
+            d = pts[-1] - pts[-2]
+        else:
+            d = pts[i + 1] - pts[i - 1]
+        d.normalize()
+        side = Vector(side_dir)
+        side = side - d * side.dot(d)
+        if side.length_squared < 1e-12:
+            side = Vector((1.0, 0.0, 0.0)) - d * d.x
+        side.normalize()
+        up = d.cross(side).normalized()
+        w, t = half_width[i], half_thick[i]
+        rings.append([
+            bm.verts.new(p + side * (w * math.cos(a)) + up * (t * math.sin(a)))
+            for a in (math.tau * k / segments for k in range(segments))])
+    for lower, upper in zip(rings, rings[1:]):
+        for i in range(segments):
+            j = (i + 1) % segments
+            bm.faces.new((lower[i], lower[j], upper[j], upper[i]))
+    bm.faces.new(list(reversed(rings[0])))
+    bm.faces.new(rings[-1])
+    bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
+    bm.to_mesh(mesh)
+    bm.free()
+    for poly in mesh.polygons:
+        poly.use_smooth = smooth
+    return obj
+
+
+def encloses(inner, outer, margin: float = 0.0) -> float:
+    """
+    `inner` の頂点のうち `outer` の内側に無いものの割合を返す(0=完全に内側)。
+
+    「手袋を装着できているか」のような**着せ替えの検査**に使う。目で見ると
+    手袋の外から素手が出ていても気付けない(手袋の色で塗られて見える)。
+    outer の内外は最近傍面の法線で判定する。
+    """
+    import mathutils
+    trees = []
+    for obj in outer:
+        bvh = mathutils.bvhtree.BVHTree.FromObject(obj, bpy.context.evaluated_depsgraph_get())
+        trees.append((obj, bvh))
+    bad = total = 0
+    for obj in inner:
+        m = obj.matrix_world
+        for v in obj.data.vertices:
+            p = m @ v.co
+            total += 1
+            for out_obj, bvh in trees:
+                local = out_obj.matrix_world.inverted() @ p
+                hit = bvh.find_nearest(local)
+                if hit[0] is None:
+                    continue
+                loc, nor = hit[0], hit[1]
+                if (local - loc).dot(nor) < -margin:
+                    break
+            else:
+                bad += 1
+    return bad / max(1, total)
+
+
 def split_material_region(obj: "bpy.types.Object", center, radius: float,
                           margin: float = 0.004, max_y: float | None = None) -> set:
     """
