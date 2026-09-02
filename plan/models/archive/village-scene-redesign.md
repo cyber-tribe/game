@@ -133,7 +133,7 @@ structures.md`(別PR)が担い、本書は**配置・カメラ・光・導線**�
 
 ## 対象外
 
-- 建物・小道具の造形の詳細(`plan/models/model-village-structures.md`)
+- 建物・小道具の造形の詳細(`plan/models/archive/model-village-structures.md`)
 - 村のBGM・環境音(`plan/sound/village-soundscape.md`)
 - 村マップの当たり判定・移動仕様の変更(見た目の再設計に徹する)
 

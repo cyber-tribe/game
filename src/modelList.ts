@@ -70,7 +70,7 @@ export const BARREL_MODELS = {
 } as const;
 
 /**
- * 村人NPCのモデル(`plan/models/model-*.md`、`tools/models/villagers.py`)。
+ * 村人NPCのモデル(`plan/models/archive/model-*.md`、`tools/models/villagers.py`)。
  * 建物の内装に立たせる(`plan/game/village-interiors.md`)ためのもので、
  * 種族表にもアイテム表にも載らないのでここに直接並べる。
  *

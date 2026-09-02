@@ -4,7 +4,7 @@ plan/models/archive/character-design-language.mdのデザインシート
 先行工程(1キャラ1枚、5項目)。第八地方(めざめの前庭)。
 
 1. **三語コンセプト**: 全地方の記憶・混ざり合う・まだ残る芯
-2. **シルエットの記号**: ぷるんの結晶の芯(plan/models/sheet-purun.md、
+2. **シルエットの記号**: ぷるんの結晶の芯(plan/models/archive/sheet-purun.md、
    `common.gem`)を、全地方の色を帯びた多面体に拡大する。
    plan/models/archive/silhouette-hard-surface-parts.mdの義務項目
 3. **図形と頭身**: ぷるんと同じ雫形、体表に複数地方の色が入り混じる

@@ -23,7 +23,7 @@ function makeStage(): Stage {
 }
 
 /**
- * ヒットストップ(plan/models/toon-advanced-techniques.md施策E-2)。打撃が
+ * ヒットストップ(plan/models/archive/toon-advanced-techniques.md施策E-2)。打撃が
  * 当たった瞬間、時間を数フレーム止めて重さを出す。イベント経由の統合検証は
  * FloorState/Actorの組み立てが大掛かりになるため、Stage.update()が実際に
  * 副作用(dyingタイマーの減衰)を止めることを直接確かめる

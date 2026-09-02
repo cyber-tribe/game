@@ -129,7 +129,7 @@ const { floor, at } = buildTestFloor(`
 
 ## 対象外
 
-- モデル造形の見た目検証(`plan/models/engine-preview-snapshots.md`
+- モデル造形の見た目検証(`plan/models/archive/engine-preview-snapshots.md`
   が受け持つ。ただし箱庭のスクリーンショットはシーン全体の
   見た目検証にも流用できる)
 - 村・拠点のシーンの注入基盤(まずダンジョンだけ。必要になったら

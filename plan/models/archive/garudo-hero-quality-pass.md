@@ -2,7 +2,7 @@
 
 ## 取り下げ
 
-`plan/models/anime-look-art-direction.md`の方針(キャラクターは
+`plan/models/archive/anime-look-art-direction.md`の方針(キャラクターは
 焼き込み陰影・手続きノイズを持たないフラットな色面にする)と正面から
 矛盾するため、本書は**未実装のまま取り下げる**。上着の織り目を高解像度で
 くっきり焼く方向自体が写実寄りの投資であり、フラット化すれば

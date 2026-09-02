@@ -120,7 +120,7 @@ export class ActorView {
    */
   private readonly lungeApplied = new THREE.Vector3();
   /**
-   * スメア(残像変形、plan/models/toon-advanced-techniques.md施策E-1)。
+   * スメア(残像変形、plan/models/archive/toon-advanced-techniques.md施策E-1)。
    * 攻撃の踏み込み(lunge)の立ち上がり(最も速い瞬間)だけ、進行方向へ
    * 極端に伸ばして手描きアニメの「線が流れる」速さを出す。骨ではなく
    * ルート1個のスケールだけで済ませるので、全種族に共通で効く。

@@ -4,7 +4,7 @@
 `tools/overlay_sheet.py`が全身シルエットの検査なのに対し、こちらは
 **顔だけを同じ物理スケールへ写して機械が判定する**道具。
 「似ている気がする」という自己評価を最終判定にしないための評価関数
-(plan/models/garudo-face-qa.md)。
+(plan/models/archive/garudo-face-qa.md)。
 
     tools/venv/bin/python tools/compare_face.py <名前>
 
@@ -43,6 +43,11 @@ RES_Y = int(RES_X * (WIN_Z1 - WIN_Z0) / (WIN_HALF_X * 2))
 PX_PER_UNIT = RES_X / (WIN_HALF_X * 2)
 # これより下(首から下)は顔の計測に含めない
 NECK_Z = 0.775
+# 髪と見なす下限。設定画のこれより下にある茶の暗部は**肩の革当てと樽**で、
+# 髪ではない(拡大して確認済み。「髪の左右輪郭」でも z0.790 を外している)。
+# 入れたままだと髪IoUの食い違いの半分がこの肩当てになる
+# (実測: 全体の食い違い4437mm2のうち2219mm2が z775..790)
+HAIR_Z0 = 0.790
 
 
 def load_image(path: str) -> "np.ndarray":
@@ -94,9 +99,11 @@ def classify(rgb: "np.ndarray"):
     line = (val < 0.70) & (sat > 0.32)
     below = np.zeros(rgb.shape[:2], dtype=bool)
     rows = np.arange(rgb.shape[0])
-    below[(WIN_Z1 - rows / PX_PER_UNIT) < NECK_Z] = True
+    z = WIN_Z1 - rows / PX_PER_UNIT
+    below[z < NECK_Z] = True
     for m in (skin, hair, dark, white, line):
         m[below] = False
+    hair[z < HAIR_Z0] = False
     return {"skin": skin, "hair": hair, "dark": dark, "white": white, "line": line}
 
 
@@ -314,6 +321,9 @@ def eye_pair(masks, band, min_size=40, max_w=0.060, max_h=0.050):
         h = (comp[:, 0].max() - comp[:, 0].min()) / PX_PER_UNIT
         if w >= max_w or h >= max_h:
             continue
+        # 目は帯の下側まで届く。眉は届かない(eye_landmarks と同じ理由)
+        if zs[comp[:, 0].max()] > band[0] + (band[1] - band[0]) * 0.35:
+            continue
         cx = (comp[:, 1] / PX_PER_UNIT - WIN_HALF_X).mean()
         cz = (WIN_Z1 - comp[:, 0] / PX_PER_UNIT).mean()
         cands.append({"cx": float(cx), "cz": float(cz), "w": float(w),
@@ -333,6 +343,65 @@ def eye_pair(masks, band, min_size=40, max_w=0.060, max_h=0.050):
     }
 
 
+# 左右対称のモデルが到達できるIoUの下限保証。天井の何%まで来ていれば
+# 合格とするか(外部評価を受けて、絶対値0.90/0.80から置き換えた)
+IOU_REACH_MIN = 0.95
+# 髪は左右非対称なので対称の上限が使えない。絶対値で見る
+HAIR_IOU_MIN = 0.80
+
+
+def fill_polygon(poly) -> "np.ndarray":
+    """
+    モデル座標(x, z)の閉じた多角形を、顔一致QAの窓へ塗ったマスクにする。
+    毛束の輪郭を設定画・モデルの髪マスクと直接比べるために使う。
+    """
+    px = np.array([(float(x) + WIN_HALF_X) * PX_PER_UNIT for x, _z in poly])
+    pz = np.array([(WIN_Z1 - float(z)) * PX_PER_UNIT for _x, z in poly])
+    mask = np.zeros((RES_Y, RES_X), dtype=bool)
+    n = len(poly)
+    for r in range(max(0, int(pz.min())), min(RES_Y, int(pz.max()) + 1)):
+        hits = []
+        for j in range(n):
+            z0, z1 = pz[j], pz[(j + 1) % n]
+            if (z0 <= r < z1) or (z1 <= r < z0):
+                t = (r - z0) / (z1 - z0)
+                hits.append(px[j] + (px[(j + 1) % n] - px[j]) * t)
+        hits.sort()
+        for a, b in zip(hits[0::2], hits[1::2]):
+            lo, hi = int(max(0, a)), int(min(RES_X - 1, b))
+            if hi > lo:
+                mask[r, lo:hi] = True
+    return mask
+
+
+def symmetric_ceiling(mask) -> float:
+    """
+    **左右対称なメッシュが、この基準に対して到達できるIoUの上限。**
+
+    設定画が左右非対称に描かれていると、左右対称なモデルはどう作っても
+    その差のぶんだけ外す。鏡映で対になる画素の組を数えると上限が出る:
+    両方1の組をn11、片方だけ1の組をn10として
+
+        上限 = (2*n11 + n10) / (2*n11 + 2*n10)
+
+    (片側だけの画素も「塗る」方が必ずIoUが高いので、この形になる)。
+    鏡映軸は少しずれているので±30pxを探索して最大を採る。
+
+    実測(ガルド): 肌0.825・髪0.860。肌はすでに0.813で天井の98%であり、
+    **目標値0.90は左右対称である限り到達できなかった**。
+    """
+    best = 0.0
+    for shift in range(-30, 31):
+        m = np.roll(mask, shift, axis=1)
+        mirrored = m[:, ::-1]
+        n11 = float((m & mirrored).sum()) / 2.0
+        n10 = float((m ^ mirrored).sum()) / 2.0
+        if n11 + n10 <= 0:
+            continue
+        best = max(best, (2 * n11 + n10) / (2 * n11 + 2 * n10))
+    return best
+
+
 def _row_span(mask, row):
     cols = np.where(mask[row])[0]
     return float((cols.max() - cols.min() + 1) / PX_PER_UNIT) if len(cols) else 0.0
@@ -349,8 +418,19 @@ def face_metrics(masks, eye_z: float):
     row = int(np.argmax(widths))
     cols = np.where(skin[row])[0]
     hair_ys, _ = np.where(hair)
-    hair_widths = hair.sum(axis=1)
-    hair_row = int(np.argmax(hair_widths))
+    # **「髪の最大幅」は行の幅(左端から右端)で測る。** 行の画素数で
+    # 測っていたが、それは「髪がいちばん多い高さ」であって幅ではない。
+    # 前髪の隙間や毛束の間の抜けで画素数が変わるので、髪を少し足すだけで
+    # 最大の行が20mm飛ぶ(実測: 側面の毛束を足したら913.5→892.5)。
+    # 幅の山はなだらかなので、5行(2.5mm)ならして最大を取る
+    spans = np.zeros(hair.shape[0], dtype=np.float64)
+    for r in range(hair.shape[0]):
+        c = np.where(hair[r])[0]
+        if len(c) > 3:
+            spans[r] = (c.max() - c.min()) / PX_PER_UNIT
+    k = 5
+    smooth = np.convolve(spans, np.ones(k) / k, mode="same")
+    hair_row = int(np.argmax(smooth))
     eye_row = int((WIN_Z1 - eye_z) * PX_PER_UNIT)
     return {
         "chin_z": WIN_Z1 - ys.max() / PX_PER_UNIT,
@@ -391,11 +471,19 @@ def eye_landmarks(masks, band, sign: float):
     xs = cols / PX_PER_UNIT - WIN_HALF_X
     dark[:, np.abs(xs) > 0.078] = False
     dark[:, (xs * sign) <= 0.004] = False
+    # **目は帯の下側まで届く。眉は届かない。** 大きさだけで選ぶと眉を拾う。
+    # 眉が髪と繋がっているうちは幅の上限で落ちていたが、前髪を設定画の
+    # 生え際まで正しく伸ばしたら眉が髪から切り離され、眉の塊(1349px)が
+    # 目の塊(1153px)より大きくなって「目」として拾われた
+    # (実測: 目尻が+7.5mm外・上瞼が+18.5mm上へ飛んだ)
+    reach = band[0] + (band[1] - band[0]) * 0.35
     best = None
     for comp in components(dark, min_size=40):
         w = (comp[:, 1].max() - comp[:, 1].min()) / PX_PER_UNIT
         h = (comp[:, 0].max() - comp[:, 0].min()) / PX_PER_UNIT
-        if w < 0.060 and h < 0.036 and (best is None or len(comp) > len(best)):
+        low = zs[comp[:, 0].max()]
+        if w < 0.060 and h < 0.036 and low <= reach \
+                and (best is None or len(comp) > len(best)):
             best = comp
     if best is None:
         return {}
@@ -561,12 +649,34 @@ def main() -> int:
 
     print(f"\n=== 顔の一致度: {name} ===")
     print(f"  設定画の正面図 外接箱={bbox}  中心合わせ={shift:+d}px")
-    print(f"\n  {'領域':<20} {'IoU':>8}")
+    # **IoUは絶対値で判定しない。**
+    # 設定画は左右非対称に描かれている(頬 +78.0/-63.5、顎先は中心から
+    # +11.0)ので、左右対称のモデルが到達できるIoUには理論上の天井がある。
+    # 天井に対する到達率で判定する(外部評価 2026-09-02:「0.90という
+    # 合格基準の方が間違っていた」)。
+    #
+    # ただし**天井が効くのは左右対称に作る部位だけ**。顔の骨格は対称に
+    # すると決めているので肌には効くが、**髪型は分け目があって元から
+    # 左右非対称**なので、対称な形の上限は髪の上限ではない
+    # (実測: 髪は上限0.857に対しIoU 0.871。到達率102%になり判定に
+    # ならない)。髪は絶対値で見る(plan/models/archive/garudo-hair-clumps.md の
+    # 当初基準 0.80)。
+    print(f"\n  {'領域':<14} {'IoU':>7} {'対称の上限':>11} {'到達率':>8}")
     ious = {}
-    for key, tol in (("skin", 0.90), ("hair", 0.80)):
+    for key in ("skin", "hair"):
         ious[key] = iou(a_aligned[key], b[key])
-        print(f"  {key:<20} {ious[key]:>8.3f}  {'ok' if ious[key] >= tol else 'NG'}"
-              f"  (目標>={tol})")
+        cap = symmetric_ceiling(a_aligned[key])
+        rate = ious[key] / cap if cap else 0.0
+        if key == "skin":
+            ok_r = rate >= IOU_REACH_MIN
+            note = f"(基準 到達率>={IOU_REACH_MIN * 100:.0f}%)"
+        else:
+            ok_r = ious[key] >= HAIR_IOU_MIN
+            note = f"(基準 IoU>={HAIR_IOU_MIN:.2f}。髪型は非対称なので上限は参考)"
+        print(f"  {key:<14} {ious[key]:>7.3f} {cap:>11.3f} {rate*100:>7.0f}%"
+              f"  {'ok' if ok_r else 'NG'}  {note}")
+        ious[key + "_rate"] = rate
+        ious[key + "_ok"] = ok_r
 
     print(f"\n  {'ランドマーク':<20} {'設定画':>9} {'モデル':>9} {'差':>9}")
     passed = []
@@ -636,7 +746,7 @@ def main() -> int:
     # さらに輪郭の凹凸量を測る: 房の尖りが無い「ヘルメット」は、幅が
     # 合っていてもこの値が設定画の半分になる(実測: 319 vs 589)
     print(f"\n  {'高さz':<10} {'設定左':>8} {'モデル左':>8} {'差':>7}"
-          f" {'設定右':>8} {'モデル右':>8} {'差':>7}")
+          f" {'設定右':>8} {'モデル右':>8} {'差':>7} {'設定の左右差':>10}")
     hair_pass = True
     # z=0.790は使わない。設定画のその高さで左右±75mmにある濃い塊は髪では
     # なく**肩の革当て**で、拡大して確認済み。髪は顎の角(z≒0.80)で終わる。
@@ -649,10 +759,17 @@ def main() -> int:
         to_x = lambda c: (c / PX_PER_UNIT - WIN_HALF_X) * 1000.0
         l0, r0 = to_x(ca.min()), to_x(ca.max())
         l1, r1 = to_x(cb.min()), to_x(cb.max())
-        if max(abs(l1 - l0), abs(r1 - r0)) > 12.0:
+        # **設定画がその高さで自分と食い違っている量**。頭の骨格は左右
+        # 対称に作ると決めている(外部評価: 作画の非対称は誤差として
+        # 扱う)ので、設定画の左右差が許容より大きい高さでは、どちらの
+        # 側に合わせても反対側が外れる。そこは判定しない
+        asym = abs(abs(l0) - r0)
+        judged = asym <= 12.0
+        if judged and max(abs(l1 - l0), abs(r1 - r0)) > 12.0:
             hair_pass = False
         print(f"  z={z:<8.3f} {l0:>8.1f} {l1:>8.1f} {l1 - l0:>+7.1f}"
-              f" {r0:>8.1f} {r1:>8.1f} {r1 - r0:>+7.1f}")
+              f" {r0:>8.1f} {r1:>8.1f} {r1 - r0:>+7.1f} {asym:>10.1f}"
+              f"{'' if judged else '  参考'}")
 
     def raggedness(mask):
         w = []
@@ -665,38 +782,61 @@ def main() -> int:
     # ---- 毛束の構造(外形だけを見ると「ウニ」になる) ----
     # 外形の指標は「輪郭が上下に振れること」しか見ないので、地肌へ垂直な
     # トゲを生やすだけで通ってしまう(実測54%→97%、見た目はウニ)。
-    # 毛束の毛先が**設定画で測った毛先の位置に来ているか**を別に見る。
+    #
+    # 見るのは**毛束1本ずつの輪郭**(第2次改訂)。設定画からなぞった輪郭
+    # (design/characters/<名前>/hair-clumps.json の path_xz)を正面図の
+    # 窓へ塗り、
+    #   設定画側: その輪郭が設定画の髪に乗っているか(なぞり間違い)
+    #   モデル側: その輪郭にモデルの髪が描画されているか(他の毛束や
+    #             Hair Capに飲まれていないか)
+    # の2つを測る。毛先1点だけを見ていたときは、毛束の**形**が違っても
+    # 通ってしまった。
     clump_path = os.path.join(os.path.dirname(os.path.dirname(
         os.path.abspath(__file__))), "design", "characters", name,
         "hair-clumps.json")
     if os.path.exists(clump_path):
         with open(clump_path, encoding="utf-8") as fh:
             table = json.load(fh)
-        tips = [(t["x"], t["z"]) for t in table.get("tips", [])]
-        clumps = [(c["tip"]["x"], c["tip"]["z"], c["name"])
-                  for c in table.get("clumps", [])]
-        if tips and clumps:
-            print(f"\n  {'設定画の毛先':<14}{'x,z(mm)':>16}"
-                  f"{'最寄りの毛束':>14}{'差(mm)':>9}")
-            errs = []
-            for tx, tz in tips:
-                d, cx, cz, nm = min(
-                    (math.dist((tx, tz), (cx, cz)), cx, cz, nm)
-                    for cx, cz, nm in clumps)
-                errs.append(d * 1000.0)
-                # 毛先の位置に**実際に髪が描画されているか**も見る
-                # (表に書いただけで、他の毛束に飲まれている事故を防ぐ)
-                col = int((cx + WIN_HALF_X) * PX_PER_UNIT)
-                row = int((WIN_Z1 - cz) * PX_PER_UNIT)
-                near = b["hair"][max(0, row - 4):row + 5,
-                                 max(0, col - 4):col + 5].any()
-                print(f"  {'':<14}{tx * 1000:>8.1f},{tz * 1000:>7.1f}"
-                      f"{nm:>14}{d * 1000:>9.1f}{'' if near else '  描画なし'}")
-            mean_t = sum(errs) / len(errs)
-            ok_t = mean_t <= 6.0 and max(errs) <= 12.0
-            print(f"  毛先ランドマーク  平均 {mean_t:.1f}mm / 最大 {max(errs):.1f}mm"
-                  f"  {'ok' if ok_t else 'NG'}  (基準 平均<=6.0 最大<=12.0)")
-            passed.append(ok_t)
+        majors = [(c, True) for c in table.get("major", [])]
+        majors += [(c, False) for c in table.get("aux", [])]
+        # 細い毛束は**線として描かれている**(墨の1本線)。彩度の低い
+        # 濃い画素は classify では hair に入らないので、設定画側の判定は
+        # hair と dark の和で見る(実測: 頭頂の細い跳ねは hair 判定 8%)
+        sheet_hair = a_aligned["hair"] | a_aligned["dark"]
+        # 墨の線には太さがあり、周りは中間調でどの分類にも入らない。
+        # 1.5mmだけ太らせてから比べる(輪郭は毛束の外側をなぞるので、
+        # 細い毛束ほどこの猶予が要る)
+        pad = int(round(0.0015 * PX_PER_UNIT))
+        grown = sheet_hair.copy()
+        for dr in range(-pad, pad + 1):
+            for dc in range(-pad, pad + 1):
+                grown |= np.roll(np.roll(sheet_hair, dr, axis=0), dc, axis=1)
+        sheet_hair = grown
+        rows = []
+        for clump, is_major in majors:
+            poly = clump.get("path_xz")
+            if not poly:
+                continue
+            mask = fill_polygon(poly)
+            area = int(mask.sum())
+            if area < 20:
+                continue
+            on_sheet = float((mask & sheet_hair).sum()) / area
+            on_model = float((mask & b["hair"]).sum()) / area
+            rows.append((clump["name"], is_major, area, on_sheet, on_model))
+        if rows:
+            print(f"\n  {'毛束':<14}{'面積mm2':>9}{'設定画で髪':>11}{'モデルで髪':>11}")
+            for nm, is_major, area, on_sheet, on_model in rows:
+                flag = "" if on_model >= 0.90 else "  NG"
+                print(f"  {nm:<14}{area / PX_PER_UNIT ** 2 * 1e6:>9.0f}"
+                      f"{on_sheet * 100:>10.0f}%{on_model * 100:>10.0f}%{flag}")
+            worst_sheet = min(r[3] for r in rows if r[1])
+            worst_model = min(r[4] for r in rows if r[1])
+            ok_c = worst_sheet >= 0.90 and worst_model >= 0.90
+            print(f"  毛束の輪郭  設定画で最悪 {worst_sheet * 100:.0f}% / "
+                  f"モデルで最悪 {worst_model * 100:.0f}%"
+                  f"  {'ok' if ok_c else 'NG'}  (基準 どちらも>=90%)")
+            passed.append(ok_c)
 
     ra, rb = raggedness(head_a), raggedness(head_b)
     ok_r = rb >= ra * 0.7
@@ -708,19 +848,56 @@ def main() -> int:
     passed.append(ok_r)
 
     # ---- 意味的ランドマーク回帰 ----
+    # 誤差は**左右を平均した設定画**に対して measure する(symmetric_target)。
+    # 設定画自身の左右差を最後の列に出すので、平均で隠れることはない。
     la = all_landmarks(a_aligned, ref)
     lb = all_landmarks(b, ref)
-    print(f"\n  {'ランドマーク(部位)':<18} {'設定画x,z':>17} {'モデルx,z':>17} {'誤差':>7}")
+    # 顔の中心線に乗る部位は**高さだけ**で見る。設定画は顔がわずかに
+    # 振られて描かれていて、あご先が中心から11mmずれている。モデルは
+    # 左右対称に作ると決めているので、xを比べると必ずその分だけ外れる
+    # (実測: あご先 z は 775.0 で一致、x だけ 11.5mm)
+    MIDLINE = {"顎先", "生え際中央", "口中央", "鼻先"}
+
+    def symmetric_target(key):
+        """
+        設定画の左右を平均した「対称化した基準」。
+
+        設定画は顔がわずかに振られて描かれていて、同じ部位でも左右で
+        位置が違う(実測: 頬 +78.0 / -63.5、あご先が中心から+11.0)。
+        モデルは**左右対称に作ると決めている**(外部評価: 作画の非対称は
+        誤差として扱う)ので、片側に合わせれば必ず反対側が外れる。
+        領域IoUで「対称の上限」を出したのと同じ考えで、左右の平均を
+        基準にし、設定画自身の左右差は併記する。
+        """
+        if key[-1] not in "LR":
+            return la.get(key), 0.0
+        other = key[:-1] + ("R" if key[-1] == "L" else "L")
+        p, q = la.get(key), la.get(other)
+        if p is None or q is None:
+            return p, 0.0
+        sign = 1.0 if p[0] >= 0 else -1.0
+        x = (abs(p[0]) + abs(q[0])) * 0.5 * sign
+        z = (p[1] + q[1]) * 0.5
+        return (x, z), math.hypot(abs(p[0]) - abs(q[0]), p[1] - q[1]) * 1000.0
+
+    print(f"\n  {'ランドマーク(部位)':<18} {'設定画x,z':>17} {'モデルx,z':>17}"
+          f" {'誤差':>7} {'設定の左右差':>10}")
     errors = []
     for key in la:
         pa, pb = la.get(key), lb.get(key)
         if pa is None or pb is None:
             print(f"  {key:<18} {'--':>17} {'--':>17} {'検出不能':>7}")
             continue
-        err = math.hypot(pb[0] - pa[0], pb[1] - pa[1]) * 1000.0
+        target, asym = symmetric_target(key)
+        if key in MIDLINE:
+            err = abs(pb[1] - pa[1]) * 1000.0
+        else:
+            err = math.hypot(pb[0] - target[0], pb[1] - target[1]) * 1000.0
         errors.append((err, key))
         print(f"  {key:<18} {pa[0] * 1000:>8.1f},{pa[1] * 1000:>8.1f} "
-              f"{pb[0] * 1000:>8.1f},{pb[1] * 1000:>8.1f} {err:>7.1f}")
+              f"{pb[0] * 1000:>8.1f},{pb[1] * 1000:>8.1f} {err:>7.1f}"
+              f" {asym:>10.1f}"
+              f"{'  (高さのみ)' if key in MIDLINE else ''}")
     if errors:
         mean_err = sum(e for e, _ in errors) / len(errors)
         worst, worst_key = max(errors)
@@ -748,7 +925,7 @@ def main() -> int:
     out_path = os.path.join(C.PREVIEW_DIR, "face", f"{name}-compare.png")
     save_image(out_path, combined)
 
-    ok = all(passed) and ious["skin"] >= 0.90 and ious["hair"] >= 0.80
+    ok = all(passed) and ious["skin_ok"] and ious["hair_ok"]
     print(f"\n  判定: {'PASS' if ok else 'FAIL'}   → {out_path}\n")
     return 0 if ok else 2
 

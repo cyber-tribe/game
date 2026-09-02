@@ -18,7 +18,7 @@ compare_turnaround.mjsから呼ばれる想定)。
 
 --pose-check を付けると、各ボーンを1本ずつ曲げたポーズの
 グリッドレンダーだけを tools/preview/posecheck/ へ出力する
-(plan/models/garudo-quality-uplift.md 実装項目3。スキニングの
+(plan/models/archive/garudo-quality-uplift.md 実装項目3。スキニングの
 破れの目視検査用)。
 """
 
@@ -74,6 +74,7 @@ def main() -> int:
         if silhouette:
             C.render_silhouette(name, objs, view="front")
             C.render_silhouette(name, objs, view="side")
+            C.render_silhouette(name, objs, view="back")
             print(f"  {name:<14} シルエット出力 → tools/preview/silhouettes/")
             continue
         if pose_check:
@@ -87,7 +88,7 @@ def main() -> int:
             size = (420, 520) if animated else (320, 320)
             C.render_preview(name, objs, size=size, samples=40 if animated else 32)
             # キャラクターは正面・側面・背面のコンタクトシートも出す
-            # (plan/models/garudo-quality-uplift.md 実装項目2)
+            # (plan/models/archive/garudo-quality-uplift.md 実装項目2)
             if animated:
                 C.render_turnaround(name, objs)
         # animated=Trueはキャラクター(garudo/monsters/villagers)、Falseは

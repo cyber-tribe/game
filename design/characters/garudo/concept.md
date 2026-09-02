@@ -1,6 +1,6 @@
 # ガルド ― 2Dコンセプト案(5体再設計ゲート・第1段階)
 
-`plan/models/five-character-redesign-gate.md`の「1. 1体につきラフ案を
+`plan/models/archive/five-character-redesign-gate.md`の「1. 1体につきラフ案を
 3案以上」を、5体のうち最優先(主人公・妥協不可)のガルドから着手する。
 
 三語コンセプトは維持: **がんこ・まっすぐ・樽育ち**
@@ -133,8 +133,8 @@ Catmull-Romで生成する際に鏡映の接線が乱れて破綻し、この場
 一時停止する(`five-character-redesign-gate.md`の対象外規定どおり、
 ぷるん以降の着手もこの判断待ち)。
 
-**追記**: 上記の逃げ道を書いた直後に`plan/models/figure-drawing-
-practice.md`が追加された。v1〜v3が(b)(c)で伸び悩んだ根本原因
+**追記**: 上記の逃げ道を書いた直後に`plan/models/archive/
+figure-drawing-practice.md`が追加された。v1〜v3が(b)(c)で伸び悩んだ根本原因
 (人体の構造・量塊を経由せず、いきなり輪郭を当てにいっていたこと)
 に対する正面からの解決策(8頭身カノンでの人体デッサン→数値検算→
 2.5頭身への圧縮→ガルドの意匠を着せる、の4段階練習)であり、
@@ -206,7 +206,7 @@ practice.md`が追加された。v1〜v3が(b)(c)で伸び悩んだ根本原因
 上記v1のレンダーPNGをユーザーに提示したところ、「画風が気に入らない。
 90年代の日本の漫画・アニメを参考にしてほしい」という指摘。特定作品・
 作家名はオリジナリティの規約により書かないが、特徴を
-`plan/models/anime-look-art-direction.md`「3.5」に言語化し、正面・
+`plan/models/archive/anime-look-art-direction.md`「3.5」に言語化し、正面・
 側面とも全面的に描き直した(`garudo.svg`・`garudo-side.svg`を
 直接更新。v1のファイルは残っていない)。
 
@@ -383,12 +383,12 @@ garudo-sheet.png`(1536×1024)として取り込み、**これをガルドの
 ユーザーが「この状態でガルドは一旦完成とします」と明言し、3Dモデルは
 暫定完成として承認された。最終状態: 設定画(7頭身)忠実の意匠+
 ゲーム内チビ化(約2.6頭身)、作り込み4ラウンド、ウェイト・貫通・
-歩行の品質修正済み(経緯は`plan/models/five-character-redesign-gate.md`)。
+歩行の品質修正済み(経緯は`plan/models/archive/five-character-redesign-gate.md`)。
 以後の見た目の変更は、この承認状態を基準に差分で行う。
 
 ## 設定画の更新(2026-09-01・ガルド品質向上)
 
-`plan/models/garudo-quality-uplift.md`(工程の欠落を塞いだうえで
+`plan/models/archive/garudo-quality-uplift.md`(工程の欠落を塞いだうえで
 三面図からガルドを作り直す計画)に合わせ、ユーザーが新しい設定画を
 提供し、`generated/garudo-sheet.png`を差し替えた。要点:
 
@@ -406,7 +406,7 @@ garudo-sheet.png`(1536×1024)として取り込み、**これをガルドの
 
 ## 3Dモデルの作り直し(v3・2026-09-01)
 
-新設定画の三面図を寸法源に、`plan/models/hand-painted-standard.md`
+新設定画の三面図を寸法源に、`handbook/hand-painted-standard.md`
 (手描きテクスチャ規約)へ全面的に沿わせて作り直した。ユーザー判定
 「一旦これで行きましょう」で暫定確定。
 

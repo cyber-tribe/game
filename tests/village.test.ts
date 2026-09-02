@@ -331,7 +331,7 @@ describe("view/village.ts: VillageView", () => {
 });
 
 /**
- * 村の画面構成の再設計(plan/models/village-scene-redesign.md): 既定は
+ * 村の画面構成の再設計(plan/models/archive/village-scene-redesign.md): 既定は
  * 明るい昼、宵祭りの日だけ茜色の夕暮れに切り替える
  */
 describe("view/village.ts: setFestivalLighting", () => {
@@ -357,7 +357,7 @@ describe("view/village.ts: setFestivalLighting", () => {
 });
 
 /**
- * plan/models/village-surroundings.md: 「山頂の孤島」に見える問題を、
+ * plan/models/archive/village-surroundings.md: 「山頂の孤島」に見える問題を、
  * 地面の延長・中景の丘・空のグラデーションドームなどで直す
  */
 describe("view/village.ts: 村の周辺(village-surroundings)", () => {
@@ -401,7 +401,7 @@ describe("view/village.ts: 村の周辺(village-surroundings)", () => {
 });
 
 /**
- * plan/models/village-mountain-gradient.md: 村の林と山の間の質感・色の
+ * plan/models/archive/village-mountain-gradient.md: 村の林と山の間の質感・色の
  * 飛びを、山の裾に登る樹層と稜線の頂点カラーグラデーションで繋ぐ
  */
 describe("view/village.ts: 山の遠景(village-mountain-gradient)", () => {
@@ -514,7 +514,7 @@ describe("view/village.ts: 村なかの主人公の姿(#446)", () => {
 
 /**
  * 村なかカメラ(plan/models/archive/village-scene-redesign.mdの
- * 「カメラワーク」・plan/models/village-camera-manual-rotate.md):
+ * 「カメラワーク」・plan/models/archive/village-camera-manual-rotate.md):
  * 俯瞰をやめた主人公の背後・低めの三人称カメラで、向きはQ/E・二本指回転の
  * 手動操作でのみ動く(移動しても勝手に回り込まない)
  */

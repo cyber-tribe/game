@@ -520,7 +520,7 @@ def organic_uv(obj: "bpy.types.Object", axis: int = 2,
 def hair_clump(name: str, spine, width, thickness, segments: int = 8,
                smooth: bool = True) -> "bpy.types.Object":
     """
-    **立体的な毛束**を1本作る(plan/models/garudo-hair-clumps.md)。
+    **立体的な毛束**を1本作る(plan/models/archive/garudo-hair-clumps.md)。
 
     4点程度の中心線 `spine` に沿って、**レンズ(潰したダイヤ)断面**を
     ロフトする。板(平たい面)でも殻(頭皮を切り取った面)でもない、
@@ -814,7 +814,7 @@ def uv_report(obj: "bpy.types.Object", size: int = 384,
               regions: dict[str, tuple[tuple[float, float, float], float]] | None = None,
               ) -> dict:
     """
-    UV展開の品質を数値で報告する(plan/models/garudo-quality-uplift.md
+    UV展開の品質を数値で報告する(plan/models/archive/garudo-quality-uplift.md
     実装項目5)。「顔だけ解像度不足」のような偏りを目視でなく数値で
     検知するためのもの。返り値と標準出力:
 
@@ -1044,7 +1044,7 @@ def spherize_normals(obj: "bpy.types.Object", center,
                      radius: float | None = None, strength: float = 1.0) -> None:
     """
     法線を「中心centerの大きな球の表面」の方向へ寄せる
-    (plan/models/hand-painted-standard.md 規約4)。素のスムーズ
+    (handbook/hand-painted-standard.md 規約4)。素のスムーズ
     シェーディングが生む頬の変な影・髪のデコボコを消し、どこに光が
     当たるかを造形と別に設計する。radiusを与えるとその球内の頂点だけ、
     strengthで元の法線とのブレンド率を指定する。
@@ -1755,7 +1755,7 @@ def bake_procedural_detail(obj: bpy.types.Object, patterns: dict[str, str],
 
 def preflight_check(name: str, objs: Sequence[bpy.types.Object]) -> None:
     """
-    エクスポート前のメッシュ検査(plan/models/garudo-quality-uplift.md
+    エクスポート前のメッシュ検査(plan/models/archive/garudo-quality-uplift.md
     実装項目1)。
 
     - **孤児ウェイト**(どのボーンにも属さない頂点)が1つでもあれば失敗。
@@ -1935,7 +1935,7 @@ def render_silhouette(name: str, objs: Sequence[bpy.types.Object], view: str = "
 
     view="front"はカメラを-Y側に置いて顔側(character-design-language.md
     の正面)を、"side"はカメラを-X側に置いて右半身(.R側。mirrored()で
-    .L側が+X)を平行投影で写す。
+    .L側が+X)を、"back"はカメラを+Y側に置いて背面を平行投影で写す。
     """
     silhouette_dir = os.path.join(PREVIEW_DIR, "silhouettes")
     os.makedirs(silhouette_dir, exist_ok=True)
@@ -1950,7 +1950,8 @@ def render_silhouette(name: str, objs: Sequence[bpy.types.Object], view: str = "
     # ベクトルは「中心から見たカメラの位置」。従来はこの符号が逆で、
     # 正面と称して背面側から撮っていた(左右対称のシルエットでは実害が
     # 出ず潜伏していた。render_turnaround導入時に発覚)
-    to_camera = Vector((0, -1, 0)) if view == "front" else Vector((-1, 0, 0))
+    to_camera = {"front": Vector((0, -1, 0)),
+                 "back": Vector((0, 1, 0))}.get(view, Vector((-1, 0, 0)))
     cam_loc = center + to_camera * (extent * 2)
 
     bpy.ops.object.camera_add(location=cam_loc)
@@ -2015,7 +2016,7 @@ def render_turnaround(name: str, objs: Sequence[bpy.types.Object], samples: int 
                       view_size: tuple[int, int] = (300, 380)) -> str:
     """
     正面・側面・背面のシェーデッド3面を左からこの順で1枚に並べた
-    コンタクトシート(plan/models/garudo-quality-uplift.md 実装項目2)。
+    コンタクトシート(plan/models/archive/garudo-quality-uplift.md 実装項目2)。
     平行投影・素立ちで、三面図との突き合わせや承認レビューの定型提示物に
     使う。出力は tools/preview/turnaround/<名前>.png。
     """
@@ -2108,7 +2109,7 @@ def render_turnaround(name: str, objs: Sequence[bpy.types.Object], samples: int 
 def render_pose_check(name: str, objs: Sequence[bpy.types.Object], angle: float = 40.0,
                       samples: int = 16, tile: tuple[int, int] = (220, 260)) -> str | None:
     """
-    変形テストポーズのグリッドレンダー(plan/models/garudo-quality-uplift.md
+    変形テストポーズのグリッドレンダー(plan/models/archive/garudo-quality-uplift.md
     実装項目3)。アーマチュアの各ボーンを1本ずつローカルX軸へangle度曲げ、
     3/4ビューの小タイルを格子に並べて1枚に合成する。スキニングの破れ・
     巻き込み(Bone Heat事故の局所版)をエクスポート前に目視できる。
@@ -2252,3 +2253,238 @@ def tri_count(objs: Sequence[bpy.types.Object]) -> int:
         for poly in obj.data.polygons:
             total += max(1, len(poly.vertices) - 2)
     return total
+
+
+def _point_in_tri(p, a, b, c) -> bool:
+    def side(u, v, w):
+        return (v[0] - u[0]) * (w[1] - u[1]) - (v[1] - u[1]) * (w[0] - u[0])
+    d1, d2, d3 = side(a, b, p), side(b, c, p), side(c, a, p)
+    return not ((d1 < -1e-12 or d2 < -1e-12 or d3 < -1e-12)
+                and (d1 > 1e-12 or d2 > 1e-12 or d3 > 1e-12))
+
+
+def ear_clip(pts) -> list[tuple[int, int, int]]:
+    """単純多角形(2D)を三角形へ。耳切り法。**穴は扱わない**"""
+    n = len(pts)
+    if n < 3:
+        return []
+    idx = list(range(n))
+    twice_area = sum(pts[i][0] * pts[(i + 1) % n][1]
+                     - pts[(i + 1) % n][0] * pts[i][1] for i in range(n))
+    if twice_area < 0.0:
+        idx.reverse()
+    tris: list[tuple[int, int, int]] = []
+    guard = 4 * n * n
+    while len(idx) > 3 and guard > 0:
+        guard -= 1
+        for k in range(len(idx)):
+            i0, i1, i2 = idx[k - 1], idx[k], idx[(k + 1) % len(idx)]
+            a, b, c = pts[i0], pts[i1], pts[i2]
+            cross = ((b[0] - a[0]) * (c[1] - a[1])
+                     - (b[1] - a[1]) * (c[0] - a[0]))
+            if cross <= 1e-12:
+                continue                      # 反射頂点、または潰れた三角形
+            if any(_point_in_tri(pts[j], a, b, c)
+                   for j in idx if j not in (i0, i1, i2)):
+                continue                      # 他の頂点を含む=耳でない
+            tris.append((i0, i1, i2))
+            idx.pop(k)
+            break
+        else:
+            break                             # 耳が見つからない(自己交差)
+    if len(idx) == 3:
+        tris.append((idx[0], idx[1], idx[2]))
+    return tris
+
+
+def _in_circumcircle(a, b, c, d) -> bool:
+    """dが三角形abcの外接円の内側か(a,b,cは反時計回り)"""
+    ax, ay = a[0] - d[0], a[1] - d[1]
+    bx, by = b[0] - d[0], b[1] - d[1]
+    cx, cy = c[0] - d[0], c[1] - d[1]
+    return ((ax * ax + ay * ay) * (bx * cy - by * cx)
+            - (bx * bx + by * by) * (ax * cy - ay * cx)
+            + (cx * cx + cy * cy) * (ax * by - ay * bx)) > 1e-18
+
+
+def delaunay_flip(pts, tris, rounds: int = 6):
+    """
+    三角形分割を辺の入れ替えで整える(2D)。
+
+    耳切り法は**扇形に細長い三角形**を作る。輪郭に沿って点が並ぶ毛束では
+    ほぼ全部が細長くなり(実測: crown_L は63個中56個がアスペクト比8超、
+    中央値20)、面を滑らかに繋ぐと法線が破綻して**放射状の黒い筋**が出る。
+    内部の辺だけを対象に、外接円判定で入れ替える。
+    """
+    tris = [tuple(t) for t in tris]
+    for _ in range(rounds):
+        edges: dict[tuple[int, int], list[int]] = {}
+        for ti, (a, b, c) in enumerate(tris):
+            for u, v in ((a, b), (b, c), (c, a)):
+                edges.setdefault((min(u, v), max(u, v)), []).append(ti)
+        flipped = False
+        dead = set()
+        for (u, v), owners in edges.items():
+            if len(owners) != 2 or owners[0] in dead or owners[1] in dead:
+                continue
+            t0, t1 = owners
+            o0 = [i for i in tris[t0] if i not in (u, v)]
+            o1 = [i for i in tris[t1] if i not in (u, v)]
+            if len(o0) != 1 or len(o1) != 1:
+                continue
+            c, d = o0[0], o1[0]
+            a, b = pts[u], pts[v]
+            pc, pd = pts[c], pts[d]
+
+            def cross(p, q, r):
+                return ((q[0] - p[0]) * (r[1] - p[1])
+                        - (q[1] - p[1]) * (r[0] - p[0]))
+
+            # 四角形 c-a-d-b が凸でなければ入れ替えると外へはみ出る
+            s1, s2 = cross(pc, a, pd), cross(pc, pd, b)
+            if s1 * s2 <= 0.0:
+                continue
+            if cross(a, pd, b) * cross(a, b, pc) <= 0.0:
+                continue
+            tri = (u, v, c) if cross(a, b, pc) > 0 else (v, u, c)
+            if not _in_circumcircle(pts[tri[0]], pts[tri[1]], pts[tri[2]], pd):
+                continue
+            tris[t0] = (c, d, u)
+            tris[t1] = (d, c, v)
+            dead.update((t0, t1))
+            flipped = True
+        if not flipped:
+            break
+    return tris
+
+
+def _dist_to_polyline(p, loop) -> float:
+    best = float("inf")
+    n = len(loop)
+    for i in range(n):
+        ax, az = loop[i]
+        bx, bz = loop[(i + 1) % n]
+        dx, dz = bx - ax, bz - az
+        dd = dx * dx + dz * dz
+        if dd < 1e-18:
+            t = 0.0
+        else:
+            t = max(0.0, min(1.0, ((p[0] - ax) * dx + (p[1] - az) * dz) / dd))
+        ex, ez = ax + dx * t - p[0], az + dz * t - p[1]
+        best = min(best, math.hypot(ex, ez))
+    return best
+
+
+def clump_shell(name: str, outline, depth, half_thick: float = 0.010,
+                ramp: float = 0.012, edge_thick: float = 0.0005,
+                cuts: int = 2, min_edge: float = 0.0025,
+                plane: str = "xz", smooth: bool = True) -> "bpy.types.Object":
+    """
+    **正面から見た輪郭をそのまま形にする毛束**
+    (plan/models/archive/garudo-hair-clumps.md 第2次改訂)。
+
+    中心線+幅で作る `hair_clump` は「1本の細長い房」しか作れず、設定画に
+    描かれている**毛束の輪郭**(切れ込み・2つに割れた毛先・シルエットの
+    尖り)を表現できなかった。ここでは設定画からなぞった閉じた輪郭を
+    そのまま入力にする。正面のシルエットは**定義により設定画と一致する**。
+
+        outline    : [(x, z), ...] 正面図でなぞった閉じた輪郭(m)
+        depth      : (x, z) -> その点での毛束中心の y。頭の表面から
+                     浮かせる量はここで決める(頭皮に沿わせる責任は
+                     呼び出し側)
+        half_thick : 中央での半厚(前後方向)
+        ramp       : 輪郭からこの距離で半厚が最大になる
+        edge_thick : 縁の半厚。0にすると縁の三角形が表裏で同一になり
+                     **非多様体**の膜ができる。薄い側面を張って閉じる
+        cuts       : 内部を何回4分割するか。断面の丸みの細かさ
+        min_edge   : 輪郭の点をこの間隔まで間引く
+        plane      : 輪郭がどの面の座標か。"xz"=正面図(厚みはy方向)、
+                     "yz"=側面図(輪郭は(y,z)で、厚みはx方向)
+
+    出来上がるのは閉じた凸レンズ状の殻。板(厚み0)でも
+    殻(頭皮の切り抜き)でもない。
+    """
+    loop = [(float(x), float(z)) for x, z in outline]
+    # 近すぎる点を間引く。なぞった輪郭は設定画の輪郭を1.5mmおきに拾って
+    # いて、そのまま三角形にすると細長い三角形しか作れない。2.5mmの弦で
+    # 落ちる精度は0.3mm程度で、計測器(0.5mm/px)より細かい
+    dedup = [loop[0]]
+    for p in loop[1:]:
+        if math.hypot(p[0] - dedup[-1][0], p[1] - dedup[-1][1]) > min_edge:
+            dedup.append(p)
+    while len(dedup) > 3 and math.hypot(dedup[0][0] - dedup[-1][0],
+                                        dedup[0][1] - dedup[-1][1]) <= min_edge:
+        dedup.pop()
+    loop = dedup
+    tris = ear_clip(loop)
+    if not tris:
+        raise ValueError(f"{name}: 輪郭を三角形に分割できない(自己交差?)")
+
+    pts = list(loop)
+    tris = delaunay_flip(pts, tris)
+    for _ in range(max(0, cuts)):
+        mid: dict[tuple[int, int], int] = {}
+
+        def midpoint(i: int, j: int) -> int:
+            key = (min(i, j), max(i, j))
+            if key not in mid:
+                pts.append(((pts[i][0] + pts[j][0]) * 0.5,
+                            (pts[i][1] + pts[j][1]) * 0.5))
+                mid[key] = len(pts) - 1
+            return mid[key]
+
+        split = []
+        for a, b, c in tris:
+            ab, bc, ca = midpoint(a, b), midpoint(b, c), midpoint(c, a)
+            split += [(a, ab, ca), (ab, b, bc), (ca, bc, c), (ab, bc, ca)]
+        tris = delaunay_flip(pts, split)
+
+    # 縁は「1つの三角形にしか属さない辺」。ここに側面を張って閉じる
+    seen: dict[tuple[int, int], int] = {}
+    order: dict[tuple[int, int], tuple[int, int]] = {}
+    for a, b, c in tris:
+        for u, v in ((a, b), (b, c), (c, a)):
+            key = (min(u, v), max(u, v))
+            seen[key] = seen.get(key, 0) + 1
+            order[key] = (u, v)
+    rim_edges = [order[k] for k, n in seen.items() if n == 1]
+    rim = {i for e in rim_edges for i in e}
+
+    mesh = bpy.data.meshes.new(name)
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj)
+    bm = bmesh.new()
+    front, back = [], []
+    for i, p in enumerate(pts):
+        if i in rim:
+            t = edge_thick
+        else:
+            d = _dist_to_polyline(p, loop)
+            t = edge_thick + (half_thick - edge_thick) * math.sqrt(
+                min(1.0, d / max(1e-6, ramp)))
+        d = float(depth(p[0], p[1]))
+        if plane == "yz":
+            front.append(bm.verts.new(Vector((d - t, p[0], p[1]))))
+            back.append(bm.verts.new(Vector((d + t, p[0], p[1]))))
+        else:
+            front.append(bm.verts.new(Vector((p[0], d - t, p[1]))))
+            back.append(bm.verts.new(Vector((p[0], d + t, p[1]))))
+    for a, b, c in tris:
+        for ring in ((front[a], front[b], front[c]),
+                     (back[c], back[b], back[a])):
+            try:
+                bm.faces.new(ring)
+            except ValueError:
+                pass
+    for u, v in rim_edges:
+        try:
+            bm.faces.new((front[u], front[v], back[v], back[u]))
+        except ValueError:
+            pass
+    bmesh.ops.remove_doubles(bm, verts=list(bm.verts), dist=1e-6)
+    bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
+    bm.to_mesh(mesh)
+    bm.free()
+    for poly in mesh.polygons:
+        poly.use_smooth = smooth
+    return obj

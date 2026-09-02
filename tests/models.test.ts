@@ -288,7 +288,7 @@ describe("3Dモデル", () => {
     }
   });
 
-  // ---- モデル規格lint(plan/models/garudo-quality-uplift.md 実装項目1) ----
+  // ---- モデル規格lint(plan/models/archive/garudo-quality-uplift.md 実装項目1) ----
   // 対象はキャラクター(主人公・モンスター・村人)。地形・小物は対象外
 
   const characters = [...new Set([...animatedModelNames(), ...VILLAGER_MODELS])];
@@ -324,7 +324,7 @@ describe("3Dモデル", () => {
   });
 
   it("garudo の顔がまばたきのアトラスを持っている", () => {
-    // テクスチャ切り替え方式(plan/models/garudo-face-qa.md 第9段階)。
+    // テクスチャ切り替え方式(plan/models/archive/garudo-face-qa.md 第9段階)。
     // 目のためだけの板は貼らず、顔のUV島を別マテリアルにして
     // open/half/closed を横に並べてある。extrasが落ちると
     // src/view/blink.ts が対象を見つけられず、見た目は正常なのに

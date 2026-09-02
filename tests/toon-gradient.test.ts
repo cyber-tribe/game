@@ -4,7 +4,7 @@ import { TOON_GRADIENT_STEPS, outlineColorFor } from "../src/view/assets";
 
 /**
  * トゥーンシェーディングの階調マップ(plan/game/archive/toon-shading-pipeline.md、
- * plan/models/visual-quality-uplift.md施策C)。
+ * plan/models/archive/visual-quality-uplift.md施策C)。
  *
  * 上下どちらに振っても絵が壊れる値なので、両側の境界をテストで留めておく。
  *
@@ -50,7 +50,7 @@ describe("view/assets.ts: トゥーンの階調マップ", () => {
 });
 
 /**
- * 輪郭線の色(plan/models/visual-quality-uplift.md施策C「純黒をやめ、
+ * 輪郭線の色(plan/models/archive/visual-quality-uplift.md施策C「純黒をやめ、
  * 各モデルの基色を暗く濁した色にする」)。一律の黒(0x0a0a0c)をやめ、
  * モデル本体の色相を残しつつ暗く・薄く濁した色を導く
  */

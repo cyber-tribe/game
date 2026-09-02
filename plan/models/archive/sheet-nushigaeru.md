@@ -6,7 +6,7 @@ plan/models/archive/character-design-language.mdのデザインシート
 1. **三語コンセプト**: 濃く重い記憶・湿地の主・大きな図体
 2. **シルエットの記号**: 抱えた、角のある巨大なつぶて岩を新設する
    (`common.gem`をツブテガエルより一回り大きく。ツブテガエルの
-   石つぶて(plan/models/sheet-tsubute.md)が地方ボス級に育った姿
+   石つぶて(plan/models/archive/sheet-tsubute.md)が地方ボス級に育った姿
    という位置づけ。plan/models/archive/
    silhouette-hard-surface-parts.mdの義務項目)
 3. **図形と頭身**: ツブテガエルを1.4倍ほどに拡大した、どっしり

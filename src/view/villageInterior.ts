@@ -27,7 +27,7 @@ const ROOM_SIZE = 5.6;
 const WALL_HEIGHT = 2.5;
 
 /**
- * 内装ベースの明るさ(plan/models/village-interior-brightness.md)。
+ * 内装ベースの明るさ(plan/models/archive/village-interior-brightness.md)。
  * 内装は「暗い中に光源がある」ではなく「明るい部屋に、性格づけの光が
  * 差している」を基準にする。目安は屋外の昼(`village-scene-redesign.md`
  * archiveのDAYTIME_LIGHTING.ambientIntensity=1.9)の6〜7割。
@@ -93,7 +93,7 @@ export interface VillageInteriorDef {
   /**
    * 部屋の性格づけの色と強さ。全体を照らす基準光ではなく、`buildShell`が
    * 足す共通のベース光(`INTERIOR_BASE_AMBIENT_COLOR`)の上に薄く重ねる
-   * アクセントとして使う(plan/models/village-interior-brightness.md)
+   * アクセントとして使う(plan/models/archive/village-interior-brightness.md)
    */
   ambient: number;
   ambientIntensity: number;
@@ -405,7 +405,7 @@ function buildShell(def: VillageInteriorDef): THREE.Group {
   // 基準の生活の明るさ(ニュートラル)。まずここで床・壁・小道具の輪郭が
   // どこでも判別できる下限を作り、部屋の色(def.ambient)はその上に薄く
   // 重ねるアクセントに留める(「暗い中に光源」から「明るい部屋に性格づけの
-  // 光」への転換。plan/models/village-interior-brightness.md)
+  // 光」への転換。plan/models/archive/village-interior-brightness.md)
   const baseIntensity = def.buildingId === "sleepHut" ? SLEEP_HUT_BASE_INTENSITY : INTERIOR_BASE_INTENSITY;
   group.add(new THREE.AmbientLight(INTERIOR_BASE_AMBIENT_COLOR, baseIntensity));
   group.add(new THREE.AmbientLight(def.ambient, def.ambientIntensity * ACCENT_AMBIENT_SCALE));
@@ -468,7 +468,7 @@ function buildProps(def: VillageInteriorDef, assets: Assets): THREE.Group {
       group.add(barrel(assets, 0.1, 0, 1.5));
       group.add(box(0.14, 0.62, 0.05, -0.4, 0.31, 1.5, wood, 0.25));
       group.add(box(0.14, 0.62, 0.05, -0.2, 0.31, 1.62, wood, -0.15));
-      // 寝かせて乾かす祠木の材(plan/models/village-scene-redesign.mdの
+      // 寝かせて乾かす祠木の材(plan/models/archive/village-scene-redesign.mdの
       // 内装表。伐り出した祠木をタルの材にする前に、横倒しに積んで
       // 乾かしている。太さを少しずつ変え、無造作に積んだ雰囲気にする)
       {
@@ -554,7 +554,7 @@ function buildProps(def: VillageInteriorDef, assets: Assets): THREE.Group {
         group.add(wallPanel(0.42, 0.54, 2.05 + (i % 2) * 0.5, 1.62 - Math.floor(i / 2) * 0.66, mat(0xefe6c8, 0.9)));
       }
       // 文机と筆。広げてある本は年代記「ねむりのしおり」
-      // (plan/models/village-scene-redesign.mdの内装表)
+      // (plan/models/archive/village-scene-redesign.mdの内装表)
       group.add(desk(1.5, 0.8, 1.55, 1.1, -0.3, wood, 0.4));
       group.add(box(0.34, 0.02, 0.28, 1.45, 0.45, 1.05, mat(0xefe6c8, 0.9), -0.3));
       const brush = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.3, 6), mat(0x2a2018, 0.7));

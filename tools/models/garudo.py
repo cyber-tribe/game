@@ -6,7 +6,7 @@
 パイプライン(plan/models/archive/sculpt-texture-pipeline.md)で組む。
 ブロックアウト承認(2026-09-01「良さそうです!」)済みの体型配分。
 
-方針(plan/models/garudo-quality-uplift.md 実装項目8):
+方針(plan/models/archive/garudo-quality-uplift.md 実装項目8):
 
 - **約5.2頭身のゲーム内比率を直接組む**。旧版の「7頭身写実→チビ化」の
   二段変換は廃止(設定画側がゲーム内比率になった)。全高0.97ユニットは
@@ -85,13 +85,23 @@ BONES = C.mirrored_bones(BONES_HALF)
 
 # 配色は設定画のカラーパレットから採る
 SKIN = (0.93, 0.80, 0.66)
-SKIN_SHADE = (0.82, 0.64, 0.50)     # 鼻・口まわりの影色
+SKIN_SHADE = (0.82, 0.64, 0.50)
+# 耳の色。設定画の耳は肌ではなく**茶の暗部**として描かれていて、
+# 分類器も「髪」と読む。明るい肌のまま焼くと横顔で耳がのっぺりした
+# 膨らみにしか見えず、正面でも耳が肌としてはみ出す
+EAR_SHADE = (0.55, 0.41, 0.31)     # 鼻・口まわりの影色
 SHIRT = (0.88, 0.84, 0.73)          # 生成りのシャツ
 SHIRT_LINE = (0.74, 0.69, 0.58)     # 前立て・ボタンの線
 TROUSERS = (0.35, 0.41, 0.49)       # 青灰のズボン(新設定画で深緑から変更)
 LEATHER = (0.42, 0.28, 0.16)        # 革(ベルト・手袋・靴)
 # Hair Cap(地肌隠し)は頭の断面をこれだけ膨らませるだけ。輪郭は毛束が作る
 HAIR_CAP_OVER = 0.004
+# 毛束の法線を**その毛束自身の丸み**へ寄せる強さ。強くすると面の
+# 切り替わりは目立たなくなるが、髪全体が平たく明るくなって色が抜ける
+# (実測: 0.70にしたら髪が肌と判定される画素が増え、肌IoUの到達率が
+# 97%→91%へ落ちた)。髪全体を1つの球へ寄せるのは別の話で、あれは
+# ヘルメットになるのでやらない
+HAIR_NORMAL_BLEND = 0.35
 HAIR_CAP_TOP = 0.970
 HAIR = (0.33, 0.25, 0.185)          # 茶色の無造作な髪(設定画の髪の平均色を実測)
 CLOTH = (0.60, 0.20, 0.15)          # 腰布(赤)
@@ -265,7 +275,7 @@ def _hand_dist(pos: Vector, side: float, grow: float = 0.0):
 
 # ---- 顔のデカール(design/characters/garudo/face.svg をラスタライズしたもの) ----
 # 目・眉・鼻・口・頬は**SVGが唯一の情報源**。Pythonの数値で描くのをやめ、
-# 2Dデザインとして独立に編集できるようにした(plan/models/garudo-face-qa.md)。
+# 2Dデザインとして独立に編集できるようにした(plan/models/archive/garudo-face-qa.md)。
 # SVGの座標系は顔一致QAのウィンドウと同一なので、QAが出す「◯mmずれ」が
 # そのままSVGの座標編集になる(1 SVG単位 = 0.5mm)。
 FACE_DECAL_PATH = os.path.join(
@@ -325,9 +335,10 @@ def _decal_sample(x: float, z: float, state: int = 0):
     return (float(p[0]), float(p[1]), float(p[2]), float(p[3]))
 
 
-def _over(base, x: float, z: float, state: int = 0):
-    """デカールを肌などの下地へ重ねる"""
+def _over(base, x: float, z: float, state: int = 0, fade: float = 1.0):
+    """デカールを肌などの下地へ重ねる。fadeで薄める(横顔で消すため)"""
     r, g, b, a = _decal_sample(x, z, state)
+    a *= max(0.0, min(1.0, fade))
     if a <= 0.004:
         return base
     return (base[0] + (r - base[0]) * a,
@@ -408,7 +419,7 @@ def _shade(color, f: float):
     return (min(1.0, color[0] * f), min(1.0, color[1] * f), min(1.0, color[2] * f))
 
 
-# ---- 手描きテクスチャ(plan/models/hand-painted-standard.md 規約3) ----
+# ---- 手描きテクスチャ(handbook/hand-painted-standard.md 規約3) ----
 # いずれも3D位置から描くので、UV島の割れ方に依存しない
 
 APRON_HOOP_Z = (0.265, 0.390, 0.505)
@@ -633,59 +644,106 @@ def _hair_cap():
     return obj
 
 
-def _hair_clump_from(clump: dict):
+def _hair_side_from(major: dict, s: int):
     """
-    毛束1本。**根元は頭皮に密着し、毛先へ向かって離れる**。
+    側面図からなぞった毛束1本(左右へ鏡像で1つずつ作る)。
 
-    中心線は4点:
-      p0 = 根元(頭皮の上)
-      p1, p2 = 根元から毛先へ向かう途中。頭の表面に沿わせつつ lift だけ浮かす
-      p3 = 毛先(設定画から実測した x,z と、人手で置いた y)
+    輪郭は (y, z) ―― 奥行きと高さ。横位置 x は頭の楕円断面から取り、
+    頭の前後端では潰れないように下限を敷く(側面図の輪郭は頭より前後へ
+    はみ出すので、そのまま解くと x=0 になって顔の真ん中に板が立つ)。
 
-    lift を効かせるのが要点。一定量で頭に沿わせると殻(ヘルメット)に
-    戻り、いきなり直線で飛ばすと根元が頭から浮く。
+    正面図と背面図だけで毛束を作ると、**横顔だけ滑らかな塊**になる。
     """
-    root = clump["root"]
-    tip = Vector((clump["tip"]["x"], clump["tip"]["y"], clump["tip"]["z"]))
-    p0 = _scalp_point(root["az"], root["z"])
-    lift = clump["lift"]
-    spine = [p0]
-    for i, t in enumerate((0.34, 0.68), start=1):
-        given = clump.get("mid")
-        if given:
-            # **人手で置く中間点**(設定画の毛束の分かれ目)。x,z だけ与え、
-            # yは頭の表面から取る。前髪は「どこで割れるか」が額の露出を
-            # 決めるので、根元と毛先の自動補間では出せない
-            mx, z = given[i - 1]
-            rx, _ry, _cy = _head_at(z)
-            az = math.degrees(math.asin(max(-1.0, min(1.0, mx / rx))))
-            if abs(root["az"]) > 90.0:
-                az = 180.0 - az
-            on_head = _scalp_point(az, z)
-            p = on_head
-        else:
-            # 高さと方位角を根元から毛先へ寄せながら、頭の表面をなぞる
-            z = p0.z + (tip.z - p0.z) * t
-            tip_az = math.degrees(math.atan2(tip.x, -(tip.y - _head_at(z)[2])))
-            az = root["az"] + (tip_az - root["az"]) * t
-            on_head = _scalp_point(az, z)
-            # 毛先へ向かう向きにも寄せる(まっすぐ頭に張り付いたままにしない)
-            straight = p0 + (tip - p0) * t
-            p = on_head.lerp(straight, t * 0.55)
-        outward = Vector((on_head.x, on_head.y - _head_at(z)[2], 0.0))
-        if outward.length_squared > 1e-12:
-            outward.normalize()
-        else:
-            outward = Vector((0.0, -1.0, 0.0))
-        spine.append(p + outward * lift[i])
-    spine.append(tip)
-    _HAIR_SPINES.append(spine)
-    obj = C.hair_clump(f"h_{clump['name']}", spine,
-                       clump["width"], clump["thickness"], segments=8)
-    # 法線は**その毛束自身**を滑らかな立体として整える。髪全体を1つの
-    # 球へ寄せると、毛束を作っても一枚のヘルメットのように光る
+    outline = [(float(y), float(z)) for y, z in major["path_xz"]]
+    lift = float(major["lift"])
+    frac = float(major.get("xfrac", 0.70))
+    root = major["root"]
+
+    def depth(y: float, z: float) -> float:
+        rx, ry, cy = _head_at(z)
+        c = max(-1.0, min(1.0, (cy - y) / max(1e-6, ry)))
+        wide = rx * math.sqrt(max(0.0, 1.0 - c * c))
+        far = math.hypot(y - root[0], z - root[1])
+        out = max(wide * frac, rx * 0.45) + lift * (0.30 + 0.70 * min(1.0, far / 0.040))
+        return s * out
+
+    obj = C.clump_shell(f"h_{major['name']}{'L' if s > 0 else 'R'}", outline, depth,
+                        half_thick=float(major["thick"]), ramp=0.022,
+                        cuts=int(major.get("cuts", 1)), plane="yz")
+    order = sorted(outline, key=lambda p: math.hypot(p[0] - root[0], p[1] - root[1]))
+    spine = [Vector((depth(root[0], root[1]), root[0], root[1]))]
+    for k in range(4):
+        part = order[len(order) * k // 4: max(1, len(order) * (k + 1) // 4)]
+        if not part:
+            continue
+        my = sum(p[0] for p in part) / len(part)
+        mz = sum(p[1] for p in part) / len(part)
+        spine.append(Vector((depth(my, mz), my, mz)))
+    half = sum(min((Vector((0.0, y, z)) - Vector((0.0, q.y, q.z))).length
+                   for q in spine) for y, z in outline) / max(1, len(outline))
+    _HAIR_SPINES.append((spine, max(0.006, half)))
     C.spherize_normals(obj, tuple(spine[0].lerp(spine[-1], 0.5)),
-                       radius=None, strength=0.35)
+                       radius=None, strength=HAIR_NORMAL_BLEND)
+    return obj
+
+
+def _hair_major_from(major: dict):
+    """
+    主要毛束1本。**設定画からなぞった輪郭をそのまま形にする**
+    (plan/models/archive/garudo-hair-clumps.md 第2次改訂)。
+
+    中心線+幅で作る従来の毛束では、設定画に描かれている毛束の
+    輪郭 ―― 前髪が2つに割れた毛先、シルエットの尖り、房と房の切れ込み
+    ―― を作れなかった。正面図でなぞった閉じた輪郭 `path_xz` を入力に
+    すると、**正面のシルエットは定義により設定画と一致する**。
+
+    y(奥行き)は頭の楕円断面から取り、根元から離れるほど `lift` だけ
+    前へ浮かせる。輪郭は正面図から取ったものなので、奥行きの責任は
+    こちら側にある。
+    """
+    outline = [(float(x), float(z)) for x, z in major["path_xz"]]
+    root = Vector((major["root"][0], 0.0, major["root"][1]))
+    lift = float(major["lift"])
+    # 背面図からなぞった毛束は、同じ x,z のまま**頭の裏側**へ置く
+    # (`tools/trace_hair_clumps.py --back` が背面図を左右反転して
+    #  モデル座標へ揃えているので、輪郭は正面と同じ書き方でよい)
+    back = major.get("side") == "back"
+
+    def depth(x: float, z: float) -> float:
+        rx, ry, cy = _head_at(z)
+        a = math.asin(max(-1.0, min(1.0, x / max(1e-6, rx))))
+        far = math.hypot(x - root.x, z - root.z)
+        out = (ry * math.cos(a) + lift * (0.30 + 0.70 * min(1.0, far / 0.040)))
+        return cy + out if back else cy - out
+
+    # 内部の分割は1回で足りる。**輪郭は間引き前の点列がそのまま境界に
+    # なる**ので、シルエットは分割数に依らない。2回にすると毛束だけで
+    # 14,936三角形になり、モデル全体の予算(24,000)を超える
+    obj = C.clump_shell(f"h_{major['name']}", outline, depth,
+                        half_thick=float(major["thick"]), ramp=0.022,
+                        cuts=int(major.get("cuts", 1)))
+    # 塗り(_hair_color)が「根元から毛先へ」を知るための中心線。輪郭の
+    # 点を根元からの距離で4つの帯に分け、帯ごとの重心をつなぐ
+    order = sorted(outline, key=lambda p: math.hypot(p[0] - root.x, p[1] - root.z))
+    spine = [root.copy()]
+    bands = 4
+    for k in range(bands):
+        part = order[len(order) * k // bands: max(1, len(order) * (k + 1) // bands)]
+        if not part:
+            continue
+        mx = sum(p[0] for p in part) / len(part)
+        mz = sum(p[1] for p in part) / len(part)
+        spine.append(Vector((mx, depth(mx, mz), mz)))
+    spine[0] = Vector((root.x, depth(root.x, root.z), root.z))
+    # 塗りが「毛束の縁」を出すには、中心線からの距離を**その毛束の太さで
+    # 割る**必要がある。輪郭から作る毛束は幅が20〜80mmと差が大きく、
+    # 距離をmmのまま使うと大きい毛束が全面まっ黒になる
+    # (実測: crown_Lのモデル側の髪判定が78%まで落ちた)
+    half = sum(min((Vector((x, 0.0, z)) - Vector((q.x, 0.0, q.z))).length
+                   for q in spine) for x, z in outline) / max(1, len(outline))
+    _HAIR_SPINES.append((spine, max(0.006, half)))
+    C.spherize_normals(obj, tuple(spine[0].lerp(spine[-1], 0.5)),
+                       radius=None, strength=HAIR_NORMAL_BLEND)
     return obj
 
 
@@ -697,13 +755,14 @@ def _hair_along(pos: Vector):
     `sin(方位角*16)` の縞を髪全体に掛けていたが、これは毛束の位置と
     無関係なので、せっかく毛束を作っても「縞のヘルメット」に見える。
 
-    返すのは (中心線からの距離, 根元からの長さ, 毛先までの長さ)。
+    返すのは (中心線からの距離をその毛束の太さで割った比,
+    根元からの長さ, 毛先までの長さ)。
     **割合ではなく長さ**で返すのが要点。割合で根元を暗くすると、
     長い襟足の毛束が半分まで暗くなり、後頭部に横一本の帯が出る
     (実測: 背面レンダー)。
     """
     best = (1e9, 0.0, 1.0)
-    for spine in _HAIR_SPINES:
+    for spine, half in _HAIR_SPINES:
         total = sum((b - a).length for a, b in zip(spine, spine[1:])) or 1e-9
         run = 0.0
         for a, b in zip(spine, spine[1:]):
@@ -711,7 +770,7 @@ def _hair_along(pos: Vector):
             ll = d.length_squared or 1e-12
             u = max(0.0, min(1.0, (pos - a).dot(d) / ll))
             q = a + d * u
-            dist = (pos - q).length
+            dist = (pos - q).length / half     # **その毛束の太さで割る**
             if dist < best[0]:
                 along = run + d.length * u
                 best = (dist, along, total - along)
@@ -731,12 +790,16 @@ def _hair_color(pos: Vector, normal: Vector):
     f = 1.0
     f *= 0.79 + 0.32 * _smoothstep(0.0, 0.026, from_root)  # 根元が暗い
     f *= 1.0 - 0.26 * _smoothstep(0.030, 0.0, to_tip)      # 毛先が暗い
-    f *= 1.0 - 0.40 * min(1.0, max(0.0, (dist - 0.004) / 0.012))  # 毛束の縁
+    f *= 1.0 - 0.30 * _smoothstep(0.55, 1.15, dist)        # 毛束の縁
     f *= 0.96 + 0.32 * max(0.0, min(1.0, (pos.z - 0.82) / 0.16))  # 上ほど明るい
     f *= 1.0 + 0.16 * max(0.0, normal.z) - 0.20 * max(0.0, -normal.z)
     if pos.y > 0.055:
         f *= 0.90                                          # 後頭部
-    return _shade(HAIR, f)
+    # **暗い側に床を敷く。** 掛け算を重ねると最悪 0.28 まで落ち、髪が
+    # ほぼ黒い塊になる。設定画の髪は中間調で、黒くなるのは輪郭線だけ。
+    # 黒い塊は顔一致QAの目の検出も壊す(暗部の連結成分が眉・髪と
+    # 繋がって「目」として拾われる。実測: 目尻が+7.5mm外へ飛んだ)
+    return _shade(HAIR, max(0.62, f))
 
 
 def _eye_texture(size: int = 128) -> "bpy.types.Image":
@@ -911,14 +974,25 @@ def _body_color_no_hand(pos: Vector, normal: Vector, state: int = 0):
             return HAIR
         if pos.y > 0.045 and pos.z > 0.800:
             return HAIR
-        if pos.y < 0.006:
+        if pos.y < 0.014:
             # 目・眉・鼻・口・頬はSVGのデカールから引く
             # (design/characters/garudo/face.svg が唯一の情報源)。
             # **目も顔テクスチャそのものに描く**。まばたきは顔の島だけを
             # 3コマのアトラスにしてUVをずらして切り替える。目のためだけに
             # 板を貼ると、材質・解像度・法線が本体とずれて「顔に板が
             # 乗っている」ように見えた(第6段階の顛末)
-            painted = _over(SKIN, pos.x, pos.z, state)
+            # **顔のデカールは正面図の投影**なので、横を向いた面に
+            # そのまま乗せると目や眉が頬・耳へ引き伸ばされて貼りつく
+            # (実測: 3/4のレンダーで頬に目の形の染みが出た)。
+            # 位置でなだらかに薄める(法線で切ると縁テクセルで判定が
+            # 明滅して線が点描に割れる)
+            # **顔のデカールは正面図の投影**なので、奥へ回り込む面に
+            # そのまま乗せると目のまわりの階調が耳や側頭部へ引き伸ばされて
+            # 貼りつく(実測: 3/4のレンダーで耳の位置に目の形の染みが出た)。
+            # **奥行きだけで薄める。** xで薄めると頬の階調まで消えて、
+            # 頬が明るい肌一色になる(実測: 肌IoUの到達率が98%→93%)
+            fade = 1.0 - _smoothstep(-0.030, 0.000, pos.y)
+            painted = _over(SKIN, pos.x, pos.z, state, fade)
             if painted != SKIN:
                 return painted
 
@@ -985,6 +1059,22 @@ def build() -> tuple[list, object]:
     organic = []
     organic.append(C.loft("g_head", HEAD_RINGS))
     organic.append(C.cylinder("g_neck", (0, 0.008, 0.782), 0.024, 0.055))
+    for s in (1, -1):
+        # 耳。設定画は左右で位置が11mmずれて描かれているので、**左右の
+        # 平均**を取って対称に置く(作画の非対称は誤差として扱う。
+        # handbook/modeling-pitfalls.md 1-3c)。実測(設定画):
+        # +x側 x59..81 / -x側 x-68..-50、どちらも z810..850。
+        # 上端はz832で切る。**ボクセル融合で上下に10mmほど膨らむ**ので、
+        # 設定画の耳(z813..851)より短く入れる。設定画では耳の頭は
+        # こめかみの毛束に隠れていて z850 の肌の幅は±54mmしかなく、
+        # 入力をz844まで伸ばしたときは融合後にそこが±64mmになった
+        organic.append(C.loft(f"g_ear{s}", [
+            (0.8100, 0.0030, 0.0040, s * 0.0575, 0.0130),
+            (0.8160, 0.0060, 0.0076, s * 0.0640, 0.0148),
+            (0.8230, 0.0075, 0.0090, s * 0.0670, 0.0155),
+            (0.8290, 0.0064, 0.0078, s * 0.0660, 0.0150),
+            (0.8320, 0.0034, 0.0044, s * 0.0630, 0.0140),
+        ]))
     organic.append(C.loft("g_torso", [
         (0.535, 0.085, 0.055, 0.0, 0.0),
         (0.600, 0.092, 0.058, 0.0, 0.0),
@@ -995,10 +1085,12 @@ def build() -> tuple[list, object]:
     ]))
     for s in (1, -1):
         # 袖(肘まで。まくり口は少し太い)→ 前腕(素肌)→ 手(素手)
+        # 袖は肘へ向かって細くなる。肩と手首は合っているのに肘の高さ
+        # (z0.644)だけ外側が13.7mm出ていた
         organic.append(C.curve_tube(f"g_sleeve{s}",
                                     [(s * 0.078, 0.0, 0.744), (s * 0.100, 0.004, 0.690),
                                      (s * 0.165, 0.004, 0.604)],
-                                    [0.030, 0.029, 0.031]))
+                                    [0.030, 0.027, 0.024]))
         # 前腕は**手首(z0.519)で終える**。設定画の素肌の前腕は z0.533 で
         # 終わり、そこから下は手袋の折り返しに隠れる。以前は z0.460 まで
         # 伸びていて、前腕が50mm長く手が短かった
@@ -1104,7 +1196,7 @@ def build() -> tuple[list, object]:
         "目の位置で open と closed の色が同じ(まばたきが効かない)"
 
     # ================= 髪(立体的な大きな毛束) =================
-    # plan/models/garudo-hair-clumps.md。板(_hair_card)と頭皮に沿う殻
+    # plan/models/archive/garudo-hair-clumps.md。板(_hair_card)と頭皮に沿う殻
     # (_hair_shell)をやめ、3層に分ける:
     #
     #   Hair Cap  →  Major Clumps  →  Painted Detail
@@ -1113,7 +1205,16 @@ def build() -> tuple[list, object]:
     # 毛束は design/characters/garudo/hair-clumps.json から読む。
     # 毛先は設定画から実測した値(tools/trace_hair_clumps.py)。
     cap = _hair_cap()
-    clumps = [_hair_clump_from(c) for c in _hair_table()["clumps"]]
+    clumps = [_hair_major_from(m) for m in _hair_table()["major"]]
+    # 主要毛束の間(髪の面積の約3割)は補助の毛束で埋める。輪郭の作りは
+    # 同じで、浮かせる量を小さくして主要毛束の**下**に敷く
+    clumps += [_hair_major_from(m) for m in _hair_table().get("aux", [])]
+    # 後頭部。輪郭は設定画の**背面図**からなぞる。ここを作らないと、
+    # 正面だけ毛束・後ろは滑らかな椀という「半分だけヘルメット」になる
+    clumps += [_hair_major_from(m) for m in _hair_table().get("major_back", [])]
+    # 横顔。輪郭は設定画の**側面図**から (y, z) でなぞり、左右へ鏡像で置く
+    clumps += [_hair_side_from(m, s) for m in _hair_table().get("major_side", [])
+               for s in (1, -1)]
     # **capが輪郭を作っていないことを機械で確かめる。** 目で見ても
     # 「髪の塊」にしか見えず気付けない(旧h_baseがそうだった)
     # capは後頭部では表面そのものでよい(仕様2-5)が、**輪郭を作っては
@@ -1124,10 +1225,10 @@ def build() -> tuple[list, object]:
     over_y = C.wider_than([cap], clumps, axis=1, min_width=0.045)
     print(f"  [hair] capが輪郭を作る高さ 正面{over_x:.0%} 側面{over_y:.0%}")
     # 残る2段(z0.940/0.948)は**頭そのものが設定画より6mm大きい**ため
-    # (顔一致QAの「髪の最大幅の高さz」参照。plan/models/garudo-face-qa.md
+    # (顔一致QAの「髪の最大幅の高さz」参照。plan/models/archive/garudo-face-qa.md
     # の残差詰めで頭頂を絞ると消える)。髪側の問題ではないので許容する
     # 残る2段(z0.940/0.948)は**頭そのものが設定画より6mm大きい**ため
-    # (顔一致QAの「髪の最大幅の高さz」。plan/models/garudo-face-qa.md の
+    # (顔一致QAの「髪の最大幅の高さz」。plan/models/archive/garudo-face-qa.md の
     # 残差詰めで頭頂を絞れば消える)。髪側の問題ではないので許容する
     # 側面が高いのは正しい(仕様2-5: 後頭部の中央はCap主体)。
     # 見るのは正面。ここが0でないと「輪郭を作るのは毛先」になっていない
@@ -1143,7 +1244,7 @@ def build() -> tuple[list, object]:
                                                      roughness=0.8))
     # **髪全体を1つの球へ寄せる法線補正はしない。** 顔には有効だが、髪に
     # 掛けるとせっかく毛束を作っても一枚の丸いヘルメットのように光る。
-    # 法線は毛束ごとに整えてある(_hair_clump_from の中で、その毛束の
+    # 法線は毛束ごとに整えてある(_hair_major_from の中で、その毛束の
     # 中心線を軸とする円柱へ寄せる)
 
     # ================= ベルト+バックル+肩ひも(剛体) =================
@@ -1170,8 +1271,12 @@ def build() -> tuple[list, object]:
     # 設定画の側面図で判明した構造: **木の板は前面だけ**で、その後ろに
     # 灰色の布が腰から膝下まで360°垂れている(側面の奥行きは布が作る)。
     # 木を全周に回すと側面の奥行きが足りず(実測-64px)、背面も別物になる
+    # 灰色の布は**木の板より下まで垂れる**。設定画では板のエプロンが
+    # z0.235で終わったあとも、布が幅280mmでz0.20あたりまで続く
+    # (実測: z0.231で設定画278mm・旧モデル208mm)
     cloth_rings = [
-        (0.235, 0.150, 0.108, 0.0, 0.015),
+        (0.186, 0.126, 0.094, 0.0, 0.016),
+        (0.235, 0.143, 0.107, 0.0, 0.015),
         (0.390, 0.132, 0.105, 0.0, 0.012),
         (0.530, 0.104, 0.082, 0.0, 0.008),
     ]
@@ -1214,11 +1319,23 @@ def build() -> tuple[list, object]:
     C.mark_for_pin(apron)
     pinned.append((apron.name, "hip-chest"))
     parts_list.append(apron)
-    # たが(鉄輪)3段。板より少し外へ、正面だけ
-    for z, t in ((0.265, 0.0), (0.390, 0.5), (0.505, 1.0)):
-        rx = 0.172 + (0.110 - 0.172) * t + 0.005
-        ry = 0.122 + (0.086 - 0.122) * t + 0.005
-        cy = 0.008 + (0.002 - 0.008) * t
+    # たが(鉄輪)3段。板より少し外へ、正面だけ。
+    # **板の断面をその高さで引く**。以前は3段とも板の一番下のリング
+    # (rx0.172)を使っていたので、上の段ほどたがが板から浮き、
+    # z0.265では10mmはみ出していた(実測: 高さ0.270で+20mm)
+    def _apron_ring(z):
+        for (z0, rx0, ry0, _cx0, cy0), (z1, rx1, ry1, _cx1, cy1) in zip(
+                apron_rings, apron_rings[1:]):
+            if z0 <= z <= z1:
+                u = (z - z0) / (z1 - z0)
+                return (rx0 + (rx1 - rx0) * u, ry0 + (ry1 - ry0) * u,
+                        cy0 + (cy1 - cy0) * u)
+        return apron_rings[-1][1], apron_rings[-1][2], apron_rings[-1][4]
+
+    for z in APRON_HOOP_Z:
+        rx, ry, cy = _apron_ring(z)
+        rx += 0.003
+        ry += 0.003
         band = _arc_loft(f"garudo_apron_hoop{z}", [
             (z - 0.009, rx, ry, 0.0, cy),
             (z + 0.009, rx, ry, 0.0, cy),

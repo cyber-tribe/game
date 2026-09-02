@@ -263,7 +263,7 @@ describe("view/villageInterior.ts: VillageInteriorView", () => {
 });
 
 /**
- * plan/models/village-interior-brightness.md: 「暗い中に光源がある」から
+ * plan/models/archive/village-interior-brightness.md: 「暗い中に光源がある」から
  * 「明るい部屋に、性格づけの光が差している」へ基準を変える
  */
 describe("view/villageInterior.ts: 内装の明るさ(village-interior-brightness)", () => {

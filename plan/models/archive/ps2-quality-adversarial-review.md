@@ -195,7 +195,7 @@ committedのとおり別スコープ)。
   パイロット実装した。
 - 重大4(まばたき)は本書の指摘より先に`plan/models/archive/
   eye-blink-liveliness.md`として計画・実装済み。中程度5(3灯規律の
-  シーン間統一)は`plan/models/scene-fill-light-discipline.md`、
+  シーン間統一)は`plan/models/archive/scene-fill-light-discipline.md`、
   中程度6(二次揺れの遅延フレーム数の規律化)は`plan/game/
   secondary-motion-delay-convention.md`として別の実行仕様に
   切り出され(いずれも別セッションで追加、未実装)、本書の

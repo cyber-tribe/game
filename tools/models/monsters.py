@@ -295,7 +295,7 @@ def build_akubitokage():
     C.assign_material(mouth, C.make_material("akubi_mouth_m", (0.20, 0.15, 0.13), roughness=0.35))
     extras.append(mouth)
 
-    # 背に一列並んだ、控えめな棘(plan/models/sheet-akubitokage.md、
+    # 背に一列並んだ、控えめな棘(plan/models/archive/sheet-akubitokage.md、
     # plan/models/archive/silhouette-hard-surface-parts.mdの義務項目)。
     # 面取りした小さな三角柱を、体の後傾に沿わせて背筋に並べる
     spike_mat = C.make_material("akubi_spike", (0.24, 0.19, 0.15), roughness=0.55)
@@ -1196,7 +1196,7 @@ def build_madoromi():
         C.assign_material(spot, spot_mat)
         extras.append(spot)
 
-    # 軸の根元に食い込む、面取りした木質の輪(plan/models/sheet-madoromi.md、
+    # 軸の根元に食い込む、面取りした木質の輪(plan/models/archive/sheet-madoromi.md、
     # plan/models/archive/silhouette-hard-surface-parts.mdの義務項目)。
     # 「根を張った眠気」を、地に食い込む硬いつばで表す
     collar_mat = C.make_material("madoromi_collar", (0.52, 0.40, 0.26), roughness=0.75)
@@ -2483,7 +2483,7 @@ def build_houshitobi():
                           look=(0.2 * side, -1.0, 0.0), squash=0.45,
                           white=(0.92, 0.90, 0.82), dark=(0.10, 0.08, 0.06))
 
-    # 噴出口の先端(plan/models/sheet-houshitobi.md、plan/models/archive/
+    # 噴出口の先端(plan/models/archive/sheet-houshitobi.md、plan/models/archive/
     # silhouette-hard-surface-parts.mdの義務項目)。胞子を飛ばす開口部を
     # 面取りした硬い円柱で表す(丸い傘の表面に唯一の角のある面を作る)
     nozzle = C.cylinder("houshi_nozzle", (0.0, -0.336, 0.448), 0.026, 0.052,
@@ -2751,7 +2751,7 @@ def build_kodamagumo():
     extras.append(mouth)
 
     # 響きに寄り集まった岩の証として、雲状の膨らみを突き破って覗く
-    # 角のある岩の欠片(plan/models/sheet-kodamagumo.md、
+    # 角のある岩の欠片(plan/models/archive/sheet-kodamagumo.md、
     # plan/models/archive/silhouette-hard-surface-parts.mdの義務項目)。
     # common.gem(正二十面体)そのままで硬い面を作る
     shard = C.gem("kodamagumo_shard", (0.02, 0.06, 0.288), 0.044, subdivisions=1)
@@ -2900,7 +2900,7 @@ def build_nebosukegaeru():
     extras.append(mouth)
 
     # 定位置に居座り続けた証として、背に苔むした硬いこぶ
-    # (plan/models/sheet-nebosukegaeru.md、plan/models/archive/
+    # (plan/models/archive/sheet-nebosukegaeru.md、plan/models/archive/
     # silhouette-hard-surface-parts.mdの義務項目)。丸い体表面に唯一の
     # 角のある面を作る、面取りした箱
     moss_mat = C.make_material("nebosuke_moss", (0.30, 0.38, 0.20), roughness=0.85)
@@ -3564,7 +3564,7 @@ def build_nedayamabiko():
     extras.append(jaw)
 
     # 根を張ったまま動かない証として、甲羅を突き破って覗く角のある岩
-    # (plan/models/sheet-nedayamabiko.md、plan/models/archive/
+    # (plan/models/archive/sheet-nedayamabiko.md、plan/models/archive/
     # silhouette-hard-surface-parts.mdの義務項目)。common.gem
     # (正二十面体)そのままで硬い面を作る
     shard = C.gem("nedayamabiko_shard", (0.0, 0.300, 0.420), 0.062, subdivisions=1)
@@ -4037,7 +4037,7 @@ def build_kodamaNoNushi():
         extras.append(echo_eye)
 
     # 無数の岩が寄り集まった証として、雲状の膨らみを突き破って覗く
-    # 角のある岩の欠片(plan/models/sheet-kodamaNoNushi.md、
+    # 角のある岩の欠片(plan/models/archive/sheet-kodamaNoNushi.md、
     # plan/models/archive/silhouette-hard-surface-parts.mdの義務項目)。
     # common.gem(正二十面体)そのままで硬い面を作る
     for i, (px, py, pz, size) in enumerate([
@@ -4535,7 +4535,7 @@ def build_kazaridaruma():
         C.assign_material(eye, ink)
         extras.append(eye)
 
-    # 飾られていた台座(plan/models/sheet-kazaridaruma.md、
+    # 飾られていた台座(plan/models/archive/sheet-kazaridaruma.md、
     # plan/models/archive/silhouette-hard-surface-parts.mdの義務項目)。
     # 「飾られたまま」その場から動けないことを示す、面取りした円柱
     pedestal_mat = C.make_material("kazaridaruma_pedestal", (0.36, 0.26, 0.16), roughness=0.7)
@@ -4665,7 +4665,7 @@ def build_kageboushi():
         C.assign_material(bite, shadow)
         extras.append(bite)
 
-    # まだ繋がれたままの操り棒(plan/models/sheet-kageboushi.md、
+    # まだ繋がれたままの操り棒(plan/models/archive/sheet-kageboushi.md、
     # plan/models/archive/silhouette-hard-surface-parts.mdの義務項目)。
     # 頭から真上に伸びる、面取りした細い硬い円柱
     rod_mat = C.make_material("kageboushi_rod", (0.10, 0.09, 0.10), roughness=0.5)
@@ -4768,7 +4768,7 @@ def build_chouchinokuri():
 
     extras = []
     gold = C.make_material("chouchinokuri_gold", (0.70, 0.56, 0.28), roughness=0.35, metallic=0.3)
-    # 提灯の上下を締める、面取りした竹の口輪(plan/models/sheet-chouchinokuri.md、
+    # 提灯の上下を締める、面取りした竹の口輪(plan/models/archive/sheet-chouchinokuri.md、
     # plan/models/archive/silhouette-hard-surface-parts.mdの義務項目)。
     # 丸い体表面に唯一の角のある面を作る、面取りした円柱
     for cz, radius in ((0.075, 0.125), (0.300, 0.105)):
@@ -5363,7 +5363,7 @@ def build_yumemayoinokage():
         extras.append(frag)
 
     # 化けているタルの箍(たが)の欠片。正体を見破られた後も残る
-    # (plan/models/sheet-yumemayoinokage.md、plan/models/archive/
+    # (plan/models/archive/sheet-yumemayoinokage.md、plan/models/archive/
     # silhouette-hard-surface-parts.mdの義務項目)。丸い体表面に唯一の
     # 角のある面を作る、面取りした円柱
     hoop_mat = C.make_material("yumemayoi_hoop", (0.44, 0.34, 0.22), roughness=0.7)
@@ -5507,7 +5507,7 @@ def build_yorishironozankyo():
         extras.append(eye)
 
     # 胸に、全ての記憶が集まる核として発光する紋章を持たせる。輪は
-    # 面取りした硬い円盤にする(plan/models/sheet-yorishironozankyo.md、
+    # 面取りした硬い円盤にする(plan/models/archive/sheet-yorishironozankyo.md、
     # plan/models/archive/silhouette-hard-surface-parts.mdの義務項目)。
     # 丸い体表面に唯一の角のある面を作る
     core_ring = C.cylinder("zankyo_core_ring", (0.0, -0.155, 0.660), 0.075, 0.038,
@@ -6112,7 +6112,7 @@ def build_nadakaze():
     C.assign_material(mouth, C.make_material("nadakaze_mouth_m", (0.16, 0.20, 0.28), roughness=0.4))
     extras.append(mouth)
 
-    # 風を切る、面取りした扇状の翼端(plan/models/sheet-nadakaze.md、
+    # 風を切る、面取りした扇状の翼端(plan/models/archive/sheet-nadakaze.md、
     # plan/models/archive/silhouette-hard-surface-parts.mdの義務項目)。
     # 丸い体表面に唯一の角のある面を作る、面取りした薄い箱
     fin_mat = C.make_material("nadakaze_fin", (0.30, 0.36, 0.44), roughness=0.4)
@@ -6339,7 +6339,7 @@ def build_mizukagami():
 
     C.assign_materials_by_region(mirror, [ripple_light, ripple_dark], classify_ripple)
 
-    # 壺の口を縁取る硬い口輪(plan/models/sheet-mizukagami.md、
+    # 壺の口を縁取る硬い口輪(plan/models/archive/sheet-mizukagami.md、
     # plan/models/archive/silhouette-hard-surface-parts.mdの義務項目)。
     # 丸い壺の輪郭に唯一の角のある面を作る、面取りした円柱
     rim_mat = C.make_material("mizukagami_rim", (0.16, 0.19, 0.28), roughness=0.6)
@@ -6608,7 +6608,7 @@ def build_namidaguma():
     C.assign_material(mouth, C.make_material("namidaguma_mouth_m", (0.08, 0.06, 0.10), roughness=0.4))
     extras.append(mouth)
 
-    # うるみぐまが抱えていた古い石(plan/models/sheet-urumiguma.md)が、
+    # うるみぐまが抱えていた古い石(plan/models/archive/sheet-urumiguma.md)が、
     # こらえきれずに割れて欠片になった姿(plan/models/
     # sheet-namidaguma.md、plan/models/archive/
     # silhouette-hard-surface-parts.mdの義務項目)。common.gemを砕けた
@@ -6756,7 +6756,7 @@ def build_nemurimogura():
     C.assign_material(nose, C.make_material("nemurimogura_nose_m", (0.72, 0.52, 0.52), roughness=0.4))
     extras.append(nose)
 
-    # ユメクイモグラ譲りの掘削用の爪(plan/models/sheet-nemurimogura.md、
+    # ユメクイモグラ譲りの掘削用の爪(plan/models/archive/sheet-nemurimogura.md、
     # plan/models/archive/silhouette-hard-surface-parts.mdの義務項目)。
     # 丸い前足の表面に唯一の角のある面を作る
     claw_mat = C.make_material("nemurimogura_claw", (0.74, 0.66, 0.42), roughness=0.55)
@@ -6914,7 +6914,7 @@ def build_nushigaeru():
         C.assign_material(wart, wart_mat)
         extras.append(wart)
 
-    # 抱えた、角のある巨大なつぶて岩(plan/models/sheet-nushigaeru.md、
+    # 抱えた、角のある巨大なつぶて岩(plan/models/archive/sheet-nushigaeru.md、
     # plan/models/archive/silhouette-hard-surface-parts.mdの義務項目)。
     # tsubuteの石つぶてが地方ボス級に育った姿という位置づけで、
     # common.gemをツブテガエルより一回り大きくする
@@ -7191,7 +7191,7 @@ def build_oomadoromi():
         extras.append(spot)
 
     # マドロミダケの木質のつばを、ボス格にふさわしい太く節くれ立った
-    # 意匠に拡大した根(plan/models/sheet-oomadoromi.md、
+    # 意匠に拡大した根(plan/models/archive/sheet-oomadoromi.md、
     # plan/models/archive/silhouette-hard-surface-parts.mdの義務項目)。
     # 面取りした円柱を複数段重ねる
     root_mat = C.make_material("oomadoromi_root", (0.44, 0.34, 0.22), roughness=0.8)
@@ -7683,8 +7683,8 @@ def build_subetenopurun():
     C.assign_material(mouth, C.make_material("subete_mouth_m", (0.10, 0.10, 0.14), roughness=0.3))
     extras.append(mouth)
 
-    # ぷるんの結晶の芯(plan/models/sheet-purun.md)を、全地方の色を
-    # 帯びた多面体に拡大したもの(plan/models/sheet-subetenopurun.md、
+    # ぷるんの結晶の芯(plan/models/archive/sheet-purun.md)を、全地方の色を
+    # 帯びた多面体に拡大したもの(plan/models/archive/sheet-subetenopurun.md、
     # plan/models/archive/silhouette-hard-surface-parts.mdの義務項目)。
     # common.gemを一回り大きく、6地方の色で塗り分ける
     gem_mats = [
@@ -8837,7 +8837,7 @@ def build_kasumiutsubo():
     extras.append(mouth)
 
     # ワスレガニの甲殻が薄く透けて残った、ほとんど消えかけの殻の欠片
-    # (plan/models/sheet-kasumiutsubo.md、plan/models/archive/
+    # (plan/models/archive/sheet-kasumiutsubo.md、plan/models/archive/
     # silhouette-hard-surface-parts.mdの義務項目)。面取りの浅い、薄く
     # 小さな箱を背に2枚だけ残す
     shell_mat = C.make_material("kasumi_shell", (0.62, 0.70, 0.68), roughness=0.4, emission=0.05)
@@ -9279,7 +9279,7 @@ def build_mazarinezumi():
     C.assign_material(nose, C.make_material("mazari_nose_m", (0.72, 0.44, 0.46), roughness=0.4))
     extras.append(nose)
 
-    # ガジリねずみ譲りの前歯(plan/models/sheet-mazarinezumi.md、
+    # ガジリねずみ譲りの前歯(plan/models/archive/sheet-mazarinezumi.md、
     # plan/models/archive/silhouette-hard-surface-parts.mdの義務項目)。
     # 丸い体表面に唯一の角のある面を作る、面取りした箱
     teeth = C.box("mazari_teeth", (0.0, -0.460, 0.140), (0.049, 0.025, 0.046), bevel=0.0065)
@@ -10660,7 +10660,7 @@ def build_yoseatsume():
     extras.append(teeth)
 
     # 各地方の硬い部品の欠片を1つずつ寄せ集めて体表にまとわせる
-    # (plan/models/sheet-yoseatsume.md、plan/models/archive/
+    # (plan/models/archive/sheet-yoseatsume.md、plan/models/archive/
     # silhouette-hard-surface-parts.mdの義務項目)。統一感のない硬い
     # 欠片の寄せ集めとして、common.gem・C.box・C.cylinderを1つずつ散らす
     gem_shard = C.gem("yose_gem", (0.038, 0.050, 0.222), 0.024, subdivisions=1)

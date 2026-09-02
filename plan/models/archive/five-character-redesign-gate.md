@@ -311,7 +311,7 @@
   でしょう」): v1/v2への指摘(背中の表現・カエル肌・喉袋や口の浮き・
   マーブルチョコ状の石)を経て、ユーザー決定「Meshyと同じことを
   我々でやります」に基づく彫刻+テクスチャ焼き込みパイプライン
-  (`plan/models/sculpt-texture-pipeline.md`、common.pyへ共有ヘルパー
+  (`plan/models/archive/sculpt-texture-pipeline.md`、common.pyへ共有ヘルパー
   実装)のパイロットとして全面作り直し。体・指・腿・眉を融合した
   連続メッシュ+模様のアルベド焼き込み+gemの石つぶての塚。
   詳細は`design/characters/tsubute/concept.md`。

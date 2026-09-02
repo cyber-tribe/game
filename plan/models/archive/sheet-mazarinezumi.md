@@ -4,8 +4,8 @@ plan/models/archive/character-design-language.mdのデザインシート
 先行工程(1キャラ1枚、5項目)。第八地方(めざめの前庭)。
 
 1. **三語コンセプト**: 混ざった性質・不安定・序盤と終盤の同居
-2. **シルエットの記号**: ガジリねずみの前歯(plan/models/sheet-gajiri.md)
-   といしずえねずみの背の甲殻(plan/models/sheet-ishizuenezumi.md)を
+2. **シルエットの記号**: ガジリねずみの前歯(plan/models/archive/sheet-gajiri.md)
+   といしずえねずみの背の甲殻(plan/models/archive/sheet-ishizuenezumi.md)を
    両方持たせる(既存素材の組み合わせ)。
    plan/models/archive/silhouette-hard-surface-parts.mdの義務項目を
    既に満たしている

@@ -9,7 +9,7 @@ export interface ModelAsset {
 
 /**
  * トゥーンシェーディングの階調マップ(plan/game/archive/toon-shading-pipeline.md、
- * plan/models/visual-quality-uplift.md施策C)。影 / 暗め中間 / 明るめ中間 /
+ * plan/models/archive/visual-quality-uplift.md施策C)。影 / 暗め中間 / 明るめ中間 /
  * ハイライトの4階調。全マテリアル共通で使い回すのでモジュールスコープで
  * 1回だけ作る。
  *
@@ -49,7 +49,7 @@ const TOON_GRADIENT = (() => {
  */
 const OUTLINE_THICKNESS = 0.012;
 /**
- * 輪郭線に色が無いモデル向けの既定値(plan/models/visual-quality-uplift.md
+ * 輪郭線に色が無いモデル向けの既定値(plan/models/archive/visual-quality-uplift.md
  * 施策C「純黒をやめ、各モデルの基色を暗く濁した色にする」)。通常は
  * `outlineColorFor`がモデル本体の色から導くので、この値が直接出るのは
  * `MeshToonMaterial.color`が拾えなかった場合の保険だけ
