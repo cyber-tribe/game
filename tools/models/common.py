@@ -1935,7 +1935,7 @@ def render_silhouette(name: str, objs: Sequence[bpy.types.Object], view: str = "
 
     view="front"はカメラを-Y側に置いて顔側(character-design-language.md
     の正面)を、"side"はカメラを-X側に置いて右半身(.R側。mirrored()で
-    .L側が+X)を平行投影で写す。
+    .L側が+X)を、"back"はカメラを+Y側に置いて背面を平行投影で写す。
     """
     silhouette_dir = os.path.join(PREVIEW_DIR, "silhouettes")
     os.makedirs(silhouette_dir, exist_ok=True)
@@ -1950,7 +1950,8 @@ def render_silhouette(name: str, objs: Sequence[bpy.types.Object], view: str = "
     # ベクトルは「中心から見たカメラの位置」。従来はこの符号が逆で、
     # 正面と称して背面側から撮っていた(左右対称のシルエットでは実害が
     # 出ず潜伏していた。render_turnaround導入時に発覚)
-    to_camera = Vector((0, -1, 0)) if view == "front" else Vector((-1, 0, 0))
+    to_camera = {"front": Vector((0, -1, 0)),
+                 "back": Vector((0, 1, 0))}.get(view, Vector((-1, 0, 0)))
     cam_loc = center + to_camera * (extent * 2)
 
     bpy.ops.object.camera_add(location=cam_loc)

@@ -74,6 +74,7 @@ def main() -> int:
         if silhouette:
             C.render_silhouette(name, objs, view="front")
             C.render_silhouette(name, objs, view="side")
+            C.render_silhouette(name, objs, view="back")
             print(f"  {name:<14} シルエット出力 → tools/preview/silhouettes/")
             continue
         if pose_check:
