@@ -1044,7 +1044,7 @@ def spherize_normals(obj: "bpy.types.Object", center,
                      radius: float | None = None, strength: float = 1.0) -> None:
     """
     法線を「中心centerの大きな球の表面」の方向へ寄せる
-    (plan/models/hand-painted-standard.md 規約4)。素のスムーズ
+    (handbook/hand-painted-standard.md 規約4)。素のスムーズ
     シェーディングが生む頬の変な影・髪のデコボコを消し、どこに光が
     当たるかを造形と別に設計する。radiusを与えるとその球内の頂点だけ、
     strengthで元の法線とのブレンド率を指定する。

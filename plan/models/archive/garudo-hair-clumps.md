@@ -4,8 +4,8 @@
 殻(`_hair_shell`)」をやめ、**Hair Cap + 大きな立体毛束 + 手描きの塗り**の
 3層へ移行する。
 
-`plan/models/hand-painted-standard.md`(手描きテクスチャ規約)と
-`plan/models/modeling-pitfalls.md`(落とし穴)を前提とする。
+`handbook/hand-painted-standard.md`(手描きテクスチャ規約)と
+`handbook/modeling-pitfalls.md`(落とし穴)を前提とする。
 
 ---
 
@@ -13,7 +13,7 @@
 
 ### 現状の限界
 
-`plan/models/modeling-pitfalls.md` 3-2 に「髪がヘルメット。幅は合っているのに
+`handbook/modeling-pitfalls.md` 3-2 に「髪がヘルメット。幅は合っているのに
 別人」と記録し、「輪郭を作るのは土台ではなく毛先」と結論した。診断は正しいが、
 **対処が板とシェルの微調整に留まっている**。
 

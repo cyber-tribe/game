@@ -406,7 +406,7 @@ garudo-sheet.png`(1536×1024)として取り込み、**これをガルドの
 
 ## 3Dモデルの作り直し(v3・2026-09-01)
 
-新設定画の三面図を寸法源に、`plan/models/hand-painted-standard.md`
+新設定画の三面図を寸法源に、`handbook/hand-painted-standard.md`
 (手描きテクスチャ規約)へ全面的に沿わせて作り直した。ユーザー判定
 「一旦これで行きましょう」で暫定確定。
 

@@ -408,7 +408,7 @@ def _shade(color, f: float):
     return (min(1.0, color[0] * f), min(1.0, color[1] * f), min(1.0, color[2] * f))
 
 
-# ---- 手描きテクスチャ(plan/models/hand-painted-standard.md 規約3) ----
+# ---- 手描きテクスチャ(handbook/hand-painted-standard.md 規約3) ----
 # いずれも3D位置から描くので、UV島の割れ方に依存しない
 
 APRON_HOOP_Z = (0.265, 0.390, 0.505)
@@ -997,7 +997,7 @@ def build() -> tuple[list, object]:
     for s in (1, -1):
         # 耳。設定画は左右で位置が11mmずれて描かれているので、**左右の
         # 平均**を取って対称に置く(作画の非対称は誤差として扱う。
-        # plan/models/modeling-pitfalls.md 1-3c)。実測(設定画):
+        # handbook/modeling-pitfalls.md 1-3c)。実測(設定画):
         # +x側 x59..81 / -x側 x-68..-50、どちらも z810..850。
         # 上端はz832で切る。**ボクセル融合で上下に10mmほど膨らむ**ので、
         # 設定画の耳(z813..851)より短く入れる。設定画では耳の頭は

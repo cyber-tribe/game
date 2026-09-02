@@ -17,7 +17,7 @@
 領域をまるごとトレースする**。絵の形をそのまま写すので、似ないという
 失敗の余地がない。前髪が顔にかかる部分も塗りとして入るが、モデル側の
 髪ジオメトリが手前にあるので二重にはならず、髪が無い場所では設定画
-どおりの前髪の影が乗る(plan/models/hand-painted-standard.md の
+どおりの前髪の影が乗る(handbook/hand-painted-standard.md の
 「モデリングでキャラクターを完成させようとしない」)。
 
     tools/venv/bin/python tools/trace_face_svg.py garudo

@@ -1,5 +1,5 @@
 > 本書は経緯の記録。**失敗の一覧と対処**は
-> `plan/models/modeling-pitfalls.md` に整理してある。
+> `handbook/modeling-pitfalls.md` に整理してある。
 
 # 顔一致QA ― 「似ているか」を機械が判定する評価関数
 
@@ -181,7 +181,7 @@ mm単位の距離誤差・平均誤差・最大誤差・ずれの大きい順を
 
 前髪が顔にかかる部分も塗りとして入るが、モデルの髪ジオメトリが手前に
 あるので二重にはならず、髪の無い所には設定画どおりの前髪が乗る
-(`plan/models/hand-painted-standard.md` の「モデリングでキャラクターを
+(`handbook/hand-painted-standard.md` の「モデリングでキャラクターを
 完成させようとしない」)。
 
 ### 目の高さの実測ずれ(EYE_Z)
@@ -517,7 +517,7 @@ z0.915の+x側だけ設定画が+100.5mm・モデルが+79.5mmと**21mm**開い�
 指を隙間つきで置いても、**3.8mmボクセルでは4mmの隙間が埋まって
 ヘラになる**(実測)。設定画も指は接していて線で分かれているので、
 `_body_color` で**指の間の線を描く**ことにした
-(`plan/models/hand-painted-standard.md` 規約3)。
+(`handbook/hand-painted-standard.md` 規約3)。
 
 判定は「一番近い指と二番目に近い指の距離の差が1.6mm未満」。
 指の軸は `FINGERS`/`_finger_axes()` としてモジュール定数に置き、
