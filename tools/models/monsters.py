@@ -7630,10 +7630,14 @@ OONEBOSUKE_RADII = {"base": 0.435, "mid": 0.375, "top": 0.135}
 OONEBOSUKE_BONES = [("base", "mid"), ("mid", "top")]
 
 # 表情はガルドと同じ「テクスチャの状態アトラス」方式(src/view/blink.ts
-# の"eyelid")で持たせる。設定画の表情パターン欄(表情・状態パターン
-# (寝たまま))に「びっくりする」があり、強い音・光・冷気で目を覚ます
-# 仕様(戦いのヒント)とも噛み合う。ボス格なので手間を掛ける
-OONEBOSUKE_EXPR_STATES = ("closed", "half", "open")
+# の"eyelid")で持たせる。設定画の表情・状態パターン欄(寝たまま)から
+# 5種を採る: すやすや眠る(closed、既定)→うとうとしながら首をかしげる
+# (murmur、口を閉じる)→うとうと(half、薄目)→あくびをする(yawn、
+# 目をすぼめて口を大きく開く)→びっくりする(open、見開く)。
+# blink.tsは進み具合を0→1→0で動かし、タイルへ0番から順に量子化する
+# (handbook 2-26)ので、この並びは「眠ったまま→むにゃむにゃ→薄目→
+# あくび→覚醒」と往復する一連の動きとして読める
+OONEBOSUKE_EXPR_STATES = ("closed", "murmur", "half", "yawn", "open")
 # 顔の島を切り出す球(中心・半径)。中心は_face_colorのis_faceと同じ。
 # 半径は据え置きだが、頭の裏側まで拾わないようmax_yで前面だけに絞る
 # (garudo.pyのFACE_ISLAND_MAX_Yと同じ理由。handbook 1-14参照)
@@ -7788,26 +7792,31 @@ def build_oonebosuke():
 
     def _eye(x, z, ex, state):
         """
-        目1つぶんの色。state=0(closed、既定)はボスの寝姿としての閉じ目。
-        state=2(open)/1(half)は「びっくりする」を参照した見開き目
-        (まばたきのピークで一瞬だけ開く。src/view/blink.tsはタイル0を
-        常時の休止状態として扱うので、寝ているこの子はclosedを0番に
-        置く必要がある。openを0番にしたガルドの並びをそのまま流用すると
-        安静時に目が開いたままになる)。
+        目1つぶんの色。state=0(closed)/1(murmur)は既定の閉じ目。
+        state=3(yawn)は「あくびをする」を参照し、閉じ目のままひと回り
+        すぼめる(あくびで目を固く閉じる仕草)。state=2(half)/4(open)は
+        「うとうと」「びっくりする」を参照した見開き目(まばたきの
+        山で一瞬だけ開く。src/view/blink.tsはタイル0を常時の休止状態
+        として扱うので、寝ているこの子はclosedを0番に置く必要がある。
+        openを0番にしたガルドの並びをそのまま流用すると安静時に目が
+        開いたままになる。handbook 2-26)。
         1つの楕円をzで内分するのではなく、まぶた→白目→瞳を別々の
         図形として置く(2-25と同じ理由: 内分だと状態を跨いで境界が
         飛び、切り替えたときの見た目の一貫性が読みにくい)。
         """
-        if state == 0:
-            if _in_ellipse(x, z, ex, 0.505, 0.058, 0.030):
+        if state in (0, 1, 3):
+            tight = state == 3
+            cz = 0.500 if tight else 0.505
+            rz = 0.026 if tight else 0.030
+            if _in_ellipse(x, z, ex, cz, 0.058, rz):
                 return eye_col
-            if _in_ellipse(x, z, ex, 0.478, 0.056, 0.010):
+            if _in_ellipse(x, z, ex, cz - 0.027, 0.056, 0.008 if tight else 0.010):
                 return lash_col
             return None
-        rz = 0.052 if state == 2 else 0.024
-        cz = 0.512 if state == 2 else 0.500
+        rz = 0.052 if state == 4 else 0.024
+        cz = 0.512 if state == 4 else 0.500
         if _in_ellipse(x, z, ex, cz, 0.056, rz):
-            pr = 0.024 if state == 2 else 0.015
+            pr = 0.024 if state == 4 else 0.015
             if _in_ellipse(x, z, ex, cz - rz * 0.2, pr, pr):
                 return pupil_col
             return white_col
@@ -7815,6 +7824,24 @@ def build_oonebosuke():
         lid_cz = cz + rz + 0.008
         if _in_ellipse(x, z, ex, lid_cz, 0.060, 0.012):
             return eye_col
+        return None
+
+    def _mouth(x, z, state):
+        """
+        口の形。state=0(すやすや眠る)/2(うとうと)は薄く開いたいびきの
+        口。state=1(むにゃむにゃ、うとうとしながら首をかしげる)は
+        口を閉じた細い線。state=3(あくびをする)は大きく開けた口。
+        state=4(びっくりする)は目だけで驚きを見せるので基本形のまま。
+        """
+        if state == 1:
+            if _in_ellipse(x, z, 0.0, 0.394, 0.048, 0.010):
+                return (0.16, 0.10, 0.12)          # 閉じた口の線
+            return None
+        rx, rz = (0.090, 0.072) if state == 3 else (0.072, 0.050)
+        if _in_ellipse(x, z, 0.0, 0.397, rx, rz):
+            if z < 0.397 - rz * 0.2 and abs(x) < rx * 0.5:
+                return (0.51, 0.34, 0.34)          # 舌・口の中 #825656
+            return (0.16, 0.10, 0.12)
         return None
 
     def skin_color(p, n, state: int = 0):
@@ -7855,11 +7882,11 @@ def build_oonebosuke():
             for side in (-1.0, 1.0):
                 if (Vector((abs(x), y, z)) - Vector((0.016, -0.318, 0.462))).length < 0.008:
                     return (0.28, 0.22, 0.20)
-            # 開いたいびきの口+舌
-            if _in_ellipse(x, z, 0.0, 0.397, 0.072, 0.050) and y < -0.175:
-                if z < 0.387 and abs(x) < 0.036:
-                    return (0.51, 0.34, 0.34)          # 舌・口の中 #825656
-                return (0.16, 0.10, 0.12)
+            # 口: state で開閉・大きさが変わる(_mouth)
+            if y < -0.175:
+                mouth = _mouth(x, z, state)
+                if mouth is not None:
+                    return mouth
             # 頬の赤み
             for side in (-1.0, 1.0):
                 if _in_ellipse(x, z, 0.155 * side, 0.442, 0.045, 0.028) and y < -0.175:
@@ -7897,11 +7924,18 @@ def build_oonebosuke():
 
     # 状態によって顔の色が変わることを組み立て時に確かめる(ガルドの
     # build_garudo()と同じ理由: デカールの状態切り替えが効いていないと、
-    # 見た目は正常なのにまばたきだけ静かに止まる)
-    probe = Vector((0.090, -0.19, 0.505))
+    # 見た目は正常なのにまばたきだけ静かに止まる)。目だけでなく口の
+    # 状態切り替え(_mouth)も同じ事故が起きうるので別々に確かめる
     probe_n = Vector((0.0, -1.0, 0.0))
-    assert skin_color(probe, probe_n, 0) != skin_color(probe, probe_n, 2), \
-        "目の位置で open と closed の色が同じ(まばたきが効かない)"
+    eye_probe = Vector((0.090, -0.19, 0.505))
+    assert skin_color(eye_probe, probe_n, 0) != skin_color(eye_probe, probe_n, 4), \
+        "目の位置で closed と open の色が同じ(まばたきが効かない)"
+    murmur_probe = Vector((0.0, -0.19, 0.44))
+    assert skin_color(murmur_probe, probe_n, 0) != skin_color(murmur_probe, probe_n, 1), \
+        "口の位置で通常とむにゃむにゃの色が同じ(表情が効いていない)"
+    yawn_probe = Vector((0.0, -0.19, 0.337))
+    assert skin_color(yawn_probe, probe_n, 0) != skin_color(yawn_probe, probe_n, 3), \
+        "口の位置で通常とあくびの色が同じ(表情が効いていない)"
 
     skin_img = C.bake_albedo(body, lambda p, n: skin_color(p, n, 0), size=512,
                              name="oonebosuke_skin", material_index=0)
