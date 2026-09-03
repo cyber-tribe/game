@@ -61,5 +61,16 @@ export const KEY_LIGHT_INTENSITY = 0.85;
 export const AMBIENT_LIGHT_COLOR = 0x6674a0;
 export const AMBIENT_LIGHT_INTENSITY = 1.7;
 
+/**
+ * フィル光(plan/models/archive/scene-fill-light-discipline.md)。
+ * キーと同じ寒色系(洞窟の底を沈ませる意図を壊さない)、強さはキーの
+ * 約35%(受け入れ基準3の白飛び・黒潰れの目安「30〜40%」の中間)
+ */
+export const FILL_LIGHT_COLOR = 0xaec2f5;
+export const FILL_LIGHT_INTENSITY = KEY_LIGHT_INTENSITY * 0.35;
+
+/** 松明の代わり。プレイヤーに付いてまわる暖色の光の色 */
+export const PLAYER_LIGHT_COLOR = 0xffd2a6;
+
 /** カメラの画角(度) */
 export const CAMERA_FOV = 46;

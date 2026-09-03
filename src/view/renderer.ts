@@ -13,8 +13,11 @@ import {
   BLOOM_PARAMS,
   CAMERA_FOV,
   GRADE_SHADER,
+  FILL_LIGHT_COLOR,
+  FILL_LIGHT_INTENSITY,
   KEY_LIGHT_COLOR,
   KEY_LIGHT_INTENSITY,
+  PLAYER_LIGHT_COLOR,
   TONE_MAPPING,
   TONE_MAPPING_EXPOSURE,
 } from "./renderConfig";
@@ -94,14 +97,6 @@ const SHADOW_HALF_SPAN = 12;
  * 床(直下で距離3.0)とおおむね同程度の照度に揃えた
  */
 export const PLAYER_LIGHT = { intensity: 30, distance: 13, decay: 2, height: 3.0 } as const;
-
-/**
- * フィル光(plan/models/archive/scene-fill-light-discipline.md)。
- * キーと同じ寒色系(洞窟の底を沈ませる意図を壊さない)、強さはキーの
- * 約35%(受け入れ基準3の白飛び・黒潰れの目安「30〜40%」の中間)
- */
-const FILL_LIGHT_COLOR = 0xaec2f5;
-const FILL_LIGHT_INTENSITY = KEY_LIGHT_INTENSITY * 0.35;
 
 export class Renderer {
   readonly scene = new THREE.Scene();
@@ -208,7 +203,7 @@ export class Renderer {
 
     // 松明の代わり。プレイヤーに付いてまわる暖色の光
     this.playerLight = new THREE.PointLight(
-      0xffd2a6,
+      PLAYER_LIGHT_COLOR,
       PLAYER_LIGHT.intensity,
       PLAYER_LIGHT.distance,
       PLAYER_LIGHT.decay,

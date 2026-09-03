@@ -56,6 +56,10 @@ blender-setup:
 models *names:
     npm run models -- {{names}}
 
+# 商品確認用ターンテーブル(エンジン内6枚)。npm run dev を先に上げておく
+turntable *names:
+    MODELS="{{names}}" npm run turntable
+
 # プレビュー画像を省いて速くビルド(CI と同じ)
 models-fast *names:
     npm run models -- --no-preview {{names}}
