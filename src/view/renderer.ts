@@ -138,8 +138,11 @@ export class Renderer {
 
   // 造形(彫り込み・硬い部品・テクスチャ)への投資が画面上で伝わるよう、
   // 可変域6.5〜18のうち下寄りへ引き寄せた既定値(plan/game/archive/
-  // dungeon-camera-distance.md)。±キーで従来どおり引ける
-  private distance = 8;
+  // dungeon-camera-distance.md)。周囲の夢空が見えすぎるとの指摘で、
+  // ズーム1段ぶん(1.5)さらに寄せ、可変域の下限そのものにした
+  // (plan/game/archive/dungeon-floor-mist-continuity.md追記)。
+  // ±キーで従来どおり引ける
+  private distance = 6.5;
   private elevation = THREE.MathUtils.degToRad(48);
 
   constructor(canvas: HTMLCanvasElement) {
