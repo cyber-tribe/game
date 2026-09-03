@@ -249,11 +249,23 @@ def render_model_face(name: str) -> "np.ndarray":
 
     # 同じ組み立てのまま、材質IDだけをもう1枚描く。ビルドは85秒かかる
     # ので**1回のビルドで2パス**にする
+    # **背面も同じ窓で1枚。** 背面は長らく何も測っていなかった。
+    # ここが未計測だったせいで、後頭部が「毛束の分かれ目の無い塊」に
+    # なっているのに全部の指標が通っていた
+    cam.location = (0.0, 1.2, center_z)
+    cam.rotation_euler = (math.radians(90.0), 0.0, math.radians(180.0))
+    back_path = os.path.join(C.PREVIEW_DIR, "face", f"{name}-back.png")
+    scene.render.filepath = back_path
+    bpy.ops.render.render(write_still=True)
+    back = load_image(back_path)
+
+    cam.location = (0.0, -1.2, center_z)
+    cam.rotation_euler = (math.radians(90.0), 0.0, 0.0)
     paint_material_ids()
     id_path = os.path.join(C.PREVIEW_DIR, "face", f"{name}-model-id.png")
     scene.render.filepath = id_path
     bpy.ops.render.render(write_still=True)
-    return albedo, load_image(id_path)
+    return albedo, load_image(id_path), back
 
 
 def sheet_front_figure(sheet: "np.ndarray", crop):
@@ -663,7 +675,7 @@ def main() -> int:
     with open(ref_path, encoding="utf-8") as fh:
         ref = json.load(fh)
 
-    model_rgba, model_ids = render_model_face(name)
+    model_rgba, model_ids, model_back = render_model_face(name)
     model_rgb = model_rgba[:, :, :3] * model_rgba[:, :, 3:4] + \
         (1.0 - model_rgba[:, :, 3:4])  # 透過は白へ
 
@@ -917,6 +929,38 @@ def main() -> int:
                   f"モデルで最悪 {worst_model * 100:.0f}%"
                   f"  {'ok' if ok_c else 'NG'}  (基準 どちらも>=90%)")
             passed.append(ok_c)
+
+    # ===== 背面: 毛束の分かれ目が線として描けているか =====
+    # **輪郭線は数えない。** 設定画の稜線の大半は髪の塊を囲む黒いインクの
+    # 輪郭で、モデルには輪郭線の描画そのものが無い。そのまま比べると
+    # 「毛束の分かれ目があるか」ではなく「輪郭線があるか」を測ることに
+    # なる。マスクを5px内側へ削ってから数える
+    try:
+        import trace_hair_clumps as _T
+
+        def _erode(m, k):
+            e = m.copy()
+            for _ in range(k):
+                e &= np.roll(e, 1, 0) & np.roll(e, -1, 0) \
+                    & np.roll(e, 1, 1) & np.roll(e, -1, 1)
+            return e
+
+        back_sheet = _T.back_window(name, ref)
+        mb = model_back[:, :, :3] * model_back[:, :, 3:4] + \
+            (1.0 - model_back[:, :, 3:4])
+        rates = []
+        for img in (back_sheet, np.ascontiguousarray(mb, dtype=np.float32)):
+            hair, ridge = _T.hair_ridges(np.ascontiguousarray(img, dtype=np.float32))
+            inner = _erode(hair, 5)
+            n = int(inner.sum())
+            rates.append(float((ridge & inner).sum()) / max(1, n))
+        ok_line = rates[1] >= rates[0] * 0.60
+        print(f"\n  背面の毛束の分かれ目(輪郭線を除く)  "
+              f"設定画 {rates[0]:.1%} / モデル {rates[1]:.1%}"
+              f"  {'ok' if ok_line else 'NG'}  (基準 設定画の60%以上)")
+        passed.append(ok_line)
+    except Exception as exc:                      # 背面図が無いキャラは飛ばす
+        print(f"\n  背面の毛束の分かれ目: 測れず({exc})")
 
     ra, rb = raggedness(head_a), raggedness(head_b)
     ok_r = rb >= ra * 0.7
