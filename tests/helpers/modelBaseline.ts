@@ -66,7 +66,7 @@ export const MODEL_HEIGHT_BASELINE: Record<string, number> = {
   otama: 0.807,
   otone: 0.798,
   pochi: 0.547,
-  purun: 0.46,
+  purun: 0.3,
   shioresakura: 0.225,
   shizukuuo: 0.221,
   subetenopurun: 0.33,
