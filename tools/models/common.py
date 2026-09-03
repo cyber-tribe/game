@@ -241,6 +241,47 @@ def loft(name: str, rings, segments: int = 16, smooth: bool = True,
     return obj
 
 
+def section_loft(name: str, sections, smooth: bool = True,
+                 cap_top: bool = True, cap_bottom: bool = True
+                 ) -> "bpy.types.Object":
+    """
+    **断面の形を呼び出し側が決める**ロフト。sectionsは、同じ個数・同じ
+    向きで並べた閉じた断面((x,y,z)の列)のリスト。
+
+    `loft` の断面は楕円なので、必ず中央が厚く縁が薄い**レンズ**になる。
+    耳の耳輪のように**縁が隆起して中央が窪む**断面はそれでは作れない
+    (実測: 楕円断面の耳は「淡い楕円」にしか見えず、耳輪の稜線が
+    立たなかった)。断面の点を直接置けるようにして解いた。
+    """
+    mesh = bpy.data.meshes.new(name)
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj)
+    bm = bmesh.new()
+    n = len(sections[0])
+    rings = [[bm.verts.new(p) for p in sec] for sec in sections]
+    for lower, upper in zip(rings, rings[1:]):
+        for i in range(n):
+            j = (i + 1) % n
+            # 断面の端が潰れている(同じ点)ときは三角形が縮退するので飛ばす
+            quad = [lower[i], lower[j], upper[j], upper[i]]
+            if len({v.index if v.index >= 0 else id(v) for v in quad}) < 3:
+                continue
+            try:
+                bm.faces.new(quad)
+            except ValueError:
+                pass
+    if cap_bottom:
+        bm.faces.new(list(reversed(rings[0])))
+    if cap_top:
+        bm.faces.new(rings[-1])
+    bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
+    bm.to_mesh(mesh)
+    bm.free()
+    for poly in mesh.polygons:
+        poly.use_smooth = smooth
+    return obj
+
+
 def curve_tube(name: str, points, radii, resolution: int = 4,
                bevel_resolution: int = 1) -> "bpy.types.Object":
     """
