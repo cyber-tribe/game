@@ -90,9 +90,16 @@ SKIN_SHADE = (0.82, 0.64, 0.50)
 # 肌と同じベタ色にすると「肌色の突起」にしか見えず、横顔でのっぺりする。
 # 耳輪(外周の隆起)を中間影、耳穴をもう1段暗くするだけで、脳は
 # 「肌が露出している」ではなく「ここに耳という構造物がある」と読む
-EAR_HELIX = (0.72, 0.55, 0.44)     # 耳輪。茶系の中間影
-EAR_CANAL = (0.46, 0.33, 0.25)     # 耳穴。さらに1段暗い
-EAR_LOBE = (0.92, 0.72, 0.63)      # 耳たぶ。わずかに赤み
+# **耳の地の色はSKINのまま**。茶系へ寄せると、髪との境目を色の分類
+# 問題にしてしまう(外部評価 第5回)。茶に寄せるほど「耳が髪に見える」
+# 判定は通るが、UV補間・ベイク・縮小のたびに髪色と肌色が混ざる。
+# 耳は「茶色い領域」ではなく「肌色の立体+内部の影」
+EAR_HELIX = (0.95, 0.82, 0.68)     # 耳輪。隆起なので肌より少し明るい
+EAR_RIDGE = (0.82, 0.65, 0.51)     # 対耳輪。耳輪と耳甲介の間の稜線
+EAR_CONCHA = (0.70, 0.52, 0.41)    # 耳甲介。窪みなので一段暗い
+EAR_EDGE = (0.62, 0.45, 0.36)      # 耳の外周の落ち影。設定画の輪郭線の役
+EAR_CANAL = (0.54, 0.37, 0.31)     # 耳穴。さらに暗い赤茶(黒にはしない)
+EAR_LOBE = (0.90, 0.73, 0.64)      # 耳たぶ。ごくわずかな赤み
 
 # 耳の外形(側面から見た雫形)。上が少し広く、下(耳たぶ)は細い。
 # 厚みは薄い ―― デフォルメの顔では耳は主役ではなく、こめかみ〜横髪〜頬の
@@ -600,22 +607,31 @@ def _ear_paint(pos: Vector):
     if abs(pos.x) < 0.045:
         return None
     off = abs(pos.y - cy) / max(1e-6, ry)          # 0=耳の中央, 1=外周
-    if off > 1.40:
+    if off > 1.26:
         return None
-    if off > 1.05:                                  # 耳の外の接地影
-        return _lerp3(SKIN, EAR_HELIX, 0.42 * (1.40 - off) / 0.35)
+    if off > 1.00:
+        # **耳の外周の落ち影は、広いグラデーションではなく細い帯**にする。
+        # 設定画で耳を耳として読ませているのは輪郭線なので、その役をここが
+        # 担う。1.05〜1.40へなだらかに散らすと頬に溶けて耳が消えた(実測)
+        t = 1.0 - abs(off - 1.10) / 0.16
+        return _lerp3(SKIN, EAR_EDGE, 0.85 * max(0.0, min(1.0, t)))
     # 耳穴。耳の中ほどのやや前寄り、小さい面積
     canal = math.hypot((pos.y - (cy - 0.0035)) / 0.0060,
                        (pos.z - 0.8305) / 0.0080)
     if canal < 1.0:
-        return _lerp3(EAR_CANAL, SKIN, min(1.0, max(0.0, (canal - 0.5) / 0.5)))
-    if pos.z < 0.8215:                              # 耳たぶ。わずかな赤み
-        return _lerp3(SKIN, EAR_LOBE, 0.7)
-    # 耳輪。外周の内側の帯。彫らずに1本の弧として描く
-    f = 1.0 - abs(off - 0.78) / 0.30
-    if f > 0.0:
-        return _lerp3(_lerp3(SKIN, EAR_HELIX, 0.45), EAR_HELIX, min(1.0, f))
-    return _lerp3(SKIN, EAR_HELIX, 0.45)            # 耳の中の面。ベタにしない
+        return _lerp3(EAR_CANAL, EAR_CONCHA, min(1.0, max(0.0, (canal - 0.5) / 0.5)))
+    if pos.z < 0.8215:                              # 耳たぶ。強調しない
+        return _lerp3(SKIN, EAR_LOBE, 0.35)
+    # **耳輪は隆起なので明るく、内側へ入るほど暗い。**
+    # 逆にすると(輪を暗く・中を明るく)立体が反転して読めず、ただの
+    # 浅いへこみに見えた(実測: 肌色へ戻した1回目)。また耳甲介を
+    # 耳の内側いっぱいに広げると、稜線が無くなって一枚の窪みになり、
+    # 傷のように見えた(2回目)。**輪・稜線・窪みの3段**にする
+    if off > 0.72:
+        return _lerp3(EAR_RIDGE, EAR_HELIX, min(1.0, (off - 0.72) / 0.16))
+    if off > 0.40:
+        return _lerp3(EAR_CONCHA, EAR_RIDGE, min(1.0, (off - 0.40) / 0.20))
+    return EAR_CONCHA
 
 
 def _head_at(z: float):
@@ -792,6 +808,36 @@ def _hair_side_from(major: dict, s: int):
     C.spherize_normals(obj, tuple(spine[0].lerp(spine[-1], 0.5)),
                        radius=None, strength=HAIR_NORMAL_BLEND)
     return obj
+
+
+_HAIR_XZ_CACHE = None
+
+
+def _hair_xz_polys():
+    """正面から見た毛束の輪郭(x,z)。デカールの塗り止めに使う"""
+    global _HAIR_XZ_CACHE
+    if _HAIR_XZ_CACHE is None:
+        t = _hair_table()
+        _HAIR_XZ_CACHE = [[(float(x), float(z)) for x, z in m["path_xz"]]
+                          for m in list(t["major"]) + list(t.get("aux", []))
+                          if m.get("side") != "back" and m.get("path_xz")]
+    return _HAIR_XZ_CACHE
+
+
+def _in_hair_xz(x: float, z: float) -> bool:
+    """(x,z)が正面の毛束の輪郭の中か(交差数で判定)"""
+    for poly in _hair_xz_polys():
+        inside = False
+        n = len(poly)
+        for i in range(n):
+            x0, z0 = poly[i]
+            x1, z1 = poly[(i + 1) % n]
+            if (z0 > z) != (z1 > z) and \
+                    x < x0 + (x1 - x0) * (z - z0) / (z1 - z0):
+                inside = not inside
+        if inside:
+            return True
+    return False
 
 
 def _hair_major_from(major: dict):
@@ -1121,15 +1167,21 @@ def _body_color_no_hand(pos: Vector, normal: Vector, state: int = 0):
             rx, ry, cy = _head_at(pos.z)
             nx, ny = pos.x / (rx * rx), (pos.y - cy) / (ry * ry)
             fade = _smoothstep(0.10, 0.28, -ny / max(1e-9, math.hypot(nx, ny)))
-            # **もみあげは塗りではなく毛束**で出す。デカールには設定画の髪が
-            # まるごと入っているので、頬の外側にも髪が塗られる。そこは面が
-            # 傾いていて上の fade が半分だけ効くため、**輪郭のぼやけた薄い
-            # 髪の幽霊**になる(実測: 正面図の髪判定は設定画と合うのに、
-            # ジオメトリだけを数えると z840 より下に横髪が1つも無かった)。
-            # 塗りを消して lock_burn_L/R に置き換える
-            fade *= 1.0 - (_smoothstep(0.054, 0.066, abs(pos.x))
-                           * _smoothstep(0.795, 0.812, pos.z)
-                           * (1.0 - _smoothstep(0.878, 0.895, pos.z)))
+            # **髪は塗りではなく毛束で出す**(外部評価 第5回)。
+            # デカールは設定画の顔を明度で量子化してまるごと写すので、
+            # **髪も一緒に描かれている**。それを肌のテクスチャへ焼くと、
+            #
+            #   * 面が傾いた頬の外側では上の fade が半分だけ効いて薄まり、
+            #   * 平面投影なので奥行き方向へ引き伸ばされ、
+            #
+            # 「輪郭のぼやけた薄い髪の幽霊」になる。しかもこれは正面の
+            # IoUでは捕まらない ―― **幽霊が設定画と一致するので指標は
+            # 上がる**。材質IDで数え直すと、窓の中に7,582pxあった。
+            #
+            # なぞった毛束の輪郭の中は毛束ジオメトリの担当なので塗らない。
+            # 材質の境目はジオメトリが決め、材質の内側だけを絵で描く
+            if _in_hair_xz(pos.x, pos.z):
+                fade = 0.0
             painted = _over(SKIN, pos.x, pos.z, state, fade)
             if painted != SKIN:
                 return painted
