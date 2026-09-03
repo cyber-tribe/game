@@ -235,12 +235,18 @@ function addOutlineMesh(mesh: THREE.SkinnedMesh): void {
 }
 
 /**
- * まばたき対象の目(`userData.blink`。plan/models/archive/
- * eye-blink-liveliness.md)は頭の骨へ剛体で親化された非スキンメッシュ
- * なので、SkeletonUtils.clone前提のaddOutlineMeshは使えない。スキニングが
- * 無いぶん単純で、輪郭線メッシュを本体の**子**として足すだけでよい
- * (兄弟ではなく子にすることで、BlinkControllerが本体側のscaleを
- * まばたきで変えても、子は変換を継承してそのまま追従する)。
+ * 骨へ剛体で親化された非スキンメッシュ(髪・耳・まばたき対象の目など。
+ * tools/models/common.pyのparent_to_bone)は、SkeletonUtils.clone前提の
+ * addOutlineMeshが使えない。スキニングが無いぶん単純で、輪郭線メッシュを
+ * 本体の**子**として足すだけでよい(兄弟ではなく子にすることで、
+ * BlinkControllerが本体側のscaleをまばたきで変えても、子は変換を
+ * 継承してそのまま追従する)。
+ *
+ * **`userData.blink`があるものだけに限ってはいけない。** ガルドの髪
+ * (`garudo_hair`)と耳(`garudo_ear`)は骨へ親化した非スキンメッシュだが
+ * まばたき対象ではないので、この条件を付けていたあいだ**輪郭線が
+ * 1本も付いていなかった**。髪はキャラクターで一番大きなシルエットなので、
+ * 効果は大きい。
  */
 function addRigidOutlineMesh(mesh: THREE.Mesh): void {
   const outline = new THREE.Mesh(mesh.geometry, makeRigidOutlineMaterial(outlineColorFor(mesh.material)));
@@ -250,6 +256,66 @@ function addRigidOutlineMesh(mesh: THREE.Mesh): void {
   outline.frustumCulled = mesh.frustumCulled;
   mesh.add(outline);
 }
+
+/**
+ * 輪郭線を付けてはいけない材質か。
+ *
+ * - **半透明**: 中身が透けて見える泡(oonebosukeの`_bubble`、
+ *   alphaMode=BLEND)の外側に不透明な黒い殻がかぶさり、黒い球になる。
+ * - **発光が主**: 光の粒(`_bubble_gleam`、emissive 0.6)は「形」ではなく
+ *   「光」なので、囲むと暗い輪になる。輪郭線はシルエットを立てるための
+ *   もので、ハイライトに付けるものではない。
+ */
+function skipOutline(material: THREE.Material | THREE.Material[]): boolean {
+  const list = Array.isArray(material) ? material : [material];
+  return list.some((m) => {
+    if (!m) return false;
+    if (m.transparent === true || (m.opacity ?? 1) < 1) return true;
+    const std = m as THREE.MeshStandardMaterial;
+    const e = std.emissive;
+    if (!e) return false;
+    const glow = Math.max(e.r, e.g, e.b) * (std.emissiveIntensity ?? 1);
+    return glow >= 0.5;
+  });
+}
+
+/**
+ * 輪郭線を付ける対象を集める(トゥーン化も同時に済ませる)。
+ *
+ * 輪郭線メッシュの追加はtraverse中に子を増やすことになり、走査中の
+ * children配列を書き換えてしまう恐れがあるため、対象を先に集めてから
+ * まとめて足す。
+ *
+ * **非スキンメッシュを`userData.blink`のあるものだけに絞ってはいけない。**
+ * ガルドの髪(`garudo_hair`)と耳(`garudo_ear`)は骨へ親化した非スキン
+ * メッシュだがまばたき対象ではないので、その条件を付けていたあいだ
+ * **輪郭線が1本も付いていなかった**(髪はキャラクターで一番大きな
+ * シルエットなので影響が大きい)。
+ */
+export function collectOutlineTargets(root: THREE.Object3D): {
+  skinned: THREE.SkinnedMesh[];
+  rigid: THREE.Mesh[];
+} {
+  const skinned: THREE.SkinnedMesh[] = [];
+  const rigid: THREE.Mesh[] = [];
+  root.traverse((obj) => {
+    const mesh = obj as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    const isSkinned = (mesh as THREE.SkinnedMesh).isSkinnedMesh === true;
+    const hasVertexColors = mesh.geometry.hasAttribute("color");
+    mesh.material = Array.isArray(mesh.material)
+      ? mesh.material.map((m) => toToonMaterial(m, isSkinned, hasVertexColors))
+      : toToonMaterial(mesh.material, isSkinned, hasVertexColors);
+    if (isSkinned) skinned.push(mesh as THREE.SkinnedMesh);
+    else if (!mesh.name.endsWith("__outline") && !skipOutline(mesh.material)) {
+      rigid.push(mesh);
+    }
+  });
+  return { skinned, rigid };
+}
+
 
 export interface Instance {
   root: THREE.Object3D;
@@ -305,29 +371,9 @@ export class Assets {
       // 輪郭線メッシュの追加はtraverse中に子を増やすことになり、走査中の
       // children配列を書き換えてしまう恐れがあるため、対象のSkinnedMeshだけ
       // 先に集めておき、traverseを終えてからまとめて追加する
-      const skinnedMeshes: THREE.SkinnedMesh[] = [];
-      // まばたき対象(userData.blink、tools/models/common.pyのparent_to_bone)。
-      // 頭の骨に剛体で親化された非スキンメッシュなので、輪郭線の付け方が
-      // スキン付きメッシュとは別ルートになる(addRigidOutlineMesh参照)
-      const blinkMeshes: THREE.Mesh[] = [];
-      gltf.scene.traverse((obj) => {
-        const mesh = obj as THREE.Mesh;
-        if (!mesh.isMesh) return;
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
-        const isSkinned = (mesh as THREE.SkinnedMesh).isSkinnedMesh === true;
-        const hasVertexColors = mesh.geometry.hasAttribute("color");
-        mesh.material = Array.isArray(mesh.material)
-          ? mesh.material.map((m) => toToonMaterial(m, isSkinned, hasVertexColors))
-          : toToonMaterial(mesh.material, isSkinned, hasVertexColors);
-        if (isSkinned) {
-          skinnedMeshes.push(mesh as THREE.SkinnedMesh);
-        } else if (mesh.userData.blink !== undefined) {
-          blinkMeshes.push(mesh);
-        }
-      });
-      for (const mesh of skinnedMeshes) addOutlineMesh(mesh);
-      for (const mesh of blinkMeshes) addRigidOutlineMesh(mesh);
+      const { skinned, rigid } = collectOutlineTargets(gltf.scene);
+      for (const mesh of skinned) addOutlineMesh(mesh);
+      for (const mesh of rigid) addRigidOutlineMesh(mesh);
       this.cache.set(name, { scene: gltf.scene, animations: gltf.animations });
     })().finally(() => {
       this.inFlight.delete(name);

@@ -165,6 +165,51 @@ def flatten_materials() -> None:
         tree.links.new(emit.outputs["Emission"], output.inputs["Surface"])
 
 
+# 材質IDパスでの分類。**色ではなく材質で髪と肌を分ける**ための対応表。
+# RGBで「茶色いから髪」と決めると、耳を茶に寄せるほどQAが通るという
+# 逆向きの圧力が掛かる(実際にそうなりかけた)。材質はジオメトリが
+# 決めるので、テクスチャの色をいじっても動かない
+# 顔のデカール(目・眉・口)は肌材質の**中に**描く絵なので、髪色に
+# 近くて当然。肌へ滲んだ髪と区別するため、顔パッチは別グループにする
+ID_GROUPS = {
+    "hair": ("garudo_hair",),
+    "body": ("garudo_body", "garudo_ear"),
+    "face": ("garudo_face",),
+}
+ID_COLORS = {"hair": (1.0, 0.0, 0.0), "body": (0.0, 1.0, 0.0),
+             "face": (1.0, 1.0, 0.0)}
+
+
+def paint_material_ids() -> dict:
+    """材質ごとに単色のEmissionを割り当てる。返すのは材質名→グループ"""
+    which = {}
+    for mat in bpy.data.materials:
+        group = next((g for g, names in ID_GROUPS.items() if mat.name in names), None)
+        which[mat.name] = group
+        if not mat.use_nodes:
+            continue
+        tree = mat.node_tree
+        output = next((n for n in tree.nodes if n.type == "OUTPUT_MATERIAL"), None)
+        if output is None:
+            continue
+        emit = tree.nodes.new("ShaderNodeEmission")
+        r, g, b = ID_COLORS.get(group, (0.0, 0.0, 1.0))
+        emit.inputs["Color"].default_value = (r, g, b, 1.0)
+        tree.links.new(emit.outputs["Emission"], output.inputs["Surface"])
+    return which
+
+
+def id_masks(rgba: "np.ndarray") -> dict:
+    """材質IDパスの画像を グループ名→マスク へ戻す"""
+    rgb = rgba[:, :, :3]
+    a = rgba[:, :, 3] if rgba.shape[2] > 3 else np.ones(rgb.shape[:2], np.float32)
+    solid = a > 0.5
+    r, g = rgb[:, :, 0] > 0.5, rgb[:, :, 1] > 0.5
+    out = {"hair": solid & r & ~g, "body": solid & g & ~r, "face": solid & r & g}
+    out["skin"] = out["body"] | out["face"]
+    return out
+
+
 def render_model_face(name: str) -> "np.ndarray":
     """平行投影・陰影なしでモデルの顔を固定ウィンドウへ描く"""
     import importlib
@@ -200,7 +245,27 @@ def render_model_face(name: str) -> "np.ndarray":
     os.makedirs(os.path.dirname(path), exist_ok=True)
     scene.render.filepath = path
     bpy.ops.render.render(write_still=True)
-    return load_image(path)
+    albedo = load_image(path)
+
+    # 同じ組み立てのまま、材質IDだけをもう1枚描く。ビルドは85秒かかる
+    # ので**1回のビルドで2パス**にする
+    # **背面も同じ窓で1枚。** 背面は長らく何も測っていなかった。
+    # ここが未計測だったせいで、後頭部が「毛束の分かれ目の無い塊」に
+    # なっているのに全部の指標が通っていた
+    cam.location = (0.0, 1.2, center_z)
+    cam.rotation_euler = (math.radians(90.0), 0.0, math.radians(180.0))
+    back_path = os.path.join(C.PREVIEW_DIR, "face", f"{name}-back.png")
+    scene.render.filepath = back_path
+    bpy.ops.render.render(write_still=True)
+    back = load_image(back_path)
+
+    cam.location = (0.0, -1.2, center_z)
+    cam.rotation_euler = (math.radians(90.0), 0.0, 0.0)
+    paint_material_ids()
+    id_path = os.path.join(C.PREVIEW_DIR, "face", f"{name}-model-id.png")
+    scene.render.filepath = id_path
+    bpy.ops.render.render(write_still=True)
+    return albedo, load_image(id_path), back
 
 
 def sheet_front_figure(sheet: "np.ndarray", crop):
@@ -348,6 +413,10 @@ def eye_pair(masks, band, min_size=40, max_w=0.060, max_h=0.050):
 IOU_REACH_MIN = 0.95
 # 髪は左右非対称なので対称の上限が使えない。絶対値で見る
 HAIR_IOU_MIN = 0.80
+# 肌材質のテクセルのうち、色としては髪と読めてしまう画素の上限(顔の
+# 窓の中、px)。0にはできない ―― まつ毛の生え際や鼻の線など、肌の上に
+# 描く線は暗い。ただし**面として**髪色が乗ったらそれは滲みなので落とす
+HAIR_ON_SKIN_MAX = 400
 
 
 def fill_polygon(poly) -> "np.ndarray":
@@ -606,7 +675,7 @@ def main() -> int:
     with open(ref_path, encoding="utf-8") as fh:
         ref = json.load(fh)
 
-    model_rgba = render_model_face(name)
+    model_rgba, model_ids, model_back = render_model_face(name)
     model_rgb = model_rgba[:, :, :3] * model_rgba[:, :, 3:4] + \
         (1.0 - model_rgba[:, :, 3:4])  # 透過は白へ
 
@@ -617,6 +686,22 @@ def main() -> int:
 
     a = classify(sheet_win)
     b = classify(model_rgb)
+    # **材質境界はジオメトリが決め、材質の内側だけを色で見る。**
+    # 髪は「garudo_hair材質か」で決める(色は一切見ない)。肌は
+    # 「肌材質の中で、描き込みではなく地の肌色のところ」とする。
+    # デカールが肌材質へ髪色を塗っていると、そこは髪でも肌でもなく
+    # なる ―― 塗りで稼いだシルエットがここで見えなくなる
+    ids = id_masks(model_ids)
+    # **肌テクスチャへ焼かれた髪**。顔パッチ(目・眉・口)は絵として
+    # 暗くて当然なので除き、素の肌材質の上に残った髪色だけを数える
+    bleed = int((b["hair"] & ids["body"]).sum())
+    drawn = int((b["hair"] & ids["face"]).sum())
+    b["hair"] = ids["hair"].copy()
+    b["skin"] = b["skin"] & ids["skin"]
+    rows_ = np.arange(model_rgb.shape[0])
+    z_ = WIN_Z1 - rows_ / PX_PER_UNIT
+    b["hair"][z_ < HAIR_Z0, :] = False
+    b["skin"][z_ < NECK_Z, :] = False
     eye_ref = float(ref["bands"]["eye"][0] + ref["bands"]["eye"][1]) * 0.5
     fa, fb = face_metrics(a, eye_ref), face_metrics(b, eye_ref)
 
@@ -661,6 +746,13 @@ def main() -> int:
     # (実測: 髪は上限0.857に対しIoU 0.871。到達率102%になり判定に
     # ならない)。髪は絶対値で見る(plan/models/archive/garudo-hair-clumps.md の
     # 当初基準 0.80)。
+    # 肌材質へ髪色が焼かれていると、UV補間・ベイク・縮小のたびに
+    # 髪色と肌色が混ざる。**材質の境目を色の分類問題にしない**ための番人
+    bleed_ok = bleed <= HAIR_ON_SKIN_MAX
+    print(f"\n  肌と髪の境目は材質で決めた(色では決めない)")
+    print(f"  肌材質へ焼かれた髪色 {bleed}px  "
+          f"{'ok' if bleed_ok else 'NG'}  (基準<={HAIR_ON_SKIN_MAX}px)")
+    print(f"  顔パッチに描かれた暗い絵(目・眉・口) {drawn}px  参考")
     print(f"\n  {'領域':<14} {'IoU':>7} {'対称の上限':>11} {'到達率':>8}")
     ious = {}
     for key in ("skin", "hair"):
@@ -838,6 +930,38 @@ def main() -> int:
                   f"  {'ok' if ok_c else 'NG'}  (基準 どちらも>=90%)")
             passed.append(ok_c)
 
+    # ===== 背面: 毛束の分かれ目が線として描けているか =====
+    # **輪郭線は数えない。** 設定画の稜線の大半は髪の塊を囲む黒いインクの
+    # 輪郭で、モデルには輪郭線の描画そのものが無い。そのまま比べると
+    # 「毛束の分かれ目があるか」ではなく「輪郭線があるか」を測ることに
+    # なる。マスクを5px内側へ削ってから数える
+    try:
+        import trace_hair_clumps as _T
+
+        def _erode(m, k):
+            e = m.copy()
+            for _ in range(k):
+                e &= np.roll(e, 1, 0) & np.roll(e, -1, 0) \
+                    & np.roll(e, 1, 1) & np.roll(e, -1, 1)
+            return e
+
+        back_sheet = _T.back_window(name, ref)
+        mb = model_back[:, :, :3] * model_back[:, :, 3:4] + \
+            (1.0 - model_back[:, :, 3:4])
+        rates = []
+        for img in (back_sheet, np.ascontiguousarray(mb, dtype=np.float32)):
+            hair, ridge = _T.hair_ridges(np.ascontiguousarray(img, dtype=np.float32))
+            inner = _erode(hair, 5)
+            n = int(inner.sum())
+            rates.append(float((ridge & inner).sum()) / max(1, n))
+        ok_line = rates[1] >= rates[0] * 0.60
+        print(f"\n  背面の毛束の分かれ目(輪郭線を除く)  "
+              f"設定画 {rates[0]:.1%} / モデル {rates[1]:.1%}"
+              f"  {'ok' if ok_line else 'NG'}  (基準 設定画の60%以上)")
+        passed.append(ok_line)
+    except Exception as exc:                      # 背面図が無いキャラは飛ばす
+        print(f"\n  背面の毛束の分かれ目: 測れず({exc})")
+
     ra, rb = raggedness(head_a), raggedness(head_b)
     ok_r = rb >= ra * 0.7
     print(f"  上部輪郭の凹凸  設定画 {ra:.0f}px / モデル {rb:.0f}px "
@@ -925,7 +1049,7 @@ def main() -> int:
     out_path = os.path.join(C.PREVIEW_DIR, "face", f"{name}-compare.png")
     save_image(out_path, combined)
 
-    ok = all(passed) and ious["skin_ok"] and ious["hair_ok"]
+    ok = all(passed) and ious["skin_ok"] and ious["hair_ok"] and bleed_ok
     print(f"\n  判定: {'PASS' if ok else 'FAIL'}   → {out_path}\n")
     return 0 if ok else 2
 

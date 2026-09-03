@@ -7,9 +7,9 @@
  * (Three.js + トゥーンマテリアル + 背面ハル輪郭線 + ACES + ブルーム +
  * 色調グレーディング。tools/preview-harness.ts/htmlが実体)で
  * ヘッドレスChromiumに描かせる。アニメーションクリップを持つモデルは
- * idle→walk→attack→hit→dieを繋いだ1本の tools/preview/<名前>.gif に、
- * 持たないモデル(静止物)は従来どおり tools/preview/<名前>.png に保存する。
- * 最後に一覧ページ tools/preview/README.md も作り直す。
+ * idle→walk→attack→hit→dieを繋いだ1本の tools/preview/engine/<名前>.gif に、
+ * 持たないモデル(静止物)は tools/preview/engine/<名前>.png に保存する。
+ * 最後に一覧ページ tools/preview/engine/README.md も作り直す。
  *
  *   npm run dev &
  *   npm run preview-engine
@@ -40,7 +40,14 @@ const { chromium } = await loadPlaywright();
 const SITE_URL = process.env.URL ?? "http://127.0.0.1:5173/";
 const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url));
 const MODELS_DIR = join(REPO_ROOT, "public", "models");
-const OUT_DIR = join(REPO_ROOT, "tools", "preview");
+/**
+ * **Blenderのプレビュー(`tools/preview/<名前>.png`)とは別のディレクトリ。**
+ * 以前は同じ場所へ書いていたので、`npm run models`(Cyclesの造形確認)と
+ * このツール(エンジン内の見た目)が同じファイル名を奪い合い、
+ * 後に走ったほうが相手の絵を消していた(実測: このツールがガルドの
+ * gifを書くとき、Blenderが書いた garudo.png を rmSync で消していた)。
+ */
+const OUT_DIR = join(REPO_ROOT, "tools", "preview", "engine");
 mkdirSync(OUT_DIR, { recursive: true });
 
 function chromiumPath() {
@@ -110,7 +117,14 @@ await browser.close();
 
 // 一覧ページ(GitHub上でこの1ページを開けば全キャラを見渡せる。
 // GitHubはmarkdown内の.gifをそのままアニメーション表示する)
-const rows = shot
+// **一覧は「今回撮ったもの」ではなく「ディレクトリにあるもの」から作る。**
+// MODELS=garudo のように一部だけ撮ったとき、撮ったぶんだけで書き直すと
+// 残り全部の行が消える(実測: 77体の一覧が1行になった)
+const onDisk = readdirSync(OUT_DIR)
+  .filter((f) => f.endsWith(".gif") || f.endsWith(".png"))
+  .map((f) => ({ model: f.replace(/\.(gif|png)$/, ""), ext: f.split(".").pop() }))
+  .sort((a, b) => a.model.localeCompare(b.model));
+const rows = onDisk
   .map(({ model, ext }) => `| ${model} | ![${model}](./${model}.${ext}) |`)
   .join("\n");
 const readme = `# モデルのエンジン内プレビュー

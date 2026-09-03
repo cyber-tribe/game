@@ -86,10 +86,39 @@ BONES = C.mirrored_bones(BONES_HALF)
 # 配色は設定画のカラーパレットから採る
 SKIN = (0.93, 0.80, 0.66)
 SKIN_SHADE = (0.82, 0.64, 0.50)
-# 耳の色。設定画の耳は肌ではなく**茶の暗部**として描かれていて、
-# 分類器も「髪」と読む。明るい肌のまま焼くと横顔で耳がのっぺりした
-# 膨らみにしか見えず、正面でも耳が肌としてはみ出す
-EAR_SHADE = (0.55, 0.41, 0.31)     # 鼻・口まわりの影色
+# 耳。**シルエットはメッシュ、内部構造はテクスチャ**で作る。
+# 肌と同じベタ色にすると「肌色の突起」にしか見えず、横顔でのっぺりする。
+# 耳輪(外周の隆起)を中間影、耳穴をもう1段暗くするだけで、脳は
+# 「肌が露出している」ではなく「ここに耳という構造物がある」と読む
+# **耳の地の色はSKINのまま**。茶系へ寄せると、髪との境目を色の分類
+# 問題にしてしまう(外部評価 第5回)。茶に寄せるほど「耳が髪に見える」
+# 判定は通るが、UV補間・ベイク・縮小のたびに髪色と肌色が混ざる。
+# 耳は「茶色い領域」ではなく「肌色の立体+内部の影」
+EAR_HELIX = (0.95, 0.82, 0.68)     # 耳輪。隆起なので肌より少し明るい
+EAR_RIDGE = (0.82, 0.65, 0.51)     # 対耳輪。耳輪と耳甲介の間の稜線
+EAR_CONCHA = (0.70, 0.52, 0.41)    # 耳甲介。窪みなので一段暗い
+EAR_EDGE = (0.62, 0.45, 0.36)      # 耳の外周の落ち影。設定画の輪郭線の役
+EAR_CANAL = (0.54, 0.37, 0.31)     # 耳穴。さらに暗い赤茶(黒にはしない)
+EAR_LOBE = (0.90, 0.73, 0.64)      # 耳たぶ。ごくわずかな赤み
+
+# 耳の外形(側面から見た雫形)。上が少し広く、下(耳たぶ)は細い。
+# 厚みは薄い ―― デフォルメの顔では耳は主役ではなく、こめかみ〜横髪〜頬の
+# 境界を成立させる**基準点**。厚くすると取っ手のように見える
+#   (z, 半厚x, 半奥行きy, 中心y)
+# 耳の断面(z, 半厚x, 半奥行きy, 中心y)。**融合しないので薄く作れる。**
+# 融合していたころは voxel 3.8mm に潰されないよう半厚を4mm(=厚さ8mm)
+# にしていたが、それでも出てくるのは+2〜3mmの尾根で、耳の形は残らな
+# かった。独立オブジェクトなら半厚2mmの板がそのまま出る
+EAR_RINGS = (
+    (0.8095, 0.0005, 0.0024, 0.0088),
+    (0.8145, 0.0009, 0.0062, 0.0093),
+    (0.8205, 0.0014, 0.0088, 0.0098),
+    (0.8280, 0.0018, 0.0112, 0.0101),
+    (0.8350, 0.0020, 0.0128, 0.0099),
+    (0.8420, 0.0018, 0.0124, 0.0094),
+    (0.8480, 0.0012, 0.0092, 0.0088),
+    (0.8515, 0.0004, 0.0034, 0.0083),
+)
 SHIRT = (0.88, 0.84, 0.73)          # 生成りのシャツ
 SHIRT_LINE = (0.74, 0.69, 0.58)     # 前立て・ボタンの線
 TROUSERS = (0.35, 0.41, 0.49)       # 青灰のズボン(新設定画で深緑から変更)
@@ -101,6 +130,9 @@ HAIR_CAP_OVER = 0.004
 # (実測: 0.70にしたら髪が肌と判定される画素が増え、肌IoUの到達率が
 # 97%→91%へ落ちた)。髪全体を1つの球へ寄せるのは別の話で、あれは
 # ヘルメットになるのでやらない
+# 背面・3/4背面で、毛束の隙間から Hair Cap が見えてよい割合の上限。
+# capは地肌を隠す土台であって、**見せる面ではない**
+CAP_EXPOSED_MAX = 0.30
 HAIR_NORMAL_BLEND = 0.35
 HAIR_CAP_TOP = 0.970
 HAIR = (0.33, 0.25, 0.185)          # 茶色の無造作な髪(設定画の髪の平均色を実測)
@@ -552,6 +584,133 @@ def _hair_table():
     return _HAIR_TABLE[0]
 
 
+def _ear_at(z: float):
+    """高さzでの耳の断面(中心y, 半奥行きy)。色を引くのにも使う"""
+    if z <= EAR_RINGS[0][0] or z >= EAR_RINGS[-1][0]:
+        return None
+    for (z0, _rx0, ry0, cy0), (z1, _rx1, ry1, cy1) in zip(EAR_RINGS, EAR_RINGS[1:]):
+        if z0 <= z <= z1:
+            t = (z - z0) / max(1e-9, z1 - z0)
+            return (cy0 + (cy1 - cy0) * t, ry0 + (ry1 - ry0) * t)
+    return None
+
+
+EAR_COLS = 14          # 断面を刻む列数(耳の前後方向)
+
+
+def _ear_relief(off: float):
+    """
+    耳の断面の起伏。offは耳の中心からの正規化距離(0=中心, 1=縁)。
+    返すのは (外側のxオフセット, 内側のxオフセット)。
+
+    **耳輪(縁の隆起)を塗りではなく形で出す。** 楕円断面のロフトは
+    必ず中央が厚く縁が薄いレンズになるので、耳輪の稜線が作れなかった。
+
+    外へ張り出せる量は**設定画の顔の最大幅**で頭打ちになる。設定画の
+    その高さの一番外側は耳そのものなので、耳を大きく出すと顔が横に
+    広がる。張り出しは2mm弱に留め、**耳甲介を内側へ彫る**ことで
+    5mm近い起伏を稼ぐ
+    """
+    ridge = math.exp(-((off - 0.70) / 0.17) ** 2)      # 耳輪の峰
+    keep = 1.0 - _smoothstep(0.78, 1.00, off)          # 縁で起伏を消す
+    edge = -0.0016 * _smoothstep(0.78, 1.00, off)      # 縁は頭へ潜り込ませる
+    outer = (0.0012 + 0.0024 * ridge) * keep + edge
+    inner = -0.0012 * keep + edge                       # 裏側(頭に隠れる)
+    return outer, inner
+
+
+def _ear_sections(sign: float):
+    """耳のメッシュ断面。頭の断面へ沿わせ、起伏を _ear_relief で乗せる"""
+    ry_max = max(r[2] for r in EAR_RINGS)
+    out = []
+    for z, _unused, ry, cy in EAR_RINGS:
+        rxh, ryh, cyh = _head_at(z)
+        # **前後に細い段ほど深く埋める**(上端と耳たぶ=付け根)
+        sink = 0.0022 * (1.0 - ry / ry_max)
+        outer_pts, inner_pts = [], []
+        for j in range(EAR_COLS + 1):
+            t = -1.0 + 2.0 * j / EAR_COLS
+            y = cy + t * ry
+            # **耳は頭の曲面に沿わせ、起伏はその上に乗せる。**
+            # 段ごとに1つのxしか持たないと、板は前後にまっすぐなのに頭は
+            # 丸いので、耳の中央だけ頭とほぼ同じ高さになり、耳輪の稜線
+            # 2本だけが覗く「切れ込み」に見えた(実測)
+            u = (y - cyh) / max(1e-9, ryh)
+            base = rxh * math.sqrt(max(0.0, 1.0 - u * u)) - sink
+            o, i = _ear_relief(abs(t))
+            outer_pts.append((sign * (base + o), y, z))
+            inner_pts.append((sign * (base + i), y, z))
+        # 閉じた断面にする(外側を端から端まで、裏側を折り返して戻る)
+        out.append(outer_pts + inner_pts[EAR_COLS - 1:0:-1])
+    return out
+
+
+def _ear_shadow(pos: Vector):
+    """
+    **頭側**に描く耳の落ち影。耳は別オブジェクトなので、頭のテクスチャが
+    持つのはこの影だけ。
+
+    広いグラデーションにすると頬に溶けて耳の在処が消える。設定画で耳を
+    耳として読ませているのは輪郭線なので、その役を細い帯が担う。
+    """
+    sec = _ear_at(pos.z)
+    if sec is None or abs(pos.x) < 0.045:
+        return None
+    cy, ry = sec
+    off = abs(pos.y - cy) / max(1e-6, ry)
+    if not (0.85 < off < 1.32):
+        return None
+    t = 1.0 - abs(off - 1.06) / 0.24
+    return _lerp3(SKIN, EAR_EDGE, 0.80 * max(0.0, min(1.0, t)))
+
+
+def _ear_color(pos: Vector, normal: Vector):
+    """耳オブジェクトのアルベド。内部構造をここで描く"""
+    return _ear_paint(pos) or SKIN
+
+
+def _ear_paint(pos: Vector):
+    """
+    耳の内部構造を**テクスチャで**描く(plan/models/garudo-ear-as-anchor.md)。
+
+    デフォルメの顔では、耳を細かく彫刻するより
+    **シルエットはメッシュ・内部構造はテクスチャ**が合っている。
+    描くのは3つだけ ―― 外形は肌、耳輪は茶系の中間影、耳穴はもう1段暗い影。
+    耳たぶにわずかな赤み。溝は彫らない。
+
+    耳と周囲の肌を同じベタ色にすると「肌が露出している」に見える。
+    1段暗い色が入るだけで「ここに耳という構造物がある」と読める。
+    張り出しは融合後で2〜3mmしかないので、**読ませるのは陰影の仕事**。
+    耳の外側にも接地影を敷いて、頬から切り離す。
+    """
+    sec = _ear_at(pos.z)
+    if sec is None:
+        return None
+    cy, ry = sec
+    off = abs(pos.y - cy) / max(1e-6, ry)          # 0=耳の中央, 1=外周
+    # 耳穴。耳の中ほどのやや前寄り、小さい面積
+    canal = math.hypot((pos.y - (cy - 0.0035)) / 0.0060,
+                       (pos.z - 0.8305) / 0.0080)
+    if canal < 1.0:
+        return _lerp3(EAR_CANAL, EAR_CONCHA, min(1.0, max(0.0, (canal - 0.5) / 0.5)))
+    # **耳輪は隆起なので明るく、内側へ入るほど暗い。**
+    # 逆にすると(輪を暗く・中を明るく)立体が反転して読めず、ただの
+    # 浅いへこみに見えた(実測: 肌色へ戻した1回目)。また耳甲介を
+    # 耳の内側いっぱいに広げると、稜線が無くなって一枚の窪みになり、
+    # 傷のように見えた(2回目)。**輪・稜線・窪みの3段**にする
+    if off > 0.60:
+        base = _lerp3(EAR_RIDGE, EAR_HELIX, min(1.0, (off - 0.60) / 0.18))
+    elif off > 0.30:
+        base = _lerp3(EAR_CONCHA, EAR_RIDGE, min(1.0, (off - 0.30) / 0.18))
+    else:
+        base = EAR_CONCHA
+    # 耳たぶは**上書きではなく色味を足すだけ**。ベタで返していたときは、
+    # 耳の下半分から耳輪・耳甲介の段が丸ごと消えて、明るい三角形の
+    # 板に見えた(実測)
+    lobe = _smoothstep(0.8215, 0.8140, pos.z)
+    return _lerp3(base, EAR_LOBE, 0.30 * lobe)
+
+
 def _head_at(z: float):
     """高さzでの頭の断面(rx, ry, cy)。HEAD_RINGSを線形で引く"""
     rings = HEAD_RINGS
@@ -728,6 +887,36 @@ def _hair_side_from(major: dict, s: int):
     return obj
 
 
+_HAIR_XZ_CACHE = None
+
+
+def _hair_xz_polys():
+    """正面から見た毛束の輪郭(x,z)。デカールの塗り止めに使う"""
+    global _HAIR_XZ_CACHE
+    if _HAIR_XZ_CACHE is None:
+        t = _hair_table()
+        _HAIR_XZ_CACHE = [[(float(x), float(z)) for x, z in m["path_xz"]]
+                          for m in list(t["major"]) + list(t.get("aux", []))
+                          if m.get("side") != "back" and m.get("path_xz")]
+    return _HAIR_XZ_CACHE
+
+
+def _in_hair_xz(x: float, z: float) -> bool:
+    """(x,z)が正面の毛束の輪郭の中か(交差数で判定)"""
+    for poly in _hair_xz_polys():
+        inside = False
+        n = len(poly)
+        for i in range(n):
+            x0, z0 = poly[i]
+            x1, z1 = poly[(i + 1) % n]
+            if (z0 > z) != (z1 > z) and \
+                    x < x0 + (x1 - x0) * (z - z0) / (z1 - z0):
+                inside = not inside
+        if inside:
+            return True
+    return False
+
+
 def _hair_major_from(major: dict):
     """
     主要毛束1本。**設定画からなぞった輪郭をそのまま形にする**
@@ -782,7 +971,12 @@ def _hair_major_from(major: dict):
     # (実測: crown_Lのモデル側の髪判定が78%まで落ちた)
     half = sum(min((Vector((x, 0.0, z)) - Vector((q.x, 0.0, q.z))).length
                    for q in spine) for x, z in outline) / max(1, len(outline))
-    _HAIR_SPINES.append((spine, max(0.006, half)))
+    # **土台の毛束は塗りの中心線に登録しない。** 土台は毛束ではなく
+    # 埋め物なので、塗りが「どの毛束のどこか」を決める基準にはしない。
+    # (これ自体の効果は小さかった ―― 分かれ目の線は 0.6%→0.7% しか
+    #  動かない。効いたのは床の掛け方のほう。下の _hair_color を見よ)
+    if not major.get("no_spine"):
+        _HAIR_SPINES.append((spine, max(0.006, half)))
     C.spherize_normals(obj, tuple(spine[0].lerp(spine[-1], 0.5)),
                        radius=None, strength=HAIR_NORMAL_BLEND)
     return obj
@@ -831,7 +1025,14 @@ def _hair_color(pos: Vector, normal: Vector):
     f = 1.0
     f *= 0.79 + 0.32 * _smoothstep(0.0, 0.026, from_root)  # 根元が暗い
     f *= 1.0 - 0.26 * _smoothstep(0.030, 0.0, to_tip)      # 毛先が暗い
-    f *= 1.0 - 0.30 * _smoothstep(0.55, 1.15, dist)        # 毛束の縁
+    # **毛束の境目は「なだらかな陰り」ではなく「細い溝」**にする。
+    # 設定画の髪は分かれ目が線で描かれている。実測(背面図):
+    # 設定画は髪の面積の3.9%が分かれ目の線なのに、モデルは0.6%しか
+    # 無かった。明度の幅そのものは足りていた(標準偏差 0.087 対 0.071)
+    # ので、足りないのは**量ではなく空間周波数** ―― なだらかな階調しか
+    # 無く、線が無い。中心線からの距離が毛束の縁(dist≈1)に来たところ
+    # だけを細く落とす
+    f *= 1.0 - 0.14 * _smoothstep(0.55, 1.15, dist)        # 毛束の縁(弱い陰り)
     f *= 0.96 + 0.32 * max(0.0, min(1.0, (pos.z - 0.82) / 0.16))  # 上ほど明るい
     f *= 1.0 + 0.16 * max(0.0, normal.z) - 0.20 * max(0.0, -normal.z)
     if pos.y > 0.055:
@@ -840,7 +1041,23 @@ def _hair_color(pos: Vector, normal: Vector):
     # ほぼ黒い塊になる。設定画の髪は中間調で、黒くなるのは輪郭線だけ。
     # 黒い塊は顔一致QAの目の検出も壊す(暗部の連結成分が眉・髪と
     # 繋がって「目」として拾われる。実測: 目尻が+7.5mm外へ飛んだ)
-    return _shade(HAIR, max(0.62, f))
+    f = max(0.62, f)
+    # **線は床の下へ通す。** 上の床を線にも掛けると、暗い側でぶつかって
+    # 線が消える ―― 暗くする項をいくら足しても分かれ目の線が
+    # 0.6%→1.1%までしか増えなかったのはこれが原因だった。
+    # なだらかな階調には床、線には別の(もっと低い)床を使う
+    line = 1.0 - 0.34 * math.exp(-((dist - 1.02) / 0.18) ** 2)   # 分かれ目
+    # 毛束の**内側の筋**。境目だけでは設定画の密度に届かない(毛束は
+    # 8本しかないのに、設定画には房の筋がもっと細かく入る)。筋は
+    # **その毛束の座標**で刻む ―― 方位角で刻むと毛束の位置と無関係に
+    # なり「縞のヘルメット」に見える(過去の失敗)
+    # **間隔を詰めすぎない。** 筋が近いほど良いわけではない ―― 隣の筋と
+    # 6mm以内に並ぶと、絵として見たときに互いの影に埋もれて1本も
+    # 読めなくなる(実測: 刻みを2.2→3.6へ細かくしたら分かれ目の線が
+    # 1.4%→1.3%へ**減った**)。太く・少なく・間を空ける
+    w = 0.5 + 0.5 * math.cos(dist * math.tau * 2.2)
+    line *= 1.0 - 0.20 * (w ** 6)
+    return _shade(HAIR, max(0.42, f * line))
 
 
 def _eye_texture(size: int = 128) -> "bpy.types.Image":
@@ -1027,12 +1244,49 @@ def _body_color_no_hand(pos: Vector, normal: Vector, state: int = 0):
             # (実測: 3/4のレンダーで頬に目の形の染みが出た)。
             # 位置でなだらかに薄める(法線で切ると縁テクセルで判定が
             # 明滅して線が点描に割れる)
-            # **顔のデカールは正面図の投影**なので、奥へ回り込む面に
-            # そのまま乗せると目のまわりの階調が耳や側頭部へ引き伸ばされて
-            # 貼りつく(実測: 3/4のレンダーで耳の位置に目の形の染みが出た)。
-            # **奥行きだけで薄める。** xで薄めると頬の階調まで消えて、
-            # 頬が明るい肌一色になる(実測: 肌IoUの到達率が98%→93%)
-            fade = 1.0 - _smoothstep(-0.030, 0.000, pos.y)
+            # **顔のデカールは正面図の平面投影**なので、正面から傾いた面
+            # ほど横へ引き伸ばされて貼りつく。伸び率は面の向きで決まる
+            # (1/|法線のy成分|)ので、**法線で薄める**のが素直。
+            #
+            # xで薄めると頬の階調まで消えて頬が明るい肌一色になり、肌IoUの
+            # 到達率が98%→93%へ落ちた。奥行き(y)で薄めると、頬は正面を
+            # 向いているのに深さは浅いので効かず、横顔で目の形の染みが
+            # 残った。**外側だからでも奥だからでもなく、傾いているから**薄める
+            #
+            # ただし薄める範囲は**引き伸ばしが破綻する角度だけ**に絞る。
+            # 0.30〜0.65で薄めると頬(法線y≈0.5)まで巻き込んで到達率が
+            # 96%→94%へ落ちた。伸び率は0.30で3.3倍・0.10で10倍なので、
+            # 頬を残して染みだけ消せるのはこの帯。
+            #
+            # 使う法線は**メッシュの法線ではなく頭の断面楕円から出した
+            # 解析法線**。融合後のメッシュ法線は面ごとに飛ぶので、
+            # そのまま閾値で切ると境界がぎざぎざの島に割れる
+            # (実測: 頬に波打った斑ができた)。楕円の法線なら分割数に
+            # よらず滑らかなので、境界も滑らかに出る。
+            #
+            # 帯を 0.30〜0.55 まで広げると横顔の引き伸ばしはほぼ消えるが、
+            # 正面図でも頬の外側(方位角75〜90°)は傾いているので階調が
+            # 抜け、肌IoUが 0.802→0.783(到達率97%→95%)へ落ちた。
+            # **平面投影である限りこのトレードオフは消えない** ―― 本当の
+            # 解決は顔テクスチャをUV基準で描き直すことで、それは別件
+            rx, ry, cy = _head_at(pos.z)
+            nx, ny = pos.x / (rx * rx), (pos.y - cy) / (ry * ry)
+            fade = _smoothstep(0.10, 0.28, -ny / max(1e-9, math.hypot(nx, ny)))
+            # **髪は塗りではなく毛束で出す**(外部評価 第5回)。
+            # デカールは設定画の顔を明度で量子化してまるごと写すので、
+            # **髪も一緒に描かれている**。それを肌のテクスチャへ焼くと、
+            #
+            #   * 面が傾いた頬の外側では上の fade が半分だけ効いて薄まり、
+            #   * 平面投影なので奥行き方向へ引き伸ばされ、
+            #
+            # 「輪郭のぼやけた薄い髪の幽霊」になる。しかもこれは正面の
+            # IoUでは捕まらない ―― **幽霊が設定画と一致するので指標は
+            # 上がる**。材質IDで数え直すと、窓の中に7,582pxあった。
+            #
+            # なぞった毛束の輪郭の中は毛束ジオメトリの担当なので塗らない。
+            # 材質の境目はジオメトリが決め、材質の内側だけを絵で描く
+            if _in_hair_xz(pos.x, pos.z):
+                fade = 0.0
             painted = _over(SKIN, pos.x, pos.z, state, fade)
             if painted != SKIN:
                 return painted
@@ -1050,6 +1304,11 @@ def _body_color_no_hand(pos: Vector, normal: Vector, state: int = 0):
         shade = max(shade, 0.50 * _smoothstep(0.800, 0.775, pos.z)
                     * _smoothstep(-0.020, 0.004, pos.y))
         shade = max(shade, 0.25 * _smoothstep(0.010, 0.050, pos.y))       # 後頭部側
+        # 耳は別オブジェクトなので、頭側に残すのは**耳の落ち影だけ**。
+        # 耳の内部(耳輪・耳甲介・耳穴)は耳自身のテクスチャが持つ
+        ear = _ear_shadow(pos)
+        if ear is not None:
+            return ear
         return _lerp3(SKIN, SKIN_SHADE, min(0.75, shade))
 
     # ズボン(ベルトより下)。膝の明るみ・裾だまりの折れ皺・尻の落ち影
@@ -1100,22 +1359,6 @@ def build() -> tuple[list, object]:
     organic = []
     organic.append(C.loft("g_head", HEAD_RINGS))
     organic.append(C.cylinder("g_neck", (0, 0.008, 0.782), 0.024, 0.055))
-    for s in (1, -1):
-        # 耳。設定画は左右で位置が11mmずれて描かれているので、**左右の
-        # 平均**を取って対称に置く(作画の非対称は誤差として扱う。
-        # handbook/modeling-pitfalls.md 1-3c)。実測(設定画):
-        # +x側 x59..81 / -x側 x-68..-50、どちらも z810..850。
-        # 上端はz832で切る。**ボクセル融合で上下に10mmほど膨らむ**ので、
-        # 設定画の耳(z813..851)より短く入れる。設定画では耳の頭は
-        # こめかみの毛束に隠れていて z850 の肌の幅は±54mmしかなく、
-        # 入力をz844まで伸ばしたときは融合後にそこが±64mmになった
-        organic.append(C.loft(f"g_ear{s}", [
-            (0.8100, 0.0030, 0.0040, s * 0.0575, 0.0130),
-            (0.8160, 0.0060, 0.0076, s * 0.0640, 0.0148),
-            (0.8230, 0.0075, 0.0090, s * 0.0670, 0.0155),
-            (0.8290, 0.0064, 0.0078, s * 0.0660, 0.0150),
-            (0.8320, 0.0034, 0.0044, s * 0.0630, 0.0140),
-        ]))
     organic.append(C.loft("g_torso", [
         (0.535, 0.085, 0.055, 0.0, 0.0),
         (0.600, 0.092, 0.058, 0.0, 0.0),
@@ -1298,6 +1541,20 @@ def build() -> tuple[list, object]:
     # いけない**。高さごとに「capより毛束の方が外にあるか」で見る。
     # 面の包含(silhouette_inside)で見ると後頭部が常に外れて判定に
     # ならなかった(実測: 側面33.6%・上面26.1%)
+    # **capが「見えている面」になっていないかも測る。** 輪郭を作って
+    # いなくても、毛束の隙間からcapが広く見えていれば、そこは
+    # 「毛束の集まり」ではなく**つるつるの球**に見える(実測: 背面図の
+    # 髪は毛先の尖りが並ぶのに、モデルの後頭部は球に板を貼った見た目)
+    for ang in (135.0, 180.0):
+        a = math.radians(ang)
+        d = Vector((math.sin(a), math.cos(a), 0.0))
+        rate, hits = C.visible_fraction([cap], clumps, d, cell=0.003)
+        if hits < 100:
+            continue
+        print(f"  [hair] {ang:.0f}° capが露出している割合 {rate:.0%}")
+        assert rate <= CAP_EXPOSED_MAX, \
+            f"{ang:.0f}°でHair Capが露出しすぎ({rate:.0%})。"\
+            f"後頭部が毛束ではなく球に見える"
     over_x = C.wider_than([cap], clumps, axis=0, min_width=0.045)
     over_y = C.wider_than([cap], clumps, axis=1, min_width=0.045)
     print(f"  [hair] capが輪郭を作る高さ 正面{over_x:.0%} 側面{over_y:.0%}")
@@ -1310,6 +1567,83 @@ def build() -> tuple[list, object]:
     # 側面が高いのは正しい(仕様2-5: 後頭部の中央はCap主体)。
     # 見るのは正面。ここが0でないと「輪郭を作るのは毛先」になっていない
     assert over_x < 0.05, f"Hair Capが正面の輪郭を作っている({over_x:.0%})"
+
+    # ================= 耳(独立オブジェクト) =================
+    # **耳は頭へ融合しない。** sculpt_merge(voxel 3.8mm)は薄い板を
+    # +2〜3mmの尾根へ潰すので、耳の形そのものが残らない。融合を外すと
+    # 半厚2mmの板がそのまま出るうえ、材質の境目=ジオメトリの境目に
+    # なるので、頭のテクスチャへ耳の色を焼く必要も無くなる。
+    # 中ほどは頭へ食い込ませ、前後の縁だけが頭から離れる置き方にする
+    # **細い段ほど深く埋める。** 耳の板は一段ごとに1つのxしか持てないが、
+    # 頭は前後に丸いので、前後へ細くなる段(上端と耳たぶ)は同じxだと
+    # 頭の表面を突き抜けて**継ぎ目の線**になる(実測: 耳の下から線が
+    # 1本伸びた)。前後に広い段=張り出す段、細い段=付け根、と考える
+    ears = [C.section_loft(f"g_ear{s:+.0f}", _ear_sections(s))
+            for s in (1.0, -1.0)]
+
+    # **耳は横髪の位置決めガイド。** 耳単体を豪華にするより、正面・側面・
+    # 3/4での見え方(可視率)が設定画の重なりに合っているかを見る
+    # (plan/models/garudo-ear-as-anchor.md)。耳は独立オブジェクトなので
+    # そのまま測れる
+    ear_hi = C.bounds(ears)[1]
+    hair_hi = max(abs(C.bounds(clumps)[0].x), C.bounds(clumps)[1].x)
+    # 上1/3だけの板は測るためだけに作ってすぐ捨てる
+    # **「上1/3」は耳の高さから計算する。** 0.8450 と決め打ちにしていたが、
+    # 耳は z0.8095〜0.8515 なので、それは上1/3ではなく**上15%**だった。
+    # 板が細くなり光線が12本しか当たらず、0%と15%の区別が付かない
+    z_lo, z_hi = EAR_RINGS[0][0], EAR_RINGS[-1][0]
+    z_top = z_lo + (z_hi - z_lo) * 2.0 / 3.0
+    top = C.loft("ear_top_probe", [(z, rx, ry, -(_head_at(z)[0] - 0.0005), cy)
+                                   for z, rx, ry, cy in EAR_RINGS if z >= z_top])
+    seen, seen_top = {}, {}
+    for ang in (0.0, 45.0, 90.0):
+        a = math.radians(ang)
+        d = Vector((math.sin(a), math.cos(a), 0.0))
+        seen[ang] = C.visible_fraction(ears, clumps + [cap], d, cell=0.0015)[0]
+        seen_top[ang] = C.visible_fraction([top], clumps + [cap], d, cell=0.0008)[0]
+        print(f"  [ear] {ang:.0f}° 耳が見える割合 {seen[ang]:.0%}"
+              f"(上1/3は {seen_top[ang]:.0%})")
+    bpy.data.objects.remove(top, do_unlink=True)
+    # 帯は設定画から決める。**正面では耳はかなり見えている** ―― 肌の外端が
+    # z852で54.5mm・z848で77.0mmと一段で飛ぶので、隠れるのは上端だけ。
+    # 側面では逆にこめかみの毛束が上端と外側を覆う
+    assert 0.40 <= seen[0.0] <= 0.90, f"正面の耳の見え方が不自然({seen[0.0]:.0%})"
+    # **外部評価の受け入れ条件そのまま**(側面で耳の60〜80%が読める)。
+    # 0.50〜0.90に緩めていたせいで、実際には55%しか見えず「耳」ではなく
+    # 「縦の切れ込み」に見える状態を通していた。見た目を目で判断して
+    # 直そうとする前に、まず基準を評価の言葉どおりに締める
+    assert 0.60 <= seen[90.0] <= 0.80, f"側面で耳が読めない({seen[90.0]:.0%})"
+    # 3/4は正面と側面の間に入るはず(角度に対して単調)
+    assert seen[90.0] - 0.05 <= seen[45.0] <= seen[0.0] + 0.05, \
+        f"3/4の耳の見え方が正面・側面の間に無い({seen[45.0]:.0%})"
+    # **耳の上1/3は横髪に「自然に」覆わせる。** 上限だけ見ていたときは
+    # 0%(=完全に埋まっている)でも通っていた。評価の言葉は「自然に覆う」
+    # なので、少し覗いているところまでを含めて帯で見る
+    assert 0.08 <= seen_top[45.0] <= 0.35, \
+        f"3/4での耳の上の覆われ方が不自然({seen_top[45.0]:.0%})"
+    # 耳の外端が髪の最大シルエットを超えると、頭部の横幅が妙に広く見える
+    assert abs(ear_hi.x) <= hair_hi + 1e-4, \
+        f"耳の外端({abs(ear_hi.x)*1000:.1f}mm)が髪({hair_hi*1000:.1f}mm)より外にある"
+    # **耳の内側の影が肌と分離して見えること。** 同じベタ色だと
+    # 「肌が露出している」に見え、1段暗い色が入ると「構造物がある」と読める
+    # 頬は頭のテクスチャ、耳穴は**耳のテクスチャ**から引く(耳を別材質へ
+    # 分けたので、同じ関数からは取れない)
+    cheek = _body_color(Vector((0.055, -0.020, 0.836)), Vector((1, 0, 0)), 0)
+    canal = _ear_color(Vector((0.070, 0.0065, 0.8305)), Vector((1, 0, 0)))
+    gap = max(cheek) - max(canal)
+    print(f"  [ear] 頬と耳穴の明度差 {gap:.2f}")
+    assert gap >= 0.25, f"耳の内側が肌と分離していない(明度差{gap:.2f})"
+
+    ear = C.join(ears, "garudo_ear")
+    # **耳の法線も頭の球へ寄せる**(規約4)。本体には掛けてあるので、耳
+    # だけ素のスムーズシェーディングだと、下half分が鋭いハイライトの
+    # 三角形に光って「ヒレ」に見えた(実測: 分離した1回目)。耳の凹凸は
+    # 塗りで描いているので、法線は頭と揃えてよい
+    C.spherize_normals(ear, tuple(FACE_C), radius=0.16, strength=0.85)
+    C.smart_uv(ear)
+    ear_img = C.bake_albedo(ear, _ear_color, size=128, name="garudo_ear_tex")
+    C.assign_material(ear, C.make_textured_material("garudo_ear", ear_img,
+                                                    roughness=0.8))
 
     hair = C.join([cap] + clumps, "garudo_hair")
     # 髪も手描き: 上を明るく・房の流れの筋(3D位置から描くのでSmart UVの
@@ -1580,9 +1914,10 @@ def build() -> tuple[list, object]:
             eb.align_roll(x_target.cross(y_axis))
     bpy.ops.object.mode_set(mode="OBJECT")
     C.parent_to_bone(hair, armature, "neck-head")
+    C.parent_to_bone(ear, armature, "neck-head")
     for group_name, bone in pinned:
         C.pin_weight_to_bone(mesh, group_name, bone)
-    return [mesh, armature, hair], armature
+    return [mesh, armature, hair, ear], armature
 
 
 def animations() -> list[tuple[str, list]]:

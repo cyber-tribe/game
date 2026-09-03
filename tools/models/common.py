@@ -241,6 +241,47 @@ def loft(name: str, rings, segments: int = 16, smooth: bool = True,
     return obj
 
 
+def section_loft(name: str, sections, smooth: bool = True,
+                 cap_top: bool = True, cap_bottom: bool = True
+                 ) -> "bpy.types.Object":
+    """
+    **断面の形を呼び出し側が決める**ロフト。sectionsは、同じ個数・同じ
+    向きで並べた閉じた断面((x,y,z)の列)のリスト。
+
+    `loft` の断面は楕円なので、必ず中央が厚く縁が薄い**レンズ**になる。
+    耳の耳輪のように**縁が隆起して中央が窪む**断面はそれでは作れない
+    (実測: 楕円断面の耳は「淡い楕円」にしか見えず、耳輪の稜線が
+    立たなかった)。断面の点を直接置けるようにして解いた。
+    """
+    mesh = bpy.data.meshes.new(name)
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj)
+    bm = bmesh.new()
+    n = len(sections[0])
+    rings = [[bm.verts.new(p) for p in sec] for sec in sections]
+    for lower, upper in zip(rings, rings[1:]):
+        for i in range(n):
+            j = (i + 1) % n
+            # 断面の端が潰れている(同じ点)ときは三角形が縮退するので飛ばす
+            quad = [lower[i], lower[j], upper[j], upper[i]]
+            if len({v.index if v.index >= 0 else id(v) for v in quad}) < 3:
+                continue
+            try:
+                bm.faces.new(quad)
+            except ValueError:
+                pass
+    if cap_bottom:
+        bm.faces.new(list(reversed(rings[0])))
+    if cap_top:
+        bm.faces.new(rings[-1])
+    bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
+    bm.to_mesh(mesh)
+    bm.free()
+    for poly in mesh.polygons:
+        poly.use_smooth = smooth
+    return obj
+
+
 def curve_tube(name: str, points, radii, resolution: int = 4,
                bevel_resolution: int = 1) -> "bpy.types.Object":
     """
@@ -2628,3 +2669,62 @@ def depth_order(front, back, direction, cell: float = 0.004) -> tuple[float, int
             if hits[0] < hits[1]:
                 ok += 1
     return (ok / both if both else 1.0), both
+
+
+def visible_fraction(target, occluders, direction, cell: float = 0.002) -> tuple[float, int]:
+    """
+    ある視線方向から見て、`target` が `occluders` に隠されずに見える割合
+    (plan/models/garudo-ear-as-anchor.md)。
+
+    耳のような小さな部品は「有るか無いか」ではなく**どれだけ見えているか**
+    が問題になる。正面では一部だけ・側面では大半が読め・3/4では上が髪に
+    隠れる、という重なりを数字で確かめる。
+
+    `direction` はカメラから被写体へ向かう単位ベクトル。target に当たる
+    光線のうち、手前に occluder が無いものの割合を返す。
+
+    返すのは (見えている割合, targetに当たった光線の数)。
+    """
+    import mathutils
+
+    d = Vector(direction).normalized()
+    lo, hi = bounds(list(target))
+    span = hi - lo
+    origin_mid = (lo + hi) * 0.5 - d * 2.0
+    up = Vector((0.0, 0.0, 1.0))
+    if abs(up.dot(d)) > 0.99:
+        up = Vector((0.0, 1.0, 0.0))
+    ax = d.cross(up).normalized()
+    ay = ax.cross(d).normalized()
+    half = span.length * 0.6
+
+    def tree_of(objs):
+        bm = bmesh.new()
+        for obj in objs:
+            bm.from_mesh(obj.data)
+        t = mathutils.bvhtree.BVHTree.FromBMesh(bm)
+        bm.free()
+        return t
+
+    t_target = tree_of(target)
+    t_occ = tree_of(occluders) if occluders else None
+
+    seen = 0
+    hit = 0
+    n = max(6, int(half * 2.0 / cell))
+    for i in range(n):
+        for j in range(n):
+            u = (i / (n - 1) - 0.5) * 2.0 * half
+            v = (j / (n - 1) - 0.5) * 2.0 * half
+            origin = origin_mid + ax * u + ay * v
+            loc, _nor, _idx, dist = t_target.ray_cast(origin, d)
+            if loc is None:
+                continue
+            hit += 1
+            if t_occ is None:
+                seen += 1
+                continue
+            oloc, _n2, _i2, odist = t_occ.ray_cast(origin, d)
+            if oloc is None or odist > dist:
+                seen += 1
+    return (seen / hit if hit else 0.0), hit

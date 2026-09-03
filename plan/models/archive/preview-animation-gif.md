@@ -58,7 +58,7 @@ idle(1.5秒)→ walk(1.5秒)→ attack(1回)→ hit(1回)→ die(1回)→ idle �
 
 ### 4. README・CIへの反映
 
-- `tools/preview/README.md` の生成テンプレートを、PNG参照から
+- `tools/preview/engine/README.md` の生成テンプレートを、PNG参照から
   GIF参照に差し替える(GitHubはmarkdown内の `.gif` をそのまま
   アニメーション表示する)。
 - `models.yml` の自動コミットフローは変更不要(対象拡張子が
@@ -70,7 +70,7 @@ idle(1.5秒)→ walk(1.5秒)→ attack(1回)→ hit(1回)→ die(1回)→ idle �
 
 ## 受け入れ基準
 
-1. GitHub上で `tools/preview/README.md` を開くと、各モデルの
+1. GitHub上で `tools/preview/engine/README.md` を開くと、各モデルの
    GIFがアニメーションして表示され、idle・walk・attack・hit・die
    の一連の動きが確認できる。
 2. スメア・ヒットストップ・タメツメ・二次揺れなど、動きに関わる
