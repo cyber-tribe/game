@@ -45,166 +45,366 @@ def eyeball(name: str, center, radius: float, look=(0.0, -1.0, 0.0),
 
 # =========================================================================== ぷるん
 
-PURUN_JOINTS = {
-    "base": (0.0, 0.0, 0.08),
-    "mid": (0.0, 0.0, 0.20),
-    "top": (0.0, 0.0, 0.33),
+# 設定画(design/characters/purun/generated/purun-sheet.png)の三面図の実測値。
+# 計測の手順と生の数字は plan/models/purun-remake.md。
+PURUN_HEIGHT = 0.300          # 高さ(設定画「約30cm」・正面図175px)
+PURUN_HALF_W = 0.1575         # 最大半幅(正面図185px = 幅0.315m)
+PURUN_DEPTH = 0.885           # 奥行き / 幅(側面図162px ÷ 正面図185px)
+
+# 正面図の輪郭。(上からの割合, 最大幅に対する比)。上半分は素直なドーム、
+# 下2割で一度ふくらんで(裾)すぐ内側へ巻き込む。頂点付近の3リングだけは
+# 実測点の間隔が粗いので球冠の w∝√t で補った(そうしないと頭頂が尖る)
+PURUN_PROFILE = [
+    (0.000, 0.038), (0.002, 0.077), (0.005, 0.121), (0.010, 0.172),
+    (0.020, 0.235),
+    (0.050, 0.384), (0.100, 0.508), (0.150, 0.600), (0.200, 0.676),
+    (0.250, 0.730), (0.300, 0.768), (0.350, 0.805), (0.400, 0.827),
+    (0.450, 0.849), (0.500, 0.859), (0.550, 0.870), (0.600, 0.870),
+    (0.650, 0.881), (0.700, 0.881), (0.750, 0.892), (0.800, 0.946),
+    (0.850, 1.000), (0.900, 0.978), (0.950, 0.816), (0.980, 0.700),
+    (1.000, 0.620),
+]
+
+PURUN_EYE_Z = 0.150           # 目の高さ(体の上から50%)
+PURUN_EYE_X = 0.0434          # 目の中心の左右位置(中心間87mm)
+PURUN_EYE_HALF_W = 0.0107     # 目の半幅(幅21mm)
+PURUN_EYE_HALF_H = 0.0300     # 目の半分の高さ(高さ60mm)
+
+# カラーパレット欄と正面図の実測(plan/models/purun-remake.md)。
+# ここに書くのは**設定画で測った色そのまま**で、実際に焼くアルベドは
+# 下の _purun_albedo() を通したもの
+PURUN_SHEET = {
+    "main": (0.788, 0.859, 0.894),      # メイン(体)の明部 #c9dbe4
+    "mid": (0.678, 0.776, 0.835),       # 中間 #adc6d5
+    "shadow": (0.514, 0.612, 0.706),    # 影 #839cb4
+    "hilight": (0.969, 0.957, 0.933),   # ハイライト #f7f4ee
+    "bubble": (0.855, 0.894, 0.933),    # 気泡・揺らぎ #dae4ee
+    "iris": (0.855, 0.847, 0.921),      # 揺らぎに混ざる藤色
+    "eye": (0.212, 0.318, 0.514),       # 目の紺
 }
-PURUN_RADII = {"base": 0.29, "mid": 0.25, "top": 0.09}
+
+# ダンジョンの照明は暖色(キー光+プレイヤーの松明 #ffd2a6)なので、
+# 設定画の色をそのまま焼くと**実機では灰色に見える**。ターンテーブルで
+# 実測したところ、赤道の青(#adc6d5、R-B差40)が画面では #a9aebc
+# (R-B差19)まで色が抜けていた。彩度をあらかじめ上げておく。
+PURUN_CHROMA = 1.95
+
+
+def _purun_albedo(color):
+    """設定画で測った色を、実機の照明の下で設定画どおりに見える色へ直す。"""
+    luma = 0.3 * color[0] + 0.59 * color[1] + 0.11 * color[2]
+    return tuple(min(1.0, max(0.0, luma + (c - luma) * PURUN_CHROMA))
+                 for c in color)
+
+
+PURUN_MAIN = _purun_albedo(PURUN_SHEET["main"])
+PURUN_MID = _purun_albedo(PURUN_SHEET["mid"])
+PURUN_SHADOW = _purun_albedo(PURUN_SHEET["shadow"])
+PURUN_HILIGHT = PURUN_SHEET["hilight"]      # 白は彩度を上げない
+PURUN_BUBBLE = _purun_albedo(PURUN_SHEET["bubble"])
+PURUN_IRIS = _purun_albedo(PURUN_SHEET["iris"])
+# 目だけは彩度補正を掛けない。掛けたら実機で #1a53b5 の派手な青になり、
+# 設定画の落ち着いた紺(#496c94)から大きく外れた。暗い色は明るい色ほど
+# 照明で色が抜けないので、補正がそのまま過剰になる
+PURUN_EYE_COLOR = (0.330, 0.460, 0.620)
+
+PURUN_JOINTS = {
+    "base": (0.0, 0.0, 0.050),
+    "mid": (0.0, 0.0, 0.130),
+    "top": (0.0, 0.0, 0.220),
+}
+PURUN_RADII = {"base": 0.150, "mid": 0.130, "top": 0.060}
 PURUN_BONES = [("base", "mid"), ("mid", "top")]
+
+# 裾の波(ロブ)。設定画の裾は6山で波打っている。1.0を超えないよう
+# **内側にだけ**削る: 設定画から測った最大幅は「山の頂点」の幅なので、
+# 外へ膨らませると実測より太る
+PURUN_LOBE_TOP = 0.048        # この高さから下だけ波打たせる
+PURUN_LOBE_MAIN = 0.030       # 6山の深さ(半径比)
+PURUN_LOBE_SUB = 0.011        # 10山の重ね(半径比)
+PURUN_HEM_NOTCH = 0.013       # 谷で裾を持ち上げる量(m)
+PURUN_HEM_NOTCH_TOP = 0.032   # 持ち上げが効く高さ
+
+# 表面の気泡(方位角°, 高さの割合, 半径m, 濃さ)。設定画では大小の淡い粒が
+# 体じゅうに散っている
+PURUN_BUBBLES = [
+    (-118.0, 0.72, 0.013, 1.00), (-64.0, 0.60, 0.008, 0.85),
+    (-38.0, 0.30, 0.011, 0.95), (-150.0, 0.34, 0.009, 0.80),
+    (18.0, 0.52, 0.012, 0.90), (52.0, 0.24, 0.008, 0.75),
+    (96.0, 0.66, 0.010, 0.85), (140.0, 0.42, 0.013, 0.95),
+    (-92.0, 0.18, 0.007, 0.70), (8.0, 0.14, 0.009, 0.80),
+    (172.0, 0.20, 0.008, 0.75), (-14.0, 0.80, 0.007, 0.70),
+    (-160.0, 0.62, 0.010, 0.85), (-46.0, 0.46, 0.007, 0.70),
+    (68.0, 0.44, 0.010, 0.85), (120.0, 0.24, 0.009, 0.80),
+    (-104.0, 0.38, 0.008, 0.75), (152.0, 0.68, 0.009, 0.80),
+]
+
+# 輪郭だけ見える大きめの気泡(設定画の右下・左下にある丸い泡)。
+# (方位角°, 高さの割合, 半径m)
+PURUN_RING_BUBBLES = [(-58.0, 0.13, 0.019), (46.0, 0.19, 0.024)]
+
+
+def _purun_radius(z: float) -> tuple[float, float]:
+    """高さzでの (半幅rx, 半奥行きry)。PURUN_PROFILEの線形補間。"""
+    t = max(0.0, min(1.0, 1.0 - z / PURUN_HEIGHT))
+    rel = PURUN_PROFILE[-1][1]
+    for (t0, w0), (t1, w1) in zip(PURUN_PROFILE, PURUN_PROFILE[1:]):
+        if t0 <= t <= t1:
+            k = 0.0 if t1 == t0 else (t - t0) / (t1 - t0)
+            rel = w0 + (w1 - w0) * k
+            break
+    rx = rel * PURUN_HALF_W
+    return rx, rx * PURUN_DEPTH
+
+
+def _purun_normal(pos) -> "Vector":
+    """
+    体表の解析的な法線。**メッシュ法線を使わない**のは、しきい値で塗り
+    分けると面ごとに跳ねて境界が島に割れるため(handbook/
+    modeling-pitfalls.md、ガルドの顔デカールで実測)。
+    """
+    rx, ry = _purun_radius(pos.z)
+    if rx < 1e-6:
+        return Vector((0.0, 0.0, 1.0))
+    dz = 0.004
+    rx_up, _ = _purun_radius(min(PURUN_HEIGHT, pos.z + dz))
+    rx_dn, _ = _purun_radius(max(0.0, pos.z - dz))
+    drdz = (rx_up - rx_dn) / (2 * dz)
+    horiz = Vector((pos.x / (rx * rx), pos.y / (ry * ry), 0.0))
+    if horiz.length_squared < 1e-14:
+        return Vector((0.0, 0.0, 1.0))
+    horiz.normalize()
+    return Vector((horiz.x, horiz.y, -drdz)).normalized()
+
+
+def _purun_eye_center(sign: float) -> "Vector":
+    """目の中心(体表の点)。左右の間隔が設定画の実測どおりになる。"""
+    rx, ry = _purun_radius(PURUN_EYE_Z)
+    x = PURUN_EYE_X * sign
+    y = -ry * math.sqrt(max(0.0, 1.0 - (PURUN_EYE_X / rx) ** 2))
+    return Vector((x, y, PURUN_EYE_Z))
+
+
+def _purun_smooth(a: float, b: float, x: float) -> float:
+    t = max(0.0, min(1.0, (x - a) / (b - a) if b != a else 0.0))
+    return t * t * (3.0 - 2.0 * t)
+
+
+def _purun_mix(c0, c1, t: float):
+    return tuple(a + (b - a) * t for a, b in zip(c0, c1))
+
+
+def _purun_local(pos, center) -> tuple[float, float]:
+    """
+    体表の点posの、centerから見た (水平の弧長, 高さの差)。
+    体は回転体なので方位角の差に半径を掛ければ弧長になる。
+    """
+    a_pos = math.atan2(pos.x, -pos.y)
+    a_ctr = math.atan2(center.x, -center.y)
+    d_az = (a_pos - a_ctr + math.pi) % math.tau - math.pi
+    rx, _ = _purun_radius(center.z if hasattr(center, "z") else pos.z)
+    return d_az * rx, pos.z - center.z
+
+
+def _purun_color(pos, _face_normal):
+    """
+    体のアルベド。「半透明のゼリー」を**塗りで**作る。
+
+    - 上を向いた面ほど明るく、水平を向いた面(=どの向きから見ても輪郭に
+      なる帯)ほど濃い青。透明体は縁ほど厚みが重なって濃く見えるので、
+      これがゼリーらしさの中心になる。
+    - 裾の下端は光が回り込むので明るく戻す。
+    - ハイライト・気泡・目は**シルエットに効かない**のでジオメトリにせず
+      ここで描く(旧版は板と球で作っていて、実機で斑に浮いていた)。
+    """
+    n = _purun_normal(pos)
+    t = pos.z / PURUN_HEIGHT
+
+    # 上を向いた面ほど明るい。**縁を濃くしすぎない**のが要点で、
+    # 焼き込んだ濃さは向きに依らず出てしまうため、強くすると正面から
+    # 見た体の真ん中まで暗くなる(最初に作ったときは赤道が#8ba3baまで
+    # 沈み、設定画の#adc6d5から大きく外れていた)
+    # 濃淡は控えめにする。トゥーンの階調は4段(TOON_GRADIENT_STEPS)しか
+    # なく、アルベドの上下方向のグラデが照明の段差と同じ向きに重なると
+    # 段差が二重になって「水位線」に見える
+    up = _purun_smooth(0.05, 0.80, n.z)
+    col = _purun_mix(PURUN_MID, PURUN_MAIN, up * 0.45)
+    col = _purun_mix(col, PURUN_SHADOW, _purun_smooth(0.58, 0.20, t) * 0.28)
+    col = _purun_mix(col, PURUN_MAIN, _purun_smooth(0.14, 0.02, t) * 0.35)
+
+    az = math.atan2(pos.x, -pos.y)
+    rx, _ = _purun_radius(pos.z)
+
+    for b_az, b_t, b_r, b_k in PURUN_BUBBLES:
+        d_az = (az - math.radians(b_az) + math.pi) % math.tau - math.pi
+        d = math.hypot(d_az * rx, (t - b_t) * PURUN_HEIGHT * 0.85)
+        if d < b_r:
+            tint = PURUN_IRIS if b_r > 0.010 else PURUN_BUBBLE
+            tint = _purun_mix(PURUN_BUBBLE, tint, 0.35)
+            col = _purun_mix(col, tint,
+                             (1.0 - _purun_smooth(b_r * 0.45, b_r, d)) * b_k * 0.85)
+
+    for r_az, r_t, r_r in PURUN_RING_BUBBLES:
+        d_az = (az - math.radians(r_az) + math.pi) % math.tau - math.pi
+        d = math.hypot(d_az * rx, (t - r_t) * PURUN_HEIGHT)
+        if d < r_r * 1.15:
+            # 縁は明るく、内側もごくわずかに明るい(ガラス玉の見え方)
+            edge = 1.0 - _purun_smooth(0.0, 0.16, abs(d / r_r - 0.92))
+            col = _purun_mix(col, PURUN_BUBBLE, edge * 0.7)
+            if d < r_r * 0.85:
+                col = _purun_mix(col, PURUN_MAIN, 0.18)
+
+    # 大きな白いつや(左上・正面寄り)と、小さい虹色の玉(右上)
+    for h_az, h_t, h_w, h_h, h_k, h_col in (
+        (-42.0, 0.80, 0.034, 0.021, 1.00, PURUN_HILIGHT),
+        (38.0, 0.70, 0.022, 0.016, 0.60, PURUN_IRIS),
+    ):
+        d_az = (az - math.radians(h_az) + math.pi) % math.tau - math.pi
+        d = math.hypot(d_az * rx / h_w, (t - h_t) * PURUN_HEIGHT / h_h)
+        if d < 1.0:
+            col = _purun_mix(col, h_col, (1.0 - _purun_smooth(0.55, 1.0, d)) * h_k)
+
+    # 目: 縦長の紺の楕円。設定画では体の中に浮いていて起伏がなく、
+    # シルエットにも触れないので塗りで描く。体は毎フレーム大きく潰れる
+    # ので、別パーツにすると表面の上を滑ってしまう
+    for sign in (-1.0, 1.0):
+        dx, dz = _purun_local(pos, _purun_eye_center(sign))
+        d = math.hypot(dx / PURUN_EYE_HALF_W, dz / PURUN_EYE_HALF_H)
+        if d < 1.06:
+            col = _purun_mix(col, PURUN_EYE_COLOR,
+                             1.0 - _purun_smooth(0.86, 1.06, d))
+            # 光の粒(上寄り・左)。設定画では左右とも左上に入っている
+            g = math.hypot((dx / PURUN_EYE_HALF_W + 0.30) / 0.30,
+                           (dz / PURUN_EYE_HALF_H - 0.60) / 0.16)
+            if g < 1.0:
+                col = _purun_mix(col, PURUN_HILIGHT,
+                                 1.0 - _purun_smooth(0.30, 1.0, g))
+    return col
 
 
 def build_purun():
     """
-    確定した設定画(design/characters/purun/generated/purun-sheet.png、
-    ユーザー提供)に合わせた造形。様式化スライムの定石
-    (外殻+内核の二層・エミッシブによる偽の透明感・縁ほど濃い
-    フレネル近似)をトゥーンパイプラインの制約内で組む:
+    新しい設定画(design/characters/purun/generated/purun-sheet.png、
+    ユーザー提供)に合わせた造形。仕様と実測値は
+    plan/models/purun-remake.md。
 
-    - **縦長の雫+薄く波打つ裾**。
-    - **二層の半透明**: 薄い外殻(alpha0.45)+ひと回り小さい内核
-      (alpha0.85)で、ゲルの「厚み」を出す。
-    - **フレネル近似**: 外殻の頂点カラーに「縁(法線が水平)ほど
-      濃い青、中央ほど白」を焼き、透明体の縁の密度を偽装する。
-    - **目のキラキラ**: 濃青の楕円+下半分の明るいコバルトの潤み層+
-      白い光の粒(大小2つ、発光)。設定画の目の透明感の核心。
-    - 体内の虹色パステルの塊と発光気味の泡が半透明の体越しに見える。
+    - **横に広いドーム**(高さ0.300m・幅0.315m・奥行き0.279m)。
+      正面図から測った輪郭をそのままリングにして積む。
+    - **裾**は下2割でふくらんでから内側へ巻き込み、6山に波打つ。
+      接地面は平ら(設定画「地面に触れると少し広がる」)。
+    - **不透明**。旧版は外殻alpha0.45+内核alpha0.85の二層だったが、
+      実機では青が飛んで白いドングリになっていた。半透明感は
+      「縁ほど濃い青・大きな白いつや・内部の気泡」という**塗り**で出す
+      (設定画のカラーパレット自体が不透明な4色で組まれている)。
+    - **口は無い**。設定画の表情10種のどれにも無い。
     """
-    rings = [
-        (0.002, 0.290, 0.290, 0.0, 0.0),   # 裾の縁(薄い)
-        (0.009, 0.296, 0.296, 0.0, 0.0),   # 裾の盛り上がり(薄く)
-        (0.026, 0.230, 0.230, 0.0, 0.0),   # 裾の上のくびれ(体本体へ)
-        (0.080, 0.224, 0.224, 0.0, 0.0),
-        (0.160, 0.216, 0.216, 0.0, 0.0),
-        (0.250, 0.206, 0.206, 0.0, 0.0),
-        (0.330, 0.186, 0.186, 0.0, 0.004),
-        (0.400, 0.140, 0.140, 0.0, 0.008),
-        (0.445, 0.078, 0.078, 0.0, 0.010),
-        (0.462, 0.030, 0.030, 0.0, 0.012),  # ふっくらした頭頂
-    ]
+    rings = []
+    for t, w in reversed(PURUN_PROFILE):
+        z = PURUN_HEIGHT * (1.0 - t)
+        rx = w * PURUN_HALF_W
+        rings.append((z, rx, rx * PURUN_DEPTH, 0.0, 0.0))
+    body = C.loft("purun", rings, segments=32)
 
-    def lobed(obj):
-        """裾のロブ: 下のほうの頂点を角度ごとに揺らす。"""
-        for vert in obj.data.vertices:
-            if vert.co.z < 0.030:
-                t = 1.0 - vert.co.z / 0.030
-                angle = math.atan2(vert.co.y, vert.co.x)
-                factor = 1.0 + t * (0.065 * math.sin(3 * angle + 0.7)
-                                    + 0.045 * math.sin(5 * angle + 2.1))
-                vert.co.x *= factor
-                vert.co.y *= factor
+    # 裾の波。内側にだけ削るので、設定画から測った最大幅を超えない
+    for vert in body.data.vertices:
+        if vert.co.z < PURUN_LOBE_TOP:
+            k = (1.0 - vert.co.z / PURUN_LOBE_TOP) ** 2
+            angle = math.atan2(vert.co.y, vert.co.x)
+            cut = (PURUN_LOBE_MAIN * (0.5 - 0.5 * math.cos(6 * angle))
+                   + PURUN_LOBE_SUB * (0.5 - 0.5 * math.cos(10 * angle + 1.1)))
+            factor = 1.0 - k * cut
+            vert.co.x *= factor
+            vert.co.y *= factor
+            # 谷では裾そのものを持ち上げ、下端を波形に切る(設定画の裾は
+            # カーテンのように山と谷がはっきり分かれている)
+            if vert.co.z < PURUN_HEM_NOTCH_TOP:
+                valley = 0.5 - 0.5 * math.cos(6 * angle)
+                vert.co.z += (PURUN_HEM_NOTCH * valley
+                              * (1.0 - vert.co.z / PURUN_HEM_NOTCH_TOP))
 
-    body = C.loft("purun", rings, segments=20)
-    lobed(body)
-    C.assign_material(body, C.make_material("purun_body", (0.97, 0.98, 1.0),
-                                            roughness=0.08, alpha=0.45))
+    # 「ぷにぷにした体」のゆるい凹み。設定画のぷるんは真円の回転体では
+    # なく、ゆるく波打っている。**これは見た目の好みではなく必要な形**で、
+    # 完全な回転体だと法線が高さだけで決まり、4段しかないトゥーンの階調の
+    # 境目が**定規で引いたような水平線**になって胴を切ってしまう。
+    # 裾のロブと同じく内側にだけ削るので、設定画から測った最大幅は動かない
+    for vert in body.data.vertices:
+        t = min(1.0, max(0.0, vert.co.z / PURUN_HEIGHT))
+        angle = math.atan2(vert.co.y, vert.co.x)
+        env = math.sin(math.pi * t) ** 0.7
+        cut = (0.030 * (0.5 - 0.5 * math.cos(3 * angle + 1.1))
+               + 0.016 * (0.5 - 0.5 * math.cos(5 * angle - 2.0 + 4.0 * t)))
+        factor = 1.0 - cut * env
+        vert.co.x *= factor
+        vert.co.y *= factor
+    body.data.update()
 
-    # 内核: ひと回り小さい同形。外殻越しに見え、ゲルの厚みになる
-    core_rings = [(z * 0.93 + 0.008, rx * 0.82, ry * 0.82, cx, cy)
-                  for z, rx, ry, cx, cy in rings]
-    core = C.loft("purun_core", core_rings, segments=16)
-    lobed(core)
-    C.assign_material(core, C.make_material("purun_core_m", (0.72, 0.83, 0.96),
-                                            roughness=0.15, alpha=0.85))
+    # 法線を「体の底に中心を置いた大きな球」へ寄せる
+    # (handbook/hand-painted-standard.md 規約4)。素の回転体の法線だと
+    # n.zが高さだけで決まるため、4段しかないトゥーンの階調の境目が
+    # **真横一直線の「水位線」**になって胴を切ってしまう。中心を下げると
+    # 面がおおむね上を向き、階調の境目は裾のほうへ寄って目立たなくなる。
+    # 頭頂の平らなキャップの折り目も同時に消える
+    C.spherize_normals(body, (0.0, 0.0, 0.0), strength=0.5)
 
-    extras = [core]
-    # 体内の虹色(内核よりさらに内側。半透明二層越しに淡くにじむ)
-    for name, center, radius, color, scale in (
-        ("purun_iri_pink", (-0.075, -0.02, 0.150), 0.085, (0.95, 0.80, 0.90), (1.1, 1.0, 0.9)),
-        ("purun_iri_lav", (0.080, 0.035, 0.210), 0.075, (0.83, 0.78, 0.95), (1.0, 1.0, 1.0)),
-        ("purun_iri_blue", (0.012, 0.055, 0.305), 0.088, (0.70, 0.82, 0.97), (1.15, 1.0, 0.85)),
-        ("purun_iri_pink2", (0.02, -0.05, 0.060), 0.070, (0.95, 0.85, 0.90), (1.3, 1.1, 0.7)),
-    ):
-        blob = C.uv_sphere(name, center, radius, segments=12, rings=9, scale=scale)
-        C.assign_material(blob, C.make_material(f"{name}_m", color, roughness=0.3,
-                                                emission=0.05))
-        extras.append(blob)
+    C.smart_uv(body)
+    tex = C.bake_albedo(body, _purun_color, size=512, name="purun_tex")
+    C.assign_material(body, C.make_textured_material("purun_body", tex,
+                                                     roughness=0.32))
 
-    # 体内の泡(発光気味の小球。透けて見えるキラキラの一部)
-    bubble_mat = C.make_material("purun_bubble", (0.93, 0.96, 1.0), roughness=0.15,
-                                 emission=0.18)
-    for i, (bx, by, bz, br) in enumerate(((0.10, -0.05, 0.36, 0.020),
-                                          (-0.12, 0.02, 0.27, 0.016),
-                                          (0.04, 0.09, 0.12, 0.018),
-                                          (-0.05, -0.09, 0.21, 0.013))):
-        bubble = C.uv_sphere(f"purun_bubble{i}", (bx, by, bz), br,
-                             segments=10, rings=8)
-        C.assign_material(bubble, bubble_mat)
-        extras.append(bubble)
+    _purun_check(body)
 
-    # 白いつやのハイライト(頭頂の左上。表面法線に沿う薄いレンズ)
-    sheen_z = 0.408
-    ring_r, dr_dz = 0.0, 0.0
-    for (z0, r0, *_), (z1, r1, *_) in zip(rings, rings[1:]):
-        if z0 <= sheen_z <= z1:
-            ring_r = r0 + (r1 - r0) * (sheen_z - z0) / (z1 - z0)
-            dr_dz = (r1 - r0) / (z1 - z0)
-            break
-    d = Vector((-0.5, -0.86, 0.0)).normalized()
-    normal = Vector((d.x, d.y, -dr_dz)).normalized()
-    sheen = C.uv_sphere("purun_sheen", (0.0, 0.0, 0.0), 0.040,
-                        segments=12, rings=8, scale=(1.35, 0.30, 0.85))
-    sheen.rotation_euler = (-normal).to_track_quat("Y", "Z").to_euler()
-    sheen.location = d * ring_r + Vector((0.0, 0.0, sheen_z)) - normal * 0.006
-    C.assign_material(sheen, C.make_material("purun_sheen_m", (0.97, 0.98, 1.0),
-                                             roughness=0.12, emission=0.22))
-    extras.append(sheen)
+    armature = C.build_armature("purun", C.mirrored(PURUN_JOINTS), PURUN_BONES,
+                                body, root="base")
+    return [body, armature], armature
 
-    # 目: 濃青の楕円+下半分の潤み層+白い光の粒(大小)。
-    # 設定画の「キラキラした透明感のある目」の様式化
-    eye_navy = C.make_material("purun_eye_navy", (0.17, 0.29, 0.58), roughness=0.15)
-    eye_wet = C.make_material("purun_eye_wet", (0.40, 0.57, 0.88), roughness=0.1)
-    gleam_mat = C.make_material("purun_eye_gleam", (1.0, 1.0, 1.0), roughness=0.1,
-                                emission=0.55)
-    for side in (-1.0, 1.0):
-        ex = 0.082 * side
-        ey = -math.sqrt(max(0.212 ** 2 - ex ** 2, 0.0)) + 0.008
-        oval = C.uv_sphere(f"purun_eye{side}", (ex, ey, 0.270), 0.048,
-                           segments=14, rings=10, scale=(0.80, 0.36, 1.30))
-        C.assign_material(oval, eye_navy)
-        # 潤み層: 目の下半分を明るいコバルトに(下から光が透けるゼリー感)
-        wet = C.uv_sphere(f"purun_eyewet{side}", (ex, ey - 0.006, 0.240), 0.036,
-                          segments=12, rings=8, scale=(0.75, 0.32, 0.85))
-        C.assign_material(wet, eye_wet)
-        # 光の粒: 大(上外側)+小(下内側)
-        big = C.uv_sphere(f"purun_gleam_a{side}", (ex + 0.014 * side, ey - 0.014, 0.298),
-                          0.0145, segments=8, rings=6)
-        small = C.uv_sphere(f"purun_gleam_b{side}", (ex - 0.012 * side, ey - 0.012, 0.246),
-                            0.0075, segments=8, rings=6)
-        C.assign_material(big, gleam_mat)
-        C.assign_material(small, gleam_mat)
-        extras += [oval, wet, big, small]
 
-    # 口: 小さな点
-    mouth = C.uv_sphere("purun_mouth", (0.0, -0.222, 0.190), 0.015,
-                        segments=10, rings=8, scale=(1.2, 0.5, 1.0))
-    C.assign_material(mouth, C.make_material("purun_mouth_m", (0.20, 0.33, 0.64),
-                                             roughness=0.3))
-    extras.append(mouth)
+def _purun_check(body) -> None:
+    """
+    設定画の実測値と合っているかをビルド時に確かめる
+    (handbook/modeling-pitfalls.md「目で見て決めない」)。
+    塗りで描いた目も、色の関数を体表で走査して位置と大きさを測る。
+    """
+    lo, hi = C.bounds([body])
+    height = hi.z - lo.z
+    width = hi.x - lo.x
+    depth = hi.y - lo.y
+    print(f"[purun] 高さ {height:.3f}m 幅 {width:.3f}m 奥行き {depth:.3f}m "
+          f"(設定画 0.300 / 0.315 / 0.279)")
+    assert abs(height - PURUN_HEIGHT) < 0.003, height
+    assert abs(width - PURUN_HALF_W * 2) < 0.006, width
+    assert abs(depth - PURUN_HALF_W * 2 * PURUN_DEPTH) < 0.006, depth
 
-    mesh = C.join([body] + extras, "purun")
+    # 最大幅の出る高さ(設定画では上から85%)
+    widest = max(body.data.vertices, key=lambda v: math.hypot(v.co.x, v.co.y))
+    t_widest = 1.0 - widest.co.z / PURUN_HEIGHT
+    print(f"[purun] 最大幅の高さ 上から{t_widest * 100:.0f}% (設定画 85%)")
+    assert 0.78 <= t_widest <= 0.92, t_widest
 
-    # フレネル近似: 外殻(purun_body材質)の頂点カラーに「縁(法線が
-    # 水平)ほど濃い青、中央ほど白」を焼く。他の材質の面は白のまま
-    # (頂点カラーは材質色に乗算されるため)
-    attr = mesh.data.color_attributes.new("tint", type="BYTE_COLOR", domain="CORNER")
-    mesh.data.color_attributes.active_color = attr
-    body_index = next(i for i, m in enumerate(mesh.data.materials)
-                      if m.name == "purun_body")
-    edge_color = (0.58, 0.72, 0.93)
-    for poly in mesh.data.polygons:
-        is_body = poly.material_index == body_index
-        for li in poly.loop_indices:
-            if not is_body:
-                attr.data[li].color = (1.0, 1.0, 1.0, 1.0)
-                continue
-            n = mesh.data.vertices[mesh.data.loops[li].vertex_index].normal
-            t = abs(n.z) ** 0.7
-            col = [C.srgb_to_linear(e + (1.0 - e) * t) for e in edge_color]
-            attr.data[li].color = (*col, 1.0)
+    # 塗った目の位置と大きさを体表で測る
+    for sign, label in ((-1.0, "右"), (1.0, "左")):
+        xs, zs = [], []
+        for i in range(160):
+            for j in range(120):
+                z = PURUN_HEIGHT * (0.20 + 0.60 * j / 119)
+                rx, ry = _purun_radius(z)
+                a = math.radians(-70.0 + 140.0 * i / 159)
+                p = Vector((rx * math.sin(a), -ry * math.cos(a), z))
+                if p.x * sign <= 0.0:
+                    continue
+                col = _purun_color(p, None)
+                if sum((a - b) ** 2 for a, b in zip(col, PURUN_EYE_COLOR)) < 0.012:
+                    xs.append(p.x)
+                    zs.append(z)
+        assert xs, f"{label}目が塗られていない"
+        cx, cz = sum(xs) / len(xs), sum(zs) / len(zs)
+        print(f"[purun] {label}目 中心 x={cx:+.4f} z={cz:.4f} "
+              f"高さ {max(zs) - min(zs) * 1.0:.4f}")
+        assert abs(abs(cx) - PURUN_EYE_X) < 0.004, cx
+        assert abs(cz - PURUN_EYE_Z) < 0.004, cz
+        assert abs((max(zs) - min(zs)) - PURUN_EYE_HALF_H * 2) < 0.008, \
+            max(zs) - min(zs)
 
-    armature = C.build_armature("purun", C.mirrored(PURUN_JOINTS), PURUN_BONES, mesh, root="base")
-    return [mesh, armature], armature
+    print(f"[purun] 三角形 {C.tri_count([body])}")
 
 
 def purun_animations():
