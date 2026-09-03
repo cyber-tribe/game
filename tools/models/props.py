@@ -20,9 +20,13 @@ STONE_DARK = (0.30, 0.31, 0.36)
 STONE_LIGHT = (0.46, 0.46, 0.50)
 FLOOR_COLOR = (0.35, 0.33, 0.38)
 
-# 第一地方(うたたねの参道)専用の意匠(plan/models/archive/dungeon-region1-tileset.md)
-ROOT_BARK = (0.26, 0.18, 0.12)
-ROOT_BARK_LIGHT = (0.36, 0.26, 0.16)
+# 第一地方(うたたねの参道)専用の意匠(plan/models/archive/dungeon-region1-tileset.md)。
+# 幹(ROOT_BARK系)と床(DIRT_FLOOR)は元々ほぼ同じ暖色の茶色で、明度も
+# 彩度も近く、壁と床の境目が読み取りにくかった(#337の隙間修正後も
+# 残っていた問題)。幹は日の当たらない苔むした根という設定なので、
+# 床より明確に暗く・彩度を落とし緑寄りに振って区別する
+ROOT_BARK = (0.15, 0.14, 0.12)
+ROOT_BARK_LIGHT = (0.21, 0.20, 0.15)
 ROOT_MOSS = (0.23, 0.32, 0.17)
 DIRT_FLOOR = (0.27, 0.21, 0.15)
 
