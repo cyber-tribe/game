@@ -99,7 +99,13 @@ import {
   regionIndexForDungeonId,
 } from "./entities/dungeons";
 import { isYoimatsuri } from "./entities/festivals";
-import { DEFAULT_MOOD_ID, HINATA_MOOD_VISUAL, MOOD_VISUALS, moodForDate } from "./entities/moods";
+import {
+  DEFAULT_MOOD_ID,
+  HINATA_MOOD_VISUAL,
+  MOOD_VISUALS,
+  type MoodVisual,
+  moodForDate,
+} from "./entities/moods";
 import { todayKey } from "./entities/quests";
 import { STORY_CHAPTER_MESSAGES, storyChapter, storyChapterEventId } from "./entities/story";
 import { speciesById } from "./entities/species";
@@ -879,9 +885,23 @@ class App {
     // ないので、ダイブ開始・オートセーブ復帰のこの1回だけで確定させる。
     // ひなたの寝穴(plan/game/tutorial-dungeon.md)だけは、日替わりの気分演出を
     // 上書きして専用の明るい見た目に固定する
-    this.renderer.setMoodVisual(
-      this.game.dungeonId === HINATA_ID ? HINATA_MOOD_VISUAL : MOOD_VISUALS[this.game.moodId],
-    );
+    this.renderer.setMoodVisual(this.currentMoodVisual());
+    this.syncMistColor();
+  }
+
+  /** ダイブ中固定の気分演出値(`presentFloor`とフロア移動時の両方で使う) */
+  private currentMoodVisual(): MoodVisual {
+    return this.game.dungeonId === HINATA_ID ? HINATA_MOOD_VISUAL : MOOD_VISUALS[this.game.moodId];
+  }
+
+  /**
+   * 外周の夢のもやを、その日の気分の霧色へ揃える。`stage.enterFloor`は
+   * フロアを跨ぐたびに`DungeonView`のもやを固定の青(0x8fa0c8)で作り直す
+   * ため、`enterFloor`を呼ぶたびに(気分演出を再設定しない箇所でも)
+   * 呼び直す必要がある(#337追加調査)
+   */
+  private syncMistColor(): void {
+    this.stage.dungeon.setMistColor(this.currentMoodVisual().fogColor);
   }
 
   /**
@@ -1664,6 +1684,7 @@ class App {
       this.applyCostumeTint();
       this.applyCarriedBarrelVisual();
       this.renderer.setFocus(this.game.player.pos, true);
+      this.syncMistColor();
       this.lock = 0.25;
       this.save = recordDeepest(this.save, this.game.depth);
       this.updateDiveBgm();

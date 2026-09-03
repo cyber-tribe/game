@@ -220,13 +220,19 @@ export class DungeonView {
     // もやの間に何もない虚空の隙間ができ「床が空中に浮いて見える」原因に
     // なっていた。境界ぎりぎり(隙間ゼロ)に置き直す
     const margin = 0;
+    // 板の幅だけ四隅の外へ張り出す量。位置(margin)と混ぜて1つの値に
+    // していたときは、marginを0にした際に四隅の重なりも一緒に消えて
+    // しまい、対角線上から覗くと隣の板との継ぎ目に空(夢空)が見える
+    // 隙間ができていた(#337追加調査)。板を置く位置は境界ぎりぎりの
+    // ままにし、幅だけ別に伸ばして四隅で重ねる
+    const cornerOverhang = 1.0;
     const w = floor.width * TILE;
     const h = floor.height * TILE;
     const edges: ReadonlyArray<{ x: number; z: number; width: number; rotY: number }> = [
-      { x: w / 2, z: -margin, width: w + margin * 2, rotY: 0 },
-      { x: w / 2, z: h + margin, width: w + margin * 2, rotY: 0 },
-      { x: -margin, z: h / 2, width: h + margin * 2, rotY: Math.PI / 2 },
-      { x: w + margin, z: h / 2, width: h + margin * 2, rotY: Math.PI / 2 },
+      { x: w / 2, z: -margin, width: w + cornerOverhang * 2, rotY: 0 },
+      { x: w / 2, z: h + margin, width: w + cornerOverhang * 2, rotY: 0 },
+      { x: -margin, z: h / 2, width: h + cornerOverhang * 2, rotY: Math.PI / 2 },
+      { x: w + margin, z: h / 2, width: h + cornerOverhang * 2, rotY: Math.PI / 2 },
     ];
     for (const edge of edges) {
       const mesh = new THREE.Mesh(new THREE.PlaneGeometry(edge.width, mistHeight), material);
@@ -234,6 +240,16 @@ export class DungeonView {
       mesh.rotation.y = edge.rotY;
       this.mistGroup.add(mesh);
     }
+  }
+
+  /**
+   * 夢のもやの色を、その日の気分の霧色(`setMoodVisual`と同じ値)へ揃える。
+   * 固定の青(0x8fa0c8)のままだと、気分の色調と食い違って外周だけ
+   * 唐突に別の色の帯が浮く(#337追加調査)
+   */
+  setMistColor(color: number): void {
+    const firstMist = this.mistGroup.children[0] as THREE.Mesh | undefined;
+    if (firstMist) (firstMist.material as THREE.MeshBasicMaterial).color.setHex(color);
   }
 
   /** 毎ターン呼ぶ。視界に応じた明るさと、落ちているものの増減を反映する */
