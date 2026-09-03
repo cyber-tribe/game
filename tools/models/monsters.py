@@ -7632,44 +7632,56 @@ OONEBOSUKE_BONES = [("base", "mid"), ("mid", "top")]
 
 def build_oonebosuke():
     """
-    確定した設定画(design/characters/oonebosuke/generated/
-    oonebosuke-sheet.png、ユーザー提供)に合わせた造形。眠りこけて
-    起き上がれなくなった、途方もない眠気そのものが人の形を借りた
-    巨体(設定画では約300cm、ガルドの2倍)。
+    新しい設定画(design/characters/oonebosuke/generated/
+    oonebosuke-sheet.png、ユーザー提供)に合わせて作り直した。
+    仕様と実測値は plan/models/oonebosuke-remake2.md。
 
-    plan/models/archive/sculpt-texture-pipeline.md(ツブテガエルで確立)の
-    2体目の適用:
-    - **彫刻式の融合**: 胴+頭のロフト・腿・足・足指・袖・手・親指・
-      鼻・頬をsculpt_mergeで1つの柔らかい塊に融合(眠りの巨体の
-      「布団ごと溶けたような」連続した量感)
-    - **顔と塗り分けはテクスチャ**: かいまき(藤紫)と素肌(淡い
-      土気色)の塗り分け・肌の紫まだら・布の柄の粒・閉じ目の重い
-      まぶた+まつげの線・眉・開いたいびきの口+舌・頬の赤み・へそを
-      bake_albedoで焼き込み(浮くデカールが構造的に無い)
-    - ジオメトリ維持: ナイトキャップ+縁+ぼんぼり+金の三日月と星・
-      乱れ髪・鼻ちょうちん(alpha半透明、purunの手法)
-    - 骨(base/mid/top縦2本)・5クリップは従来のまま
+    **人型キャラクター**であることに寄せて組み直した。最初の再構築
+    (首のくびれを完全に消し、腕をそのまま胴の融合に入れた版)は
+    実機で見ると「顔の付いた壺」になっていた。原因は2つ:
+
+    1. **腕が融合に食われていた**(handbook 3-22「融合が形を食っている
+       なら、その部品は融合から外す」)。胴の半径0.3〜0.45に対し
+       袖の半径0.08前後は voxel=0.012 の前ではほぼ消える薄さで、
+       手の玉だけが胴からポツンと生えて見えた。腕は**胴の融合から
+       外し、腕だけの小さな融合**にして形を残す。
+    2. **肩から首、頭まで一本調子に細くなっていた**。分厚い首の
+       断面が無いと頭と胴の区切りが消える。肩をいったん張り出させ、
+       あご下で軽くくびれてから頭で再び広がる輪にする(くびれは
+       浅く: 深いと今度は棒に刺さった頭に見える。handbook参照)。
+
+    - **彫刻式の融合**は踏襲(plan/models/archive/
+      sculpt-texture-pipeline.md)。胴+頭+腿+足+足指+頬+鼻を
+      1つの塊に融合。腕(袖+手+親指)は左右それぞれ別に融合する。
+    - **帽子**は円錐(ロフト、z単調増加でしか組めない)と、垂れる
+      先端(curve_tube、任意の経路を辿れる)を分離。垂れは肩を
+      大きく越えて腰の高さまで届かせる。
+    - **肌の露出範囲**は正面方向だけに絞った楕円体距離場で判定し、
+      **紫のまだら**をはっきり見える濃さ・密度で焼く。
+    - **着物の柄**は金の星+三日月を高密度に散らす。
     """
-    # 胴体+頭を一続きのロフトで組む(座った洋梨形→肩→丸い頭)
+    # 胴+頭を一続きのロフトで組む(座った洋梨形→肩で張り出し→
+    # あご下で浅くくびれ→頭で再び広がる)。腹のリング(z=0.20〜0.27)の
+    # 前方オフセット(cy)は側面図の実測(腹が体の最前面)に合わせて
+    # 強めてある
     body = C.loft("oonebosuke_base", [
         (0.015, 0.360, 0.310, 0.0, 0.02),
         (0.050, 0.430, 0.365, 0.0, 0.00),
         (0.120, 0.455, 0.400, 0.0, -0.03),
-        (0.200, 0.440, 0.395, 0.0, -0.05),   # 腹の最大張り出し
-        (0.270, 0.400, 0.360, 0.0, -0.04),
-        (0.330, 0.345, 0.310, 0.0, -0.015),
-        (0.380, 0.285, 0.260, 0.0, 0.005),
-        (0.415, 0.225, 0.215, 0.0, 0.0),     # 肩→首の付け根
-        (0.435, 0.185, 0.175, 0.0, -0.02),
-        (0.500, 0.225, 0.210, 0.0, -0.045),  # 顔をあごの前へ張り出させる
-        (0.575, 0.235, 0.220, 0.0, -0.05),   # 頭の最大幅
-        (0.640, 0.190, 0.180, 0.0, -0.035),
-        (0.685, 0.100, 0.095, 0.0, -0.02),
+        (0.200, 0.440, 0.395, 0.0, -0.06),   # 腹の最大張り出し(側面図で最前面)
+        (0.270, 0.400, 0.360, 0.0, -0.07),   # 腹の上・胸(なお前面寄り)
+        (0.340, 0.360, 0.320, 0.0, -0.05),
+        (0.390, 0.335, 0.300, 0.0, -0.035),  # 肩(腕の付け根の張り出し)
+        (0.440, 0.270, 0.245, 0.0, -0.02),   # あご下、浅いくびれ(深すぎると首が棒になる)
+        (0.500, 0.235, 0.220, 0.0, -0.035),
+        (0.565, 0.245, 0.235, 0.0, -0.055),  # 頬(頭の最大幅。くびれより広い)
+        (0.640, 0.195, 0.185, 0.0, -0.045),
+        (0.700, 0.105, 0.095, 0.0, -0.02),   # 頭頂(帽子で覆う)
     ], segments=28)
 
     parts = [body]
-    # 前へ投げ出した短い脚(腿)と、大きな足+足指
     for side in (-1.0, 1.0):
+        # 前へ投げ出した短い脚(腿)と、大きな足+足指
         parts.append(C.curve_tube(f"oonebosuke_thigh{side}",
                                   [Vector((0.16 * side, -0.24, 0.12)),
                                    Vector((0.19 * side, -0.38, 0.10)),
@@ -7683,43 +7695,66 @@ def build_oonebosuke():
             parts.append(C.uv_sphere(f"oonebosuke_toe{side}_{ti}",
                                      (0.215 * side + dx * side, -0.545, 0.185),
                                      tr, segments=8, rings=6))
-        # 腕: 肩から腹を抱えるように前へ回り、握った手を腿の上に休める
-        # (設定画の姿勢)。袖は太くしてシルエットに張り出させる
-        parts.append(C.curve_tube(f"oonebosuke_sleeve{side}",
-                                  [Vector((0.250 * side, -0.045, 0.355)),
-                                   Vector((0.330 * side, -0.195, 0.245)),
-                                   Vector((0.285 * side, -0.320, 0.170))],
-                                  [0.108, 0.094, 0.076]))
-        parts.append(C.uv_sphere(f"oonebosuke_hand{side}",
-                                 (0.255 * side, -0.350, 0.155), 0.075,
-                                 segments=12, rings=9, scale=(1.0, 0.95, 0.85)))
-        parts.append(C.uv_sphere(f"oonebosuke_thumb{side}",
-                                 (0.205 * side, -0.365, 0.165), 0.028,
-                                 segments=8, rings=6))
         # 頬のふくらみ(顔の量感)
         parts.append(C.uv_sphere(f"oonebosuke_cheekm{side}",
-                                 (0.150 * side, -0.175, 0.485), 0.055,
+                                 (0.150 * side, -0.180, 0.480), 0.055,
                                  segments=10, rings=8))
     # 丸鼻
-    parts.append(C.uv_sphere("oonebosuke_nose", (0.0, -0.285, 0.502), 0.050,
+    parts.append(C.uv_sphere("oonebosuke_nose", (0.0, -0.290, 0.500), 0.050,
                              segments=12, rings=9, scale=(1.15, 0.75, 0.85)))
 
-    # 彫刻式の融合(巨体なので融合0.012・出力0.016)
+    # 彫刻式の融合(巨体なので融合0.012・出力0.016)。**腕はここに入れない**
+    # (voxel=0.012の前では袖の半径0.08前後がほぼ消え、手だけが胴から
+    # 生えて見える。handbook 3-22)
     body = C.sculpt_merge("oonebosuke", parts, voxel=0.012, out_voxel=0.016)
-    C.decimate_to(body, 7000)
+
+    # 腕: 肩(体の張り出し)から腹の前・地面近くまで下ろす。細い袖を
+    # 胴と同じ voxel で融合すると消えるため、**腕だけ別に、より細かい
+    # voxel で**融合して形を残す
+    arm_extras = []
+    for side in (-1.0, 1.0):
+        # 肩の付け根は胴の外周(z=0.36〜0.39のrx≈0.30〜0.335)より外へ
+        # 明確に出す。半径込みの外縁が胴の表面すれすれだと、シルエットの
+        # 破れが数cmしか出ずほぼ見えなかった(実測、handbook 3-34)
+        arm_parts = [C.curve_tube(f"oonebosuke_sleeve{side}",
+                                  [Vector((0.320 * side, -0.030, 0.375)),
+                                   Vector((0.395 * side, -0.190, 0.230)),
+                                   Vector((0.330 * side, -0.345, 0.075))],
+                                  [0.105, 0.092, 0.075]),
+                     C.uv_sphere(f"oonebosuke_hand{side}",
+                                (0.275 * side, -0.385, 0.045), 0.078,
+                                segments=12, rings=9, scale=(1.0, 0.95, 0.75)),
+                     C.uv_sphere(f"oonebosuke_thumb{side}",
+                                (0.215 * side, -0.400, 0.062), 0.030,
+                                segments=8, rings=6)]
+        arm = C.sculpt_merge(f"oonebosuke_arm{side}", arm_parts, voxel=0.006,
+                             out_voxel=0.008)
+        arm_extras.append(arm)
+
+    C.decimate_to(body, 6200)
+    for arm in arm_extras:
+        C.decimate_to(arm, 400)
     # 顔・腹の模様が正面にあるので、シームが正面を横切らないy軸splitで展開
     C.organic_uv(body, axis=1)
+    for arm in arm_extras:
+        C.organic_uv(arm, axis=1)
 
     # 布の柔らかいしわ(低周波の凹凸)
-    for v in body.data.vertices:
-        px, py, pz = v.co.x, v.co.y, v.co.z
-        wave = (math.sin(px * 14.3 + pz * 9.7)
-                + math.sin(py * 12.1 + pz * 16.9)) / 2.0
-        v.co += v.normal * (wave * 0.006)
+    for obj in [body] + arm_extras:
+        for v in obj.data.vertices:
+            px, py, pz = v.co.x, v.co.y, v.co.z
+            wave = (math.sin(px * 14.3 + pz * 9.7)
+                    + math.sin(py * 12.1 + pz * 16.9)) / 2.0
+            v.co += v.normal * (wave * 0.006)
 
     # ---- 塗り分け・まだら・顔はテクスチャに描く ----
-    skin_col = (0.80, 0.74, 0.68)
-    robe_col = (0.50, 0.44, 0.56)
+    # 色は新しい設定画のカラーパレット欄の実測値(plan/models/
+    # oonebosuke-remake2.md)。ダンジョンの暖色照明で紺紫が沈むため、
+    # 実機のターンテーブルで測って補正した(handbook 1-26)
+    skin_col = (0.84, 0.74, 0.65)      # 肌(メイン) #d6bda7
+    robe_col = (0.40, 0.36, 0.58)      # 服(メイン) #585082 相当(補正込み)
+    gold_col = (0.80, 0.62, 0.32)      # 服(柄・月星) #c4965b
+    blotch_col = (0.36, 0.32, 0.52)    # 肌・服に散る紫のまだら
 
     def _in_ellipse(x, z, cx, cz, rx, rz):
         return ((x - cx) / rx) ** 2 + ((z - cz) / rz) ** 2 < 1.0
@@ -7728,99 +7763,129 @@ def build_oonebosuke():
         x, y, z = p.x, p.y, p.z
         ax = abs(x)
         q = Vector((ax, y, z))
-        # 領域は3D空間の球距離で判定する。位置のしきい値や面法線の
-        # 符号は、うねる表面では境界がテクセル/三角形単位でギザつく。
-        # 表面と斜めに交わる滑らかな距離場なら境界線が綺麗に通る
-        is_face = (p - Vector((0.0, -0.24, 0.52))).length < 0.235
-        is_belly = (p - Vector((0.0, -0.31, 0.185))).length < 0.295
-        is_hand = (q - Vector((0.255, -0.355, 0.155))).length < 0.105
+        is_face = (p - Vector((0.0, -0.24, 0.51))).length < 0.225
+        # 腹の露出範囲は正面方向だけに絞った楕円体距離場で判定する。
+        # 等方球は肩・脇まで飲み込み、設定画の「腹だけ露出してあとは
+        # 着物」という帯が消える(handbook 3-33)
+        belly_c = Vector((0.0, -0.32, 0.165))
+        belly_r = Vector((0.185, 0.145, 0.155))
+        bd = Vector(((x - belly_c.x) / belly_r.x, (y - belly_c.y) / belly_r.y,
+                    (z - belly_c.z) / belly_r.z))
+        is_belly = bd.length < 1.0
+        is_hand = (q - Vector((0.275, -0.390, 0.045))).length < 0.120
         is_foot = (q - Vector((0.215, -0.515, 0.13))).length < 0.150
         is_skin = is_face or is_belly or is_hand or is_foot
         if is_face:
+            # あごの下の折り目(頭と体の区切りを線で補う。設定画は
+            # ジオメトリではなく輪郭線でこの区切りを見せている)
+            jowl_r = 0.235 - 0.14 * max(0.0, -n.y)
+            if _in_ellipse(x, z, 0.0, 0.435, jowl_r, 0.018) and y < -0.16 and n.y < -0.2:
+                return (skin_col[0] * 0.82, skin_col[1] * 0.80, skin_col[2] * 0.80)
             # 閉じ目: 紫がかった重いまぶた+下縁のまつげの線
             for side in (-1.0, 1.0):
                 ex = 0.090 * side
-                if _in_ellipse(x, z, ex, 0.548, 0.058, 0.036) and y < -0.18:
-                    if z < 0.535 - 0.10 * abs(x - ex):
+                if _in_ellipse(x, z, ex, 0.535, 0.058, 0.036) and y < -0.185:
+                    if z < 0.522 - 0.10 * abs(x - ex):
                         return (0.25, 0.20, 0.26)      # まつげの線
                     return (0.60, 0.53, 0.62)          # まぶた
-                # 眉
-                if _in_ellipse(x, z, ex, 0.585, 0.055, 0.014) and y < -0.18:
-                    return (0.40, 0.34, 0.46)
+                # 眉: 細い線(まつげと同じ描き方)
+                if _in_ellipse(x, z, ex, 0.573, 0.052, 0.020) and y < -0.18 \
+                        and z > 0.573 - 0.012 * (1.0 - (abs(x - ex) / 0.052) ** 2):
+                    return (0.30, 0.24, 0.32)
             # 開いたいびきの口+舌
-            if _in_ellipse(x, z, 0.0, 0.442, 0.072, 0.050) and y < -0.17:
-                if z < 0.432 and abs(x) < 0.036:
-                    return (0.72, 0.45, 0.47)          # 舌
-                return (0.16, 0.10, 0.12)              # 口の中
+            if _in_ellipse(x, z, 0.0, 0.427, 0.072, 0.050) and y < -0.175:
+                if z < 0.417 and abs(x) < 0.036:
+                    return (0.51, 0.34, 0.34)          # 舌・口の中 #825656
+                return (0.16, 0.10, 0.12)
             # 頬の赤み
             for side in (-1.0, 1.0):
-                if _in_ellipse(x, z, 0.155 * side, 0.487, 0.045, 0.028)                         and y < -0.17:
+                if _in_ellipse(x, z, 0.155 * side, 0.472, 0.045, 0.028) and y < -0.175:
                     return (0.80, 0.64, 0.58)
-        if is_belly and _in_ellipse(x, z, 0.0, 0.145, 0.018, 0.013):
+        if is_belly and _in_ellipse(x, z, 0.0, 0.155, 0.018, 0.013):
             return (0.60, 0.53, 0.48)                  # へそ
         if is_skin:
-            # 肌: 淡い土気色+紫のまだら(設定画の石のような肌)
-            blotch = (math.sin(x * 6.3 + y * 4.7) + math.sin(y * 5.9 + z * 7.1)) / 2.0
-            b = max(0.0, blotch)
-            return (skin_col[0] - 0.14 * b, skin_col[1] - 0.16 * b,
-                    skin_col[2] - 0.04 * b)
-        # かいまき: 藤紫+濃淡+淡い柄の粒(設定画の雲柄)
+            # 肌: 露出した肌にも紫のまだらが大きくはっきり散る(石のような
+            # 質感)。金の星と同程度の周波数(顔ほどの大きさの範囲で複数
+            # 周する)にしないと一枚のぼんやりしたグラデーションにしか
+            # ならない(実測: 焼いたテクスチャを直接見て気付いた。
+            # handbook 1-19)
+            blotch = (math.sin(x * 34.0 + y * 27.0) + math.sin(y * 29.0 + z * 38.0)
+                     + math.sin(z * 31.0 - x * 24.0)) / 3.0
+            b = min(1.0, max(0.0, (blotch - 0.35) / 0.22))
+            return tuple(sk * (1.0 - 0.68 * b) + bl * (0.68 * b)
+                        for sk, bl in zip(skin_col, blotch_col))
+        # かいまき: 紺紫の地に、金の星と月が高密度に散る柄
         blotch = (math.sin(x * 5.1 + z * 6.7) + math.sin(y * 4.3 + z * 5.3)) / 2.0
         b = max(0.0, blotch)
         col = (robe_col[0] - 0.07 * b, robe_col[1] - 0.07 * b,
                robe_col[2] - 0.05 * b)
-        dot = math.sin(x * 21 + 0.8) * math.sin(y * 19 + 1.9) * math.sin(z * 23 + 0.3)
-        if dot > 0.90:
-            return (0.66, 0.60, 0.72)
+        star = math.sin(x * 26 + 0.8) * math.sin(y * 24 + 1.9) * math.sin(z * 28 + 0.3)
+        moon = math.sin(x * 15 + 3.1) * math.sin(y * 14 + 0.4) * math.sin(z * 16 + 2.2)
+        if star > 0.78 or moon > 0.90:
+            return gold_col
         return col
 
     skin_img = C.bake_albedo(body, skin_color, size=512, name="oonebosuke_skin")
     C.assign_material(body, C.make_textured_material("oonebosuke_skin_m", skin_img,
                                                      roughness=0.75))
+    for i, arm in enumerate(arm_extras):
+        arm_img = C.bake_albedo(arm, skin_color, size=128, name=f"oonebosuke_arm_tex{i}")
+        C.assign_material(arm, C.make_textured_material(f"oonebosuke_arm_m{i}", arm_img,
+                                                        roughness=0.78))
 
-    extras = []
-    robe = C.make_material("oonebosuke_robe", (0.50, 0.44, 0.56), roughness=0.85)
-    cap_mat = C.make_material("oonebosuke_cap", (0.42, 0.35, 0.55), roughness=0.8)
-    hair_mat = C.make_material("oonebosuke_hair", (0.36, 0.30, 0.40), roughness=0.75)
+    extras = list(arm_extras)
+    cap_mat = C.make_material("oonebosuke_cap", robe_col, roughness=0.8)
+    pom_mat = C.make_material("oonebosuke_pom_m", (0.80, 0.75, 0.84), roughness=0.85)
+    hair_mat = C.make_material("oonebosuke_hair", (0.30, 0.26, 0.36), roughness=0.75)
+    gold = C.make_material("oonebosuke_gold", gold_col, roughness=0.4, emission=0.15)
 
-    # ナイトキャップ: 片側へ垂れる三角帽+巻き上げた縁+先端のぼんぼり
+    # 帽子: 頭を覆う円錐(ロフト、z単調増加でしか組めない)
     cap = C.loft("oonebosuke_capm", [
-        (0.600, 0.245, 0.235, 0.0, -0.045),
-        (0.645, 0.225, 0.215, -0.015, -0.04),
-        (0.700, 0.160, 0.150, -0.05, -0.02),
-        (0.745, 0.100, 0.090, -0.11, 0.0),
-        (0.775, 0.050, 0.045, -0.17, 0.01),
-        (0.790, 0.022, 0.020, -0.215, 0.015),
+        (0.575, 0.250, 0.245, 0.0, -0.05),
+        (0.625, 0.235, 0.230, 0.0, -0.045),
+        (0.680, 0.175, 0.170, 0.0, -0.025),
+        (0.725, 0.118, 0.112, 0.0, -0.005),
+        (0.765, 0.056, 0.053, 0.0, 0.005),
     ], segments=22)
     C.assign_material(cap, cap_mat)
     extras.append(cap)
     brim = C.loft("oonebosuke_brim", [
-        (0.585, 0.248, 0.238, 0.0, -0.045),
-        (0.601, 0.254, 0.244, 0.0, -0.045),
-        (0.617, 0.244, 0.234, 0.0, -0.045),
+        (0.560, 0.253, 0.248, 0.0, -0.05),
+        (0.576, 0.259, 0.254, 0.0, -0.05),
+        (0.592, 0.249, 0.244, 0.0, -0.05),
     ], segments=22)
-    C.assign_material(brim, C.make_material("oonebosuke_brim",
-                                            (0.50, 0.43, 0.62), roughness=0.8))
+    brim_col = tuple(min(1.0, c + 0.16) for c in robe_col)  # 帽子の折り返し(設定画は金ではなく明るい紫)
+    C.assign_material(brim, C.make_material("oonebosuke_brim", brim_col, roughness=0.7))
     extras.append(brim)
-    pom = C.uv_sphere("oonebosuke_pom", (-0.245, 0.02, 0.790), 0.055,
+
+    # 帽子の垂れ: 円錐の先端から肩を越えて腰の高さまで這わせる
+    # (curve_tubeは任意の経路を辿れるので、頭頂で一度盛り上がってから
+    # 下がる形が作れる。ロフトのz単調増加ではこの形は組めない)
+    tail = C.curve_tube("oonebosuke_captail",
+                        [Vector((0.0, 0.0, 0.765)),
+                         Vector((-0.13, 0.05, 0.735)),
+                         Vector((-0.26, 0.13, 0.635)),
+                         Vector((-0.34, 0.22, 0.495)),
+                         Vector((-0.36, 0.28, 0.365))],
+                        [0.048, 0.045, 0.038, 0.028, 0.018])
+    C.assign_material(tail, cap_mat)
+    extras.append(tail)
+    pom = C.uv_sphere("oonebosuke_pom", (-0.365, 0.29, 0.340), 0.050,
                       segments=12, rings=9)
-    C.assign_material(pom, C.make_material("oonebosuke_pom_m",
-                                           (0.86, 0.83, 0.88), roughness=0.9))
+    C.assign_material(pom, pom_mat)
     extras.append(pom)
 
     # 帽子の飾り: 金の三日月(カーブの弧)と星(小さな金の粒)
-    gold = C.make_material("oonebosuke_gold", (0.88, 0.74, 0.38), roughness=0.4,
-                           emission=0.2)
     moon = C.curve_tube("oonebosuke_moon",
-                        [Vector((-0.14, -0.185, 0.645)),
-                         Vector((-0.095, -0.22, 0.660)),
-                         Vector((-0.055, -0.212, 0.676))],
+                        [Vector((-0.10, -0.200, 0.675)),
+                         Vector((-0.055, -0.220, 0.690)),
+                         Vector((-0.015, -0.210, 0.703))],
                         [0.006, 0.011, 0.006])
     C.assign_material(moon, gold)
     extras.append(moon)
-    for si2, (sx, sy, sz) in enumerate([(0.07, -0.235, 0.655),
-                                        (-0.04, -0.273, 0.620),
-                                        (0.13, -0.190, 0.628)]):
+    for si2, (sx, sy, sz) in enumerate([(0.09, -0.215, 0.675),
+                                        (0.02, -0.245, 0.640),
+                                        (0.15, -0.175, 0.640)]):
         star = C.uv_sphere(f"oonebosuke_star{si2}", (sx, sy, sz), 0.014,
                            segments=8, rings=6, scale=(1.0, 0.5, 1.0))
         C.assign_material(star, gold)
@@ -7832,19 +7897,19 @@ def build_oonebosuke():
         return cy - ry * math.sqrt(t)
 
     for hx in (-0.16, -0.05, 0.10):
-        y0 = head_front_y(hx, 0.235, 0.220, -0.05)
+        y0 = head_front_y(hx, 0.245, 0.235, -0.055)
         lock = C.curve_tube(f"oonebosuke_bang{hx}",
-                            [Vector((hx, y0 - 0.004, 0.588)),
-                             Vector((hx * 1.05, y0 - 0.018, 0.574)),
-                             Vector((hx * 1.10, y0 - 0.010, 0.562))],
+                            [Vector((hx, y0 - 0.004, 0.577)),
+                             Vector((hx * 1.05, y0 - 0.018, 0.563)),
+                             Vector((hx * 1.10, y0 - 0.010, 0.551))],
                             [0.016, 0.011, 0.004])
         C.assign_material(lock, hair_mat)
         extras.append(lock)
     for side in (-1.0, 1.0):
         tuft = C.curve_tube(f"oonebosuke_tuft{side}",
-                            [Vector((0.200 * side, -0.05, 0.565)),
-                             Vector((0.225 * side, -0.02, 0.525)),
-                             Vector((0.230 * side, 0.0, 0.490))],
+                            [Vector((0.200 * side, -0.06, 0.555)),
+                             Vector((0.225 * side, -0.03, 0.515)),
+                             Vector((0.230 * side, -0.01, 0.480))],
                             [0.020, 0.014, 0.005])
         C.assign_material(tuft, hair_mat)
         extras.append(tuft)
@@ -7856,15 +7921,15 @@ def build_oonebosuke():
     bubble_mat = C.make_material("oonebosuke_bubble", (0.78, 0.88, 0.97),
                                  roughness=0.1, alpha=0.4)
     bubble_parts = []
-    bubble = C.uv_sphere("oonebosuke_bubble", (0.108, -0.330, 0.548), 0.060,
+    bubble = C.uv_sphere("oonebosuke_bubble", (0.118, -0.335, 0.533), 0.060,
                          segments=14, rings=10)
     C.assign_material(bubble, bubble_mat)
     bubble_parts.append(bubble)
-    stem = C.uv_sphere("oonebosuke_bubble_stem", (0.045, -0.315, 0.512), 0.02,
+    stem = C.uv_sphere("oonebosuke_bubble_stem", (0.050, -0.317, 0.497), 0.02,
                        segments=8, rings=6)
     C.assign_material(stem, bubble_mat)
     bubble_parts.append(stem)
-    gleam = C.uv_sphere("oonebosuke_bubble_gleam", (0.100, -0.378, 0.552), 0.012,
+    gleam = C.uv_sphere("oonebosuke_bubble_gleam", (0.110, -0.383, 0.537), 0.012,
                         segments=8, rings=6)
     C.assign_material(gleam, C.make_material("oonebosuke_bubble_gleam_m",
                                              (1.0, 1.0, 1.0), roughness=0.1,
@@ -7873,8 +7938,8 @@ def build_oonebosuke():
 
     mesh = C.join([body] + extras, "oonebosuke")
     arm_joints = dict(OONEBOSUKE_JOINTS)
-    arm_joints["bubble0"] = (0.045, -0.315, 0.512)   # 鼻先(膨張の支点)
-    arm_joints["bubble"] = (0.108, -0.345, 0.548)    # 泡の中心方向
+    arm_joints["bubble0"] = (0.050, -0.317, 0.497)   # 鼻先(膨張の支点)
+    arm_joints["bubble"] = (0.118, -0.347, 0.533)    # 泡の中心方向
     arm_bones = list(OONEBOSUKE_BONES) + [("top", "bubble0"),
                                           ("bubble0", "bubble")]
     armature = C.build_armature("oonebosuke", arm_joints, arm_bones, mesh,
