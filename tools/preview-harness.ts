@@ -162,7 +162,9 @@ async function main(): Promise<void> {
   const center = new THREE.Vector3();
   bounds.getCenter(center);
   const boundsSize = bounds.getSize(new THREE.Vector3());
-  const boundsRadius = Math.max(boundsSize.x, boundsSize.y, boundsSize.z, 0.4) / 2;
+  // 下限は小道具の余白対策だが、0.4だと12cmのガジリねずみが枠の1/4にしか
+  // 写らず商品確認にならない。モデルの実寸で合わせ、極小の物だけ下限で受ける
+  const boundsRadius = Math.max(boundsSize.x, boundsSize.y, boundsSize.z, 0.08) / 2;
 
   const camera = new THREE.PerspectiveCamera(CAMERA_FOV, 1, 0.05, 500);
   const fitDistance = (boundsRadius * 1.5) / Math.tan((CAMERA_FOV * Math.PI) / 360);

@@ -49,6 +49,21 @@ const TOON_GRADIENT = (() => {
  */
 const OUTLINE_THICKNESS = 0.012;
 /**
+ * 輪郭線の太さの上限を、モデルの高さに対する比で決める。0.012は高さ
+ * 0.2〜1.0のモデルで選んだ値で、それより小さいモデルでは相対的に太く
+ * なりすぎる。約12cmのガジリねずみでは体の10%にあたり、口先・腕・
+ * 木の実など**内側の部品のハルが顔の外へ突き出て黒い弧**になった
+ * (商品確認用ターンテーブルで実測)。高さ0.4未満のモデルだけが
+ * 細くなり、それ以上は従来どおり0.012のまま。
+ */
+const OUTLINE_THICKNESS_RATIO = 0.03;
+
+/** モデルの高さから輪郭線の太さを決める(上限 OUTLINE_THICKNESS) */
+export function outlineThicknessFor(height: number): number {
+  if (!Number.isFinite(height) || height <= 0) return OUTLINE_THICKNESS;
+  return Math.min(OUTLINE_THICKNESS, height * OUTLINE_THICKNESS_RATIO);
+}
+/**
  * 輪郭線に色が無いモデル向けの既定値(plan/models/archive/visual-quality-uplift.md
  * 施策C「純黒をやめ、各モデルの基色を暗く濁した色にする」)。通常は
  * `outlineColorFor`がモデル本体の色から導くので、この値が直接出るのは
@@ -161,13 +176,13 @@ function addRimLight(material: THREE.MeshToonMaterial): void {
  * スキニング適用前のローカル法線でオフセットすると、ボーンが回転した
  * 状態で押し出し方向がずれる。
  */
-function makeOutlineMaterial(color: THREE.Color): THREE.MeshBasicMaterial {
+function makeOutlineMaterial(color: THREE.Color, thickness: number): THREE.MeshBasicMaterial {
   const material = new THREE.MeshBasicMaterial({
     color,
     side: THREE.BackSide,
   });
   material.onBeforeCompile = (shader) => {
-    shader.uniforms.outlineThickness = { value: OUTLINE_THICKNESS };
+    shader.uniforms.outlineThickness = { value: thickness };
     shader.vertexShader = shader.vertexShader
       .replace("#include <common>", "#include <common>\nuniform float outlineThickness;")
       .replace(
@@ -190,13 +205,13 @@ function makeOutlineMaterial(color: THREE.Color): THREE.MeshBasicMaterial {
  * (`normal`)をそのまま使えば十分。押し出しは`#include <begin_vertex>`
  * (常に存在する)の直後でよい。
  */
-function makeRigidOutlineMaterial(color: THREE.Color): THREE.MeshBasicMaterial {
+function makeRigidOutlineMaterial(color: THREE.Color, thickness: number): THREE.MeshBasicMaterial {
   const material = new THREE.MeshBasicMaterial({
     color,
     side: THREE.BackSide,
   });
   material.onBeforeCompile = (shader) => {
-    shader.uniforms.outlineThickness = { value: OUTLINE_THICKNESS };
+    shader.uniforms.outlineThickness = { value: thickness };
     shader.vertexShader = shader.vertexShader
       .replace("#include <common>", "#include <common>\nuniform float outlineThickness;")
       .replace(
@@ -214,8 +229,8 @@ function makeRigidOutlineMaterial(color: THREE.Color): THREE.MeshBasicMaterial {
  * 「輪郭線が本体に追従する」関係が壊れない(SkeletonUtils.clone は
  * 複数のSkinnedMeshが同じスケルトンを共有する構成を正しく扱う)。
  */
-function addOutlineMesh(mesh: THREE.SkinnedMesh): void {
-  const outline = new THREE.SkinnedMesh(mesh.geometry, makeOutlineMaterial(outlineColorFor(mesh.material)));
+function addOutlineMesh(mesh: THREE.SkinnedMesh, thickness: number): void {
+  const outline = new THREE.SkinnedMesh(mesh.geometry, makeOutlineMaterial(outlineColorFor(mesh.material), thickness));
   outline.name = `${mesh.name}__outline`;
   outline.bind(mesh.skeleton, mesh.bindMatrix);
   outline.castShadow = false;
@@ -248,8 +263,8 @@ function addOutlineMesh(mesh: THREE.SkinnedMesh): void {
  * 1本も付いていなかった**。髪はキャラクターで一番大きなシルエットなので、
  * 効果は大きい。
  */
-function addRigidOutlineMesh(mesh: THREE.Mesh): void {
-  const outline = new THREE.Mesh(mesh.geometry, makeRigidOutlineMaterial(outlineColorFor(mesh.material)));
+function addRigidOutlineMesh(mesh: THREE.Mesh, thickness: number): void {
+  const outline = new THREE.Mesh(mesh.geometry, makeRigidOutlineMaterial(outlineColorFor(mesh.material), thickness));
   outline.name = `${mesh.name}__outline`;
   outline.castShadow = false;
   outline.receiveShadow = false;
@@ -372,8 +387,11 @@ export class Assets {
       // children配列を書き換えてしまう恐れがあるため、対象のSkinnedMeshだけ
       // 先に集めておき、traverseを終えてからまとめて追加する
       const { skinned, rigid } = collectOutlineTargets(gltf.scene);
-      for (const mesh of skinned) addOutlineMesh(mesh);
-      for (const mesh of rigid) addRigidOutlineMesh(mesh);
+      // 太さはモデルの高さ(レストポーズの境界)で決める
+      const size = new THREE.Box3().setFromObject(gltf.scene).getSize(new THREE.Vector3());
+      const thickness = outlineThicknessFor(size.y);
+      for (const mesh of skinned) addOutlineMesh(mesh, thickness);
+      for (const mesh of rigid) addRigidOutlineMesh(mesh, thickness);
       this.cache.set(name, { scene: gltf.scene, animations: gltf.animations });
     })().finally(() => {
       this.inFlight.delete(name);

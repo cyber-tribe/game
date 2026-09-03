@@ -159,3 +159,22 @@ describe("view/assets.ts: 輪郭線を付ける対象", () => {
     expect(rigid.map((m) => m.name)).toEqual(["garudo_hair"]);
   });
 });
+
+import { outlineThicknessFor } from "../src/view/assets";
+
+describe("outlineThicknessFor(輪郭線の太さはモデルの高さに比例、上限0.012)", () => {
+  it("高さ0.4以上のモデルは従来どおり0.012のまま", () => {
+    expect(outlineThicknessFor(0.4)).toBeCloseTo(0.012, 6);
+    expect(outlineThicknessFor(1.45)).toBeCloseTo(0.012, 6);
+  });
+
+  it("約12cmのガジリねずみでは体の3%(0.0036)まで細くなる", () => {
+    // 0.012のままだと体の10%で、口先・腕のハルが顔の外へ突き出て黒い弧になる
+    expect(outlineThicknessFor(0.12)).toBeCloseTo(0.0036, 6);
+  });
+
+  it("高さが取れないときは既定値に倒す", () => {
+    expect(outlineThicknessFor(0)).toBe(0.012);
+    expect(outlineThicknessFor(Number.NaN)).toBe(0.012);
+  });
+});

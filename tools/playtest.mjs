@@ -419,16 +419,25 @@ if (front) {
 
 // 中身入りのタルを抱えて投げ、仲間にする。
 // 前に投げたタルが正面に転がっていると邪魔なので、向きを変えてから投げる
-await page.evaluate(() => globalThis.__app.debugFaceOpenSide());
-await page.evaluate(() => globalThis.__app.debugGiveBarrel("caught", "gajiri"));
-await settle();
-await page.keyboard.press("KeyG");
-await settle();
+// 着地点の半径2マスに空きが無いと「出てくる場所がなかった……」で仲間に
+// ならない(src/domain/barrel/barrelDrop.ts)。固定シードが無いので、壁際や
+// モンスターの密集した場所に投げると数十回に一度これを引く(PR #1028 の
+// CIで実際に発生)。捕獲手順と同じく、仲間になるまで向きを変えて投げ直す
+let allyInfo = null;
+for (let attempt = 0; attempt < 4; attempt++) {
+  await page.evaluate(() => globalThis.__app.debugFaceOpenSide());
+  await page.evaluate(() => globalThis.__app.debugGiveBarrel("caught", "gajiri"));
+  await settle();
+  await page.keyboard.press("KeyG");
+  await settle();
+  allyInfo = await page.evaluate(() => {
+    const s = globalThis.__app.debugStats();
+    return { allies: s.allies, barrels: s.barrels, log: s.log };
+  });
+  if (allyInfo.allies.length > 0) break;
+  console.log(`仲間にできなかった(${attempt + 1}回目)。直前のログ:`, allyInfo.log);
+}
 await page.screenshot({ path: `${OUT}/16-recruited.png` });
-const allyInfo = await page.evaluate(() => {
-  const s = globalThis.__app.debugStats();
-  return { allies: s.allies, barrels: s.barrels, log: s.log };
-});
 console.log("仲間にした結果:", JSON.stringify(allyInfo));
 if (allyInfo.allies.length === 0) {
   console.error("仲間にできなかった。直前のログ:", allyInfo.log);

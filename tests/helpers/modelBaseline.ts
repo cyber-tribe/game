@@ -16,7 +16,7 @@ export const MODEL_HEIGHT_BASELINE: Record<string, number> = {
   chouchinokuri: 0.263,
   fuchiNoNushi: 0.787,
   fuku: 0.798,
-  gajiri: 0.431,
+  gajiri: 0.12,
   garudo: 0.97,
   gendo: 0.948,
   hajimeNoYume: 0.906,
