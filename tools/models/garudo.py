@@ -130,6 +130,9 @@ HAIR_CAP_OVER = 0.004
 # (実測: 0.70にしたら髪が肌と判定される画素が増え、肌IoUの到達率が
 # 97%→91%へ落ちた)。髪全体を1つの球へ寄せるのは別の話で、あれは
 # ヘルメットになるのでやらない
+# 背面・3/4背面で、毛束の隙間から Hair Cap が見えてよい割合の上限。
+# capは地肌を隠す土台であって、**見せる面ではない**
+CAP_EXPOSED_MAX = 0.30
 HAIR_NORMAL_BLEND = 0.35
 HAIR_CAP_TOP = 0.970
 HAIR = (0.33, 0.25, 0.185)          # 茶色の無造作な髪(設定画の髪の平均色を実測)
@@ -1510,6 +1513,20 @@ def build() -> tuple[list, object]:
     # いけない**。高さごとに「capより毛束の方が外にあるか」で見る。
     # 面の包含(silhouette_inside)で見ると後頭部が常に外れて判定に
     # ならなかった(実測: 側面33.6%・上面26.1%)
+    # **capが「見えている面」になっていないかも測る。** 輪郭を作って
+    # いなくても、毛束の隙間からcapが広く見えていれば、そこは
+    # 「毛束の集まり」ではなく**つるつるの球**に見える(実測: 背面図の
+    # 髪は毛先の尖りが並ぶのに、モデルの後頭部は球に板を貼った見た目)
+    for ang in (135.0, 180.0):
+        a = math.radians(ang)
+        d = Vector((math.sin(a), math.cos(a), 0.0))
+        rate, hits = C.visible_fraction([cap], clumps, d, cell=0.003)
+        if hits < 100:
+            continue
+        print(f"  [hair] {ang:.0f}° capが露出している割合 {rate:.0%}")
+        assert rate <= CAP_EXPOSED_MAX, \
+            f"{ang:.0f}°でHair Capが露出しすぎ({rate:.0%})。"\
+            f"後頭部が毛束ではなく球に見える"
     over_x = C.wider_than([cap], clumps, axis=0, min_width=0.045)
     over_y = C.wider_than([cap], clumps, axis=1, min_width=0.045)
     print(f"  [hair] capが輪郭を作る高さ 正面{over_x:.0%} 側面{over_y:.0%}")
