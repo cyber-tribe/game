@@ -7629,6 +7629,19 @@ OONEBOSUKE_JOINTS = {
 OONEBOSUKE_RADII = {"base": 0.435, "mid": 0.375, "top": 0.135}
 OONEBOSUKE_BONES = [("base", "mid"), ("mid", "top")]
 
+# 表情はガルドと同じ「テクスチャの状態アトラス」方式(src/view/blink.ts
+# の"eyelid")で持たせる。設定画の表情パターン欄(表情・状態パターン
+# (寝たまま))に「びっくりする」があり、強い音・光・冷気で目を覚ます
+# 仕様(戦いのヒント)とも噛み合う。ボス格なので手間を掛ける
+OONEBOSUKE_EXPR_STATES = ("closed", "half", "open")
+# 顔の島を切り出す球(中心・半径)。中心は_face_colorのis_faceと同じ。
+# 半径は据え置きだが、頭の裏側まで拾わないようmax_yで前面だけに絞る
+# (garudo.pyのFACE_ISLAND_MAX_Yと同じ理由。handbook 1-14参照)
+OONEBOSUKE_FACE_C = (0.0, -0.22, 0.47)
+OONEBOSUKE_FACE_R = 0.21
+OONEBOSUKE_FACE_MAX_Y = -0.05
+OONEBOSUKE_FACE_TEX = 320
+
 
 def build_oonebosuke():
     """
@@ -7739,8 +7752,12 @@ def build_oonebosuke():
     C.decimate_to(body, 6200)
     for arm in arm_extras:
         C.decimate_to(arm, 400)
-    # 顔・腹の模様が正面にあるので、シームが正面を横切らないy軸splitで展開
-    C.organic_uv(body, axis=1)
+    # 顔・腹の模様が正面にあるので、シームが正面を横切らないy軸splitで展開。
+    # 顔は表情の状態アトラス(ガルドと同じ手法)を貼るため、boostで
+    # 独立した島に切り出しておく(このあとsplit_material_regionで
+    # 材質スロット2へ移し、UVを[0,1]へ詰め直す)
+    C.organic_uv(body, axis=1,
+                boost=(OONEBOSUKE_FACE_C, OONEBOSUKE_FACE_R, 1.0, OONEBOSUKE_FACE_MAX_Y))
     for arm in arm_extras:
         C.organic_uv(arm, axis=1)
 
@@ -7764,11 +7781,47 @@ def build_oonebosuke():
     def _in_ellipse(x, z, cx, cz, rx, rz):
         return ((x - cx) / rx) ** 2 + ((z - cz) / rz) ** 2 < 1.0
 
-    def skin_color(p, n):
+    eye_col = (0.60, 0.53, 0.62)     # まぶた
+    lash_col = (0.25, 0.20, 0.26)    # まつげ
+    white_col = (0.92, 0.90, 0.88)   # 白目(設定画「びっくりする」)
+    pupil_col = (0.10, 0.08, 0.10)   # 瞳
+
+    def _eye(x, z, ex, state):
+        """
+        目1つぶんの色。state=0(closed、既定)はボスの寝姿としての閉じ目。
+        state=2(open)/1(half)は「びっくりする」を参照した見開き目
+        (まばたきのピークで一瞬だけ開く。src/view/blink.tsはタイル0を
+        常時の休止状態として扱うので、寝ているこの子はclosedを0番に
+        置く必要がある。openを0番にしたガルドの並びをそのまま流用すると
+        安静時に目が開いたままになる)。
+        1つの楕円をzで内分するのではなく、まぶた→白目→瞳を別々の
+        図形として置く(2-25と同じ理由: 内分だと状態を跨いで境界が
+        飛び、切り替えたときの見た目の一貫性が読みにくい)。
+        """
+        if state == 0:
+            if _in_ellipse(x, z, ex, 0.505, 0.058, 0.030):
+                return eye_col
+            if _in_ellipse(x, z, ex, 0.478, 0.056, 0.010):
+                return lash_col
+            return None
+        rz = 0.052 if state == 2 else 0.024
+        cz = 0.512 if state == 2 else 0.500
+        if _in_ellipse(x, z, ex, cz, 0.056, rz):
+            pr = 0.024 if state == 2 else 0.015
+            if _in_ellipse(x, z, ex, cz - rz * 0.2, pr, pr):
+                return pupil_col
+            return white_col
+        # 見開いた分、まぶたはまつげのように薄い弧としてだけ残す
+        lid_cz = cz + rz + 0.008
+        if _in_ellipse(x, z, ex, lid_cz, 0.060, 0.012):
+            return eye_col
+        return None
+
+    def skin_color(p, n, state: int = 0):
         x, y, z = p.x, p.y, p.z
         ax = abs(x)
         q = Vector((ax, y, z))
-        is_face = (p - Vector((0.0, -0.22, 0.47))).length < 0.21
+        is_face = (p - Vector(OONEBOSUKE_FACE_C)).length < OONEBOSUKE_FACE_R
         # 腹の露出範囲は正面方向だけに絞った楕円体距離場で判定する。
         # 等方球は肩・脇まで飲み込み、設定画の「腹だけ露出してあとは
         # 着物」という帯が消える(handbook 3-33)
@@ -7786,18 +7839,14 @@ def build_oonebosuke():
             jowl_r = 0.235 - 0.14 * max(0.0, -n.y)
             if _in_ellipse(x, z, 0.0, 0.405, jowl_r, 0.018) and y < -0.16 and n.y < -0.2:
                 return (skin_col[0] * 0.82, skin_col[1] * 0.80, skin_col[2] * 0.80)
-            # 閉じ目: 紫がかった重いまぶた(1枚の塗り)+その下縁に細い
-            # まつげの線(別の楕円)。**1つの楕円をzで内分して上下2色に
-            # 割る作り方はやめた**――まぶたと眉がほぼ同じ高さ(z=0.535
-            # 付近)にあったため、帽子の縁と重なったときに「まぶた・
-            # まつげ・眉が縞になって潰れる」事故になっていた(実測)。
-            # まぶたを一段下げ、まつげは別楕円として少し下に離して置く
+            # 目: state で開閉が変わる(_eye)。まぶた・まつげと眉が
+            # ほぼ同じ高さにあると、帽子の縁と重なったときに縞になって
+            # 潰れる事故が起きるので(2-25)、間隔を空けてある
             for side in (-1.0, 1.0):
                 ex = 0.090 * side
-                if _in_ellipse(x, z, ex, 0.505, 0.058, 0.030) and y < -0.185:
-                    return (0.60, 0.53, 0.62)          # まぶた(1色で塗る)
-                if _in_ellipse(x, z, ex, 0.478, 0.056, 0.010) and y < -0.185:
-                    return (0.25, 0.20, 0.26)          # まつげの線(まぶたの下縁)
+                eye = _eye(x, z, ex, state) if y < -0.185 else None
+                if eye is not None:
+                    return eye
                 # 眉: 細い線。まぶたよりさらに上、額との境目に近い高さ
                 if _in_ellipse(x, z, ex, 0.548, 0.052, 0.018) and y < -0.18 \
                         and z > 0.548 - 0.011 * (1.0 - (abs(x - ex) / 0.052) ** 2):
@@ -7839,9 +7888,44 @@ def build_oonebosuke():
             return gold_col
         return col
 
-    skin_img = C.bake_albedo(body, skin_color, size=512, name="oonebosuke_skin")
-    C.assign_material(body, C.make_textured_material("oonebosuke_skin_m", skin_img,
-                                                     roughness=0.75))
+    # 顔の島を材質スロット1へ切り出す(ガルドと同じ「テクスチャの状態
+    # アトラス」の下ごしらえ。organic_uvのboostで独立島にしてある前提)
+    face_polys = C.split_material_region(body, OONEBOSUKE_FACE_C, OONEBOSUKE_FACE_R,
+                                         max_y=OONEBOSUKE_FACE_MAX_Y)
+    if not face_polys:
+        raise RuntimeError("おおねぼすけの顔の島を切り出せなかった")
+
+    # 状態によって顔の色が変わることを組み立て時に確かめる(ガルドの
+    # build_garudo()と同じ理由: デカールの状態切り替えが効いていないと、
+    # 見た目は正常なのにまばたきだけ静かに止まる)
+    probe = Vector((0.090, -0.19, 0.505))
+    probe_n = Vector((0.0, -1.0, 0.0))
+    assert skin_color(probe, probe_n, 0) != skin_color(probe, probe_n, 2), \
+        "目の位置で open と closed の色が同じ(まばたきが効かない)"
+
+    skin_img = C.bake_albedo(body, lambda p, n: skin_color(p, n, 0), size=512,
+                             name="oonebosuke_skin", material_index=0)
+    face_tiles = [C.bake_albedo(body, (lambda k: lambda p, n: skin_color(p, n, k))(k),
+                                size=OONEBOSUKE_FACE_TEX, name=f"oonebosuke_face_{st}",
+                                material_index=1)
+                  for k, st in enumerate(OONEBOSUKE_EXPR_STATES)]
+    face_img = C.atlas_horizontal(face_tiles, "oonebosuke_face_atlas")
+    # 顔の島のUVを左端のコマへ詰める。実行時はoffset.xに k/3 を足すだけで
+    # 状態が切り替わる(three.jsは uv*repeat + offset。ガルドと同じ)
+    uv = body.data.uv_layers.active.data
+    for poly in body.data.polygons:
+        if poly.material_index == 1:
+            for li in poly.loop_indices:
+                uv[li].uv[0] /= len(OONEBOSUKE_EXPR_STATES)
+    body.data.materials[0] = C.make_textured_material("oonebosuke_skin_m", skin_img,
+                                                      roughness=0.75)
+    body.data.materials[1] = C.make_textured_material("oonebosuke_face", face_img,
+                                                      roughness=0.75)
+    # まばたきの指定はノードのextrasで運ぶ(src/view/blink.ts)
+    body["blink"] = "eyelid"
+    body["blinkTiles"] = len(OONEBOSUKE_EXPR_STATES)
+    body["blinkMaterial"] = "oonebosuke_face"
+
     for i, arm in enumerate(arm_extras):
         arm_img = C.bake_albedo(arm, skin_color, size=128, name=f"oonebosuke_arm_tex{i}")
         C.assign_material(arm, C.make_textured_material(f"oonebosuke_arm_m{i}", arm_img,

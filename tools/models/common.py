@@ -1104,6 +1104,33 @@ def spherize_normals(obj: "bpy.types.Object", center,
     mesh.normals_split_custom_set_from_vertices(normals)
 
 
+def atlas_horizontal(images: Sequence["bpy.types.Image"], name: str) -> "bpy.types.Image":
+    """
+    複数の画像を横に並べて1枚にする(まばたき・表情の状態アトラス)。
+    元の画像は消費して削除する。
+
+    顔の表情をテクスチャの切り替えで表す仕組み(src/view/blink.ts の
+    `"eyelid"`方式)の下ごしらえ。`split_material_region`で顔だけの
+    UV島を[0,1]に切り出し、状態の数だけ`bake_albedo`で焼いた画像を
+    この関数で1枚に連結してから、UVのuをその数で割って先頭のコマへ
+    詰める(実行時はuv.offset.xにコマ番号/コマ数を足すだけで切り替わる)。
+    ガルドの顔(`garudo_face_atlas`)で確立した手法。
+    """
+    import numpy as np
+    tiles = []
+    for im in images:
+        w, h = im.size
+        px = np.empty(w * h * 4, dtype=np.float32)
+        im.pixels.foreach_get(px)
+        tiles.append(px.reshape(h, w, 4))
+    out = np.concatenate(tiles, axis=1)
+    for im in images:
+        bpy.data.images.remove(im)
+    img = bpy.data.images.new(name, width=out.shape[1], height=out.shape[0])
+    img.pixels.foreach_set(out.ravel())
+    return img
+
+
 def make_textured_material(name: str, image: "bpy.types.Image",
                            roughness: float = 0.8) -> "bpy.types.Material":
     """Base Colorへ画像を接続した材質。エンジンのトゥーン変換はmapを引き継ぐ。"""

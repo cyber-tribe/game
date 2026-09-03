@@ -378,23 +378,6 @@ def _over(base, x: float, z: float, state: int = 0, fade: float = 1.0):
             base[2] + (b - base[2]) * a)
 
 
-def _atlas_h(images, name: str):
-    """画像を横に並べて1枚にする(まばたきの状態アトラス)"""
-    import numpy as np
-    tiles = []
-    for im in images:
-        w, h = im.size
-        px = np.empty(w * h * 4, dtype=np.float32)
-        im.pixels.foreach_get(px)
-        tiles.append(px.reshape(h, w, 4))
-    out = np.concatenate(tiles, axis=1)
-    for im in images:
-        bpy.data.images.remove(im)
-    img = bpy.data.images.new(name, width=out.shape[1], height=out.shape[0])
-    img.pixels.foreach_set(out.ravel())
-    return img
-
-
 def _arc_loft(name: str, rings, open_half_deg: float = 60.0,
               segments: int = 20, smooth: bool = True):
     """
@@ -1440,7 +1423,7 @@ def build() -> tuple[list, object]:
                            size=FACE_TEX, name=f"garudo_face_{st}",
                            material_index=1)
              for k, st in enumerate(DECAL_STATES)]
-    face_img = _atlas_h(tiles, "garudo_face_atlas")
+    face_img = C.atlas_horizontal(tiles, "garudo_face_atlas")
     # 顔の島のUVを左端のコマへ詰める。実行時はoffset.xに k/3 を足すだけで
     # 状態が切り替わる(three.jsは uv*repeat + offset)
     uv = body.data.uv_layers.active.data
