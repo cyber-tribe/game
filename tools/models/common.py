@@ -2628,3 +2628,62 @@ def depth_order(front, back, direction, cell: float = 0.004) -> tuple[float, int
             if hits[0] < hits[1]:
                 ok += 1
     return (ok / both if both else 1.0), both
+
+
+def visible_fraction(target, occluders, direction, cell: float = 0.002) -> tuple[float, int]:
+    """
+    ある視線方向から見て、`target` が `occluders` に隠されずに見える割合
+    (plan/models/garudo-ear-as-anchor.md)。
+
+    耳のような小さな部品は「有るか無いか」ではなく**どれだけ見えているか**
+    が問題になる。正面では一部だけ・側面では大半が読め・3/4では上が髪に
+    隠れる、という重なりを数字で確かめる。
+
+    `direction` はカメラから被写体へ向かう単位ベクトル。target に当たる
+    光線のうち、手前に occluder が無いものの割合を返す。
+
+    返すのは (見えている割合, targetに当たった光線の数)。
+    """
+    import mathutils
+
+    d = Vector(direction).normalized()
+    lo, hi = bounds(list(target))
+    span = hi - lo
+    origin_mid = (lo + hi) * 0.5 - d * 2.0
+    up = Vector((0.0, 0.0, 1.0))
+    if abs(up.dot(d)) > 0.99:
+        up = Vector((0.0, 1.0, 0.0))
+    ax = d.cross(up).normalized()
+    ay = ax.cross(d).normalized()
+    half = span.length * 0.6
+
+    def tree_of(objs):
+        bm = bmesh.new()
+        for obj in objs:
+            bm.from_mesh(obj.data)
+        t = mathutils.bvhtree.BVHTree.FromBMesh(bm)
+        bm.free()
+        return t
+
+    t_target = tree_of(target)
+    t_occ = tree_of(occluders) if occluders else None
+
+    seen = 0
+    hit = 0
+    n = max(6, int(half * 2.0 / cell))
+    for i in range(n):
+        for j in range(n):
+            u = (i / (n - 1) - 0.5) * 2.0 * half
+            v = (j / (n - 1) - 0.5) * 2.0 * half
+            origin = origin_mid + ax * u + ay * v
+            loc, _nor, _idx, dist = t_target.ray_cast(origin, d)
+            if loc is None:
+                continue
+            hit += 1
+            if t_occ is None:
+                seen += 1
+                continue
+            oloc, _n2, _i2, odist = t_occ.ray_cast(origin, d)
+            if oloc is None or odist > dist:
+                seen += 1
+    return (seen / hit if hit else 0.0), hit
