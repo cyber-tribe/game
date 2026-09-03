@@ -1121,6 +1121,15 @@ def _body_color_no_hand(pos: Vector, normal: Vector, state: int = 0):
             rx, ry, cy = _head_at(pos.z)
             nx, ny = pos.x / (rx * rx), (pos.y - cy) / (ry * ry)
             fade = _smoothstep(0.10, 0.28, -ny / max(1e-9, math.hypot(nx, ny)))
+            # **もみあげは塗りではなく毛束**で出す。デカールには設定画の髪が
+            # まるごと入っているので、頬の外側にも髪が塗られる。そこは面が
+            # 傾いていて上の fade が半分だけ効くため、**輪郭のぼやけた薄い
+            # 髪の幽霊**になる(実測: 正面図の髪判定は設定画と合うのに、
+            # ジオメトリだけを数えると z840 より下に横髪が1つも無かった)。
+            # 塗りを消して lock_burn_L/R に置き換える
+            fade *= 1.0 - (_smoothstep(0.054, 0.066, abs(pos.x))
+                           * _smoothstep(0.795, 0.812, pos.z)
+                           * (1.0 - _smoothstep(0.878, 0.895, pos.z)))
             painted = _over(SKIN, pos.x, pos.z, state, fade)
             if painted != SKIN:
                 return painted
