@@ -14,13 +14,16 @@ on:
       - "tools/compare_models.mjs"
       - "public/models/**"
       - ".github/workflows/models.yml"
+  # **pull_request では paths で絞らない。** トリガー自体を絞ると、
+  # ワークフローが一度も起動しないコミットに対して必須ステータスチェックが
+  # いつまでも「pending」のままになり、マージできなくなる
+  # (実測: モデルを触らない PR #1024 が全チェック緑のまま blocked で止まった)。
+  # ci.yml と同じく、常に起動させてジョブ側の if で中身を飛ばす。
+  # スキップされたジョブはステータスチェック上「成功」として扱われる。
+  #
+  # push (main) 側は必須チェックの対象ではないので、重い Blender の
+  # 実行を避けるために paths で絞ったままにしてある。
   pull_request:
-    paths:
-      - "tools/models/**"
-      - "tools/build_models.py"
-      - "tools/compare_models.mjs"
-      - "public/models/**"
-      - ".github/workflows/models.yml"
   workflow_dispatch:
 
 concurrency:
@@ -28,8 +31,47 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # 変更されたファイルを見て、重いジョブ(Blender で全モデルを作り直す)を
+  # 実行する必要があるかを判定する。ci.yml の changes ジョブと同じ作り。
+  changes:
+    name: 変更内容を判定(モデル)
+    # PR のときだけ動かす。このジョブはチェックアウトせず GitHub API で
+    # 変更ファイル一覧を取る作りで、それは pull_request イベントでしか効かない。
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      pull-requests: read
+    outputs:
+      models: ${{ steps.filter.outputs.models }}
+    steps:
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          filters: |
+            models:
+              - "tools/models/**"
+              - "tools/build_models.py"
+              - "tools/compare_models.mjs"
+              - "public/models/**"
+              - ".github/workflows/models.yml"
+
   build-models:
     name: スクリプトからモデルを作り直せるか
+    needs: changes
+    # 先頭の !cancelled() は必須。GitHub は「needs のジョブがスキップされたら
+    # 後続もスキップ」を既定とし、if に always()/!cancelled() 等を書いたときだけ
+    # それを上書きできる。これが無いと、changes が PR 以外でスキップされるのに
+    # 引きずられて build-models ごとスキップされ、main への push で何も検査されない。
+    #
+    # changes ジョブ自体が失敗した(API 障害など)場合は、判定不能を
+    # 「スキップしてよい」ではなく「フル実行する」側に倒す。
+    if: |
+      !cancelled() && (
+        github.event_name != 'pull_request' ||
+        needs.changes.result != 'success' ||
+        needs.changes.outputs.models == 'true'
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:

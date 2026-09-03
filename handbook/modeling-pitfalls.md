@@ -1090,3 +1090,41 @@ return _shade(HAIR, max(0.42, f * line))   # 線には低い床
 
 実機で効いているのは**シルエットと大きな色面**。
 寄りの絵だけを見て造形の投資先を決めない。
+
+## 1-25 必須チェックのワークフローを paths で絞ってはいけない
+
+`models.yml` がトリガー自体を `paths` で絞っていたため、モデルを触らない
+PRでは**ワークフローが一度も起動せず**、必須ステータスチェックが永久に
+pending のままになった。実測: PR #1024 は全チェック緑なのに
+`mergeable_state: blocked` で止まった。
+
+`ci.yml` には同じ落とし穴を避けた設計と、その理由がコメントで書いて
+あった。**片方だけ直っていた。**
+
+正しい形は「ワークフローは常に起動させ、重いジョブを `if` で飛ばす」。
+スキップされたジョブはステータスチェック上「成功」として扱われるので、
+関係ないPRでも緑になる。
+
+```yaml
+on:
+  pull_request:          # paths で絞らない
+jobs:
+  changes:               # 変更ファイルを見るだけの軽いジョブ
+    if: github.event_name == 'pull_request'
+    outputs: { models: "${{ steps.filter.outputs.models }}" }
+  build-models:
+    needs: changes
+    if: |
+      !cancelled() && (
+        github.event_name != 'pull_request' ||
+        needs.changes.result != 'success' ||
+        needs.changes.outputs.models == 'true'
+      )
+```
+
+`!cancelled()` は必須。これが無いと、`changes` がスキップされたときに
+後続も引きずられてスキップされる。判定ジョブが失敗したときは
+「スキップしてよい」ではなく**フル実行する側へ倒す**。
+
+なお、チェックを起動させるためだけに関係ないファイルを触るのは回避策
+ではない。**設定を直す。**
