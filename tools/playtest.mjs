@@ -419,12 +419,22 @@ if (front) {
 
 // 中身入りのタルを抱えて投げ、仲間にする。
 // 前に投げたタルが正面に転がっていると邪魔なので、向きを変えてから投げる
+//
 // 着地点の半径2マスに空きが無いと「出てくる場所がなかった……」で仲間に
-// ならない(src/domain/barrel/barrelDrop.ts)。固定シードが無いので、壁際や
-// モンスターの密集した場所に投げると数十回に一度これを引く(PR #1028 の
-// CIで実際に発生)。捕獲手順と同じく、仲間になるまで向きを変えて投げ直す
+// ならない(src/domain/barrel/barrelDrop.ts)。この判定はプレイヤーの
+// 位置・向き・射程だけで決まる完全な決定的処理(traceThrow)で、乱数は
+// 絡まない。**同じ位置から向きだけ変えて投げ直しても、debugFaceOpenSide()
+// は隣接マスが空いてさえいれば同じ方向を返すので、結果は毎回同じになる**
+// (PR #1028 のCIで、4回とも同一のログで失敗して発覚)。モンスターが
+// 密集した部屋に立っていると、その場に留まる限り何度投げても直らない。
+// 失敗したら投げる前に1マス歩いて着地点そのものを変える
+const STEP_KEYS = ["ArrowUp", "ArrowRight", "ArrowDown", "ArrowLeft"];
 let allyInfo = null;
 for (let attempt = 0; attempt < 4; attempt++) {
+  if (attempt > 0) {
+    await page.keyboard.press(STEP_KEYS[attempt % STEP_KEYS.length]);
+    await settle();
+  }
   await page.evaluate(() => globalThis.__app.debugFaceOpenSide());
   await page.evaluate(() => globalThis.__app.debugGiveBarrel("caught", "gajiri"));
   await settle();
