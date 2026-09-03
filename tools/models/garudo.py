@@ -1588,14 +1588,19 @@ def build() -> tuple[list, object]:
     ear_hi = C.bounds(ears)[1]
     hair_hi = max(abs(C.bounds(clumps)[0].x), C.bounds(clumps)[1].x)
     # 上1/3だけの板は測るためだけに作ってすぐ捨てる
+    # **「上1/3」は耳の高さから計算する。** 0.8450 と決め打ちにしていたが、
+    # 耳は z0.8095〜0.8515 なので、それは上1/3ではなく**上15%**だった。
+    # 板が細くなり光線が12本しか当たらず、0%と15%の区別が付かない
+    z_lo, z_hi = EAR_RINGS[0][0], EAR_RINGS[-1][0]
+    z_top = z_lo + (z_hi - z_lo) * 2.0 / 3.0
     top = C.loft("ear_top_probe", [(z, rx, ry, -(_head_at(z)[0] - 0.0005), cy)
-                                   for z, rx, ry, cy in EAR_RINGS if z >= 0.8450])
+                                   for z, rx, ry, cy in EAR_RINGS if z >= z_top])
     seen, seen_top = {}, {}
     for ang in (0.0, 45.0, 90.0):
         a = math.radians(ang)
         d = Vector((math.sin(a), math.cos(a), 0.0))
         seen[ang] = C.visible_fraction(ears, clumps + [cap], d, cell=0.0015)[0]
-        seen_top[ang] = C.visible_fraction([top], clumps + [cap], d, cell=0.0015)[0]
+        seen_top[ang] = C.visible_fraction([top], clumps + [cap], d, cell=0.0008)[0]
         print(f"  [ear] {ang:.0f}° 耳が見える割合 {seen[ang]:.0%}"
               f"(上1/3は {seen_top[ang]:.0%})")
     bpy.data.objects.remove(top, do_unlink=True)
@@ -1611,10 +1616,11 @@ def build() -> tuple[list, object]:
     # 3/4は正面と側面の間に入るはず(角度に対して単調)
     assert seen[90.0] - 0.05 <= seen[45.0] <= seen[0.0] + 0.05, \
         f"3/4の耳の見え方が正面・側面の間に無い({seen[45.0]:.0%})"
-    # **耳の上1/3は横髪に隠す。** 耳全体を見せるより設定画の
-    # 「髪の隙間から見える耳」に合う
-    assert seen_top[45.0] <= 0.35, \
-        f"3/4でこめかみの毛束が耳の上を覆っていない({seen_top[45.0]:.0%})"
+    # **耳の上1/3は横髪に「自然に」覆わせる。** 上限だけ見ていたときは
+    # 0%(=完全に埋まっている)でも通っていた。評価の言葉は「自然に覆う」
+    # なので、少し覗いているところまでを含めて帯で見る
+    assert 0.08 <= seen_top[45.0] <= 0.35, \
+        f"3/4での耳の上の覆われ方が不自然({seen_top[45.0]:.0%})"
     # 耳の外端が髪の最大シルエットを超えると、頭部の横幅が妙に広く見える
     assert abs(ear_hi.x) <= hair_hi + 1e-4, \
         f"耳の外端({abs(ear_hi.x)*1000:.1f}mm)が髪({hair_hi*1000:.1f}mm)より外にある"
