@@ -173,7 +173,7 @@ def flatten_materials() -> None:
 # 近くて当然。肌へ滲んだ髪と区別するため、顔パッチは別グループにする
 ID_GROUPS = {
     "hair": ("garudo_hair",),
-    "body": ("garudo_body",),
+    "body": ("garudo_body", "garudo_ear"),
     "face": ("garudo_face",),
 }
 ID_COLORS = {"hair": (1.0, 0.0, 0.0), "body": (0.0, 1.0, 0.0),

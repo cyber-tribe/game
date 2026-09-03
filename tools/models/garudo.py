@@ -105,13 +105,19 @@ EAR_LOBE = (0.90, 0.73, 0.64)      # 耳たぶ。ごくわずかな赤み
 # 厚みは薄い ―― デフォルメの顔では耳は主役ではなく、こめかみ〜横髪〜頬の
 # 境界を成立させる**基準点**。厚くすると取っ手のように見える
 #   (z, 半厚x, 半奥行きy, 中心y)
+# 耳の断面(z, 半厚x, 半奥行きy, 中心y)。**融合しないので薄く作れる。**
+# 融合していたころは voxel 3.8mm に潰されないよう半厚を4mm(=厚さ8mm)
+# にしていたが、それでも出てくるのは+2〜3mmの尾根で、耳の形は残らな
+# かった。独立オブジェクトなら半厚2mmの板がそのまま出る
 EAR_RINGS = (
-    (0.8130, 0.0020, 0.0045, 0.0095),
-    (0.8200, 0.0035, 0.0080, 0.0100),
-    (0.8290, 0.0040, 0.0115, 0.0100),
-    (0.8380, 0.0040, 0.0130, 0.0095),
-    (0.8450, 0.0035, 0.0110, 0.0090),
-    (0.8500, 0.0020, 0.0055, 0.0085),
+    (0.8120, 0.0007, 0.0030, 0.0090),
+    (0.8180, 0.0012, 0.0058, 0.0096),
+    (0.8250, 0.0016, 0.0090, 0.0100),
+    (0.8320, 0.0019, 0.0116, 0.0101),
+    (0.8380, 0.0020, 0.0128, 0.0097),
+    (0.8440, 0.0017, 0.0112, 0.0092),
+    (0.8490, 0.0010, 0.0072, 0.0087),
+    (0.8515, 0.0004, 0.0032, 0.0083),
 )
 SHIRT = (0.88, 0.84, 0.73)          # 生成りのシャツ
 SHIRT_LINE = (0.74, 0.69, 0.58)     # 前立て・ボタンの線
@@ -586,6 +592,30 @@ def _ear_at(z: float):
     return None
 
 
+def _ear_shadow(pos: Vector):
+    """
+    **頭側**に描く耳の落ち影。耳は別オブジェクトなので、頭のテクスチャが
+    持つのはこの影だけ。
+
+    広いグラデーションにすると頬に溶けて耳の在処が消える。設定画で耳を
+    耳として読ませているのは輪郭線なので、その役を細い帯が担う。
+    """
+    sec = _ear_at(pos.z)
+    if sec is None or abs(pos.x) < 0.045:
+        return None
+    cy, ry = sec
+    off = abs(pos.y - cy) / max(1e-6, ry)
+    if not (0.85 < off < 1.32):
+        return None
+    t = 1.0 - abs(off - 1.06) / 0.24
+    return _lerp3(SKIN, EAR_EDGE, 0.80 * max(0.0, min(1.0, t)))
+
+
+def _ear_color(pos: Vector, normal: Vector):
+    """耳オブジェクトのアルベド。内部構造をここで描く"""
+    return _ear_paint(pos) or SKIN
+
+
 def _ear_paint(pos: Vector):
     """
     耳の内部構造を**テクスチャで**描く(plan/models/garudo-ear-as-anchor.md)。
@@ -604,17 +634,7 @@ def _ear_paint(pos: Vector):
     if sec is None:
         return None
     cy, ry = sec
-    if abs(pos.x) < 0.045:
-        return None
     off = abs(pos.y - cy) / max(1e-6, ry)          # 0=耳の中央, 1=外周
-    if off > 1.26:
-        return None
-    if off > 1.00:
-        # **耳の外周の落ち影は、広いグラデーションではなく細い帯**にする。
-        # 設定画で耳を耳として読ませているのは輪郭線なので、その役をここが
-        # 担う。1.05〜1.40へなだらかに散らすと頬に溶けて耳が消えた(実測)
-        t = 1.0 - abs(off - 1.10) / 0.16
-        return _lerp3(SKIN, EAR_EDGE, 0.85 * max(0.0, min(1.0, t)))
     # 耳穴。耳の中ほどのやや前寄り、小さい面積
     canal = math.hypot((pos.y - (cy - 0.0035)) / 0.0060,
                        (pos.z - 0.8305) / 0.0080)
@@ -627,10 +647,10 @@ def _ear_paint(pos: Vector):
     # 浅いへこみに見えた(実測: 肌色へ戻した1回目)。また耳甲介を
     # 耳の内側いっぱいに広げると、稜線が無くなって一枚の窪みになり、
     # 傷のように見えた(2回目)。**輪・稜線・窪みの3段**にする
-    if off > 0.72:
-        return _lerp3(EAR_RIDGE, EAR_HELIX, min(1.0, (off - 0.72) / 0.16))
-    if off > 0.40:
-        return _lerp3(EAR_CONCHA, EAR_RIDGE, min(1.0, (off - 0.40) / 0.20))
+    if off > 0.60:
+        return _lerp3(EAR_RIDGE, EAR_HELIX, min(1.0, (off - 0.60) / 0.18))
+    if off > 0.30:
+        return _lerp3(EAR_CONCHA, EAR_RIDGE, min(1.0, (off - 0.30) / 0.18))
     return EAR_CONCHA
 
 
@@ -1199,8 +1219,9 @@ def _body_color_no_hand(pos: Vector, normal: Vector, state: int = 0):
         shade = max(shade, 0.50 * _smoothstep(0.800, 0.775, pos.z)
                     * _smoothstep(-0.020, 0.004, pos.y))
         shade = max(shade, 0.25 * _smoothstep(0.010, 0.050, pos.y))       # 後頭部側
-        # 耳。**シルエットはメッシュ、内部構造はテクスチャ**
-        ear = _ear_paint(pos)
+        # 耳は別オブジェクトなので、頭側に残すのは**耳の落ち影だけ**。
+        # 耳の内部(耳輪・耳甲介・耳穴)は耳自身のテクスチャが持つ
+        ear = _ear_shadow(pos)
         if ear is not None:
             return ear
         return _lerp3(SKIN, SKIN_SHADE, min(0.75, shade))
@@ -1253,21 +1274,6 @@ def build() -> tuple[list, object]:
     organic = []
     organic.append(C.loft("g_head", HEAD_RINGS))
     organic.append(C.cylinder("g_neck", (0, 0.008, 0.782), 0.024, 0.055))
-    for s in (1, -1):
-        # 耳。設定画は左右で位置が11mmずれて描かれているので、**左右の
-        # 平均**を取って対称に置く(作画の非対称は誤差として扱う。
-        # handbook/modeling-pitfalls.md 1-3c)。実測(設定画):
-        # +x側 x59..81 / -x側 x-68..-50、どちらも z810..850。
-        # 上端はz832で切る。**ボクセル融合で上下に10mmほど膨らむ**ので、
-        # 設定画の耳(z813..851)より短く入れる。設定画では耳の頭は
-        # こめかみの毛束に隠れていて z850 の肌の幅は±54mmしかなく、
-        # 入力をz844まで伸ばしたときは融合後にそこが±64mmになった
-        # 頭の表面に**薄い雫形の板**として貼る。楕円の塊にすると
-        # 「肌色の突起」になる。張り出しは1〜3mmで、外端は必ず髪の
-        # シルエットの内側(設定画: z830で肌±73・頭部±75)
-        organic.append(C.loft(f"g_ear{s}", [
-            (z, rx, ry, s * (_head_at(z)[0] - 0.001), cy)
-            for z, rx, ry, cy in EAR_RINGS]))
     organic.append(C.loft("g_torso", [
         (0.535, 0.085, 0.055, 0.0, 0.0),
         (0.600, 0.092, 0.058, 0.0, 0.0),
@@ -1463,26 +1469,42 @@ def build() -> tuple[list, object]:
     # 見るのは正面。ここが0でないと「輪郭を作るのは毛先」になっていない
     assert over_x < 0.05, f"Hair Capが正面の輪郭を作っている({over_x:.0%})"
 
+    # ================= 耳(独立オブジェクト) =================
+    # **耳は頭へ融合しない。** sculpt_merge(voxel 3.8mm)は薄い板を
+    # +2〜3mmの尾根へ潰すので、耳の形そのものが残らない。融合を外すと
+    # 半厚2mmの板がそのまま出るうえ、材質の境目=ジオメトリの境目に
+    # なるので、頭のテクスチャへ耳の色を焼く必要も無くなる。
+    # 中ほどは頭へ食い込ませ、前後の縁だけが頭から離れる置き方にする
+    # **細い段ほど深く埋める。** 耳の板は一段ごとに1つのxしか持てないが、
+    # 頭は前後に丸いので、前後へ細くなる段(上端と耳たぶ)は同じxだと
+    # 頭の表面を突き抜けて**継ぎ目の線**になる(実測: 耳の下から線が
+    # 1本伸びた)。前後に広い段=張り出す段、細い段=付け根、と考える
+    ry_max = max(r[2] for r in EAR_RINGS)
+    ears = [C.loft(f"g_ear{s:+.0f}",
+                   [(z, rx, ry,
+                     s * (_head_at(z)[0] - 0.0010 - 0.0030 * (1.0 - ry / ry_max)),
+                     cy)
+                    for z, rx, ry, cy in EAR_RINGS])
+            for s in (1.0, -1.0)]
+
     # **耳は横髪の位置決めガイド。** 耳単体を豪華にするより、正面・側面・
     # 3/4での見え方(可視率)が設定画の重なりに合っているかを見る
-    # (plan/models/garudo-ear-as-anchor.md)。融合後の本体からは耳だけを
-    # 取り出せないので、同じ寸法の板をその場で作って測り、すぐ捨てる
-    probe = C.loft("ear_probe", [(z, rx, ry, -(_head_at(z)[0] - 0.001), cy)
-                                 for z, rx, ry, cy in EAR_RINGS])
-    ear_hi = C.bounds([probe])[1]
+    # (plan/models/garudo-ear-as-anchor.md)。耳は独立オブジェクトなので
+    # そのまま測れる
+    ear_hi = C.bounds(ears)[1]
     hair_hi = max(abs(C.bounds(clumps)[0].x), C.bounds(clumps)[1].x)
-    top = C.loft("ear_top_probe", [(z, rx, ry, -(_head_at(z)[0] - 0.001), cy)
-                                   for z, rx, ry, cy in EAR_RINGS if z >= 0.8420])
+    # 上1/3だけの板は測るためだけに作ってすぐ捨てる
+    top = C.loft("ear_top_probe", [(z, rx, ry, -(_head_at(z)[0] - 0.0005), cy)
+                                   for z, rx, ry, cy in EAR_RINGS if z >= 0.8450])
     seen, seen_top = {}, {}
     for ang in (0.0, 45.0, 90.0):
         a = math.radians(ang)
         d = Vector((math.sin(a), math.cos(a), 0.0))
-        seen[ang] = C.visible_fraction([probe], clumps + [cap], d, cell=0.0015)[0]
+        seen[ang] = C.visible_fraction(ears, clumps + [cap], d, cell=0.0015)[0]
         seen_top[ang] = C.visible_fraction([top], clumps + [cap], d, cell=0.0015)[0]
         print(f"  [ear] {ang:.0f}° 耳が見える割合 {seen[ang]:.0%}"
               f"(上1/3は {seen_top[ang]:.0%})")
-    for obj in (probe, top):
-        bpy.data.objects.remove(obj, do_unlink=True)
+    bpy.data.objects.remove(top, do_unlink=True)
     # 帯は設定画から決める。**正面では耳はかなり見えている** ―― 肌の外端が
     # z852で54.5mm・z848で77.0mmと一段で飛ぶので、隠れるのは上端だけ。
     # 側面では逆にこめかみの毛束が上端と外側を覆う
@@ -1500,11 +1522,24 @@ def build() -> tuple[list, object]:
         f"耳の外端({abs(ear_hi.x)*1000:.1f}mm)が髪({hair_hi*1000:.1f}mm)より外にある"
     # **耳の内側の影が肌と分離して見えること。** 同じベタ色だと
     # 「肌が露出している」に見え、1段暗い色が入ると「構造物がある」と読める
+    # 頬は頭のテクスチャ、耳穴は**耳のテクスチャ**から引く(耳を別材質へ
+    # 分けたので、同じ関数からは取れない)
     cheek = _body_color(Vector((0.055, -0.020, 0.836)), Vector((1, 0, 0)), 0)
-    canal = _body_color(Vector((0.070, 0.0065, 0.8305)), Vector((1, 0, 0)), 0)
+    canal = _ear_color(Vector((0.070, 0.0065, 0.8305)), Vector((1, 0, 0)))
     gap = max(cheek) - max(canal)
     print(f"  [ear] 頬と耳穴の明度差 {gap:.2f}")
     assert gap >= 0.25, f"耳の内側が肌と分離していない(明度差{gap:.2f})"
+
+    ear = C.join(ears, "garudo_ear")
+    # **耳の法線も頭の球へ寄せる**(規約4)。本体には掛けてあるので、耳
+    # だけ素のスムーズシェーディングだと、下half分が鋭いハイライトの
+    # 三角形に光って「ヒレ」に見えた(実測: 分離した1回目)。耳の凹凸は
+    # 塗りで描いているので、法線は頭と揃えてよい
+    C.spherize_normals(ear, tuple(FACE_C), radius=0.16, strength=0.85)
+    C.smart_uv(ear)
+    ear_img = C.bake_albedo(ear, _ear_color, size=128, name="garudo_ear_tex")
+    C.assign_material(ear, C.make_textured_material("garudo_ear", ear_img,
+                                                    roughness=0.8))
 
     hair = C.join([cap] + clumps, "garudo_hair")
     # 髪も手描き: 上を明るく・房の流れの筋(3D位置から描くのでSmart UVの
@@ -1775,9 +1810,10 @@ def build() -> tuple[list, object]:
             eb.align_roll(x_target.cross(y_axis))
     bpy.ops.object.mode_set(mode="OBJECT")
     C.parent_to_bone(hair, armature, "neck-head")
+    C.parent_to_bone(ear, armature, "neck-head")
     for group_name, bone in pinned:
         C.pin_weight_to_bone(mesh, group_name, bone)
-    return [mesh, armature, hair], armature
+    return [mesh, armature, hair, ear], armature
 
 
 def animations() -> list[tuple[str, list]]:
