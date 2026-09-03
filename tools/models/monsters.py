@@ -9316,7 +9316,6 @@ def build_matsurinonushi():
         lid = C.uv_sphere(f"matsurinonushi_lid{side}", (0.052 * side, -0.258, 0.140), 0.022,
                           segments=14, rings=8, scale=(1.0, 0.30, 0.22))
         C.assign_material(lid, lid_mat)
-        pin(lid, "chest-head")
         extras.append(lid)
 
     mesh = C.join([body] + extras, "matsurinonushi")
@@ -10816,7 +10815,6 @@ def build_yumemirupurun():
                           (eye_c[0], eye_c[1] + 0.014, eye_c[2] + 0.020), 0.066,
                           segments=14, rings=10, scale=(1.05, 0.85, 0.40))
         C.assign_material(lid, lid_mat)
-        pin(lid, "chest-head")
         extras.append(lid)
 
     mouth = C.uv_sphere("yumemiru_mouth", (0.0, -0.2554, 0.1770), 0.0538,
