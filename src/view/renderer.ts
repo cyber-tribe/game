@@ -104,8 +104,18 @@ const SHADOW_HALF_SPAN = 12;
  * 減衰式では放射照度が床の6倍以上になり、主人公だけがブルームで白く
  * 発光して見えていた。3.0へ上げて頭部までの距離を約1.9〜2.1に伸ばし、
  * 床(直下で距離3.0)とおおむね同程度の照度に揃えた
+ *
+ * `intensity`は30→8まで下げた(2026-09-04)。カメラ距離を11.5→5.0まで
+ * 詰めた結果(plan/game/archive/dungeon-camera-distance.md)、主人公が
+ * 画面占有率でずっと大きく映るようになり、上記の「床とおおむね同程度」
+ * だったはずの頭部周辺の発光が、画面上ではブルームごと非常に目立つ
+ * 「発光しすぎ」に見えるようになった。頭部と床の距離比(約2:3)による
+ * 放射照度差(2.25倍)は変えていないため、30の40%減にあたる18でも
+ * 首元がまだ真っ白に飛んでいた。8まで下げてようやく首元の輝きが
+ * 「あたたかいハイライト」程度に収まり、足元の床の照度も暗くなり
+ * すぎないことを実機のPlaywrightスクリーンショットで確認した
  */
-export const PLAYER_LIGHT = { intensity: 30, distance: 13, decay: 2, height: 3.0 } as const;
+export const PLAYER_LIGHT = { intensity: 8, distance: 13, decay: 2, height: 3.0 } as const;
 
 export class Renderer {
   readonly scene = new THREE.Scene();
@@ -146,12 +156,13 @@ export class Renderer {
   private readonly desiredFocus = new THREE.Vector3();
 
   // 造形(彫り込み・硬い部品・テクスチャ)への投資が画面上で伝わるよう、
-  // 可変域6.5〜18のうち下寄りへ引き寄せた既定値(plan/game/archive/
-  // dungeon-camera-distance.md)。周囲の夢空が見えすぎるとの指摘で、
-  // ズーム1段ぶん(1.5)さらに寄せ、可変域の下限そのものにした
-  // (plan/game/archive/dungeon-floor-mist-continuity.md追記)。
-  // ±キーで従来どおり引ける
-  private distance = 6.5;
+  // 可変域の下寄りへ引き寄せた既定値(plan/game/archive/
+  // dungeon-camera-distance.md)。周囲の夢空が見えすぎるとの指摘で
+  // 6.5(旧可変域の下限)まで寄せ(plan/game/archive/
+  // dungeon-floor-mist-continuity.md追記)、他の不思議のダンジョン系
+  // タイトルを参考にさらにもう一段寄せるとの指示で5.0・可変域の
+  // 下限も同じ5.0まで下げた。±キーで従来どおり引ける
+  private distance = 5.0;
   private elevation = THREE.MathUtils.degToRad(48);
 
   constructor(canvas: HTMLCanvasElement) {
@@ -322,7 +333,7 @@ export class Renderer {
 
   /** 寄り引き */
   zoom(delta: number): void {
-    this.distance = THREE.MathUtils.clamp(this.distance + delta, 6.5, 18);
+    this.distance = THREE.MathUtils.clamp(this.distance + delta, 5.0, 18);
   }
 
   update(dt: number): void {
