@@ -21,13 +21,20 @@ const MODEL_DIR = join(import.meta.dirname, "..", "public", "models");
  * にじむ(実測: 顔1,212 texels/unit では口の線が保てない)。
  * 同時に十数体描かれるモンスター・村人の枠は据え置く。
  */
-const SIZE_BUDGET: Record<string, number> = { garudo: 2600 * 1024 };
+const SIZE_BUDGET: Record<string, number> = {
+  garudo: 2600 * 1024,
+  // 鱗を全身(顔以外)へ敷き詰めたため既定枠(700KB)を超える。
+  // 三角形数と同じくユーザーの明示的な指示で予算を気にせず作った
+  akubitokage: 1800 * 1024,
+};
 const TRI_BUDGET: Record<string, number> = {
   garudo: 24000,
   // 鱗を服のように別レイヤー(sculpt_mergeの外)で個別オブジェクトのまま
-  // 重ねているため既定予算(12,000)を超える。ユーザーの明示的な指示で
+  // 重ねているため既定予算(12,000)を超える。「鱗が少なすぎる、敷き詰め
+  // て初めて皮になる」という指摘で顔以外ほぼ全身へ密度を上げたため、
+  // 既存の16,000枠からさらに引き上げた。ユーザーの明示的な指示で
   // 三角形数の予算を気にせず作った(plan/models/akubitokage-remake.md追記)
-  akubitokage: 16000,
+  akubitokage: 40000,
 };
 const DEFAULT_SIZE_BUDGET = 700 * 1024;
 const DEFAULT_TRI_BUDGET = 12000;
