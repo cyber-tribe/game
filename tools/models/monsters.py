@@ -839,8 +839,12 @@ def build_akubitokage():
         ankle_f = knee_f.lerp(ff, 0.6)
         parts.append(C.curve_tube(f"akubi_legF{side}", [lf, knee_f, ankle_f, ff],
                                   [0.015, 0.0095, 0.008, 0.007]))
-        parts.append(C.uv_sphere(f"akubi_pawF{side}", tuple(ff), 0.010,
-                                 segments=8, rings=6, scale=(1.15, 1.25, 0.55)))
+        # 肉球は丸く盛り上げすぎると哺乳類のマスコット的な足に寄る
+        # (実機ターンテーブルで指摘)。横幅を抑えて前後(Y)へ伸ばし、
+        # 高さも低くして、丸い肉球ではなく低く前へ伸びる爪先寄りの
+        # シルエットにする
+        parts.append(C.uv_sphere(f"akubi_pawF{side}", tuple(ff), 0.009,
+                                 segments=8, rings=6, scale=(0.8, 1.5, 0.4)))
         shoulder_f = lf.lerp(Vector((0.0, -0.0157, 0.0959)), 0.35)
         parts.append(C.uv_sphere(f"akubi_shoulder{side}", tuple(shoulder_f), 0.016,
                                  segments=10, rings=7, scale=(0.9, 0.9, 0.85)))
@@ -851,8 +855,8 @@ def build_akubitokage():
         ankle_b = knee_b.lerp(fb, 0.6)
         parts.append(C.curve_tube(f"akubi_legB{side}", [lb, knee_b, ankle_b, fb],
                                   [0.021, 0.0135, 0.012, 0.009]))
-        parts.append(C.uv_sphere(f"akubi_pawB{side}", tuple(fb), 0.012,
-                                 segments=8, rings=6, scale=(1.2, 1.3, 0.55)))
+        parts.append(C.uv_sphere(f"akubi_pawB{side}", tuple(fb), 0.011,
+                                 segments=8, rings=6, scale=(0.85, 1.5, 0.4)))
         hipjoint = lb.lerp(Vector((0.0, 0.0187, 0.0224)), 0.4)
         parts.append(C.uv_sphere(f"akubi_hipjoint{side}", tuple(hipjoint), 0.018,
                                  segments=10, rings=7, scale=(0.9, 0.9, 0.85)))
@@ -870,21 +874,28 @@ def build_akubitokage():
 
     # 二次形状②: 頭を「断面リングをなめらかに繋いだだけの塊」から、
     # 頬・眉弓という別の造形単位を持つ顔にする。正面・側面のシルエット
-    # (IoUで検証済み)はほぼ変えず、その内側にもう一段の面を足す
+    # (IoUで検証済み)はほぼ変えず、その内側にもう一段の面を足す。
+    #
+    # 「こぶを2個足しただけ」では、頬と眉弓がそれぞれ独立した丸い
+    # 突起に見えるだけで終わる(45°Clayレンダーで指摘を受けた)。
+    # 眉弓・頬の間に半目の線(下記eye_raw)がちょうど乗る谷を残し、
+    # 「頬のこぶ」「眉弓のこぶ」ではなく「目のくぼみを挟む2つの面」
+    # として読めるよう、上下の隙間(谷の深さ)がそれぞれの半径の和より
+    # 大きくなるようZ方向を扁平にして間隔をあける
     for side in (-1.0, 1.0):
-        # 頬: 半目の線(下記eye_raw、頭中心+(0.014〜0.036, ...))の
-        # すぐ下・後ろに置き、目の下がふっくらして見えるようにする
-        cheek_c = Vector((0.032 * side, -0.006, 0.104))
-        parts.append(C.uv_sphere(f"akubi_cheek{side}", tuple(cheek_c), 0.016,
-                                 segments=10, rings=8, scale=(0.9, 1.0, 0.75)))
-        # 眉弓: 半目の線のすぐ上にごくわずかな稜線を作り、まぶたの
-        # 影が半目の線だけでなく面としても落ちるようにする。頭頂
-        # (z=0.1327以降、点に収束する)へ近づけすぎると、断面が
-        # 急に窄まる場所でボクセルリメッシュ+Decimateの相性が悪く
-        # 小さな欠けができたため、まだ収束が始まらない高さに置く
-        brow_c = Vector((0.026 * side, -0.022, 0.127))
+        # 眉弓・頬のx・zをどちらも大きく動かすと、あくびの煙
+        # (akubi_smoke、頭の脇に浮かぶ2つの球)へ頭の輪郭が接して
+        # しまい、正面シルエットが検証済みの形から崩れることが
+        # シルエットIoU比較で分かった(頬をz=0.112まで上げた版で
+        # 前0.777→0.685まで悪化)。頬は元のz=0.104のまま動かさず、
+        # 眉弓だけを半目の線に近づけて隙間(谷)を狭める
+        brow_c = Vector((0.026 * side, -0.028, 0.119))
         parts.append(C.uv_sphere(f"akubi_brow{side}", tuple(brow_c), 0.011,
-                                 segments=8, rings=6, scale=(1.2, 0.7, 0.4)))
+                                 segments=8, rings=6, scale=(1.2, 0.7, 0.3)))
+        # 頬: 半目の線の真下・やや後ろに置く
+        cheek_c = Vector((0.032 * side, -0.012, 0.104))
+        parts.append(C.uv_sphere(f"akubi_cheek{side}", tuple(cheek_c), 0.016,
+                                 segments=10, rings=8, scale=(0.9, 1.0, 0.55)))
 
     # 尻: 尾の付け根(hip〜tail1)がなだらかに続くだけだと「尾が生えて
     # いる場所」に見えないので、腰リングの背面側(cy+ry付近)にひとつ
