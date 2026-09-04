@@ -74,3 +74,13 @@ export const PLAYER_LIGHT_COLOR = 0xffd2a6;
 
 /** カメラの画角(度) */
 export const CAMERA_FOV = 46;
+
+/**
+ * ダンジョンカメラの既定距離(plan/game/archive/dungeon-camera-distance.md)。
+ * `Renderer`(実際のダンジョン)の`private distance`初期値と、
+ * `tools/preview-harness.ts`の商品確認ターンテーブル「ゲーム実カメラ」
+ * 1枚が、この値を共有する。二重定義すると片方だけ更新されたときに
+ * ズレたまま気づかない(実測: harness側が8のまま据え置かれ、本編が
+ * 5.0まで詰めた後もモデルQAだけ古い距離で見た目を判定していた)。
+ */
+export const CAMERA_DEFAULT_DISTANCE = 5.0;
