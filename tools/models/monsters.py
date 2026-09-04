@@ -488,11 +488,14 @@ AKUBI_HALF = {
     "footF.L": (0.030, -0.022, 0.007),
     "legB.L": (0.034, 0.030, 0.020),
     "footB.L": (0.036, 0.018, 0.007),
-    # 尾: 付け根から後ろ上へ伸び、渦を巻いて先端が薄く消える
-    "tail1": (0.000, 0.052, 0.032),
-    "tail2": (0.026, 0.068, 0.054),
-    "tail3": (0.040, 0.050, 0.072),
-    "tail4": (0.024, 0.034, 0.080),
+    # 尾: 「太い→緩く細くなる→大きくカーブ→最後だけ煙のように巻く」の
+    # 大中小のリズム。数学的な均一の渦にせず、角度・半径の縮み方を
+    # 不揃いにして「眠気の煙が最後にふわっと丸まった」非対称さを作る
+    "tail1": (0.000, 0.058, 0.030),
+    "tail2": (0.024, 0.076, 0.052),
+    "tail3": (0.044, 0.072, 0.074),
+    "tail4": (0.038, 0.052, 0.086),
+    "tail5": (0.020, 0.040, 0.088),
 }
 # 胴の彫刻(sculpt_merge前)に置く球の半径。腰→肩→頭→鼻先が互いの半径ぶん
 # 重なるよう詰めてあり、稜線の無い1本のなだらかなS字に融合される
@@ -508,11 +511,18 @@ AKUBI_BONES_HALF = [
     ("chest", "legF.L"), ("legF.L", "footF.L"),
     ("hip", "legB.L"), ("legB.L", "footB.L"),
     ("hip", "tail1"), ("tail1", "tail2"), ("tail2", "tail3"), ("tail3", "tail4"),
+    ("tail4", "tail5"),
 ]
 
-# カラーパレット欄の実測
+# カラーパレット欄の実測値(#3d393c等)。ただし"main"は実機のダンジョン
+# 照明(暗い背景+トゥーン)でレンダーすると、頭・胴・尾・脚が見分けの
+# つかない黒い塊になった(実機ターンテーブルで確認)。gajiriの毛色の
+# 暖色照明オフセット(handbook 1-26)と同じ考え方で、実機で読める
+# 明るさへ補正する。他のモンスター(tsubuteの体メイン#596565、gajiriの
+# 毛#94888e)と比べても#3d393cは著しく暗く、「影のような存在」という
+# 設定を保ちつつ最低限の可読性を確保する値まで持ち上げた
 AKUBI_SHEET = {
-    "main": (0.239, 0.224, 0.235),    # 体(メイン) #3d393c
+    "main": (0.30, 0.28, 0.30),       # 体(メイン)。実測#3d393cから補正
     "shade": (0.329, 0.290, 0.345),   # 体の影(参考値、下記の理由で未使用) #544a58
     "spot": (0.565, 0.494, 0.565),    # 斑点・模様 #907e90
     "belly": (0.843, 0.796, 0.784),   # おなか(薄い影) #d7cbc8
@@ -539,97 +549,6 @@ AKUBI_BELLY_CENTER = Vector((0.0, -0.014, 0.028))
 AKUBI_BELLY_RADII = Vector((0.020, 0.022, 0.020))
 
 
-def _akubi_scale(name, center, normal, length, width, thick):
-    """
-    トカゲの鱗を1枚だけ作る。半楕円体(半球を平たく潰した形)を
-    ローカル原点に作り、局所座標系(Y=尾へ向く進行方向、Z=体表の外向き
-    法線)へ回してから置く。garudoのclump_volumeが「頭皮を回り込む
-    3D中心線」で毛束を作ったのと同じ考え方で、色ではなく実体の
-    重なりで質感を作る(handbook 3-33の「等方の球」注意を踏まえ、
-    length方向だけ潰さずむしろ伸ばして重なりしろを作る)。
-    """
-    obj = C.uv_sphere(name, (0.0, 0.0, 0.0), 1.0, segments=10, rings=7,
-                      scale=(width, length, thick))
-    normal = normal.normalized()
-    forward = Vector((0.0, 1.0, 0.0))
-    forward = forward - normal * forward.dot(normal)
-    if forward.length_squared < 1e-8:
-        forward = Vector((1.0, 0.0, 0.0)) - normal * normal.x
-    forward.normalize()
-    right = normal.cross(forward).normalized()
-    forward = right.cross(normal).normalized()
-    obj.rotation_euler = Matrix((right, forward, normal)).transposed().to_euler()
-    obj.location = center
-    return obj
-
-
-def _akubi_scale_field():
-    """
-    腰・中背・肩の3球と尾の背に、瓦のように重なる小さな鱗を並べる。
-
-    1回目は黄金角スパイラルで球全体を密に埋めた(tsubuteの石粒の
-    流用)が、実機レンダーで見ると個々の鱗が大きすぎ・不揃いすぎて
-    ゴツゴツした岩に見えた(石粒とトカゲの鱗は求める見た目が違う:
-    石は不揃いでよいが、鱗は**同じ大きさが整然と並ぶ**必要がある)。
-    緯度ごとの輪(row)に等間隔で並べ、隣の輪とは半周期ずらして
-    (瓦・魚の鱗と同じ千鳥格子)重なりを作る。個々の鱗は半径の
-    1〜2割程度まで縮め、厚みも浅くした。背側(上半分)だけに限り、
-    顔・おなか・脚には置かない(handbook: 腹には置かないtsubuteの
-    判断を踏襲。おなかはAKUBI_BELLY_CENTER/RADIIの塗り分けと役割が
-    重なるため)。
-    """
-    scales = []
-    idx = 0
-
-    def rows(center, radius, bands, size_mul=1.0):
-        nonlocal idx
-        for r, (zdir, count) in enumerate(bands):
-            ring = math.sqrt(max(0.0, 1.0 - zdir * zdir))
-            stagger = 0.5 if r % 2 else 0.0
-            for j in range(count):
-                ang = (j + stagger) * math.tau / count
-                d = Vector((math.cos(ang) * ring, math.sin(ang) * ring, zdir))
-                pos = center + d * (radius * 1.01)
-                q = Vector((abs(pos.x), pos.y, pos.z))
-                belly = Vector(((q.x - AKUBI_BELLY_CENTER.x) / AKUBI_BELLY_RADII.x,
-                               (q.y - AKUBI_BELLY_CENTER.y) / AKUBI_BELLY_RADII.y,
-                               (q.z - AKUBI_BELLY_CENTER.z) / AKUBI_BELLY_RADII.z))
-                if belly.length < 1.3:
-                    continue                # おなかには置かない
-                length = radius * 0.20 * size_mul
-                width = length * 0.66
-                thick = length * 0.22
-                scales.append(_akubi_scale(f"akubi_scale{idx}", pos, d, length, width, thick))
-                idx += 1
-
-    hip = Vector(AKUBI_HALF["hip"])
-    rows(hip, AKUBI_SCULPT_R["hip"],
-        [(0.82, 6), (0.58, 8), (0.32, 9), (0.06, 10)])
-    mx, my, mz, mr = AKUBI_MIDBACK
-    rows(Vector((mx, my, mz)), mr, [(0.78, 5), (0.48, 7), (0.14, 8)])
-    chest = Vector(AKUBI_HALF["chest"])
-    rows(chest, AKUBI_SCULPT_R["chest"], [(0.78, 5), (0.48, 6), (0.14, 7)], size_mul=0.9)
-
-    # 尾は関節に沿って輪切りに敷く(緯度の輪ではなく、細長い尾の
-    # 周方向に均等割り。渦の先端(tail4寄り)は鱗を置かない)
-    tail_ring_centers = [Vector(AKUBI_HALF[k]) for k in ("hip", "tail1", "tail2", "tail3")]
-    tail_radii = [0.032, 0.022, 0.015, 0.008]
-    for ri, (center, radius) in enumerate(zip(tail_ring_centers, tail_radii)):
-        count = max(6, int(radius / 0.0016))
-        stagger = 0.5 if ri % 2 else 0.0
-        for i in range(count):
-            ang = (i + stagger) * math.tau / count
-            d = Vector((math.cos(ang), math.sin(ang), 0.15)).normalized()
-            pos = center + d * (radius * 1.02)
-            # 尾の先端(半径が小さい輪)でも鱗自体が潰れて消えないよう、
-            # 下限を設ける(voxel解像度より薄くなると融合時に消える)
-            length = max(0.0032, radius * 0.30)
-            scales.append(_akubi_scale(f"akubi_tscale{idx}", pos, d,
-                                       length, length * 0.66, length * 0.32))
-            idx += 1
-    return scales
-
-
 def build_akubitokage():
     """
     新しい設定画(plan/models/reference-akubitokage-sheet.png、ユーザー提供)
@@ -642,15 +561,27 @@ def build_akubitokage():
       設定画どおりの「首の無い、腰から頭まで連続したS字」を作り、
       前後の脚・尾はcurve_tube(gajiriの尾と同じ、数点の制御点で
       曲がりながら先細る管)を生やして同じボクセルで融合する。
-    - 背の小さな波形の背びれも、硬いbox/cylinderではなく融合前の小さな
-      球で作る。sculpt_mergeが継ぎ目なく体表へ溶かし込むので、
-      「貼り付けた別部品」ではなく「体表のうねり」に見える。
+    - 完全に滑らかにはしない。腹に小さな膨らみを1つ足し、頭・胸・腹・
+      尾の付け根に量感の変化を残す(なめらかにしすぎると「紫色の
+      ソーセージ」になるという指摘。全部同じ丸みにしない)。
+    - 背の波形の背びれは、Y方向(体軸沿い)へ伸ばした扁平な球を並べ、
+      「△△△△(独立した棘)」ではなく「〜∿〜(体表のうねり)」に
+      見せる。高さは頭側→中央でいちばん高く→尾側で消える山なりにし、
+      間隔もそろえすぎない。
     - 下あご(jaw)は骨だけ持ち、肉付けはしない。静止姿勢では口内色の
       板(mouth decal)がjawに重なって隠れ、attackでjawが大きく後方
       回転すると一緒に振れて口内色が覗く(見た目の「あくび」)。
     - 目・鼻の穴・口の線は幾何ではなく**テクスチャに描く**
       (tsubuteの口の折れ線・鼻の穴と同じ、bake_albedoの位置関数)。
-      半目の眠そうな線は、頭の球面へ投影した短い折れ線として塗る。
+      半目の眠そうな線は、起きているのか寝ているのか分からない
+      くらい細く、頭の球面へ投影した短い折れ線として塗る。
+    - 体表の細かい鱗を実体ジオメトリで再現する案は試したが、①黄金角
+      スパイラルでは岩のようにゴツゴツし、②緯度の輪+千鳥格子でも
+      三角形数が3732→8532へ膨らみ、1,200〜5,000という予算(plan/
+      models/akubitokage-remake.md)を超えた。あくびとかげは主人公
+      ではなく、優先すべきは①ずんぐり四足②巨大な眠そうな頭③煙の
+      ような渦巻き尾④半目⑤大あくびの5点であって鱗の精密さではない
+      という指摘を受け、鱗ジオメトリは撤回した。
     """
     joints = C.mirrored(AKUBI_HALF)
     bones = C.mirrored_bones(AKUBI_BONES_HALF)
@@ -688,44 +619,44 @@ def build_akubitokage():
         parts.append(C.curve_tube(f"akubi_legB{side}", [lb, knee_b, fb], [0.018, 0.014, 0.011]))
 
     # 尾: 関節そのものが渦を描く制御点(付け根の骨と同じ位置を使うので、
-    # 融合後の自動ウェイトも渦に沿ってなめらかに割り振られる)
-    tail_pts = [Vector(AKUBI_HALF[k]) for k in ("hip", "tail1", "tail2", "tail3", "tail4")]
-    # 尾の付け根は腰球に埋もれてしまう分を見越し、太さを腰に近い値から
-    # 始めて緩やかに絞る(実測: 0.016スタートだと尾がひも状に細く見えた)
-    parts.append(C.curve_tube("akubi_tail", tail_pts, [0.032, 0.022, 0.015, 0.008, 0.002]))
+    # 融合後の自動ウェイトも渦に沿ってなめらかに割り振られる)。
+    # 「太い→緩く細くなる→大きくカーブ→最後だけ煙のように巻く」の
+    # 大中小のリズムを、半径の縮み方も角度の刻みも不揃いにして作る
+    # (数学的にきれいな渦にしない。AKUBI_HALFのtail1〜5自体も
+    # 均一な等角螺旋ではなく手で置いた非対称な弧にしてある)
+    tail_pts = [Vector(AKUBI_HALF[k]) for k in ("hip", "tail1", "tail2", "tail3", "tail4", "tail5")]
+    parts.append(C.curve_tube("akubi_tail", tail_pts,
+                              [0.038, 0.028, 0.019, 0.012, 0.006, 0.0016]))
 
-    # 背に一列並んだ、小さな波形のやわらかい背びれ。設定画には角のある
-    # 部品が無いため、silhouette-hard-surface-parts.mdの「最低1つ」は
-    # 今回見送る(plan/models/akubitokage-remake.mdの指示どおり、
-    # 丸みだけで表現する)。sculpt_mergeで体表へ溶け込ませる。設定画では
-    # 首の付け根(頭のすぐ後ろ)の1本目がいちばん高く突き出ている。
-    # 体表から外側へ張り出す量を確保するため、融合前の半径を実測より
-    # 大きめにする(実測: 半径0.017前後だと体表にほぼ埋もれて見えなくなった)
+    # 背の波形の背びれ。Y方向(体軸沿い)へ伸ばした扁平な球を並べ、
+    # 独立した棘(△△△△)ではなく体表のうねり(〜∿〜)に見せる。
+    # 高さは頭側→中央でいちばん高く→尾側で消える山なりにし、間隔も
+    # そろえない(設定画には角のある部品が無いため、silhouette-hard-
+    # surface-parts.mdの「最低1つ」は今回見送る)
     for i, (y, z, r) in enumerate([
-        (-0.022, 0.112, 0.022), (-0.004, 0.098, 0.019), (0.014, 0.084, 0.017),
-        (0.030, 0.068, 0.014), (0.044, 0.052, 0.010),
+        (-0.026, 0.108, 0.014), (-0.010, 0.102, 0.020), (0.006, 0.096, 0.024),
+        (0.022, 0.084, 0.019), (0.036, 0.070, 0.013), (0.048, 0.056, 0.007),
     ]):
         parts.append(C.uv_sphere(f"akubi_frill{i}", (0.0, y, z), r,
-                                 segments=12, rings=8, scale=(1.0, 1.0, 0.6)))
+                                 segments=12, rings=8, scale=(0.68, 1.7, 0.42)))
 
-    # トカゲなので体表は細かい鱗の重なりで構成されるはず、という指摘。
-    # ガルドの髪(clump_volume、平面の塗りではなく実際に重なる3D形状)と
-    # 同じ考え方で、色を塗るのではなく**瓦のように重なる小さな鱗を
-    # 実体として体表に生やす**。1枚は「進行方向(尾側)へ倒れた
-    # 半楕円体」で、隣・下の鱗の上に少しかぶさるよう、体の丸みに沿った
-    # 局所座標(法線=外向き、接線=尾へ向く方向)で向きを決める
-    for obj in _akubi_scale_field():
-        parts.append(obj)
+    # 完全な滑らかさを避けるため、腹に小さな膨らみを1つだけ足す
+    # (「紫色のソーセージ」にしないための、頭・胸・腹・尾の付け根の
+    # 量感の変化の1つ。おなかの塗り分け中心と揃える)
+    parts.append(C.uv_sphere("akubi_belly_bulge",
+                             (0.0, AKUBI_BELLY_CENTER.y, AKUBI_BELLY_CENTER.z - 0.006),
+                             0.020, segments=14, rings=10, scale=(0.9, 0.8, 0.7)))
 
     # 入力は自己交差の無い閉じたプリミティブ(球・curve_tube)だけなので
     # clean_input=Trueで近道する。既定Falseの前段SMOOTHリメッシュは
     # 「交差しているだけで未融合」と判定した大きめの部品を削ることがあり、
     # 実測で鼻先の付け根に不自然な穴(凹み)ができた。
-    # voxelは鱗(厚み0.003〜0.004)を潰さない細かさへ、target_trisは
-    # 鱗の凹凸を残せるだけの解像度へ、それぞれ引き上げる
-    body = C.sculpt_merge("akubitokage", parts, voxel=0.0010, target_tris=8000,
+    # あくびとかげは主人公ではなく三角形予算も1,200〜5,000(plan/models/
+    # akubitokage-remake.md)なので、鱗ジオメトリのために引き上げていた
+    # voxel/target_trisは元の解像度へ戻す
+    body = C.sculpt_merge("akubitokage", parts, voxel=0.0026, target_tris=4200,
                           clean_input=True)
-    C.decimate_to(body, 8000)
+    C.decimate_to(body, 4200)
     C.organic_uv(body)
     # 底を平らに均して、床に乗っている感じを出す(purun/gajiriと同じ処理)
     for vert in body.data.vertices:
@@ -768,13 +699,15 @@ def build_akubitokage():
     dark = (0.10, 0.08, 0.10)
     main_c, spot_c, belly_c, edge_c = (AKUBI_SHEET["main"], AKUBI_SHEET["spot"],
                                        AKUBI_SHEET["belly"], AKUBI_SHEET["edge"])
-    tail_tip = Vector(AKUBI_HALF["tail4"])
+    tail_tip = Vector(AKUBI_HALF["tail5"])
 
     def akubi_color(p, n):
         x, y, z = p.x, p.y, p.z
         q = Vector((abs(x), y, z))
+        # 半目は「起きているのか寝ているのか分からない」くらい細く
+        # (実測0.005幅は普通の目に見えたので0.0028まで絞った)
         ed = min(seg_dist(q, a, b) for a, b in zip(eye_pts, eye_pts[1:]))
-        if ed < 0.005 and n.y < -0.2:
+        if ed < 0.0028 and n.y < -0.2:
             return dark
         md = min(seg_dist(p, a, b) for a, b in zip(mouth_pts, mouth_pts[1:]))
         if md < 0.004 and n.y < -0.3:

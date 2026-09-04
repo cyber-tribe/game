@@ -37,6 +37,7 @@ import {
   AMBIENT_LIGHT_COLOR,
   AMBIENT_LIGHT_INTENSITY,
   BLOOM_PARAMS,
+  CAMERA_DEFAULT_DISTANCE,
   CAMERA_FOV,
   GRADE_SHADER,
   FILL_LIGHT_COLOR,
@@ -67,9 +68,12 @@ const TT_ANGLES = [0, 45, 90, 135, 180] as const;
 /**
  * ゲーム実カメラ(src/view/renderer.ts と同じ値)。ダンジョンで実際に
  * 見えている大きさ・角度で1枚撮るためのもの。ここで読めない造形は、
- * どれだけ寄りの絵が良くてもゲームでは効かない
+ * どれだけ寄りの絵が良くてもゲームでは効かない。
+ * distanceはrenderConfig.tsのCAMERA_DEFAULT_DISTANCEと共有する
+ * (実測: ここに8を決め打ちしたまま本編側だけ5.0まで詰めていて、
+ * モデルQAが実際より遠い・小さい絵で見た目を判定していた)
  */
-const GAME_CAM = { distance: 8, elevationDeg: 48, focusY: 0.5 } as const;
+const GAME_CAM = { distance: CAMERA_DEFAULT_DISTANCE, elevationDeg: 48, focusY: 0.5 } as const;
 /** ゲーム実カメラの1枚を撮る解像度(縦)。実機の1080pに合わせる */
 const GAME_SHOT_H = 1080;
 

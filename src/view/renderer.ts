@@ -11,6 +11,7 @@ import {
   AMBIENT_LIGHT_COLOR,
   AMBIENT_LIGHT_INTENSITY,
   BLOOM_PARAMS,
+  CAMERA_DEFAULT_DISTANCE,
   CAMERA_FOV,
   GRADE_SHADER,
   FILL_LIGHT_COLOR,
@@ -161,8 +162,11 @@ export class Renderer {
   // 6.5(旧可変域の下限)まで寄せ(plan/game/archive/
   // dungeon-floor-mist-continuity.md追記)、他の不思議のダンジョン系
   // タイトルを参考にさらにもう一段寄せるとの指示で5.0・可変域の
-  // 下限も同じ5.0まで下げた。±キーで従来どおり引ける
-  private distance = 5.0;
+  // 下限も同じ5.0まで下げた。±キーで従来どおり引ける。
+  // renderConfig.tsのCAMERA_DEFAULT_DISTANCEと共有し、モデルQAの
+  // 「ゲーム実カメラ」プレビュー(tools/preview-harness.ts)が
+  // 古い距離のまま取り残されないようにする
+  private distance = CAMERA_DEFAULT_DISTANCE;
   private elevation = THREE.MathUtils.degToRad(48);
 
   constructor(canvas: HTMLCanvasElement) {
