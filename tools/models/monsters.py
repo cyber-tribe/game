@@ -812,13 +812,33 @@ def build_akubitokage():
     # 独立した棘(△△△△)ではなく体表のうねり(〜∿〜)に見せる。
     # 高さは頭側→中央でいちばん高く→尾側で消える山なりにし、間隔も
     # そろえない(設定画には角のある部品が無いため、silhouette-hard-
-    # surface-parts.mdの「最低1つ」は今回見送る)
-    for i, (y, z, r) in enumerate([
+    # surface-parts.mdの「最低1つ」は今回見送る)。
+    #
+    # 手置きの6球そのままでは、隣どうしの間隔(0.017〜0.02)がY方向の
+    # 半径(r×1.7、最大0.041)より狭いので理屈では重なっているはずだが、
+    # 実機のClay(単色)レンダーで確認すると「団子が並んだ背中」に見えた
+    # ―― 各球はY方向の端へ向けて断面が窄まるため、中心の膨らみ同士の
+    # 間に浅いくびれが規則的にでき、それが「継ぎ目」として視認される。
+    # 6点を制御点として密に補間し直し、間隔をvoxel(0.0026)に対して
+    # 十分狭くしてくびれを潰す
+    _frill_keys = [
         (-0.026, 0.108, 0.014), (-0.010, 0.102, 0.020), (0.006, 0.096, 0.024),
         (0.022, 0.084, 0.019), (0.036, 0.070, 0.013), (0.048, 0.056, 0.007),
-    ]):
+    ]
+
+    def _frill_lerp(t):
+        seg = t * (len(_frill_keys) - 1)
+        i = min(len(_frill_keys) - 2, int(seg))
+        f = seg - i
+        y0, z0, r0 = _frill_keys[i]
+        y1, z1, r1 = _frill_keys[i + 1]
+        return (y0 + (y1 - y0) * f, z0 + (z1 - z0) * f, r0 + (r1 - r0) * f)
+
+    _frill_n = 16
+    for i in range(_frill_n):
+        y, z, r = _frill_lerp(i / (_frill_n - 1))
         parts.append(C.uv_sphere(f"akubi_frill{i}", (0.0, y, z), r,
-                                 segments=12, rings=8, scale=(0.68, 1.7, 0.42)))
+                                 segments=10, rings=7, scale=(0.68, 1.9, 0.42)))
 
     # 腹の膨らみ。設定画の正面図は、両脇のがに股の脚に抱えられた大きな
     # 丸いおなかが胴の下半分の主役になっている。旧値(半径0.020)は
@@ -891,10 +911,12 @@ def build_akubitokage():
     def akubi_color(p, n):
         x, y, z = p.x, p.y, p.z
         q = Vector((abs(x), y, z))
-        # 半目は「起きているのか寝ているのか分からない」くらい細く
-        # (実測0.005幅は普通の目に見えたので0.0028まで絞った)
+        # 半目の細さは0.0028まで絞ったことがあるが、実ゲームカメラ距離
+        # (頭が20px程度)ではほぼ潰れて見えなくなっていた(変形テストで
+        # 発見)。設定画への忠実さより実機での可読性を優先し、はっきり
+        # 判別できる太さまで戻した
         ed = min(seg_dist(q, a, b) for a, b in zip(eye_pts, eye_pts[1:]))
-        if ed < 0.0028 and n.y < -0.2:
+        if ed < 0.009 and n.y < -0.2:
             return dark
         md = min(seg_dist(p, a, b) for a, b in zip(mouth_pts, mouth_pts[1:]))
         if md < 0.004 and n.y < -0.3:
@@ -937,12 +959,36 @@ def build_akubitokage():
         extras.append(obj)
         return obj
 
-    # 口内(あくび時に覗く面)。静止姿勢ではjaw関節とほぼ重なって
-    # 頭の皮に埋もれ、attackでjawが後方回転すると一緒に振れて露出する
+    # 下あご。以前は骨だけで肉付けせず、あくび時に口内デカールが
+    # ジオメトリの隙間なくただ回転するだけだったため、実機で
+    # 「顔に貼り付いた赤い豆」にしか見えなかった(ゲームカメラでの
+    # 変形テストで発見)。下あごに実体(肉)を持たせ、静止時は鼻先の
+    # 下面と隙間なく重なって継ぎ目を隠し、あくびで回転すると鼻先
+    # (動かない)から離れて本物の「隙間」が開くようにする
+    # 口内(あくび時に覗く面)を先に置く。**動かない**鼻先側に固定し、
+    # 鼻先の下面に貼りついた「口の奥」として扱う。あご(下で作る、動く
+    # ほう)がこれに蓋をする構造にすると、あごが引くだけで隙間から
+    # 覗く/隠れるが安定して切り替わる(あご自身を回して覗かせる方式は、
+    # 支点[snout]から肉までの距離が近く、回しても見た目の振れ幅が
+    # ほとんど出なかった。実機の変形テストで発見)
     jx, jy, jz = AKUBI_HALF["jaw"]
-    mouth = C.uv_sphere("akubi_mouth", (0.0, jy, jz), 0.006,
-                        segments=14, rings=10, scale=(0.9, 0.6, 0.5))
+    sx, sy, sz = AKUBI_HALF["snout"]
+    mouth_c = Vector((0.0, (sy + jy) / 2, (sz + jz) / 2 - 0.004))
+    mouth = C.uv_sphere("akubi_mouth", tuple(mouth_c), 0.018,
+                        segments=14, rings=10, scale=(1.1, 0.9, 0.6))
     add(mouth, C.make_material("akubi_mouth_m", AKUBI_SHEET["mouth"], roughness=0.4),
+        pin_bone="head-snout")
+    # 下あご。関節(snout→jaw)の軸方向へ先端を伸ばし、支点(snout)から
+    # 離す(支点のすぐ近くに肉を置くと回転の振れ幅がほとんど出ない)。
+    # 静止時は口内を覆い隠すのに十分な大きさで鼻先の下面に重ね、
+    # あくびで後方回転すると口内の前から退いて隙間を作る
+    hinge = Vector((sx, sy, sz))
+    tip_dir = (Vector((jx, jy, jz)) - hinge)
+    tip_dir = tip_dir / tip_dir.length
+    jaw_tip = Vector((jx, jy, jz)) + tip_dir * 0.014
+    jaw_flesh = C.uv_sphere("akubi_jaw", tuple(jaw_tip), 0.020,
+                            segments=14, rings=10, scale=(1.0, 1.1, 0.6))
+    add(jaw_flesh, C.make_material("akubi_jaw_m", main_c, roughness=0.6),
         pin_bone="snout-jaw")
 
     # あくびの煙。頭の脇に小さな淡紫の房を2つ浮かせる(kinokootokoの
