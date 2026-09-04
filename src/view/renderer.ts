@@ -146,12 +146,13 @@ export class Renderer {
   private readonly desiredFocus = new THREE.Vector3();
 
   // 造形(彫り込み・硬い部品・テクスチャ)への投資が画面上で伝わるよう、
-  // 可変域6.5〜18のうち下寄りへ引き寄せた既定値(plan/game/archive/
-  // dungeon-camera-distance.md)。周囲の夢空が見えすぎるとの指摘で、
-  // ズーム1段ぶん(1.5)さらに寄せ、可変域の下限そのものにした
-  // (plan/game/archive/dungeon-floor-mist-continuity.md追記)。
-  // ±キーで従来どおり引ける
-  private distance = 6.5;
+  // 可変域の下寄りへ引き寄せた既定値(plan/game/archive/
+  // dungeon-camera-distance.md)。周囲の夢空が見えすぎるとの指摘で
+  // 6.5(旧可変域の下限)まで寄せ(plan/game/archive/
+  // dungeon-floor-mist-continuity.md追記)、他の不思議のダンジョン系
+  // タイトルを参考にさらにもう一段寄せるとの指示で5.0・可変域の
+  // 下限も同じ5.0まで下げた。±キーで従来どおり引ける
+  private distance = 5.0;
   private elevation = THREE.MathUtils.degToRad(48);
 
   constructor(canvas: HTMLCanvasElement) {
@@ -322,7 +323,7 @@ export class Renderer {
 
   /** 寄り引き */
   zoom(delta: number): void {
-    this.distance = THREE.MathUtils.clamp(this.distance + delta, 6.5, 18);
+    this.distance = THREE.MathUtils.clamp(this.distance + delta, 5.0, 18);
   }
 
   update(dt: number): void {
