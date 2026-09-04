@@ -22,7 +22,13 @@ const MODEL_DIR = join(import.meta.dirname, "..", "public", "models");
  * 同時に十数体描かれるモンスター・村人の枠は据え置く。
  */
 const SIZE_BUDGET: Record<string, number> = { garudo: 2600 * 1024 };
-const TRI_BUDGET: Record<string, number> = { garudo: 24000 };
+const TRI_BUDGET: Record<string, number> = {
+  garudo: 24000,
+  // 鱗を服のように別レイヤー(sculpt_mergeの外)で個別オブジェクトのまま
+  // 重ねているため既定予算(12,000)を超える。ユーザーの明示的な指示で
+  // 三角形数の予算を気にせず作った(plan/models/akubitokage-remake.md追記)
+  akubitokage: 16000,
+};
 const DEFAULT_SIZE_BUDGET = 700 * 1024;
 const DEFAULT_TRI_BUDGET = 12000;
 

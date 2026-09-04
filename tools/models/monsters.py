@@ -549,6 +549,111 @@ AKUBI_BELLY_CENTER = Vector((0.0, -0.014, 0.028))
 AKUBI_BELLY_RADII = Vector((0.020, 0.022, 0.020))
 
 
+def _akubi_scale(name, center, normal, length, width, thick, segs=8, rings=5):
+    """
+    トカゲの鱗を1枚だけ作る。半楕円体(半球を平たく潰した形)を
+    ローカル原点に作り、局所座標系(Y=尾へ向く進行方向、Z=体表の外向き
+    法線)へ回してから置く。garudoのclump_volumeが「頭皮を回り込む
+    3D中心線」で毛束を作ったのと同じ考え方で、色ではなく実体の
+    重なりで質感を作る。
+    """
+    obj = C.uv_sphere(name, (0.0, 0.0, 0.0), 1.0, segments=segs, rings=rings,
+                      scale=(width, length, thick))
+    normal = normal.normalized()
+    forward = Vector((0.0, 1.0, 0.0))
+    forward = forward - normal * forward.dot(normal)
+    if forward.length_squared < 1e-8:
+        forward = Vector((1.0, 0.0, 0.0)) - normal * normal.x
+    forward.normalize()
+    right = normal.cross(forward).normalized()
+    forward = right.cross(normal).normalized()
+    obj.rotation_euler = Matrix((right, forward, normal)).transposed().to_euler()
+    obj.location = center
+    return obj
+
+
+def _akubi_scale_garment():
+    """
+    鱗を胴の彫刻(sculpt_merge)には含めず、**服のように後から着せる**
+    別レイヤーにする(ユーザー指摘: 「鱗の肌は服だと考えて、テクスチャを
+    纏った服を着せてください。鱗は個別オブジェクトにできると嬉しい」)。
+
+    以前(plan/models/akubitokage-remake.md追記)はsculpt_mergeの
+    ボクセルリメッシュに鱗プリミティブを混ぜていたため、①黄金角
+    スパイラルでは鱗どうしが融け合ってゴツゴツした岩になり、②緯度の
+    輪+千鳥格子に直しても、鱗の厚みを潰さないためvoxelを細かくする
+    必要があり三角形数が跳ね上がった。鱗をsculpt_mergeの外に出して
+    ただのjoin()で束ねれば、ボクセルに融かされず1枚1枚の輪郭が
+    そのまま残る(「個別オブジェクト」の要望どおり)。
+
+    緯度の輪(row)に等間隔で並べ、隣の輪とは半周期ずらす(瓦・魚の
+    鱗と同じ千鳥格子)。領域ごとに`mark_for_pin`で印を付け、鱗は
+    肉のように伸び縮みしない硬い角質の板として扱う(build_armature
+    後にpin_weight_to_boneで単一ボーンへ固定する)。
+    """
+    regions = []  # (merged_obj, pin_bone)
+
+    def region(tag, pin_bone, center, radius, bands, size_mul=1.0):
+        objs = []
+        for r, (zdir, count) in enumerate(bands):
+            ring = math.sqrt(max(0.0, 1.0 - zdir * zdir))
+            stagger = 0.5 if r % 2 else 0.0
+            for j in range(count):
+                ang = (j + stagger) * math.tau / count
+                d = Vector((math.cos(ang) * ring, math.sin(ang) * ring, zdir))
+                pos = center + d * (radius * 1.015)
+                q = Vector((abs(pos.x), pos.y, pos.z))
+                belly = Vector(((q.x - AKUBI_BELLY_CENTER.x) / AKUBI_BELLY_RADII.x,
+                               (q.y - AKUBI_BELLY_CENTER.y) / AKUBI_BELLY_RADII.y,
+                               (q.z - AKUBI_BELLY_CENTER.z) / AKUBI_BELLY_RADII.z))
+                if belly.length < 1.3:
+                    continue                # おなかには置かない(tsubuteと同じ判断)
+                length = radius * 0.24 * size_mul
+                objs.append(_akubi_scale(f"akubi_scale_{tag}_{len(objs)}", pos, d,
+                                         length, length * 0.72, length * 0.15))
+        if not objs:
+            return
+        merged = C.join(objs, f"akubi_scales_{tag}")
+        group = C.mark_for_pin(merged)
+        regions.append((merged, group, pin_bone))
+
+    hip = Vector(AKUBI_HALF["hip"])
+    region("hip", "hip-chest", hip, AKUBI_SCULPT_R["hip"],
+          [(0.85, 7), (0.62, 9), (0.38, 10), (0.12, 11), (-0.12, 10)])
+    mx, my, mz, mr = AKUBI_MIDBACK
+    region("midback", "hip-chest", Vector((mx, my, mz)), mr,
+          [(0.80, 6), (0.52, 8), (0.24, 9), (-0.04, 9)])
+    chest = Vector(AKUBI_HALF["chest"])
+    region("chest", "chest-head", chest, AKUBI_SCULPT_R["chest"],
+          [(0.80, 6), (0.52, 7), (0.24, 8)], size_mul=0.92)
+
+    # 尾は関節ごとに輪切りで敷く(緯度の輪ではなく、細長い尾の周方向に
+    # 均等割り)。それぞれ隣り合うボーンへ固定する
+    tail_specs = [
+        ("hip-tail1", hip, 0.036),
+        ("tail1-tail2", Vector(AKUBI_HALF["tail1"]), 0.026),
+        ("tail2-tail3", Vector(AKUBI_HALF["tail2"]), 0.018),
+        ("tail3-tail4", Vector(AKUBI_HALF["tail3"]), 0.011),
+        ("tail4-tail5", Vector(AKUBI_HALF["tail4"]), 0.007),
+    ]
+    for bone, center, radius in tail_specs:
+        tag = bone.replace("-", "_")
+        objs = []
+        count = max(6, int(radius / 0.0018))
+        for i in range(count):
+            ang = math.tau * i / count
+            d = Vector((math.cos(ang), math.sin(ang), 0.15)).normalized()
+            pos = center + d * (radius * 1.03)
+            length = max(0.0032, radius * 0.38)
+            objs.append(_akubi_scale(f"akubi_tscale_{tag}_{i}", pos, d,
+                                     length, length * 0.72, length * 0.16))
+        merged = C.join(objs, f"akubi_scales_{tag}")
+        group = C.mark_for_pin(merged)
+        regions.append((merged, group, bone))
+
+    return regions
+
+
 def build_akubitokage():
     """
     新しい設定画(plan/models/reference-akubitokage-sheet.png、ユーザー提供)
@@ -740,6 +845,31 @@ def build_akubitokage():
             pinned.append((group, pin_bone))
         extras.append(obj)
         return obj
+
+    # 鱗の服(sculpt_mergeの外で作る別レイヤー。上の_akubi_scale_garment
+    # のコメント参照)。地域ごとに融合済みのオブジェクトをさらに1つへ
+    # まとめ、そこへ organic_uv + bake_albedo で質感テクスチャを焼く
+    # (「テクスチャを纏った服」の指示どおり、鱗どうしの色にわずかな
+    # ムラを付けて自然な質感にする。1枚ずつ塗り分けるわけではない)
+    scale_regions = _akubi_scale_garment()
+    if scale_regions:
+        scale_sheet = C.join([obj for obj, _, _ in scale_regions], "akubi_scale_sheet")
+        C.organic_uv(scale_sheet)
+
+        def scale_color(p, n):
+            # 鱗ごとの継ぎ目に沿った低周波のムラ(本体のまだら模様と
+            # 同じ考え方)。本体の斑点とも一部重なるよう同じ色を使う
+            noise = (math.sin(p.x * 137 + p.y * 91) + math.sin(p.y * 173 + p.z * 59)
+                    + math.sin(p.z * 211 + p.x * 67)) / 3.0
+            k = max(0.0, noise) * 0.4
+            return tuple(m * (1.0 - k) + s * k for m, s in zip(main_c, spot_c))
+
+        scale_img = C.bake_albedo(scale_sheet, scale_color, size=256, name="akubi_scale_tex")
+        C.assign_material(scale_sheet, C.make_textured_material(
+            "akubi_scale_tex_m", scale_img, roughness=0.5))
+        extras.append(scale_sheet)
+        for _, group, bone in scale_regions:
+            pinned.append((group, bone))
 
     # 口内(あくび時に覗く面)。静止姿勢ではjaw関節とほぼ重なって
     # 頭の皮に埋もれ、attackでjawが後方回転すると一緒に振れて露出する
