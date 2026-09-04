@@ -539,6 +539,97 @@ AKUBI_BELLY_CENTER = Vector((0.0, -0.014, 0.028))
 AKUBI_BELLY_RADII = Vector((0.020, 0.022, 0.020))
 
 
+def _akubi_scale(name, center, normal, length, width, thick):
+    """
+    トカゲの鱗を1枚だけ作る。半楕円体(半球を平たく潰した形)を
+    ローカル原点に作り、局所座標系(Y=尾へ向く進行方向、Z=体表の外向き
+    法線)へ回してから置く。garudoのclump_volumeが「頭皮を回り込む
+    3D中心線」で毛束を作ったのと同じ考え方で、色ではなく実体の
+    重なりで質感を作る(handbook 3-33の「等方の球」注意を踏まえ、
+    length方向だけ潰さずむしろ伸ばして重なりしろを作る)。
+    """
+    obj = C.uv_sphere(name, (0.0, 0.0, 0.0), 1.0, segments=10, rings=7,
+                      scale=(width, length, thick))
+    normal = normal.normalized()
+    forward = Vector((0.0, 1.0, 0.0))
+    forward = forward - normal * forward.dot(normal)
+    if forward.length_squared < 1e-8:
+        forward = Vector((1.0, 0.0, 0.0)) - normal * normal.x
+    forward.normalize()
+    right = normal.cross(forward).normalized()
+    forward = right.cross(normal).normalized()
+    obj.rotation_euler = Matrix((right, forward, normal)).transposed().to_euler()
+    obj.location = center
+    return obj
+
+
+def _akubi_scale_field():
+    """
+    腰・中背・肩の3球と尾の背に、瓦のように重なる小さな鱗を並べる。
+
+    1回目は黄金角スパイラルで球全体を密に埋めた(tsubuteの石粒の
+    流用)が、実機レンダーで見ると個々の鱗が大きすぎ・不揃いすぎて
+    ゴツゴツした岩に見えた(石粒とトカゲの鱗は求める見た目が違う:
+    石は不揃いでよいが、鱗は**同じ大きさが整然と並ぶ**必要がある)。
+    緯度ごとの輪(row)に等間隔で並べ、隣の輪とは半周期ずらして
+    (瓦・魚の鱗と同じ千鳥格子)重なりを作る。個々の鱗は半径の
+    1〜2割程度まで縮め、厚みも浅くした。背側(上半分)だけに限り、
+    顔・おなか・脚には置かない(handbook: 腹には置かないtsubuteの
+    判断を踏襲。おなかはAKUBI_BELLY_CENTER/RADIIの塗り分けと役割が
+    重なるため)。
+    """
+    scales = []
+    idx = 0
+
+    def rows(center, radius, bands, size_mul=1.0):
+        nonlocal idx
+        for r, (zdir, count) in enumerate(bands):
+            ring = math.sqrt(max(0.0, 1.0 - zdir * zdir))
+            stagger = 0.5 if r % 2 else 0.0
+            for j in range(count):
+                ang = (j + stagger) * math.tau / count
+                d = Vector((math.cos(ang) * ring, math.sin(ang) * ring, zdir))
+                pos = center + d * (radius * 1.01)
+                q = Vector((abs(pos.x), pos.y, pos.z))
+                belly = Vector(((q.x - AKUBI_BELLY_CENTER.x) / AKUBI_BELLY_RADII.x,
+                               (q.y - AKUBI_BELLY_CENTER.y) / AKUBI_BELLY_RADII.y,
+                               (q.z - AKUBI_BELLY_CENTER.z) / AKUBI_BELLY_RADII.z))
+                if belly.length < 1.3:
+                    continue                # おなかには置かない
+                length = radius * 0.20 * size_mul
+                width = length * 0.66
+                thick = length * 0.22
+                scales.append(_akubi_scale(f"akubi_scale{idx}", pos, d, length, width, thick))
+                idx += 1
+
+    hip = Vector(AKUBI_HALF["hip"])
+    rows(hip, AKUBI_SCULPT_R["hip"],
+        [(0.82, 6), (0.58, 8), (0.32, 9), (0.06, 10)])
+    mx, my, mz, mr = AKUBI_MIDBACK
+    rows(Vector((mx, my, mz)), mr, [(0.78, 5), (0.48, 7), (0.14, 8)])
+    chest = Vector(AKUBI_HALF["chest"])
+    rows(chest, AKUBI_SCULPT_R["chest"], [(0.78, 5), (0.48, 6), (0.14, 7)], size_mul=0.9)
+
+    # 尾は関節に沿って輪切りに敷く(緯度の輪ではなく、細長い尾の
+    # 周方向に均等割り。渦の先端(tail4寄り)は鱗を置かない)
+    tail_ring_centers = [Vector(AKUBI_HALF[k]) for k in ("hip", "tail1", "tail2", "tail3")]
+    tail_radii = [0.032, 0.022, 0.015, 0.008]
+    for ri, (center, radius) in enumerate(zip(tail_ring_centers, tail_radii)):
+        count = max(6, int(radius / 0.0016))
+        stagger = 0.5 if ri % 2 else 0.0
+        for i in range(count):
+            ang = (i + stagger) * math.tau / count
+            d = Vector((math.cos(ang), math.sin(ang), 0.15)).normalized()
+            pos = center + d * (radius * 1.02)
+            # 尾の先端(半径が小さい輪)でも鱗自体が潰れて消えないよう、
+            # 下限を設ける(voxel解像度より薄くなると融合時に消える)
+            length = max(0.0032, radius * 0.30)
+            scales.append(_akubi_scale(f"akubi_tscale{idx}", pos, d,
+                                       length, length * 0.66, length * 0.32))
+            idx += 1
+    return scales
+
+
 def build_akubitokage():
     """
     新しい設定画(plan/models/reference-akubitokage-sheet.png、ユーザー提供)
@@ -617,13 +708,24 @@ def build_akubitokage():
         parts.append(C.uv_sphere(f"akubi_frill{i}", (0.0, y, z), r,
                                  segments=12, rings=8, scale=(1.0, 1.0, 0.6)))
 
+    # トカゲなので体表は細かい鱗の重なりで構成されるはず、という指摘。
+    # ガルドの髪(clump_volume、平面の塗りではなく実際に重なる3D形状)と
+    # 同じ考え方で、色を塗るのではなく**瓦のように重なる小さな鱗を
+    # 実体として体表に生やす**。1枚は「進行方向(尾側)へ倒れた
+    # 半楕円体」で、隣・下の鱗の上に少しかぶさるよう、体の丸みに沿った
+    # 局所座標(法線=外向き、接線=尾へ向く方向)で向きを決める
+    for obj in _akubi_scale_field():
+        parts.append(obj)
+
     # 入力は自己交差の無い閉じたプリミティブ(球・curve_tube)だけなので
     # clean_input=Trueで近道する。既定Falseの前段SMOOTHリメッシュは
     # 「交差しているだけで未融合」と判定した大きめの部品を削ることがあり、
-    # 実測で鼻先の付け根に不自然な穴(凹み)ができた
-    body = C.sculpt_merge("akubitokage", parts, voxel=0.0028, target_tris=3200,
+    # 実測で鼻先の付け根に不自然な穴(凹み)ができた。
+    # voxelは鱗(厚み0.003〜0.004)を潰さない細かさへ、target_trisは
+    # 鱗の凹凸を残せるだけの解像度へ、それぞれ引き上げる
+    body = C.sculpt_merge("akubitokage", parts, voxel=0.0010, target_tris=8000,
                           clean_input=True)
-    C.decimate_to(body, 3200)
+    C.decimate_to(body, 8000)
     C.organic_uv(body)
     # 底を平らに均して、床に乗っている感じを出す(purun/gajiriと同じ処理)
     for vert in body.data.vertices:
