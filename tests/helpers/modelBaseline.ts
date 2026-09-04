@@ -11,7 +11,7 @@
  * 失敗メッセージに実測値がそのまま出るので、その値を書き写せばよい。
  */
 export const MODEL_HEIGHT_BASELINE: Record<string, number> = {
-  akubitokage: 0.262,
+  akubitokage: 0.138,
   ashiatodori: 0.267,
   chouchinokuri: 0.263,
   fuchiNoNushi: 0.787,
