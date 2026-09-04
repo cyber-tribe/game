@@ -17,8 +17,14 @@ describe("view/renderer.ts: 松明の光", () => {
   });
 
   it("強さは、洞窟を照らせるが飛ばさない範囲に収まっている", () => {
-    expect(PLAYER_LIGHT.intensity).toBeGreaterThanOrEqual(20);
-    expect(PLAYER_LIGHT.intensity).toBeLessThanOrEqual(45);
+    // カメラ距離を11.5→5.0まで詰めた(plan/game/archive/
+    // dungeon-camera-distance.md)ことで主人公が画面占有率でずっと大きく
+    // 映るようになり、以前は妥当だった20〜45の強さでも頭部周辺の発光が
+    // ブルームごと非常に目立つ「発光しすぎ」に見えるようになった。8まで
+    // 下げてようやく落ち着いた(plan/models/archive/
+    // dungeon-floor-mist-continuity.md追記)
+    expect(PLAYER_LIGHT.intensity).toBeGreaterThanOrEqual(4);
+    expect(PLAYER_LIGHT.intensity).toBeLessThanOrEqual(12);
   });
 
   it("届く距離は、視界の境界が不自然に切れない程度に確保する", () => {

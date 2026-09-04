@@ -104,8 +104,18 @@ const SHADOW_HALF_SPAN = 12;
  * 減衰式では放射照度が床の6倍以上になり、主人公だけがブルームで白く
  * 発光して見えていた。3.0へ上げて頭部までの距離を約1.9〜2.1に伸ばし、
  * 床(直下で距離3.0)とおおむね同程度の照度に揃えた
+ *
+ * `intensity`は30→8まで下げた(2026-09-04)。カメラ距離を11.5→5.0まで
+ * 詰めた結果(plan/game/archive/dungeon-camera-distance.md)、主人公が
+ * 画面占有率でずっと大きく映るようになり、上記の「床とおおむね同程度」
+ * だったはずの頭部周辺の発光が、画面上ではブルームごと非常に目立つ
+ * 「発光しすぎ」に見えるようになった。頭部と床の距離比(約2:3)による
+ * 放射照度差(2.25倍)は変えていないため、30の40%減にあたる18でも
+ * 首元がまだ真っ白に飛んでいた。8まで下げてようやく首元の輝きが
+ * 「あたたかいハイライト」程度に収まり、足元の床の照度も暗くなり
+ * すぎないことを実機のPlaywrightスクリーンショットで確認した
  */
-export const PLAYER_LIGHT = { intensity: 30, distance: 13, decay: 2, height: 3.0 } as const;
+export const PLAYER_LIGHT = { intensity: 8, distance: 13, decay: 2, height: 3.0 } as const;
 
 export class Renderer {
   readonly scene = new THREE.Scene();
