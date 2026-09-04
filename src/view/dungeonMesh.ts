@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { TILE, toWorld } from "./renderer";
+import { SCENE_BACKGROUND_COLOR, TILE, toWorld } from "./renderer";
 import type { Assets } from "./assets";
 import {
   type BarrelKind,
@@ -206,8 +206,11 @@ export class DungeonView {
 
   /** フロアの外周4辺のすぐ外に、夢のもやの板を1枚ずつ置く */
   private buildDreamMist(floor: FloorState): void {
+    // 気分によらず常に背景色と同じ色(夢空・src/view/renderer.tsと
+    // 同じ理由・同じ定数: plan/models/archive/
+    // dungeon-floor-mist-continuity.md追記)
     const material = new THREE.MeshBasicMaterial({
-      color: 0x8fa0c8,
+      color: SCENE_BACKGROUND_COLOR,
       transparent: true,
       opacity: 0.4,
       fog: false,
@@ -240,16 +243,6 @@ export class DungeonView {
       mesh.rotation.y = edge.rotY;
       this.mistGroup.add(mesh);
     }
-  }
-
-  /**
-   * 夢のもやの色を、その日の気分の霧色(`setMoodVisual`と同じ値)へ揃える。
-   * 固定の青(0x8fa0c8)のままだと、気分の色調と食い違って外周だけ
-   * 唐突に別の色の帯が浮く(#337追加調査)
-   */
-  setMistColor(color: number): void {
-    const firstMist = this.mistGroup.children[0] as THREE.Mesh | undefined;
-    if (firstMist) (firstMist.material as THREE.MeshBasicMaterial).color.setHex(color);
   }
 
   /** 毎ターン呼ぶ。視界に応じた明るさと、落ちているものの増減を反映する */
