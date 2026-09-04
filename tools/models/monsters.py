@@ -457,118 +457,352 @@ def purun_animations():
 
 # ======================================================================= あくびとかげ
 
-AKUBI_JOINTS = {
-    "base": (0.0, 0.0, 0.050),
-    "mid": (0.0, -0.010, 0.170),
-    "top": (0.0, -0.045, 0.290),
+# 新しい設定画(plan/models/reference-akubitokage-sheet.png、ユーザー提供)に
+# 合わせた造形。仕様・実測値は plan/models/akubitokage-remake.md。
+# 設定画に実寸(cm)の記載が無いため、高さはHP・階層が近いガジリねずみ
+# (0.120m)より一回り大きく、まぶたむし(swarm、より小柄)より大きい
+# 0.140mと見積もった(未決事項として plan 追記に明記)。
+AKUBI_HEIGHT = 0.140
+
+# 三面図(正面・側面・背面)を目視で計測(1回目のpx単位の自動計測は尾の
+# 巻きと胴を取り違えていたと判明。側面図をよく見ると、鼻先〜尾の付け根の
+# 水平方向の奥行きよりも、尻(低い)〜頭頂(高い)の垂直方向の立ち上がりの
+# ほうがずっと大きい。**寝そべった管ではなく、頭を高く掲げて座る**姿勢)。
+# 目安: 奥行き(鼻先〜尻)≈0.6H、尻の高さ≈0.2H、頭頂≈1.0H。
+#
+# 造形はtsubute/garudoと同じ「彫刻式融合」(sculpt_merge)を使う。
+# 最初にbuild_skinned(Skinモディファイア)1本の管で腰→頭→鼻先を
+# つなごうとしたが、関節間隔に対して頭の半径が大きすぎて隣の胴の球と
+# 溶け合い、横から見ると頭が胴に埋もれた斜めの塊になった(実機レンダーで
+# 確認、handbook行き)。sculpt_mergeなら手で置いた球・管をボクセルで
+# 素直に合体できるので、設定画の「腰→背→肩→頭」の連続したS字の輪郭を
+# 複数の球を重ねて直接なぞれる。
+AKUBI_HALF = {
+    "hip": (0.000, 0.035, 0.022),      # 尻(いちばん丸い塊、尾の付け根、低い)
+    "chest": (0.000, -0.005, 0.058),   # 肩(頭の下で重ねて首を作らない)
+    "head": (0.000, -0.032, 0.098),    # 頭(高く掲げる)
+    "snout": (0.000, -0.055, 0.086),   # 鼻先
+    # あくびで開閉する下あご。骨だけ持ち肉付けはしない(下記参照)
+    "jaw": (0.000, -0.046, 0.076),
+    "legF.L": (0.028, -0.012, 0.036),
+    "footF.L": (0.030, -0.022, 0.007),
+    "legB.L": (0.034, 0.030, 0.020),
+    "footB.L": (0.036, 0.018, 0.007),
+    # 尾: 付け根から後ろ上へ伸び、渦を巻いて先端が薄く消える
+    "tail1": (0.000, 0.052, 0.032),
+    "tail2": (0.026, 0.068, 0.054),
+    "tail3": (0.040, 0.050, 0.072),
+    "tail4": (0.024, 0.034, 0.080),
 }
-AKUBI_RADII = {"base": 0.125, "mid": 0.078, "top": 0.026}
-AKUBI_BONES = [("base", "mid"), ("mid", "top")]
+# 胴の彫刻(sculpt_merge前)に置く球の半径。腰→肩→頭→鼻先が互いの半径ぶん
+# 重なるよう詰めてあり、稜線の無い1本のなだらかなS字に融合される
+AKUBI_SCULPT_R = {"hip": 0.040, "chest": 0.036, "head": 0.044, "snout": 0.021}
+# hipとchestの間だけ、両者の半径の和より関節間隔が少し広く、そのまま
+# 融合すると背中がわずかにくびれる。中間に控えの球を1つ足して埋める
+AKUBI_MIDBACK = (0.0, 0.015, 0.040, 0.036)
+# armature(自動ウェイト・アニメーション用)のボーン。sculpt_merge後の
+# 1枚のメッシュに対しても、Skin方式と同じくbuild_armatureが関節位置から
+# 自動ウェイトを計算できる(tsubuteと同じ構成)
+AKUBI_BONES_HALF = [
+    ("hip", "chest"), ("chest", "head"), ("head", "snout"), ("snout", "jaw"),
+    ("chest", "legF.L"), ("legF.L", "footF.L"),
+    ("hip", "legB.L"), ("legB.L", "footB.L"),
+    ("hip", "tail1"), ("tail1", "tail2"), ("tail2", "tail3"), ("tail3", "tail4"),
+]
+
+# カラーパレット欄の実測
+AKUBI_SHEET = {
+    "main": (0.239, 0.224, 0.235),    # 体(メイン) #3d393c
+    "shade": (0.329, 0.290, 0.345),   # 体の影(参考値、下記の理由で未使用) #544a58
+    "spot": (0.565, 0.494, 0.565),    # 斑点・模様 #907e90
+    "belly": (0.843, 0.796, 0.784),   # おなか(薄い影) #d7cbc8
+    "mouth": (0.729, 0.584, 0.675),   # 口の中(あくび時) #ba95ac
+    "edge": (0.451, 0.376, 0.447),    # 影・縁(ふちの滲み) #736072
+}
+# 「体の影」はgajiriの「毛(影)」と同じく、塗りのグラデーション欄であって
+# 塗り分ける領域ではない(実機のトゥーン照明が陰影を作るため)。未使用のまま
+# 値だけ記録しておく(handbook該当なし。gajiri-remake.mdのfur_shadeと同じ扱い)。
+
+AKUBI_SPOTS = [
+    # (x, y, z, radius)。前後・左右非対称の小さな色面パッチを数個(頬・肩・
+    # 腰・尾の付け根)。xは正側のみ書き、bake側でabsを取って両側に効かせる。
+    # 実測: 半径0.012〜0.013は体長0.14mに対して大きすぎ、はっきりした
+    # 円形の水玉に見えた。設定画は輪郭の柔らかい小さな斑点なので半分ほどに絞る
+    (0.022, -0.040, 0.104, 0.007),
+    (0.030, -0.006, 0.062, 0.007),
+    (0.034, 0.024, 0.036, 0.006),
+    (0.014, 0.048, 0.030, 0.005),
+    (0.026, -0.020, 0.084, 0.005),
+    (0.020, 0.010, 0.050, 0.005),
+]
+AKUBI_BELLY_CENTER = Vector((0.0, -0.014, 0.028))
+AKUBI_BELLY_RADII = Vector((0.020, 0.022, 0.020))
 
 
 def build_akubitokage():
     """
-    ヨリシロのあくびの合間に紛れ込んだ影。ぷるんと同じ縦2本の骨組みを
-    そのまま流用するが、ひとまわり小さく華奢にし、上へ行くほど後ろへ
-    反らせることで、ぷるんの垂直な雫形とは違う、いまにも飛び退きそうな
-    軽いシルエットにする。
-    """
-    body = C.build_skinned("akubitokage", AKUBI_JOINTS, AKUBI_BONES, AKUBI_RADII,
-                           root="base", subsurf=2)
-    # 底を平らに均して、床に乗っている感じを出す(ぷるんと同じ処理)
-    for vert in body.data.vertices:
-        if vert.co.z < 0.012:
-            vert.co.z = 0.012 - (0.012 - vert.co.z) * 0.25
+    新しい設定画(plan/models/reference-akubitokage-sheet.png、ユーザー提供)
+    に合わせた造形。仕様と実測値は plan/models/akubitokage-remake.md。
 
-    shadow = C.make_material("akubi_shadow", (0.34, 0.28, 0.21), roughness=0.5)
-    dust = C.make_material("akubi_dust", (0.74, 0.66, 0.52), roughness=0.45)
-    # 根元は影らしく暗く、上へ行くほど参道の土埃に紛れる淡い色へ抜けさせる
-    C.assign_materials_by_region(body, [shadow, dust], lambda c: 1 if c.z > 0.15 else 0)
+    - garudo/tsubuteと同じ「手で置いた球+管をsculpt_mergeで彫刻式に
+      融合→bake_albedoでテクスチャに模様を描く」手順に沿う(build_skinned
+      によるSkin+Subsurfの管ではない。上のAKUBI_HALFのコメント参照)。
+    - **四つ足のトカゲ+渦を巻く尾**。腰・肩・頭・鼻先の4球を大きく重ねて
+      設定画どおりの「首の無い、腰から頭まで連続したS字」を作り、
+      前後の脚・尾はcurve_tube(gajiriの尾と同じ、数点の制御点で
+      曲がりながら先細る管)を生やして同じボクセルで融合する。
+    - 背の小さな波形の背びれも、硬いbox/cylinderではなく融合前の小さな
+      球で作る。sculpt_mergeが継ぎ目なく体表へ溶かし込むので、
+      「貼り付けた別部品」ではなく「体表のうねり」に見える。
+    - 下あご(jaw)は骨だけ持ち、肉付けはしない。静止姿勢では口内色の
+      板(mouth decal)がjawに重なって隠れ、attackでjawが大きく後方
+      回転すると一緒に振れて口内色が覗く(見た目の「あくび」)。
+    - 目・鼻の穴・口の線は幾何ではなく**テクスチャに描く**
+      (tsubuteの口の折れ線・鼻の穴と同じ、bake_albedoの位置関数)。
+      半目の眠そうな線は、頭の球面へ投影した短い折れ線として塗る。
+    """
+    joints = C.mirrored(AKUBI_HALF)
+    bones = C.mirrored_bones(AKUBI_BONES_HALF)
+
+    parts = []
+
+    def sph(name, key, scale=(1.0, 1.0, 1.0), segs=16, rings=12):
+        x, y, z = AKUBI_HALF[key]
+        obj = C.uv_sphere(name, (x, y, z), AKUBI_SCULPT_R[key],
+                          segments=segs, rings=rings, scale=scale)
+        parts.append(obj)
+        return obj
+
+    sph("akubi_hip", "hip", scale=(1.0, 1.0, 0.94))
+    mx, my, mz, mr = AKUBI_MIDBACK
+    parts.append(C.uv_sphere("akubi_midback", (mx, my, mz), mr, segments=16, rings=12))
+    sph("akubi_chest", "chest", scale=(1.0, 1.0, 0.96))
+    sph("akubi_head", "head", scale=(1.0, 1.05, 0.98))
+    sph("akubi_snout", "snout", scale=(1.0, 1.2, 0.82))
+
+    def mirror_x(key, side):
+        x, y, z = AKUBI_HALF[key]
+        return Vector((x * side, y, z))
+
+    for side in (-1.0, 1.0):
+        # 3点(付け根→ひざ→足)にして、2点のみのAUTOハンドルが外側へ
+        # 膨らむ(実測: 前脚が肩から上へ伸びる腕のように見えた)のを防ぐ
+        lf = mirror_x("legF.L", side)
+        ff = mirror_x("footF.L", side)
+        knee_f = Vector(((lf.x + ff.x) / 2, (lf.y + ff.y) / 2 - 0.004, (lf.z + ff.z) / 2))
+        parts.append(C.curve_tube(f"akubi_legF{side}", [lf, knee_f, ff], [0.015, 0.012, 0.009]))
+        lb = mirror_x("legB.L", side)
+        fb = mirror_x("footB.L", side)
+        knee_b = Vector(((lb.x + fb.x) / 2, (lb.y + fb.y) / 2 - 0.004, (lb.z + fb.z) / 2))
+        parts.append(C.curve_tube(f"akubi_legB{side}", [lb, knee_b, fb], [0.018, 0.014, 0.011]))
+
+    # 尾: 関節そのものが渦を描く制御点(付け根の骨と同じ位置を使うので、
+    # 融合後の自動ウェイトも渦に沿ってなめらかに割り振られる)
+    tail_pts = [Vector(AKUBI_HALF[k]) for k in ("hip", "tail1", "tail2", "tail3", "tail4")]
+    # 尾の付け根は腰球に埋もれてしまう分を見越し、太さを腰に近い値から
+    # 始めて緩やかに絞る(実測: 0.016スタートだと尾がひも状に細く見えた)
+    parts.append(C.curve_tube("akubi_tail", tail_pts, [0.032, 0.022, 0.015, 0.008, 0.002]))
+
+    # 背に一列並んだ、小さな波形のやわらかい背びれ。設定画には角のある
+    # 部品が無いため、silhouette-hard-surface-parts.mdの「最低1つ」は
+    # 今回見送る(plan/models/akubitokage-remake.mdの指示どおり、
+    # 丸みだけで表現する)。sculpt_mergeで体表へ溶け込ませる。設定画では
+    # 首の付け根(頭のすぐ後ろ)の1本目がいちばん高く突き出ている。
+    # 体表から外側へ張り出す量を確保するため、融合前の半径を実測より
+    # 大きめにする(実測: 半径0.017前後だと体表にほぼ埋もれて見えなくなった)
+    for i, (y, z, r) in enumerate([
+        (-0.022, 0.112, 0.022), (-0.004, 0.098, 0.019), (0.014, 0.084, 0.017),
+        (0.030, 0.068, 0.014), (0.044, 0.052, 0.010),
+    ]):
+        parts.append(C.uv_sphere(f"akubi_frill{i}", (0.0, y, z), r,
+                                 segments=12, rings=8, scale=(1.0, 1.0, 0.6)))
+
+    # 入力は自己交差の無い閉じたプリミティブ(球・curve_tube)だけなので
+    # clean_input=Trueで近道する。既定Falseの前段SMOOTHリメッシュは
+    # 「交差しているだけで未融合」と判定した大きめの部品を削ることがあり、
+    # 実測で鼻先の付け根に不自然な穴(凹み)ができた
+    body = C.sculpt_merge("akubitokage", parts, voxel=0.0028, target_tris=3200,
+                          clean_input=True)
+    C.decimate_to(body, 3200)
+    C.organic_uv(body)
+    # 底を平らに均して、床に乗っている感じを出す(purun/gajiriと同じ処理)
+    for vert in body.data.vertices:
+        if vert.co.z < 0.010:
+            vert.co.z = 0.010 - (0.010 - vert.co.z) * 0.25
+
+    # ---- 模様はテクスチャに描く(tsubuteと同じ手法) ----
+    head_c = Vector(AKUBI_HALF["head"])
+    head_r = AKUBI_SCULPT_R["head"]
+
+    def on_head(p):
+        return head_c + (p - head_c).normalized() * head_r
+
+    # 半目の眠そうな線。頭の中心からの相対オフセットで置き(頭の位置を
+    # 動かしても追従する)、頭の球面に投影した3点の折れ線を、まぶたの縁
+    # ぶんだけ厚みを持たせて塗る(tsubuteの口の折れ線と同じ手法)
+    eye_raw = [head_c + Vector((0.014, -0.010, 0.018)),
+               head_c + Vector((0.026, -0.020, 0.020)),
+               head_c + Vector((0.036, -0.012, 0.014))]
+    eye_pts = [on_head(p) for p in eye_raw]
+    # 口(閉じた線)。頭ではなく鼻先寄りなので鼻先の中心へ投影する
+    snout_c = Vector(AKUBI_HALF["snout"])
+    snout_r = AKUBI_SCULPT_R["snout"]
+
+    def on_snout(p):
+        return snout_c + (p - snout_c).normalized() * snout_r
+
+    mouth_raw = [snout_c + Vector((-0.014, -0.008, -0.006)),
+                 snout_c + Vector((0.0, -0.012, -0.008)),
+                 snout_c + Vector((0.014, -0.008, -0.006))]
+    mouth_pts = [on_snout(p) for p in mouth_raw]
+    nostril_pts = [on_snout(snout_c + Vector((0.007 * side, -0.014, 0.004)))
+                  for side in (-1.0, 1.0)]
+
+    def seg_dist(p, a, b):
+        ab = b - a
+        t = max(0.0, min(1.0, (p - a).dot(ab) / max(ab.length_squared, 1e-12)))
+        return (p - (a + ab * t)).length
+
+    dark = (0.10, 0.08, 0.10)
+    main_c, spot_c, belly_c, edge_c = (AKUBI_SHEET["main"], AKUBI_SHEET["spot"],
+                                       AKUBI_SHEET["belly"], AKUBI_SHEET["edge"])
+    tail_tip = Vector(AKUBI_HALF["tail4"])
+
+    def akubi_color(p, n):
+        x, y, z = p.x, p.y, p.z
+        q = Vector((abs(x), y, z))
+        ed = min(seg_dist(q, a, b) for a, b in zip(eye_pts, eye_pts[1:]))
+        if ed < 0.005 and n.y < -0.2:
+            return dark
+        md = min(seg_dist(p, a, b) for a, b in zip(mouth_pts, mouth_pts[1:]))
+        if md < 0.004 and n.y < -0.3:
+            return dark
+        for npt in nostril_pts:
+            if (p - npt).length < 0.0028:
+                return dark
+        if (p - tail_tip).length < 0.018:
+            return edge_c
+        d = Vector(((x - AKUBI_BELLY_CENTER.x) / AKUBI_BELLY_RADII.x,
+                    (y - AKUBI_BELLY_CENTER.y) / AKUBI_BELLY_RADII.y,
+                    (z - AKUBI_BELLY_CENTER.z) / AKUBI_BELLY_RADII.z))
+        if d.length < 1.0 and n.y < -0.15:
+            return belly_c
+        for sx, sy, sz, sr in AKUBI_SPOTS:
+            if (q - Vector((sx, sy, sz))).length < sr:
+                return spot_c
+        return main_c
+
+    albedo = C.bake_albedo(body, akubi_color, size=384, name="akubi_skin")
+    C.assign_material(body, C.make_textured_material("akubi_skin_m", albedo, roughness=0.6))
 
     extras = []
-    for side in (-1.0, 1.0):
-        extras += eyeball(f"akubi_eye{side}", (0.026 * side, -0.062, 0.238), 0.018,
-                          look=(0.2 * side, -1.0, 0.05))
-    # あくびの名残で、閉じきらず開いたままの口
-    mouth = C.uv_sphere("akubi_mouth", (0.0, -0.075, 0.198), 0.024,
-                        segments=14, rings=10, scale=(0.85, 0.55, 1.25))
-    C.assign_material(mouth, C.make_material("akubi_mouth_m", (0.20, 0.15, 0.13), roughness=0.35))
-    extras.append(mouth)
+    pinned = []
 
-    # 背に一列並んだ、控えめな棘(plan/models/archive/sheet-akubitokage.md、
-    # plan/models/archive/silhouette-hard-surface-parts.mdの義務項目)。
-    # 面取りした小さな三角柱を、体の後傾に沿わせて背筋に並べる
-    spike_mat = C.make_material("akubi_spike", (0.24, 0.19, 0.15), roughness=0.55)
-    for i, (spine_y, z, radius, size) in enumerate([
-        (-0.006, 0.090, 0.109, 0.038),
-        (-0.008, 0.140, 0.090, 0.044),
-        (-0.017, 0.190, 0.069, 0.038),
-        (-0.031, 0.235, 0.052, 0.028),
-    ]):
-        spike = C.box(f"akubi_spike{i}", (0.0, spine_y + radius + size * 0.5, z),
-                     (size * 0.4, size, size * 0.7), bevel=size * 0.18, bevel_segments=1)
-        spike.rotation_euler = (math.radians(-20.0), 0.0, math.radians(45.0))
-        C.assign_material(spike, spike_mat)
-        extras.append(spike)
+    def add(obj, mat, pin_bone=None):
+        C.assign_material(obj, mat)
+        if pin_bone:
+            group = C.mark_for_pin(obj)
+            pinned.append((group, pin_bone))
+        extras.append(obj)
+        return obj
+
+    # 口内(あくび時に覗く面)。静止姿勢ではjaw関節とほぼ重なって
+    # 頭の皮に埋もれ、attackでjawが後方回転すると一緒に振れて露出する
+    jx, jy, jz = AKUBI_HALF["jaw"]
+    mouth = C.uv_sphere("akubi_mouth", (0.0, jy, jz), 0.006,
+                        segments=14, rings=10, scale=(0.9, 0.6, 0.5))
+    add(mouth, C.make_material("akubi_mouth_m", AKUBI_SHEET["mouth"], roughness=0.4),
+        pin_bone="snout-jaw")
+
+    # あくびの煙。頭の脇に小さな淡紫の房を2つ浮かせる(kinokootokoの
+    # 胞子と同じ、primitiveを貼るだけの安全な手法)
+    smoke_mat = C.make_material("akubi_smoke", (0.75, 0.70, 0.82), roughness=0.5, emission=0.15)
+    for i, (x, y, z, r) in enumerate([(0.056, -0.024, 0.118, 0.014), (0.048, 0.006, 0.132, 0.010)]):
+        smoke = C.uv_sphere(f"akubi_smoke{i}", (x, y, z), r, segments=10, rings=8)
+        add(smoke, smoke_mat, pin_bone="chest-head")
 
     mesh = C.join([body] + extras, "akubitokage")
-    armature = C.build_armature("akubitokage", C.mirrored(AKUBI_JOINTS), AKUBI_BONES, mesh, root="base")
+    armature = C.build_armature("akubitokage", joints, bones, mesh, root="hip")
+    for group, bone in pinned:
+        C.pin_weight_to_bone(mesh, group, bone)
+    _akubitokage_check(mesh)
     return [mesh, armature], armature
+
+
+def _akubitokage_check(mesh) -> None:
+    """設定画の見積もりと合っているかをビルド時に確かめる(handbook 1-16)。"""
+    lo, hi = C.bounds([mesh])
+    height, width, depth = hi.z - lo.z, hi.x - lo.x, hi.y - lo.y
+    print(f"[akubitokage] 高さ {height:.3f}m 幅 {width:.3f}m 奥行き {depth:.3f}m "
+          f"(見積もり高さ {AKUBI_HEIGHT:.3f})")
+    assert abs(height - AKUBI_HEIGHT) < 0.010, height
+    print(f"[akubitokage] 三角形 {C.tri_count([mesh])}")
 
 
 def akubitokage_animations():
     """
-    plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
-    attackにタメ→ツメ(LINEAR)→行き過ぎ→戻りの緩急、hit/dieの入りに
-    LINEARの鋭さ、idleにupperが2フレーム遅れて追従する二次揺れを足した。
-    coward種族なので振りは小さくフレーム間隔も詰めたまま(素早さは維持)。
+    plan/models/akubitokage-remake.mdの状態対応(通常/あくび/驚く/逃げ出す)
+    と、plan/game/archive/animation-quality-guidelines.mdの規約(タメ・ツメの
+    LINEAR補間、二次揺れ)に沿う。coward種族なので振りは小さく、フレーム
+    間隔も詰めたまま(素早さは維持)。
     """
-    lower, upper = "base-mid", "mid-top"
-    squash = {"scale": (1.28, 0.62, 1.28)}
-    stretch = {"scale": (0.78, 1.36, 0.78)}
+    trunk = "hip-chest"
+    headb = "chest-head"
+    jaw = "snout-jaw"
+    legF_L, legF_R = "chest-legF.L", "chest-legF.R"
+    legB_L, legB_R = "hip-legB.L", "hip-legB.R"
+    t1 = "hip-tail1"
     neutral = {"scale": (1.0, 1.0, 1.0)}
     return [
-        # 影らしく、常にそわそわと落ち着かない。上体は2フレーム遅れて傾く
+        # 通常(うたたね): 浅い呼吸+尾の先のゆらぎ。ときどき首だけ
+        # 「きょろきょろ」動かす
         ("idle", [
-            (1, {lower: neutral, upper: (0, 0, 0)}),
-            (10, {lower: {"scale": (1.08, 0.90, 1.08)}}),
-            (12, {upper: (3, 0, 0)}, {"partial": True}),
-            (20, {lower: neutral}),
-            (22, {upper: (-3, 0, 0)}, {"partial": True}),
-            (28, {lower: neutral}),
-            (30, {upper: (0, 0, 0)}, {"partial": True}),
+            (1, {trunk: neutral, headb: (0, 0, 0), t1: (0, 0, 0)}),
+            (14, {trunk: {"scale": (1.04, 0.94, 1.04)}}),
+            (16, {t1: (0, 0, 10)}, {"partial": True}),
+            (28, {trunk: neutral}),
+            (30, {t1: (0, 0, -6)}, {"partial": True}),
+            (40, {headb: (0, 14, 0)}),
+            (52, {headb: (0, -10, 0)}),
+            (64, {headb: (0, 0, 0), t1: (0, 0, 0)}),
         ]),
-        # ぷるんより素早く、跳ねるように逃げ足を刻む
+        # 逃げ出す: coward AIの俊敏さそのまま、跳ねるように駆け足を刻む
         ("walk", [
-            (1, {lower: neutral, upper: (0, 0, 0)}),
-            (3, {lower: squash, upper: (10, 0, 0)}),
-            (7, {lower: {**stretch, "loc": (0, 0.09, 0)}, upper: (-14, 0, 0)}),
-            (11, {lower: {"scale": (1.12, 0.82, 1.12)}, upper: (4, 0, 0)}),
-            (15, {lower: neutral, upper: (0, 0, 0)}),
+            (1, {trunk: {"scale": (1.10, 0.86, 1.10), "rot": (10, 0, 0)},
+                 legF_L: (24, 0, 0), legF_R: (-24, 0, 0),
+                 legB_L: (-20, 0, 0), legB_R: (20, 0, 0)}),
+            (4, {trunk: {"scale": (0.88, 1.18, 0.88), "loc": (0, AKUBI_HEIGHT * 0.10, 0)},
+                 legF_L: (-24, 0, 0), legF_R: (24, 0, 0),
+                 legB_L: (20, 0, 0), legB_R: (-20, 0, 0)}),
+            (7, {trunk: {"scale": (1.10, 0.86, 1.10), "rot": (10, 0, 0)},
+                 legF_L: (24, 0, 0), legF_R: (-24, 0, 0),
+                 legB_L: (-20, 0, 0), legB_R: (20, 0, 0)}),
+            (10, {trunk: {"scale": (0.88, 1.18, 0.88), "loc": (0, AKUBI_HEIGHT * 0.10, 0)},
+                  legF_L: (-24, 0, 0), legF_R: (24, 0, 0),
+                  legB_L: (20, 0, 0), legB_R: (-20, 0, 0)}),
         ]),
-        # タメ(軽くsquash)→ツメ(LINEARで鋭く伸びる)→行き過ぎ→戻り
+        # あくびをする: 実質的な妨害行動なし(coward)。タメ→大きく口を
+        # 開け(jawが後方回転して口内色が覗く)→ゆっくり閉じる
         ("attack", [
-            (1, {lower: neutral, upper: (0, 0, 0)}),
-            (4, {lower: {"scale": (1.18, 0.76, 1.18)}, upper: (12, 0, 0)}, {"interp": "LINEAR"}),
-            (7, {lower: {"scale": (0.76, 1.4, 0.76)}, upper: (-22, 0, 0)}),
-            (9, {lower: {"scale": (0.84, 1.28, 0.84)}, upper: (-16, 0, 0)}),
-            (14, {lower: neutral, upper: (0, 0, 0)}),
+            (1, {headb: (0, 0, 0), jaw: (0, 0, 0)}),
+            (5, {headb: (-14, 0, 0), jaw: (6, 0, 0)}, {"interp": "LINEAR"}),
+            (9, {headb: (22, 0, 0), jaw: (-52, 0, 0)}),
+            (20, {headb: (26, 0, 0), jaw: (-60, 0, 0)}),
+            (32, {headb: (4, 0, 0), jaw: (-8, 0, 0)}),
+            (40, {headb: (0, 0, 0), jaw: (0, 0, 0)}),
         ]),
-        # 触れられると鋭く(LINEAR)後ろへ跳び退き、ゆっくり戻る
+        # 驚く(!): 鋭く(LINEAR)後ろへ縮み、尾がびくっと跳ねる
         ("hit", [
-            (1, {lower: neutral, upper: (0, 0, 0)}, {"interp": "LINEAR"}),
-            (3, {lower: {"scale": (1.3, 0.6, 1.3), "loc": (0, 0.08, 0)}, upper: (24, 0, 0)}),
-            (11, {lower: neutral, upper: (0, 0, 0)}),
+            (1, {trunk: neutral, t1: (0, 0, 0)}, {"interp": "LINEAR"}),
+            (3, {trunk: {"scale": (1.24, 0.68, 1.24), "loc": (0, -AKUBI_HEIGHT * 0.06, 0)},
+                 t1: (0, 0, 26)}),
+            (14, {trunk: neutral, t1: (0, 0, 0)}),
         ]),
-        # 影が最初にびくっと縮み(LINEAR)、薄れて土埃に紛れて消える。
-        # 消え際にscaleがわずかに揺り戻る小さな跳ね返りを1回入れる
+        # 影が薄れるように低く崩れて消える
         ("die", [
-            (1, {lower: neutral, upper: (0, 0, 0)}, {"interp": "LINEAR"}),
-            (3, {lower: {"scale": (1.16, 0.80, 1.16)}, upper: (6, 0, 0)}),
-            (9, {lower: {"scale": (1.3, 0.42, 1.3)}, upper: (10, 0, 0)}),
-            (22, {lower: {"scale": (1.4, 0.04, 1.4)}, upper: (0, 0, 0)}),
-            (25, {lower: {"scale": (1.37, 0.08, 1.37)}, upper: (0, 0, 0)}),
-            (28, {lower: {"scale": (1.4, 0.04, 1.4)}, upper: (0, 0, 0)}),
+            (1, {trunk: neutral}, {"interp": "LINEAR"}),
+            (10, {trunk: {"scale": (1.3, 0.5, 1.3)}}),
+            (24, {trunk: {"scale": (1.45, 0.05, 1.45)}}),
         ]),
     ]
 
