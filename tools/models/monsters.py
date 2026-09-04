@@ -549,31 +549,12 @@ AKUBI_SPOTS = [
     (0.026, -0.020, 0.084, 0.005),
     (0.020, 0.010, 0.050, 0.005),
 ]
-AKUBI_BELLY_CENTER = Vector((0.0, -0.014, 0.028))
-AKUBI_BELLY_RADII = Vector((0.020, 0.022, 0.020))
-
-
-def _akubi_scale(name, center, normal, length, width, thick, segs=8, rings=5):
-    """
-    トカゲの鱗を1枚だけ作る。半楕円体(半球を平たく潰した形)を
-    ローカル原点に作り、局所座標系(Y=尾へ向く進行方向、Z=体表の外向き
-    法線)へ回してから置く。garudoのclump_volumeが「頭皮を回り込む
-    3D中心線」で毛束を作ったのと同じ考え方で、色ではなく実体の
-    重なりで質感を作る。
-    """
-    obj = C.uv_sphere(name, (0.0, 0.0, 0.0), 1.0, segments=segs, rings=rings,
-                      scale=(width, length, thick))
-    normal = normal.normalized()
-    forward = Vector((0.0, 1.0, 0.0))
-    forward = forward - normal * forward.dot(normal)
-    if forward.length_squared < 1e-8:
-        forward = Vector((1.0, 0.0, 0.0)) - normal * normal.x
-    forward.normalize()
-    right = normal.cross(forward).normalized()
-    forward = right.cross(normal).normalized()
-    obj.rotation_euler = Matrix((right, forward, normal)).transposed().to_euler()
-    obj.location = center
-    return obj
+# 体形修正でおなかの膨らみ(下記belly_bulge)を半径0.020→0.032へ
+# 拡大した際にここを更新し忘れており、塗り分けの楕円体が実際の
+# 膨らみより小さく・ずれていた(実機でおなかの淡色がほぼ見えなかった)。
+# 膨らみの実寸に合わせ直す
+AKUBI_BELLY_CENTER = Vector((0.0, -0.014, 0.022))
+AKUBI_BELLY_RADII = Vector((0.032, 0.030, 0.030))
 
 
 def _akubi_scale_bands(n_rows, count_base, z_lo=-0.92, z_hi=0.90):
@@ -593,133 +574,149 @@ def _akubi_scale_bands(n_rows, count_base, z_lo=-0.92, z_hi=0.90):
     return bands
 
 
-def _akubi_scale_garment():
+def _akubi_scale_sphere_anchors(center, radius, bands, size_mul=1.0):
+    """球面へ鱗の「置き場」だけを敷き詰める(実体は作らない)。
+    戻り値は(位置, 濃淡を測る半径)のリスト。bake_albedo側で最寄りの
+    置き場との距離を陰影に変換し、鱗が重なって盛り上がっているように
+    塗る(下のC.bounds/pin等は一切使わない、純粋なPython計算)。"""
+    anchors = []
+    for r, (zdir, count) in enumerate(bands):
+        ring = math.sqrt(max(0.0, 1.0 - zdir * zdir))
+        stagger = 0.5 if r % 2 else 0.0
+        for j in range(count):
+            ang = (j + stagger) * math.tau / count
+            d = Vector((math.cos(ang) * ring, math.sin(ang) * ring, zdir))
+            pos = center + d * radius
+            size = radius * 0.34 * size_mul
+            anchors.append((pos, size))
+    return anchors
+
+
+def _akubi_scale_tube_anchors(p0, p1, radius0, radius1, rings=3, size_mul=1.0):
+    """尾・脚のような細長い部位向け。軸に沿って輪切りにし、各輪の
+    周方向へ鱗の置き場を並べる(千鳥格子)。_akubi_scale_sphere_anchors
+    と同じく位置と濃淡半径だけを返す。"""
+    anchors = []
+    for k in range(rings):
+        t = (k + 0.5) / rings
+        center = p0.lerp(p1, t)
+        radius = radius0 + (radius1 - radius0) * t
+        count = max(6, round(radius / 0.0016))
+        stagger = 0.5 if k % 2 else 0.0
+        for i in range(count):
+            ang = (i + stagger) * math.tau / count
+            d = Vector((math.cos(ang), math.sin(ang), 0.15)).normalized()
+            pos = center + d * radius
+            size = max(0.0028, radius * 0.60) * size_mul
+            anchors.append((pos, size))
+    return anchors
+
+
+def _akubi_scale_groups():
     """
-    鱗を胴の彫刻(sculpt_merge)には含めず、**服のように後から着せる**
-    別レイヤーにする(ユーザー指摘: 「鱗の肌は服だと考えて、テクスチャを
-    纏った服を着せてください。鱗は個別オブジェクトにできると嬉しい」)。
+    鱗の置き場を領域(腰・中背・肩・尾の各関節・四肢の各区間)ごとに
+    まとめて返す: list[(領域の中心, 領域の半径, [(位置, 濃淡半径), ...])]。
 
-    以前(plan/models/akubitokage-remake.md追記)はsculpt_mergeの
-    ボクセルリメッシュに鱗プリミティブを混ぜていたため、①黄金角
-    スパイラルでは鱗どうしが融け合ってゴツゴツした岩になり、②緯度の
-    輪+千鳥格子に直しても、鱗の厚みを潰さないためvoxelを細かくする
-    必要があり三角形数が跳ね上がった。鱗をsculpt_mergeの外に出して
-    ただのjoin()で束ねれば、ボクセルに融かされず1枚1枚の輪郭が
-    そのまま残る(「個別オブジェクト」の要望どおり)。
+    以前はここで鱗1枚1枚を実体のメッシュ(join+pin_weight_to_bone)
+    として作り、sculpt_mergeの外に「服」として着せていた。しかし実機の
+    ターンテーブルで確認すると、鱗ごとに独立したメッシュの縁を輪郭線
+    シェーダーが拾ってしまい、肌ではなく「毛玉」のようなノイズに
+    見えることが分かった(plan/models/akubitokage-remake.md追記)。
+    鱗を実体にするのをやめ、位置を決める格子のロジックだけ流用して
+    bake_albedoの濃淡(重なって少し盛り上がっているように見える陰影)
+    で表現する方式に戻す。実体を作らないので、床の下へ潜る心配も無い
+    (以前ここにあったfloor_zの間引きは不要になった)。
 
-    さらに「鱗が少なすぎる。敷き詰められて初めて皮になる」との指摘で、
-    胴・おなか・尾に加えて**四肢にも**鱗を敷き、密度も大きく上げた
-    (三角形予算は気にしない指示のため)。顔(頭・鼻先)だけは、半目・
-    鼻の穴・口の線というテクスチャの模様を鱗が覆い隠してしまうため
-    今回も対象外にする(「顔は作り込みすぎない」という別の指摘とも
-    整合する)。おなかの塗り分け(薄い色)は、鱗を間引くのではなく
-    鱗自体の色をbake_albedoで塗り分けて表現する(build_akubitokage
-    側のscale_color参照)。
-
-    緯度の輪(row)に等間隔で並べ、隣の輪とは半周期ずらす(瓦・魚の
-    鱗と同じ千鳥格子)。領域ごとに`mark_for_pin`で印を付け、鱗は
-    肉のように伸び縮みしない硬い角質の板として扱う(build_armature
-    後にpin_weight_to_boneで単一ボーンへ固定する)。
+    顔(頭・鼻先)は今回も対象外(半目・鼻の穴・口の線というテクスチャの
+    模様を鱗の濃淡が邪魔するのを避ける。「顔は作り込みすぎない」指摘とも
+    整合)。
     """
-    regions = []  # (merged_obj, pin_bone)
-    # 床の平坦化(build_akubitokageの「底を平らに均す」処理)は本体にしか
-    # 掛からないため、鱗を球面どおりに配置すると腹・脚の裏側が床の下へ
-    # 潜ってしまい高さ判定を壊す。鱗1枚単位でその手前に間引く
-    floor_z = 0.012
-
-    def region(tag, pin_bone, center, radius, bands, size_mul=1.0):
-        objs = []
-        for r, (zdir, count) in enumerate(bands):
-            ring = math.sqrt(max(0.0, 1.0 - zdir * zdir))
-            stagger = 0.5 if r % 2 else 0.0
-            for j in range(count):
-                ang = (j + stagger) * math.tau / count
-                d = Vector((math.cos(ang) * ring, math.sin(ang) * ring, zdir))
-                pos = center + d * (radius * 1.012)
-                if pos.z < floor_z:
-                    continue
-                length = radius * 0.24 * size_mul
-                objs.append(_akubi_scale(f"akubi_scale_{tag}_{len(objs)}", pos, d,
-                                         length, length * 0.78, length * 0.15))
-        if not objs:
-            return
-        merged = C.join(objs, f"akubi_scales_{tag}")
-        group = C.mark_for_pin(merged)
-        regions.append((merged, group, pin_bone))
+    groups = []
 
     hip = Vector(AKUBI_HALF["hip"])
-    region("hip", "hip-chest", hip, AKUBI_SCULPT_R["hip"],
-          _akubi_scale_bands(13, 15))
+    hip_r = AKUBI_SCULPT_R["hip"]
+    groups.append((hip, hip_r, _akubi_scale_sphere_anchors(hip, hip_r, _akubi_scale_bands(13, 15))))
+
     mx, my, mz, mr = AKUBI_MIDBACK
-    region("midback", "hip-chest", Vector((mx, my, mz)), mr,
-          _akubi_scale_bands(11, 14))
+    mid = Vector((mx, my, mz))
+    groups.append((mid, mr, _akubi_scale_sphere_anchors(mid, mr, _akubi_scale_bands(11, 14))))
+
     chest = Vector(AKUBI_HALF["chest"])
-    region("chest", "chest-head", chest, AKUBI_SCULPT_R["chest"],
-          _akubi_scale_bands(10, 13), size_mul=0.92)
+    chest_r = AKUBI_SCULPT_R["chest"]
+    groups.append((chest, chest_r,
+                   _akubi_scale_sphere_anchors(chest, chest_r, _akubi_scale_bands(10, 13), size_mul=0.92)))
 
-    # 尾は関節ごとに輪切りで敷く(緯度の輪ではなく、細長い尾の周方向に
-    # 均等割り)。それぞれ隣り合うボーンへ固定する
+    # 尾は関節ごとに輪切り(緯度の輪ではなく、細長い尾の周方向に均等割り)
     tail_specs = [
-        ("hip-tail1", hip, 0.036),
-        ("tail1-tail2", Vector(AKUBI_HALF["tail1"]), 0.026),
-        ("tail2-tail3", Vector(AKUBI_HALF["tail2"]), 0.018),
-        ("tail3-tail4", Vector(AKUBI_HALF["tail3"]), 0.011),
-        ("tail4-tail5", Vector(AKUBI_HALF["tail4"]), 0.007),
+        (hip, 0.036), (Vector(AKUBI_HALF["tail1"]), 0.026),
+        (Vector(AKUBI_HALF["tail2"]), 0.018), (Vector(AKUBI_HALF["tail3"]), 0.011),
+        (Vector(AKUBI_HALF["tail4"]), 0.007),
     ]
+    for center, radius in tail_specs:
+        groups.append((center, radius,
+                       _akubi_scale_tube_anchors(center, center, radius, radius, rings=1)))
 
-    def ring_along(tag, bone, p0, p1, radius0, radius1, rings=3):
-        objs = []
-        for k in range(rings):
-            t = (k + 0.5) / rings
-            center = p0.lerp(p1, t)
-            radius = radius0 + (radius1 - radius0) * t
-            count = max(6, round(radius / 0.0016))
-            stagger = 0.5 if k % 2 else 0.0
-            for i in range(count):
-                ang = (i + stagger) * math.tau / count
-                d = Vector((math.cos(ang), math.sin(ang), 0.15)).normalized()
-                pos = center + d * (radius * 1.02)
-                if pos.z < floor_z:
-                    continue
-                length = max(0.0028, radius * 0.40)
-                objs.append(_akubi_scale(f"akubi_scale_{tag}_{k}_{i}", pos, d,
-                                         length, length * 0.78, length * 0.16))
-        if not objs:
-            return
-        merged = C.join(objs, f"akubi_scales_{tag}")
-        group = C.mark_for_pin(merged)
-        regions.append((merged, group, bone))
-
-    for bone, center, radius in tail_specs:
-        tag = bone.replace("-", "_")
-        ring_along(tag, bone, center, center, radius, radius, rings=1)
-
-    # 四肢にも鱗を敷く(左右)。curve_tubeの3制御点(付け根→ひざ→足)を
-    # そのまま輪の中心に使う
+    # 四肢(左右)。curve_tubeの3制御点(付け根→ひざ→足、build_akubitokage
+    # 本体の脚と同じ形)をそのまま輪切りの軸に使う
     def mirror_x(key, side):
         x, y, z = AKUBI_HALF[key]
         return Vector((x * side, y, z))
 
     for side in (-1.0, 1.0):
-        tag = f"legF{'L' if side > 0 else 'R'}"
         lf = mirror_x("legF.L", side)
         ff = mirror_x("footF.L", side)
-        knee = Vector(((lf.x + ff.x) / 2, (lf.y + ff.y) / 2 - 0.004, (lf.z + ff.z) / 2))
-        ring_along(f"{tag}_upper", "chest-legF." + ("L" if side > 0 else "R"),
-                  lf, knee, 0.015, 0.012, rings=2)
-        ring_along(f"{tag}_lower", "legF." + ("L" if side > 0 else "R") + "-footF." + ("L" if side > 0 else "R"),
-                  knee, ff, 0.012, 0.009, rings=2)
+        knee_f = Vector((lf.x * 1.28, (lf.y + ff.y) / 2 - 0.004, (lf.z + ff.z) / 2))
+        groups.append((lf.lerp(knee_f, 0.5), 0.020,
+                       _akubi_scale_tube_anchors(lf, knee_f, 0.021, 0.018, rings=2)))
+        groups.append((knee_f.lerp(ff, 0.5), 0.016,
+                       _akubi_scale_tube_anchors(knee_f, ff, 0.018, 0.013, rings=2)))
 
-        tag = f"legB{'L' if side > 0 else 'R'}"
         lb = mirror_x("legB.L", side)
         fb = mirror_x("footB.L", side)
-        kneeb = Vector(((lb.x + fb.x) / 2, (lb.y + fb.y) / 2 - 0.004, (lb.z + fb.z) / 2))
-        ring_along(f"{tag}_upper", "hip-legB." + ("L" if side > 0 else "R"),
-                  lb, kneeb, 0.018, 0.014, rings=2)
-        ring_along(f"{tag}_lower", "legB." + ("L" if side > 0 else "R") + "-footB." + ("L" if side > 0 else "R"),
-                  kneeb, fb, 0.014, 0.011, rings=2)
+        knee_b = Vector((lb.x * 1.30, (lb.y + fb.y) / 2 - 0.004, (lb.z + fb.z) / 2))
+        groups.append((lb.lerp(knee_b, 0.5), 0.024,
+                       _akubi_scale_tube_anchors(lb, knee_b, 0.024, 0.020, rings=2)))
+        groups.append((knee_b.lerp(fb, 0.5), 0.019,
+                       _akubi_scale_tube_anchors(knee_b, fb, 0.020, 0.015, rings=2)))
 
-    return regions
+    return groups
+
+
+def _akubi_scale_shade(p, groups):
+    """
+    pに最も近い鱗の置き場を探し、そこからの距離を「重なって少し
+    盛り上がっている」濃淡(1.0前後の乗算係数)に変換する。
+
+    まず領域(中心・半径)でどこに属するかを安く絞り込み(全アンカーを
+    毎テクセル舐めると遅すぎる)、その領域内だけで最寄りの置き場を探す。
+    顔などどの領域からも遠い点は1.0(無地)を返す。
+    """
+    best_group = None
+    best_score = None
+    for center, radius, anchors in groups:
+        score = abs((p - center).length - radius)
+        if best_score is None or score < best_score:
+            best_score = score
+            best_group = anchors
+    if best_group is None or best_score > 0.03:
+        return 1.0
+    nearest_d = None
+    nearest_size = 1.0
+    for pos, size in best_group:
+        d = (p - pos).length
+        if nearest_d is None or d < nearest_d:
+            nearest_d = d
+            nearest_size = size
+    t = nearest_d / nearest_size
+    if t > 1.05:
+        return 1.0
+    if t > 0.78:
+        # 鱗どうしの継ぎ目(重なりの縁)。falloffを付けて硬い線にしない。
+        # 実機の滑らかな法線補間で埋もれないよう、平坦な塗りより
+        # かなり強めのコントラストを付ける
+        return 0.58 + 0.10 * min(1.0, (1.05 - t) / 0.27)
+    # 鱗本体。中心がいちばん明るく、縁へ向けて沈む(盛り上がって見える)
+    return 0.96 + 0.36 * (1.0 - t)
 
 
 def build_akubitokage():
@@ -748,13 +745,19 @@ def build_akubitokage():
       (tsubuteの口の折れ線・鼻の穴と同じ、bake_albedoの位置関数)。
       半目の眠そうな線は、起きているのか寝ているのか分からない
       くらい細く、頭の球面へ投影した短い折れ線として塗る。
-    - 体表の細かい鱗を実体ジオメトリで再現する案は試したが、①黄金角
-      スパイラルでは岩のようにゴツゴツし、②緯度の輪+千鳥格子でも
-      三角形数が3732→8532へ膨らみ、1,200〜5,000という予算(plan/
-      models/akubitokage-remake.md)を超えた。あくびとかげは主人公
-      ではなく、優先すべきは①ずんぐり四足②巨大な眠そうな頭③煙の
-      ような渦巻き尾④半目⑤大あくびの5点であって鱗の精密さではない
-      という指摘を受け、鱗ジオメトリは撤回した。
+    - 体表の細かい鱗は、実体ジオメトリ→撤回→「服」として実体を
+      復活、と何度か往復した末に**塗り**へ戻した(下記参照)。最終的に
+      鱗はakubi_color内で`_akubi_scale_shade`により濃淡として焼く。
+    - 鱗を実体にした版(顔以外ほぼ全身、三角形36,540)は、実機の
+      ターンテーブルで確認すると輪郭線シェーダーが鱗1枚1枚の縁を
+      拾ってしまい、肌ではなく「毛玉」のようなノイズに見えた
+      (個別メッシュの島がそれぞれ独立したシルエットを持つため)。
+      「鱗の模様は丁寧に描いたテクスチャでも良い」との指摘を受け、
+      鱗の置き場を決める格子(緯度の輪+千鳥格子)はそのまま流用し、
+      実体を作らずbake_albedoの濃淡(最寄りの置き場との距離を
+      「重なって少し盛り上がっている」陰影に変換)で表現する方式に
+      戻した。実体が無いので輪郭線に拾われず、三角形数も本体だけの
+      軽い値に戻る。
     """
     joints = C.mirrored(AKUBI_HALF)
     bones = C.mirrored_bones(AKUBI_BONES_HALF)
@@ -880,6 +883,11 @@ def build_akubitokage():
                                        AKUBI_SHEET["belly"], AKUBI_SHEET["edge"])
     tail_tip = Vector(AKUBI_HALF["tail5"])
 
+    # 鱗は実体ではなく塗りで表現する(下の_akubi_scale_shade参照。
+    # 実体だと輪郭線シェーダーが鱗ごとの縁を拾ってノイズになった)。
+    # 位置を決める格子だけ計算しておき、akubi_color側で濃淡に変える
+    scale_groups = _akubi_scale_groups()
+
     def akubi_color(p, n):
         x, y, z = p.x, p.y, p.z
         q = Vector((abs(x), y, z))
@@ -900,11 +908,20 @@ def build_akubitokage():
                     (y - AKUBI_BELLY_CENTER.y) / AKUBI_BELLY_RADII.y,
                     (z - AKUBI_BELLY_CENTER.z) / AKUBI_BELLY_RADII.z))
         if d.length < 1.0 and n.y < -0.15:
-            return belly_c
-        for sx, sy, sz, sr in AKUBI_SPOTS:
-            if (q - Vector((sx, sy, sz))).length < sr:
-                return spot_c
-        return main_c
+            base = belly_c
+        else:
+            base = main_c
+            for sx, sy, sz, sr in AKUBI_SPOTS:
+                if (q - Vector((sx, sy, sz))).length < sr:
+                    base = spot_c
+                    break
+        k = _akubi_scale_shade(p, scale_groups)
+        if k >= 1.0:
+            # おなかのような明るい地色は単純な乗算だと白飛びして
+            # のっぺりした光沢に見えるため、白へ寄せる合成にする
+            f = (k - 1.0) * 0.75
+            return tuple(min(1.0, c + (1.0 - c) * f) for c in base)
+        return tuple(max(0.0, c * k) for c in base)
 
     albedo = C.bake_albedo(body, akubi_color, size=384, name="akubi_skin")
     C.assign_material(body, C.make_textured_material("akubi_skin_m", albedo, roughness=0.6))
@@ -919,48 +936,6 @@ def build_akubitokage():
             pinned.append((group, pin_bone))
         extras.append(obj)
         return obj
-
-    # 鱗の服(sculpt_mergeの外で作る別レイヤー。上の_akubi_scale_garment
-    # のコメント参照)。地域ごとに融合済みのオブジェクトをさらに1つへ
-    # まとめ、そこへ organic_uv + bake_albedo で質感テクスチャを焼く
-    # (「テクスチャを纏った服」の指示どおり、鱗どうしの色にわずかな
-    # ムラを付けて自然な質感にする。1枚ずつ塗り分けるわけではない)
-    scale_regions = _akubi_scale_garment()
-    if scale_regions:
-        scale_sheet = C.join([obj for obj, _, _ in scale_regions], "akubi_scale_sheet")
-        C.organic_uv(scale_sheet)
-
-        def scale_color(p, n):
-            # 鱗が全身を覆うようになったため、腹の明色パッチと斑点も
-            # ここで本体(akubi_color)と同じ判定で再現する。
-            # そうしないと鱗の下の本体テクスチャが隠れて模様が消える
-            x, y, z = p.x, p.y, p.z
-            q = Vector((abs(x), y, z))
-            d = Vector(((x - AKUBI_BELLY_CENTER.x) / AKUBI_BELLY_RADII.x,
-                        (y - AKUBI_BELLY_CENTER.y) / AKUBI_BELLY_RADII.y,
-                        (z - AKUBI_BELLY_CENTER.z) / AKUBI_BELLY_RADII.z))
-            if d.length < 1.0 and n.y < -0.15:
-                base = belly_c
-            else:
-                base = main_c
-                for sx, sy, sz, sr in AKUBI_SPOTS:
-                    if (q - Vector((sx, sy, sz))).length < sr:
-                        base = spot_c
-                        break
-            # 鱗ごとの継ぎ目に沿った低周波のムラ(本体のまだら模様と
-            # 同じ考え方)
-            noise = (math.sin(p.x * 137 + p.y * 91) + math.sin(p.y * 173 + p.z * 59)
-                    + math.sin(p.z * 211 + p.x * 67)) / 3.0
-            k = max(0.0, noise) * 0.25
-            shade = spot_c if base is not spot_c else main_c
-            return tuple(m * (1.0 - k) + s * k for m, s in zip(base, shade))
-
-        scale_img = C.bake_albedo(scale_sheet, scale_color, size=256, name="akubi_scale_tex")
-        C.assign_material(scale_sheet, C.make_textured_material(
-            "akubi_scale_tex_m", scale_img, roughness=0.5))
-        extras.append(scale_sheet)
-        for _, group, bone in scale_regions:
-            pinned.append((group, bone))
 
     # 口内(あくび時に覗く面)。静止姿勢ではjaw関節とほぼ重なって
     # 頭の皮に埋もれ、attackでjawが後方回転すると一緒に振れて露出する
