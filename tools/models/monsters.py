@@ -822,30 +822,75 @@ def build_akubitokage():
         x, y, z = AKUBI_HALF[key]
         return Vector((x * side, y, z))
 
+    # 二次形状①: 脚を「胴から生えた先細りの棒」で終わらせない。
+    # 付け根→ひざ→足首→足先の4点にし、ひざでいったん細くなってから
+    # 足先の肉球でまた少し太くなる(単調な先細りではない)。付け根には
+    # 別体の球を追加で足し、関節が面から生えているだけに見えないよう
+    # 肩・尻に量感を持たせる(garudoで「耳を色で描く」のではなく耳を
+    # 造形したのと同じ考え方)
     for side in (-1.0, 1.0):
-        # 3点(付け根→ひざ→足)にして、2点のみのAUTOハンドルが外側へ
-        # 膨らむ(実測: 前脚が肩から上へ伸びる腕のように見えた)のを防ぐ。
-        # 前脚・後脚それぞれの付け根・足は正面図(横位置・接地点)と
-        # 側面図(奥行き・付け根の高さ)から実測した(上のAKUBI_HALF)。
-        # 側面図では前脚は細く付け根が高い、後脚は付け根が低く腹の下で
-        # 大きな「もも」の塊になっている――が実際の設定画の形で、
-        # 前脚・後脚を同じ太さにしていた旧実装は誤りだった
+        # 前脚は側面図で細く付け根が高い(肩の高さ)、後脚は付け根が
+        # 低く(尻の高さ)腹の下で大きな「もも」の塊になっている――が
+        # 実際の設定画の形で、前脚・後脚を同じ太さにしていた旧実装は
+        # 誤りだった(実測済み、ここは変えない)
         lf = mirror_x("legF.L", side)
         ff = mirror_x("footF.L", side)
         knee_f = Vector((lf.x * 1.15, (lf.y + ff.y) / 2 - 0.004, (lf.z + ff.z) / 2))
-        parts.append(C.curve_tube(f"akubi_legF{side}", [lf, knee_f, ff], [0.014, 0.011, 0.008]))
+        ankle_f = knee_f.lerp(ff, 0.6)
+        parts.append(C.curve_tube(f"akubi_legF{side}", [lf, knee_f, ankle_f, ff],
+                                  [0.015, 0.0095, 0.008, 0.007]))
+        parts.append(C.uv_sphere(f"akubi_pawF{side}", tuple(ff), 0.010,
+                                 segments=8, rings=6, scale=(1.15, 1.25, 0.55)))
+        shoulder_f = lf.lerp(Vector((0.0, -0.0157, 0.0959)), 0.35)
+        parts.append(C.uv_sphere(f"akubi_shoulder{side}", tuple(shoulder_f), 0.016,
+                                 segments=10, rings=7, scale=(0.9, 0.9, 0.85)))
+
         lb = mirror_x("legB.L", side)
         fb = mirror_x("footB.L", side)
         knee_b = Vector((lb.x * 1.20, (lb.y + fb.y) / 2 - 0.004, (lb.z + fb.z) / 2))
-        parts.append(C.curve_tube(f"akubi_legB{side}", [lb, knee_b, fb], [0.020, 0.016, 0.010]))
+        ankle_b = knee_b.lerp(fb, 0.6)
+        parts.append(C.curve_tube(f"akubi_legB{side}", [lb, knee_b, ankle_b, fb],
+                                  [0.021, 0.0135, 0.012, 0.009]))
+        parts.append(C.uv_sphere(f"akubi_pawB{side}", tuple(fb), 0.012,
+                                 segments=8, rings=6, scale=(1.2, 1.3, 0.55)))
+        hipjoint = lb.lerp(Vector((0.0, 0.0187, 0.0224)), 0.4)
+        parts.append(C.uv_sphere(f"akubi_hipjoint{side}", tuple(hipjoint), 0.018,
+                                 segments=10, rings=7, scale=(0.9, 0.9, 0.85)))
 
     # 尾: 側面図の巻きの中心線を実際になぞって7点を採り(上のAKUBI_HALFの
     # tail1〜7参照)、各点の太さも実測した。均一な数学的螺旋ではなく、
     # 線そのものをトレースした結果として先端付近が不揃いに丸まる
     tail_pts = [Vector(AKUBI_HALF[k])
                for k in ("hip", "tail1", "tail2", "tail3", "tail4", "tail5", "tail6", "tail7")]
+    # 先端(tail7)の半径0.0019はsculpt_mergeのvoxel(0.0026)より細く、
+    # ボクセルリメッシュが解像できず尾の付け根近くに小さな欠けが
+    # 出ていた(Clayレンダーで確認)。voxelよりわずかに太くして解決する
     parts.append(C.curve_tube("akubi_tail", tail_pts,
-                              [0.036, 0.0133, 0.0105, 0.0086, 0.0067, 0.0057, 0.0048, 0.0019]))
+                              [0.036, 0.0133, 0.0105, 0.0086, 0.0067, 0.0057, 0.0048, 0.0030]))
+
+    # 二次形状②: 頭を「断面リングをなめらかに繋いだだけの塊」から、
+    # 頬・眉弓という別の造形単位を持つ顔にする。正面・側面のシルエット
+    # (IoUで検証済み)はほぼ変えず、その内側にもう一段の面を足す
+    for side in (-1.0, 1.0):
+        # 頬: 半目の線(下記eye_raw、頭中心+(0.014〜0.036, ...))の
+        # すぐ下・後ろに置き、目の下がふっくらして見えるようにする
+        cheek_c = Vector((0.032 * side, -0.006, 0.104))
+        parts.append(C.uv_sphere(f"akubi_cheek{side}", tuple(cheek_c), 0.016,
+                                 segments=10, rings=8, scale=(0.9, 1.0, 0.75)))
+        # 眉弓: 半目の線のすぐ上にごくわずかな稜線を作り、まぶたの
+        # 影が半目の線だけでなく面としても落ちるようにする。頭頂
+        # (z=0.1327以降、点に収束する)へ近づけすぎると、断面が
+        # 急に窄まる場所でボクセルリメッシュ+Decimateの相性が悪く
+        # 小さな欠けができたため、まだ収束が始まらない高さに置く
+        brow_c = Vector((0.026 * side, -0.022, 0.127))
+        parts.append(C.uv_sphere(f"akubi_brow{side}", tuple(brow_c), 0.011,
+                                 segments=8, rings=6, scale=(1.2, 0.7, 0.4)))
+
+    # 尻: 尾の付け根(hip〜tail1)がなだらかに続くだけだと「尾が生えて
+    # いる場所」に見えないので、腰リングの背面側(cy+ry付近)にひとつ
+    # 盛り上がりを足す
+    parts.append(C.uv_sphere("akubi_rump", (0.0, 0.055, 0.032), 0.020,
+                             segments=10, rings=7, scale=(0.85, 0.9, 0.8)))
 
     # 背の波形の背びれ。新しい胴のロフト(AKUBI_TORSO_RINGS)の背面
     # (cy+ry)に沿わせて置き直した。Y方向(体軸沿い)へ伸ばした扁平な
@@ -887,11 +932,15 @@ def build_akubitokage():
 
     # 腹の膨らみ。新しい胴のロフトはすでに正面図・側面図の実測どおり
     # 腰の断面が大きく前へ張り出す形になっているため、旧版のような
-    # 大きな球は不要になった。完全な滑らかさを避けるための小さな
-    # 量感の変化として、ごく控えめに1つだけ残す
+    # 大きな球は不要になった。ただし球1個だけだと中心対称で「貼り付いた
+    # こぶ」に見えるため、少し下・前へずらした2個目を重ねて、重力で
+    # 下へ垂れているように上より下のほうが張り出すいびつな形にする
     parts.append(C.uv_sphere("akubi_belly_bulge",
                              (0.0, AKUBI_BELLY_CENTER.y, AKUBI_BELLY_CENTER.z),
-                             0.018, segments=14, rings=10, scale=(0.95, 0.85, 0.8)))
+                             0.016, segments=14, rings=10, scale=(0.95, 0.85, 0.8)))
+    parts.append(C.uv_sphere("akubi_belly_droop",
+                             (0.0, AKUBI_BELLY_CENTER.y - 0.004, AKUBI_BELLY_CENTER.z - 0.010),
+                             0.014, segments=12, rings=9, scale=(0.9, 0.9, 0.7)))
 
     # 入力は自己交差の無い閉じたプリミティブ(ロフト・球・curve_tube)
     # だけなのでclean_input=Trueで近道する。既定Falseの前段SMOOTH
