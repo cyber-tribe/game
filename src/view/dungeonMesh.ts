@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { TILE, toWorld } from "./renderer";
+import { SCENE_BACKGROUND_COLOR, TILE, toWorld } from "./renderer";
 import type { Assets } from "./assets";
 import {
   type BarrelKind,
@@ -206,10 +206,11 @@ export class DungeonView {
 
   /** フロアの外周4辺のすぐ外に、夢のもやの板を1枚ずつ置く */
   private buildDreamMist(floor: FloorState): void {
-    // 気分によらず常に真っ黒(夢空・src/view/renderer.tsと同じ理由:
-    // plan/models/archive/dungeon-floor-mist-continuity.md追記)
+    // 気分によらず常に背景色と同じ色(夢空・src/view/renderer.tsと
+    // 同じ理由・同じ定数: plan/models/archive/
+    // dungeon-floor-mist-continuity.md追記)
     const material = new THREE.MeshBasicMaterial({
-      color: 0x000000,
+      color: SCENE_BACKGROUND_COLOR,
       transparent: true,
       opacity: 0.4,
       fog: false,

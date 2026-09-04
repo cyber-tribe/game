@@ -33,6 +33,15 @@ import {
  */
 const DREAM_SKY_RADIUS = 60;
 
+/**
+ * 画面の背景色(`Renderer.scene.background`)。夢空(`dreamSky`)は
+ * 気分によらず常に真っ黒(0x000000)で塗るが、背景色をそれと違う値に
+ * すると、半球ドームの縁(頂点が届く境界)で色が一段変わり、薄い
+ * 継ぎ目の線として見えてしまう(plan/models/archive/
+ * dungeon-floor-mist-continuity.md追記)。必ずこの定数を両方に使う
+ */
+export const SCENE_BACKGROUND_COLOR = 0x05060c;
+
 export function buildDreamSky(): THREE.Mesh {
   const geometry = new THREE.SphereGeometry(DREAM_SKY_RADIUS, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2);
   const material = new THREE.MeshBasicMaterial({
@@ -159,7 +168,7 @@ export class Renderer {
     this.renderer.toneMapping = TONE_MAPPING;
     this.renderer.toneMappingExposure = TONE_MAPPING_EXPOSURE;
 
-    this.scene.background = new THREE.Color(0x05060c);
+    this.scene.background = new THREE.Color(SCENE_BACKGROUND_COLOR);
     // フォグの開始距離はカメラからプレイヤーまでの距離より遠くに置く。
     // でないと主役が最初から霞んでしまう
     this.fog = new THREE.Fog(0x070912, 16, 34);
@@ -277,12 +286,15 @@ export class Renderer {
     this.ambient.color.setHex(visual.ambientColor);
     this.ambient.intensity = visual.ambientIntensity;
     // 夢空(plan/models/archive/dungeon-dreamscape.md)は気分の色に
-    // 合わせず常に真っ黒にする。壁は低く天井も無いため、部屋の中でも
-    // 壁の上や外周のもやの向こうに夢空が覗いてしまい、気分の明るい色を
-    // 塗ると地下ダンジョンなのに空が見えるようで不自然になっていた
-    // (plan/models/archive/dungeon-floor-mist-continuity.md追記)
-    const black = new THREE.Color(0x000000);
-    recolorDreamSky(this.dreamSky, black, black);
+    // 合わせず、常に背景色(SCENE_BACKGROUND_COLOR)と同じ色で塗る。
+    // 壁は低く天井も無いため、部屋の中でも壁の上や外周のもやの向こうに
+    // 夢空が覗いてしまい、気分の明るい色を塗ると地下ダンジョンなのに
+    // 空が見えるようで不自然になっていた。単純な黒(0x000000)にすると
+    // 背景色とわずかに違うため、ドームの縁(頂点が届く境界)が薄い
+    // 継ぎ目として見えてしまう(plan/models/archive/
+    // dungeon-floor-mist-continuity.md追記)
+    const bg = new THREE.Color(SCENE_BACKGROUND_COLOR);
+    recolorDreamSky(this.dreamSky, bg, bg);
   }
 
   /** カメラが注視する盤面上の位置。滑らかに追いつく */
