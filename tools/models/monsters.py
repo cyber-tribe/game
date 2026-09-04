@@ -572,6 +572,23 @@ def _akubi_scale(name, center, normal, length, width, thick, segs=8, rings=5):
     return obj
 
 
+def _akubi_scale_bands(n_rows, count_base, z_lo=-0.92, z_hi=0.90):
+    """
+    球のほぼ全周(z_lo〜z_hi)を隙間なく覆う緯度の輪を自動生成する。
+    「鱗が少なすぎる。敷き詰められて初めて皮になる」との指摘を受け、
+    一部だけを覆う手置きのbandsから、極付近まで密に覆う自動生成へ
+    変えた。輪の半径(ring)に比例して1周あたりの数を減らし、極に
+    近づくほど鱗が重なりすぎないようにする
+    """
+    bands = []
+    for i in range(n_rows):
+        z = z_lo + (z_hi - z_lo) * i / max(1, n_rows - 1)
+        ring = math.sqrt(max(0.0, 1.0 - z * z))
+        count = max(4, round(count_base * ring))
+        bands.append((z, count))
+    return bands
+
+
 def _akubi_scale_garment():
     """
     鱗を胴の彫刻(sculpt_merge)には含めず、**服のように後から着せる**
@@ -586,12 +603,25 @@ def _akubi_scale_garment():
     ただのjoin()で束ねれば、ボクセルに融かされず1枚1枚の輪郭が
     そのまま残る(「個別オブジェクト」の要望どおり)。
 
+    さらに「鱗が少なすぎる。敷き詰められて初めて皮になる」との指摘で、
+    胴・おなか・尾に加えて**四肢にも**鱗を敷き、密度も大きく上げた
+    (三角形予算は気にしない指示のため)。顔(頭・鼻先)だけは、半目・
+    鼻の穴・口の線というテクスチャの模様を鱗が覆い隠してしまうため
+    今回も対象外にする(「顔は作り込みすぎない」という別の指摘とも
+    整合する)。おなかの塗り分け(薄い色)は、鱗を間引くのではなく
+    鱗自体の色をbake_albedoで塗り分けて表現する(build_akubitokage
+    側のscale_color参照)。
+
     緯度の輪(row)に等間隔で並べ、隣の輪とは半周期ずらす(瓦・魚の
     鱗と同じ千鳥格子)。領域ごとに`mark_for_pin`で印を付け、鱗は
     肉のように伸び縮みしない硬い角質の板として扱う(build_armature
     後にpin_weight_to_boneで単一ボーンへ固定する)。
     """
     regions = []  # (merged_obj, pin_bone)
+    # 床の平坦化(build_akubitokageの「底を平らに均す」処理)は本体にしか
+    # 掛からないため、鱗を球面どおりに配置すると腹・脚の裏側が床の下へ
+    # 潜ってしまい高さ判定を壊す。鱗1枚単位でその手前に間引く
+    floor_z = 0.012
 
     def region(tag, pin_bone, center, radius, bands, size_mul=1.0):
         objs = []
@@ -601,16 +631,12 @@ def _akubi_scale_garment():
             for j in range(count):
                 ang = (j + stagger) * math.tau / count
                 d = Vector((math.cos(ang) * ring, math.sin(ang) * ring, zdir))
-                pos = center + d * (radius * 1.015)
-                q = Vector((abs(pos.x), pos.y, pos.z))
-                belly = Vector(((q.x - AKUBI_BELLY_CENTER.x) / AKUBI_BELLY_RADII.x,
-                               (q.y - AKUBI_BELLY_CENTER.y) / AKUBI_BELLY_RADII.y,
-                               (q.z - AKUBI_BELLY_CENTER.z) / AKUBI_BELLY_RADII.z))
-                if belly.length < 1.3:
-                    continue                # おなかには置かない(tsubuteと同じ判断)
+                pos = center + d * (radius * 1.012)
+                if pos.z < floor_z:
+                    continue
                 length = radius * 0.24 * size_mul
                 objs.append(_akubi_scale(f"akubi_scale_{tag}_{len(objs)}", pos, d,
-                                         length, length * 0.72, length * 0.15))
+                                         length, length * 0.78, length * 0.15))
         if not objs:
             return
         merged = C.join(objs, f"akubi_scales_{tag}")
@@ -619,13 +645,13 @@ def _akubi_scale_garment():
 
     hip = Vector(AKUBI_HALF["hip"])
     region("hip", "hip-chest", hip, AKUBI_SCULPT_R["hip"],
-          [(0.85, 7), (0.62, 9), (0.38, 10), (0.12, 11), (-0.12, 10)])
+          _akubi_scale_bands(13, 15))
     mx, my, mz, mr = AKUBI_MIDBACK
     region("midback", "hip-chest", Vector((mx, my, mz)), mr,
-          [(0.80, 6), (0.52, 8), (0.24, 9), (-0.04, 9)])
+          _akubi_scale_bands(11, 14))
     chest = Vector(AKUBI_HALF["chest"])
     region("chest", "chest-head", chest, AKUBI_SCULPT_R["chest"],
-          [(0.80, 6), (0.52, 7), (0.24, 8)], size_mul=0.92)
+          _akubi_scale_bands(10, 13), size_mul=0.92)
 
     # 尾は関節ごとに輪切りで敷く(緯度の輪ではなく、細長い尾の周方向に
     # 均等割り)。それぞれ隣り合うボーンへ固定する
@@ -636,20 +662,58 @@ def _akubi_scale_garment():
         ("tail3-tail4", Vector(AKUBI_HALF["tail3"]), 0.011),
         ("tail4-tail5", Vector(AKUBI_HALF["tail4"]), 0.007),
     ]
-    for bone, center, radius in tail_specs:
-        tag = bone.replace("-", "_")
+
+    def ring_along(tag, bone, p0, p1, radius0, radius1, rings=3):
         objs = []
-        count = max(6, int(radius / 0.0018))
-        for i in range(count):
-            ang = math.tau * i / count
-            d = Vector((math.cos(ang), math.sin(ang), 0.15)).normalized()
-            pos = center + d * (radius * 1.03)
-            length = max(0.0032, radius * 0.38)
-            objs.append(_akubi_scale(f"akubi_tscale_{tag}_{i}", pos, d,
-                                     length, length * 0.72, length * 0.16))
+        for k in range(rings):
+            t = (k + 0.5) / rings
+            center = p0.lerp(p1, t)
+            radius = radius0 + (radius1 - radius0) * t
+            count = max(6, round(radius / 0.0016))
+            stagger = 0.5 if k % 2 else 0.0
+            for i in range(count):
+                ang = (i + stagger) * math.tau / count
+                d = Vector((math.cos(ang), math.sin(ang), 0.15)).normalized()
+                pos = center + d * (radius * 1.02)
+                if pos.z < floor_z:
+                    continue
+                length = max(0.0028, radius * 0.40)
+                objs.append(_akubi_scale(f"akubi_scale_{tag}_{k}_{i}", pos, d,
+                                         length, length * 0.78, length * 0.16))
+        if not objs:
+            return
         merged = C.join(objs, f"akubi_scales_{tag}")
         group = C.mark_for_pin(merged)
         regions.append((merged, group, bone))
+
+    for bone, center, radius in tail_specs:
+        tag = bone.replace("-", "_")
+        ring_along(tag, bone, center, center, radius, radius, rings=1)
+
+    # 四肢にも鱗を敷く(左右)。curve_tubeの3制御点(付け根→ひざ→足)を
+    # そのまま輪の中心に使う
+    def mirror_x(key, side):
+        x, y, z = AKUBI_HALF[key]
+        return Vector((x * side, y, z))
+
+    for side in (-1.0, 1.0):
+        tag = f"legF{'L' if side > 0 else 'R'}"
+        lf = mirror_x("legF.L", side)
+        ff = mirror_x("footF.L", side)
+        knee = Vector(((lf.x + ff.x) / 2, (lf.y + ff.y) / 2 - 0.004, (lf.z + ff.z) / 2))
+        ring_along(f"{tag}_upper", "chest-legF." + ("L" if side > 0 else "R"),
+                  lf, knee, 0.015, 0.012, rings=2)
+        ring_along(f"{tag}_lower", "legF." + ("L" if side > 0 else "R") + "-footF." + ("L" if side > 0 else "R"),
+                  knee, ff, 0.012, 0.009, rings=2)
+
+        tag = f"legB{'L' if side > 0 else 'R'}"
+        lb = mirror_x("legB.L", side)
+        fb = mirror_x("footB.L", side)
+        kneeb = Vector(((lb.x + fb.x) / 2, (lb.y + fb.y) / 2 - 0.004, (lb.z + fb.z) / 2))
+        ring_along(f"{tag}_upper", "hip-legB." + ("L" if side > 0 else "R"),
+                  lb, kneeb, 0.018, 0.014, rings=2)
+        ring_along(f"{tag}_lower", "legB." + ("L" if side > 0 else "R") + "-footB." + ("L" if side > 0 else "R"),
+                  kneeb, fb, 0.014, 0.011, rings=2)
 
     return regions
 
@@ -857,12 +921,29 @@ def build_akubitokage():
         C.organic_uv(scale_sheet)
 
         def scale_color(p, n):
+            # 鱗が全身を覆うようになったため、腹の明色パッチと斑点も
+            # ここで本体(akubi_color)と同じ判定で再現する。
+            # そうしないと鱗の下の本体テクスチャが隠れて模様が消える
+            x, y, z = p.x, p.y, p.z
+            q = Vector((abs(x), y, z))
+            d = Vector(((x - AKUBI_BELLY_CENTER.x) / AKUBI_BELLY_RADII.x,
+                        (y - AKUBI_BELLY_CENTER.y) / AKUBI_BELLY_RADII.y,
+                        (z - AKUBI_BELLY_CENTER.z) / AKUBI_BELLY_RADII.z))
+            if d.length < 1.0 and n.y < -0.15:
+                base = belly_c
+            else:
+                base = main_c
+                for sx, sy, sz, sr in AKUBI_SPOTS:
+                    if (q - Vector((sx, sy, sz))).length < sr:
+                        base = spot_c
+                        break
             # 鱗ごとの継ぎ目に沿った低周波のムラ(本体のまだら模様と
-            # 同じ考え方)。本体の斑点とも一部重なるよう同じ色を使う
+            # 同じ考え方)
             noise = (math.sin(p.x * 137 + p.y * 91) + math.sin(p.y * 173 + p.z * 59)
                     + math.sin(p.z * 211 + p.x * 67)) / 3.0
-            k = max(0.0, noise) * 0.4
-            return tuple(m * (1.0 - k) + s * k for m, s in zip(main_c, spot_c))
+            k = max(0.0, noise) * 0.25
+            shade = spot_c if base is not spot_c else main_c
+            return tuple(m * (1.0 - k) + s * k for m, s in zip(base, shade))
 
         scale_img = C.bake_albedo(scale_sheet, scale_color, size=256, name="akubi_scale_tex")
         C.assign_material(scale_sheet, C.make_textured_material(
