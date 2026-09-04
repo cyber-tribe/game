@@ -276,12 +276,13 @@ export class Renderer {
     this.fog.far = visual.fogFar;
     this.ambient.color.setHex(visual.ambientColor);
     this.ambient.intensity = visual.ambientIntensity;
-    // 夢空(plan/models/archive/dungeon-dreamscape.md)もフォグの色に
-    // 合わせて塗り替える。地平線際はフォグ色を白へ寄せて明るくし、
-    // 天頂はフォグ色そのまま(濃いまま)にする
-    const zenith = new THREE.Color(visual.fogColor);
-    const horizon = zenith.clone().lerp(new THREE.Color(0xffffff), 0.35);
-    recolorDreamSky(this.dreamSky, horizon, zenith);
+    // 夢空(plan/models/archive/dungeon-dreamscape.md)は気分の色に
+    // 合わせず常に真っ黒にする。壁は低く天井も無いため、部屋の中でも
+    // 壁の上や外周のもやの向こうに夢空が覗いてしまい、気分の明るい色を
+    // 塗ると地下ダンジョンなのに空が見えるようで不自然になっていた
+    // (plan/models/archive/dungeon-floor-mist-continuity.md追記)
+    const black = new THREE.Color(0x000000);
+    recolorDreamSky(this.dreamSky, black, black);
   }
 
   /** カメラが注視する盤面上の位置。滑らかに追いつく */
