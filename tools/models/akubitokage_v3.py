@@ -212,6 +212,20 @@ v2(#1064〜#1068)の「断面ロフト+curve_tube+sculpt_merge/voxel remesh」�
 - デカールはゲーム表示用に少し誇張する(眼裂を太く、まぶた面を広く、
   への字口を太く)。実ゲーム距離では大きな色面しか読まれない
 
+第14回(Face Lock 後の Body Final Gate)で決めたこと:
+顔は Topology / Texture ともロック。以後は原則触らない。
+- 腕は「肩から手首まで太いチューブが身体の前へ張り出す」形だった。設定画は
+  肩から自然に垂れて肘で細くなり、小さな手が接地する。テーパーを強くし、
+  前への張り出しを減らして体の側面に沿わせる
+- 腹の淡色が「白い球」に見えていた。設定画の絵の中では体色の約1.9倍
+  (実測 sRGB 113,102,113 対 59,55,68)で、パレットのスウォッチ(#d7cbc8)ほど
+  明るくない。0.76→0.575 に落とし、形も縦長の卵にする
+- 姿勢が良すぎる。設定画は頭が前へ落ち、胸を張らない。頭のループを前へ倒す
+- 背びれが均等に並んで硬い。高さ・間隔に揺らぎを付ける
+- **全身の斑点**が無く、後ろから見るとほぼ単色だった。設定画の三面図から
+  斑点を抽出し、3枚のデカール(front/side/back)を法線でブレンドして貼る
+  (トライプラナー投影。tools/akubitokage_decal.py)
+
 座標: -Yが正面、+X右、Z上。単位m。設定画側面の「鼻先」を y=-0.060 に置く。
 
 本番の`monsters.MONSTERS`には登録しない(ゲーム本体・CIには影響しない)。
@@ -270,18 +284,20 @@ BODY_LOOPS = [
     (0.070, -0.001, 0.027, 0.029, 0.0300, 0.0, "chest"),
     (0.076, -0.005, 0.030, 0.029, 0.0345, 0.05, "collar"),    # 胸上端。顎下が乗る
     # 喉〜顎: 首は見えない。胸→襟→喉→顎と幅が連続して広がる
-    (0.080, -0.010, 0.033, 0.031, 0.0380, 0.15, "throat"),
+    # 頭は前へ倒す(設定画は頭の重さを首で支えるのが面倒そうな姿勢)。
+    # throat から上へ行くほど中心を前(-y)へずらす
+    (0.080, -0.011, 0.033, 0.031, 0.0380, 0.15, "throat"),
     # 口の帯(jaw〜lip)は**デカールのへの字口(z 0.0904)と重なる高さ**に置く
-    (0.0875, -0.0125, 0.0334, 0.036, 0.0415, 0.30, "jaw"),    # 口線の下=下顎の上端
-    (0.0910, -0.0140, 0.0336, 0.036, 0.0415, 0.35, "lip"),    # 口の帯の上端
-    (0.0940, -0.0155, 0.0332, 0.0375, 0.0410, 0.40, "mouth"),  # 上唇。後縁+0.022=項の谷
-    (0.0985, -0.015, 0.0356, 0.041, 0.0400, 0.48, "cheek"),   # 目の下端
-    (0.1056, -0.0145, 0.0361, 0.0455, 0.0410, 0.52, "snout_eye"),  # 目の高さ=最大幅
+    (0.0875, -0.0140, 0.0334, 0.036, 0.0415, 0.30, "jaw"),    # 口線の下=下顎の上端
+    (0.0910, -0.0158, 0.0336, 0.036, 0.0415, 0.35, "lip"),    # 口の帯の上端
+    (0.0940, -0.0175, 0.0332, 0.0375, 0.0410, 0.40, "mouth"),  # 上唇。後縁+0.022=項の谷
+    (0.0985, -0.0174, 0.0356, 0.041, 0.0400, 0.48, "cheek"),   # 目の下端
+    (0.1056, -0.0173, 0.0361, 0.0455, 0.0410, 0.52, "snout_eye"),  # 目の高さ=最大幅
     # 頭頂へ: 設定画は緩やかに絞る(0.0355 → 0.029 → 0.0235 → 0.015)
-    (0.1126, -0.020, 0.0288, 0.038, 0.0355, 0.50, "brow"),
-    (0.1196, -0.016, 0.0273, 0.032, 0.0290, 0.35, "forehead"),
-    (0.1249, -0.0115, 0.0239, 0.0255, 0.0225, 0.20, "crown"),
-    (0.128, -0.010, 0.014, 0.014, 0.0130, 0.10, "top"),
+    (0.1126, -0.0232, 0.0288, 0.038, 0.0355, 0.50, "brow"),
+    (0.1196, -0.0196, 0.0273, 0.032, 0.0290, 0.35, "forehead"),
+    (0.1249, -0.0155, 0.0239, 0.0255, 0.0225, 0.20, "crown"),
+    (0.128, -0.0142, 0.014, 0.014, 0.0130, 0.10, "top"),
 ]
 
 
@@ -547,21 +563,23 @@ def build_arms() -> list[bpy.types.Object]:
         pts = [
             # 設定画の腕の外端は中心から 0.044。以前は肘 0.044+半径 0.0145 で
             # 0.057 まで出て、正面でキャラクターの面積を取りすぎていた
-            Vector((0.028 * side, -0.014, 0.058)),  # 肩(襟ループの下に埋まる)
-            Vector((0.034 * side, -0.022, 0.046)),  # 上腕(外下へ)
-            Vector((0.036 * side, -0.028, 0.034)),  # 肘(最も外)
-            Vector((0.033 * side, -0.036, 0.021)),  # 前腕(下へ)
-            Vector((0.029 * side, -0.043, 0.011)),  # 手首
-            Vector((0.027 * side, -0.046, 0.008)),  # 手
+            # 肩から自然に垂れ、肘で細くなり、小さな手が接地する。
+            # 前(-y)への張り出しを抑えて体の側面に沿わせる
+            Vector((0.028 * side, -0.012, 0.058)),  # 肩(襟ループの下に埋まる)
+            Vector((0.033 * side, -0.019, 0.046)),  # 上腕
+            Vector((0.035 * side, -0.025, 0.034)),  # 肘(最も外)
+            Vector((0.032 * side, -0.032, 0.021)),  # 前腕
+            Vector((0.029 * side, -0.038, 0.011)),  # 手首
+            Vector((0.027 * side, -0.041, 0.008)),  # 手
         ]
         arm = C.curve_tube(f"{NAME}_arm{side:+.0f}", pts,
-                           [0.0115, 0.0110, 0.0105, 0.0098, 0.0092, 0.0088])
+                           [0.0120, 0.0110, 0.0098, 0.0082, 0.0068, 0.0060])
         out.append(arm)
         # 掌は小さく、指3本を独立させる(平たい水かきに見せない)
-        palm = (0.027 * side, -0.049, 0.006)
-        out.append(C.uv_sphere(f"{NAME}_hand{side:+.0f}", palm, 0.0080,
-                               segments=10, rings=7, scale=(1.0, 1.0, 0.6)))
-        out += _digits(f"{NAME}_hand{side:+.0f}", (0.027 * side, -0.055, 0.004),
+        palm = (0.027 * side, -0.044, 0.006)
+        out.append(C.uv_sphere(f"{NAME}_hand{side:+.0f}", palm, 0.0075,
+                               segments=10, rings=7, scale=(1.0, 1.1, 0.6)))
+        out += _digits(f"{NAME}_hand{side:+.0f}", (0.027 * side, -0.050, 0.004),
                        forward=(0.10 * side, -1.0, 0.0), spread_axis=(0, 0, 1))
     return out
 
@@ -652,10 +670,11 @@ FRILL_SPINE = [
 # 「あくびとかげ」の横シルエットを作る特徴なので設定画より誇張する:
 # 頭頂の小突起 → 後頭部(大) → 項(最大0.024) → 背中(中・中) → 腰(小)。
 # 半幅は山の間隔の半分より広くして裾が重なり、鋸歯ではなく丸い花弁の連なりに
+# 均等に並ぶと硬いノコギリに見えるので、高さ・間隔・幅に揺らぎを付ける
 FRILL_LOBES = [
-    (0.008, 0.010, 0.005), (0.032, 0.014, 0.017), (0.055, 0.016, 0.024),
-    (0.078, 0.015, 0.020), (0.099, 0.014, 0.016), (0.118, 0.012, 0.012),
-    (0.135, 0.010, 0.008),
+    (0.007, 0.010, 0.005), (0.031, 0.015, 0.018), (0.054, 0.014, 0.023),
+    (0.074, 0.013, 0.016), (0.096, 0.015, 0.021), (0.118, 0.012, 0.013),
+    (0.136, 0.010, 0.009),
 ]
 FRILL_BASE = 0.002       # 山と山の間にも残る膜の高さ(連続した1枚に見せる)
 FRILL_INSET = 0.007      # 内側の縁を胴の中へ沈める量
@@ -726,64 +745,52 @@ def build_v3_blockout() -> dict:
     return {"cage": cage, "body": body, "extras": extras}
 
 
-# ------------------------------------------------------------------- 塗り(Face Texture Gate)
-# 顔のアイデンティティ(半目・鼻孔・への字口・頬の模様)は 2D が担当する。
-# デカールは tools/akubitokage_face_decal.py が設定画から直接生成した PNG。
+# ------------------------------------------------------------------- 塗り
+# 顔のアイデンティティ(半目・鼻孔・への字口)と全身の斑点は 2D が担当する。
+# デカールは tools/akubitokage_decal.py が設定画の三面図から直接生成した
+# 3枚の PNG(front/side/back)で、法線の向きで混ぜる(トライプラナー投影)。
 import json as _json
 import os as _os
 
 _ROOT = _os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
-FACE_DECAL_PNG = _os.path.join(_ROOT, "design", "characters", "akubitokage", "generated",
-                               "akubitokage-face-decal.png")
-FACE_DECAL_JSON = FACE_DECAL_PNG[:-4] + ".json"
-# パレット(設定画「カラーパレット」。v2 の実測値を引き継ぐ)
+DECAL_DIR = _os.path.join(_ROOT, "design", "characters", "akubitokage", "generated")
+DECAL_JSON = _os.path.join(DECAL_DIR, "akubitokage-decal.json")
+# パレット(設定画「カラーパレット」+ 絵の中の実測)
 SHEET = {
     "main": (0.30, 0.28, 0.30),
-    "belly": (0.76, 0.70, 0.78),
-    "spot": (0.565, 0.494, 0.565),
+    # おなか(薄い影)。設定画の絵の中では体色の約1.9倍の明るさ(実測 sRGB
+    # 113,102,113 対 59,55,68)。パレットのスウォッチ(#d7cbc8)をそのまま使うと
+    # 白い球に見える
+    "belly": (0.575, 0.520, 0.575),
+    "spot": (0.60, 0.55, 0.58),
     "mouth": (0.729, 0.584, 0.675),
 }
-# v3 の腹の膨らみに合わせた「おなか(薄い影)」の楕円体
-BELLY_CENTER = Vector((0.0, -0.030, 0.032))
-BELLY_RADII = Vector((0.026, 0.026, 0.028))
-# 体の斑点(パレットの「斑点・模様」)。設定画は輪郭の柔らかい小さな斑点が
-# 頭・肩・背中・腰・尾に散る。**左右非対称**に置く(x の符号をそのまま使う)
-SPOTS = [
-    (+0.020, -0.030, 0.1150, 0.0040),   # 額
-    (-0.030, -0.012, 0.1000, 0.0035),   # 頬の外側
-    (+0.026, +0.020, 0.1080, 0.0040),   # 後頭部
-    (-0.030, -0.006, 0.0700, 0.0040),   # 肩
-    (+0.034, +0.016, 0.0560, 0.0045),   # 背中
-    (-0.032, +0.026, 0.0380, 0.0040),   # 腰
-    (+0.014, +0.055, 0.0220, 0.0035),   # 尾の付け根
-    (-0.024, -0.034, 0.0480, 0.0030),   # 腹の脇
-    (+0.036, -0.014, 0.0860, 0.0030),   # 頬の下
-    (-0.018, +0.070, 0.0170, 0.0030),   # 尾の中ほど
-    (+0.030, +0.004, 0.0300, 0.0035),   # 腿
-]
-SPOT_STRENGTH = 0.55       # 設定画の斑点は淡い
-_decal_cache: list = []
+# おなかの淡色。設定画は縦長の卵形
+BELLY_CENTER = Vector((0.0, -0.030, 0.034))
+BELLY_RADII = Vector((0.020, 0.024, 0.032))
+_decal_cache: dict = {}
 
 
-def _decal():
-    if not _decal_cache:
+def _decal(name: str):
+    if name not in _decal_cache:
         import numpy as np
-        meta = _json.load(open(FACE_DECAL_JSON))
-        img = bpy.data.images.load(FACE_DECAL_PNG)
+        meta = _json.load(open(DECAL_JSON))
+        img = bpy.data.images.load(_os.path.join(DECAL_DIR, f"akubitokage-decal-{name}.png"))
         w, h = img.size
         px = np.empty(w * h * 4, dtype=np.float32)
         img.pixels.foreach_get(px)
         bpy.data.images.remove(img)
-        _decal_cache.append((px.reshape(h, w, 4)[::-1], meta))
-    return _decal_cache[0]
+        _decal_cache[name] = (px.reshape(h, w, 4)[::-1], meta)
+    return _decal_cache[name]
 
 
-def decal_sample(x: float, z: float):
-    """モデル座標(x, z)でデカールを双一次補間で引く。(r, g, b, a)。範囲外は a=0。"""
-    dec, meta = _decal()
+def decal_sample(name: str, u: float, z: float):
+    """デカールを双一次補間で引く。u は front/back なら x、side なら y。"""
+    dec, meta = _decal(name)
     h, w = dec.shape[:2]
-    fx = (x - meta["x0"]) * meta["ppu"] - 0.5
-    fy = (meta["z1"] - z) * meta["ppu"] - 0.5
+    u0 = meta["y"][0] if name == "side" else meta["x"][0]
+    fx = (u - u0) * meta["ppu"] - 0.5
+    fy = (meta["z"][1] - z) * meta["ppu"] - 0.5
     x0, y0 = math.floor(fx), math.floor(fy)
     if x0 < 0 or y0 < 0 or x0 + 1 >= w or y0 + 1 >= h:
         return (0.0, 0.0, 0.0, 0.0)
@@ -793,66 +800,45 @@ def decal_sample(x: float, z: float):
     return (float(p[0]), float(p[1]), float(p[2]), float(p[3]))
 
 
-def _surface_depth(p: Vector) -> float:
-    """点 p が頭ケージの外面からどれだけ内側にあるか(m)。外面上で 0、内側で正。
-    口腔スロット(外面から 12mm 押し込んだ帯)の内側判定に使う。"""
-    rows = BODY_LOOPS
-    z = p.z
-    if z <= rows[0][0] or z >= rows[-1][0]:
-        return 0.0
-    for r0, r1 in zip(rows, rows[1:]):
-        if r0[0] <= z <= r1[0]:
-            t = (z - r0[0]) / (r1[0] - r0[0])
-            cy, rf, rb, rs, sn = (r0[i] + (r1[i] - r0[i]) * t for i in range(1, 6))
-            break
-    k = RADIUS_COMP
-    a = math.atan2(p.y - cy, p.x)
-    c, s_ = math.cos(a), math.sin(a)
-    ry = rf if s_ < 0 else rb
-    xs = 1.0 - sn * (-s_) if s_ < 0 else 1.0
-    surf = Vector((rs * k * c * xs, ry * k * s_))
-    return surf.length - Vector((p.x, p.y - cy)).length
+DECAL_SHARPNESS = 2.0      # 法線の重みの指数。大きいほど面ごとに1枚へ寄る
+DECAL_FLOOR_Z = 0.008      # これより下は地面の影を拾うので貼らない
 
 
 def body_color(p: Vector, n: Vector):
-    """bake_albedo 用: 体色 + おなか + 口腔 + 顔デカール(正面投影)。"""
+    """bake_albedo 用: 体色 + おなか + 3面デカール(トライプラナー投影)。"""
     base = SHEET["main"]
-    # 口腔スロットの内側だけ。開口付近(3〜6mm)は墨色で閉口時の口線に見せ、
-    # 奥(6mm〜)だけ「口の中(あくび時)」のピンクにする
-    # おなか: 前を向く面だけ、楕円体の中で柔らかく
+    # おなか: 前を向く面だけ、縦長の楕円体の中で柔らかく
     d = p - BELLY_CENTER
-    r = math.sqrt((d.x / BELLY_RADII.x) ** 2 + (d.y / BELLY_RADII.y) ** 2 + (d.z / BELLY_RADII.z) ** 2)
+    r = math.sqrt((d.x / BELLY_RADII.x) ** 2 + (d.y / BELLY_RADII.y) ** 2
+                  + (d.z / BELLY_RADII.z) ** 2)
     if n.y < -0.2 and r < 1.0:
-        t = max(0.0, min(1.0, (1.0 - r) / 0.25))
+        t = max(0.0, min(1.0, (1.0 - r) / 0.30))
         t = t * t * (3 - 2 * t)
         base = tuple(base[i] + (SHEET["belly"][i] - base[i]) * t for i in range(3))
-    # 斑点: 輪郭の柔らかい小さな色面
-    for sx, sy, sz, r in SPOTS:
-        d = (p - Vector((sx, sy, sz))).length
-        if d < r:
-            t = min(1.0, (r - d) / (r * 0.45))
-            t = t * t * (3 - 2 * t) * SPOT_STRENGTH
-            base = tuple(base[i] + (SHEET["spot"][i] - base[i]) * t for i in range(3))
-    # 顔デカール: 正面を向く面へ平行投影。横顔では薄める
-    if p.y < -0.010 and n.y < -0.05 and p.z > 0.072:
-        fade = max(0.0, min(1.0, (-n.y - 0.05) / 0.25))
-        r_, g_, b_, a = decal_sample(p.x, p.z)
-        a *= fade
+    if p.z < DECAL_FLOOR_Z:
+        return base
+    wf = max(0.0, -n.y) ** DECAL_SHARPNESS
+    wb = max(0.0, n.y) ** DECAL_SHARPNESS
+    ws = abs(n.x) ** DECAL_SHARPNESS
+    tot = wf + wb + ws
+    if tot < 1e-6:
+        return base
+    for name, w, u in (("front", wf, p.x), ("back", wb, p.x), ("side", ws, p.y)):
+        w /= tot
+        if w < 0.02:
+            continue
+        cr, cg, cb, a = decal_sample(name, u, p.z)
+        a *= w
         if a > 0.004:
-            base = (base[0] + (r_ - base[0]) * a, base[1] + (g_ - base[1]) * a, base[2] + (b_ - base[2]) * a)
+            base = (base[0] + (cr - base[0]) * a,
+                    base[1] + (cg - base[1]) * a,
+                    base[2] + (cb - base[2]) * a)
     return base
 
 
-# 失敗した試み: 顔の面を2つ目のマテリアルへ移し、UV を正面平行投影で [0,1] に
-# 張って専用テクスチャにする方式。平行投影は**同じ (x,z) を持つ複数の面**
-# (口腔スロットの奥壁・目の inset リング・頬の側面)を同じ UV へ重ねるので、
-# 口の中の色が顔一面に散り、範囲外の頂点で UV が [0,1] を外れて破綻した。
-# 顔の密度は「全身1枚の解像度を上げる」で確保する(本番化のときに、シームを
-# 引いてから split_material_region で正しく分離する)。
-
 def texture_blockout(parts: dict, size: int = 3072) -> None:
-    """ブロックアウトへ塗りを載せる(Face Texture Gate 用)。胴+頭は UV を切って
-    bake_albedo、他の部位は体色のベタ。
+    """ブロックアウトへ塗りを載せる。胴+頭は UV を切って bake_albedo、四肢・尾・
+    背びれにも同じ塗りを焼く(斑点が胴だけで途切れないように)。
 
     size=3072 で顔の密度は約 2.8 テクセル/mm(1536 では 1.4 で、設定画の
     眼裂が潰れた)。本番化のときは顔だけ別マテリアルにして下げる。"""
@@ -860,8 +846,6 @@ def texture_blockout(parts: dict, size: int = 3072) -> None:
     C.smart_uv(body)
     img = C.bake_albedo(body, body_color, size=size, name=f"{NAME}_albedo")
     C.assign_material(body, C.make_textured_material(f"{NAME}_skin", img, roughness=0.8))
-    # 四肢・尾・背びれにも同じ塗りを載せる(斑点が胴だけで途切れないように)。
-    # 小さい部品はテクスチャも小さくてよいので、サイズはバウンディングボックスで決める
     for o in parts["extras"]:
         lo, hi = C.bounds([o])
         ext = max((hi - lo).x, (hi - lo).y, (hi - lo).z)
