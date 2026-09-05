@@ -67,7 +67,11 @@ interface Gltf {
   }[];
   materials?: { name?: string }[];
   skins?: unknown[];
-  animations?: { name?: string }[];
+  animations?: {
+    name?: string;
+    channels?: { sampler: number; target: { node?: number; path: string } }[];
+    samplers?: { input: number; output: number; interpolation?: string }[];
+  }[];
   accessors?: GltfAccessor[];
   bufferViews?: { byteOffset?: number; byteStride?: number }[];
   nodes?: GltfNode[];
@@ -227,6 +231,30 @@ function zeroWeightVertexCount(gltf: Gltf, bin: Buffer): number {
   return zero;
 }
 
+/** アクセサを float の配列(要素ごとに区切った形)で読む */
+function readAccessor(gltf: Gltf, bin: Buffer, index: number): number[][] {
+  const acc = gltf.accessors?.[index];
+  if (!acc || acc.bufferView === undefined) return [];
+  const view = gltf.bufferViews?.[acc.bufferView];
+  const comps = TYPE_COMPONENTS[acc.type];
+  const bytes = COMPONENT_BYTES[acc.componentType];
+  const start = (view?.byteOffset ?? 0) + (acc.byteOffset ?? 0);
+  const stride = view?.byteStride ?? bytes * comps;
+  const out: number[][] = [];
+  for (let i = 0; i < acc.count; i++) {
+    const item: number[] = [];
+    for (let c = 0; c < comps; c++) item.push(bin.readFloatLE(start + i * stride + c * bytes));
+    out.push(item);
+  }
+  return out;
+}
+
+/** 単位クォータニオン2つのなす角(度) */
+function quatAngleDeg(a: number[], b: number[]): number {
+  const dot = Math.min(1, Math.abs(a[0]! * b[0]! + a[1]! * b[1]! + a[2]! * b[2]! + a[3]! * b[3]!));
+  return (2 * Math.acos(dot) * 180) / Math.PI;
+}
+
 /**
  * モデルはビルド済みの .glb をコミットしている。Blender を入れなくても遊べる代わりに、
  * 作り直しを忘れたり壊れたものを混ぜたりしても気づけない。
@@ -341,6 +369,49 @@ describe("3Dモデル", () => {
       (gltf.materials ?? []).map((m) => m.name),
       `顔のマテリアル ${faceMaterial} が無い`,
     ).toContain(faceMaterial);
+  });
+
+  it("あくびとかげの口が、顎ボーンの開き角で顔アトラスを切り替えられる", () => {
+    // 下顎を別メッシュに割って回す方式は、閉口時に口内が輪郭から
+    // はみ出すため棄却した(handbook/cage-and-2d3d-split.md)。口は
+    // 「閉じ / 半開き / 大あくび」の3コマを横に並べた顔アトラスで開く。
+    // extras が落ちると src/view/mouth.ts が対象を見つけられず、
+    // 見た目は正常なのにあくびだけ静かに口を開けなくなる
+    const { gltf, bin } = readGlbChunks("akubitokage");
+    expect(bin, "akubitokage: BINチャンクが無い").not.toBeNull();
+    const tagged = (gltf.nodes ?? []).filter((n) => n.extras?.mouthTiles !== undefined);
+    expect(tagged.length, "akubitokage: mouthTiles を持つノードが1つ要る").toBe(1);
+    const extras = tagged[0]!.extras!;
+    expect(extras.mouthTiles, "コマ数(閉じ/半開き/大あくび)").toBe(3);
+    expect(
+      (gltf.materials ?? []).map((m) => m.name),
+      `顔のマテリアル ${extras.mouthMaterial} が無い`,
+    ).toContain(String(extras.mouthMaterial ?? ""));
+
+    // 顎ボーンが実在し、あくび(attack)が mouthOpenDeg 相当まで開くこと。
+    // ここが開かないと、コマは0のまま = 口を閉じたままあくびをする
+    const boneName = String(extras.mouthBone ?? "");
+    const boneIndex = (gltf.nodes ?? []).findIndex((n) => n.name === boneName);
+    expect(boneIndex, `顎ボーン ${boneName} が無い`).toBeGreaterThanOrEqual(0);
+    const openDeg = Number(extras.mouthOpenDeg);
+    expect(openDeg, "mouthOpenDeg が数値でない").toBeGreaterThan(0);
+
+    const attack = (gltf.animations ?? []).find((a) => a.name === "attack");
+    const channel = attack?.channels?.find(
+      (c) => c.target.node === boneIndex && c.target.path === "rotation",
+    );
+    expect(channel, "attack に顎ボーンの回転チャンネルが無い").toBeDefined();
+    const sampler = attack!.samplers![channel!.sampler]!;
+    const quats = readAccessor(gltf, bin as Buffer, sampler.output);
+    const rest = gltf.nodes![boneIndex]!.rotation ?? [0, 0, 0, 1];
+    const angles = quats.map((q) => quatAngleDeg(q, rest));
+    // 最大コマ(右端)へ量子化されるのは、開き角が mouthOpenDeg の 3/4 以上のとき
+    expect(
+      Math.max(...angles),
+      `attack の顎の最大開き角 ${Math.max(...angles).toFixed(1)}° が小さすぎる`,
+    ).toBeGreaterThan(openDeg * 0.75);
+    // 閉じたコマにも必ず戻る(開きっぱなしのクリップになっていない)
+    expect(Math.min(...angles), "attack が閉じ口から始まっていない").toBeLessThan(openDeg * 0.25);
   });
 
   it.each(characters)("%s にどのボーンにも属さない頂点が無い", (name) => {
