@@ -41,8 +41,13 @@ FRONT_BOX = (600, 130, 770, 250)
 UPSCALE = 4                       # 抽出は 4 倍に拡大して行う(線が 2〜3px しかない)
 LINE_LUM = 62                     # 線画(半目・口)の明度上限(0〜255)
 NOSTRIL_LUM = 80                  # 鼻孔2点は線より薄いので別のしきい値
-EYE_LUM = 95                      # 目は重いまぶたの影まで含める(目の外接箱の中だけ)
+EYE_LUM = 100                     # 目は眼裂の縁(60〜90)まで含める(外接箱の中だけ)
 EYE_PAD = 2                       # 目の外接箱を広げる量(シートpx)
+# 実ゲーム距離では半目の黒い形しか読まれないので、眼裂を縦に膨張させて誇張する
+# (設定画の眼裂は高さ 2mm しかなく、そのままだと細い波線に見える)
+EYE_DILATE_Z = 4                  # 縦方向の膨張(拡大後px。横には太らせない)
+MOUTH_DILATE_Z = 4                # 口線も同様に太らせる(設定画の線は 2px しかない)
+NOSTRIL_DILATE = 2
 BODY_LUM = 150                    # 体(暗い紫)の明度上限。頭の輪郭マスクに使う
 ERODE_PX = 7 * UPSCALE // 2       # 輪郭線を除くための内側への侵食(拡大後px)
 # 明色パッチの明度範囲。シート解像度では体の明度が 51〜134(5〜95%点)なので、
@@ -126,14 +131,41 @@ def main() -> None:
                 and eye_y - 3 * UPSCALE < c["cy"] < mouth["cy"] - 4 * UPSCALE
                 and 6 * UPSCALE <= c["size"] <= 60 * UPSCALE]
     nostril_mask = np.isin(nlab, [c["id"] for c in nostrils]).astype(np.float32)
-    line_mask = np.maximum(np.isin(lab, [mouth["id"]]).astype(np.float32), nostril_mask)
+    def dilate_z(mask, r):
+        out = mask.copy()
+        for d in range(1, r + 1):
+            out |= np.roll(mask, d, axis=0) | np.roll(mask, -d, axis=0)
+        return out
+
+    def dilate_box(mask, r):
+        im = Image.fromarray((mask * 255).astype(np.uint8)).filter(ImageFilter.MaxFilter(2 * r + 1))
+        return np.asarray(im) > 127
+
+    mouth_mask = dilate_z(np.isin(lab, [mouth["id"]]), MOUTH_DILATE_Z)
+    line_mask = np.maximum(mouth_mask.astype(np.float32),
+                           dilate_box(nostril_mask > 0.5, NOSTRIL_DILATE).astype(np.float32))
     # 目: 外接箱(少し広げる)の中で、より明るい影まで含めて拾う → 重い半目
+    # 目: 設定画はわずかに斜めから描かれていて左右非対称(実測 幅 20.0px と
+    # 14.9px)。モデルは左右対称なので、**大きく写っている方だけ**を採り、
+    # 顔の正中で鏡像にして反対側に置く
     eye_soft = (lum < EYE_LUM) & inner
-    for e in eyes:
-        pad = EYE_PAD * UPSCALE
-        box = np.zeros_like(eye_soft)
-        box[max(0, e["y0"] - pad):e["y1"] + pad + 1, max(0, e["x0"] - pad):e["x1"] + pad + 1] = True
-        line_mask = np.maximum(line_mask, (eye_soft & box).astype(np.float32))
+    eye_src = max(eyes, key=lambda c: (c["x1"] - c["x0"]) * (c["y1"] - c["y0"]))
+    pad = EYE_PAD * UPSCALE
+    box = np.zeros_like(eye_soft)
+    box[max(0, eye_src["y0"] - pad):eye_src["y1"] + pad + 1,
+        max(0, eye_src["x0"] - pad):eye_src["x1"] + pad + 1] = True
+    eye = eye_soft & box
+    # 縦にだけ膨張(誇張)。MaxFilter は正方形で横にも太り、弧が「く」の字に折れる
+    grown = eye.copy()
+    for d in range(1, EYE_DILATE_Z + 1):
+        grown |= np.roll(eye, d, axis=0) | np.roll(eye, -d, axis=0)
+    eye = grown
+    mirrored = np.zeros_like(eye)
+    xs = np.arange(eye.shape[1])
+    src = np.round(2 * cx_face - xs).astype(int)
+    ok = (src >= 0) & (src < eye.shape[1])
+    mirrored[:, ok] = eye[:, src[ok]]
+    line_mask = np.maximum(line_mask, (eye | mirrored).astype(np.float32))
 
     # 明色パッチ: 頭の内側(侵食後)にある小さめの明るい塊。目・口の上には置かない
     # 明色パッチは頭の縁にもあるので、侵食は輪郭線を除く最小限(1シートpx)にする
