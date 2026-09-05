@@ -381,7 +381,7 @@ def jaw_clearance_deg(step: float = 1.0, max_deg: float = 60.0) -> float:
         for (z0, f0), (z1, f1) in zip(body, body[1:]):
             if z0 <= z <= z1:
                 return f0 + (f1 - f0) * (z - z0) / (z1 - z0)
-        return -1.0  # 襟より上は判定しない
+        return +1.0  # 襟より上は胴が無い(当たらない)
     deg = 0.0
     while deg < max_deg:
         th = math.radians(deg)
