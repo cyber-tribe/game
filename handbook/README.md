@@ -9,6 +9,7 @@
 |---|---|
 | `hand-painted-standard.md` | 全モデル共通の手描きテクスチャ規約。新しいモデルを作る前に読む |
 | `modeling-pitfalls.md` | 実際に踏んだ失敗と、その原因・対処。同じ道を通らないための資料 |
+| `cage-and-2d3d-split.md` | ケージ+Subdivision の造形と、顔の情報を 3D/2D へ分担する方式。設定画からの実測とゲートの運び方 |
 
 仕様書と違って「終わり」が無い。作業で新しい失敗を踏んだら
 `modeling-pitfalls.md` へ追記する。
