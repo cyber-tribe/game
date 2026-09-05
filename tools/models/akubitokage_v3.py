@@ -477,10 +477,10 @@ def _face_topology(cage: bpy.types.Object) -> None:
             if v.co.z > zc:
                 v.co.z -= 0.0008
 
-    # 口の 3D スロットは作らない。閉口時に「描いたへの字口」と「3Dの溝」が
-    # 二重の口に見え、溝を浅く(12→5mm)しても水平な暗い線として残った。
-    # 通常時の口は BaseColor が描くへの字一本だけにする(あくび用の開口
-    # ジオメトリは、下顎ボーンと一緒にアーマチュアの工程で作る)
+    # 口の 3D スリットは作らない。閉口時に「描いたへの字口」と二重に見える
+    # だけでなく、幅 0.8mm/深さ 1.2mm の細い溝は自動ウェイト(bone heat)を
+    # 壊した(取りこぼしが 210 → 2,433 頂点。溝の内側からボーンを見通せない)。
+    # あくびの開口は、口の中のメッシュを別に持つ方式で作り直す(次工程)
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
     bm.to_mesh(cage.data)
     bm.free()
@@ -526,7 +526,7 @@ def build_body_cage() -> tuple[bpy.types.Object, bpy.types.Object]:
 # 別メッシュ。胴へは融合しない(ブロックアウト段階)。
 
 def _digits(prefix: str, origin, forward, spread_axis, n: int = 3,
-            length: float = 0.011, radius: float = 0.003,
+            length: float = 0.011, radius: float = 0.0040,
             spread_deg: float = 30.0) -> list[bpy.types.Object]:
     """掌から前へ出る短い指の方向だけを示す(ブロックアウト用)。
     forward=指の向き、spread_axis=指を扇状に開く回転軸。"""
@@ -565,7 +565,10 @@ def build_arms() -> list[bpy.types.Object]:
             # 0.057 まで出て、正面でキャラクターの面積を取りすぎていた
             # 肩から自然に垂れ、肘で細くなり、小さな手が接地する。
             # 前(-y)への張り出しを抑えて体の側面に沿わせる
-            Vector((0.028 * side, -0.012, 0.058)),  # 肩(襟ループの下に埋まる)
+            # 付け根は胴の表面(半幅0.031)より内側から出す。表面ぎりぎりだと
+            # 肩を回したときに胴との間に隙間が開く
+            Vector((0.022 * side, -0.010, 0.060)),  # 肩の根(胴の中)
+            Vector((0.028 * side, -0.012, 0.058)),  # 肩
             Vector((0.033 * side, -0.019, 0.046)),  # 上腕
             Vector((0.035 * side, -0.025, 0.034)),  # 肘(最も外)
             Vector((0.032 * side, -0.032, 0.021)),  # 前腕
@@ -573,7 +576,7 @@ def build_arms() -> list[bpy.types.Object]:
             Vector((0.027 * side, -0.041, 0.008)),  # 手
         ]
         arm = C.curve_tube(f"{NAME}_arm{side:+.0f}", pts,
-                           [0.0120, 0.0110, 0.0098, 0.0082, 0.0068, 0.0060])
+                           [0.0125, 0.0120, 0.0110, 0.0098, 0.0082, 0.0068, 0.0060])
         out.append(arm)
         # 掌は小さく、指3本を独立させる(平たい水かきに見せない)
         palm = (0.027 * side, -0.044, 0.006)
@@ -677,10 +680,12 @@ FRILL_LOBES = [
     (0.136, 0.010, 0.009),
 ]
 FRILL_BASE = 0.002       # 山と山の間にも残る膜の高さ(連続した1枚に見せる)
-FRILL_INSET = 0.007      # 内側の縁を胴の中へ沈める量
-# 背面から見ると薄い板に見えたので厚くする(設定画の背面図は背骨に沿った
-# 丸いこぶの列に見える)
-FRILL_THICKNESS = 0.010
+# 内側の縁を胴の中へ沈める量。浅いと背びれが胴から浮いた薄い板になり、
+# 自動ウェイト(bone heat)がその頂点からボーンを見通せず取りこぼす
+FRILL_INSET = 0.013
+# 設定画の背面図は背骨に沿った「丸いこぶの列」。薄い板だと背面で紙のように
+# 見えるので、丸い畝になる厚みにする(統合+decimate 後はさらに痩せる)
+FRILL_THICKNESS = 0.014
 FRILL_SAMPLES = 36
 
 
@@ -804,6 +809,28 @@ DECAL_SHARPNESS = 2.0      # 法線の重みの指数。大きいほど面ごと
 DECAL_FLOOR_Z = 0.008      # これより下は地面の影を拾うので貼らない
 
 
+def _surface_depth(p: Vector) -> float:
+    """点 p が頭・胴のケージ外面からどれだけ内側にあるか(m)。外面上で 0。
+    口のスリットの内側(あくびで見える口の中)を判定するのに使う。"""
+    rows = BODY_LOOPS
+    z = p.z
+    if z <= rows[0][0] or z >= rows[-1][0]:
+        return 0.0
+    cy = rf = rb = rs = sn = 0.0
+    for r0, r1 in zip(rows, rows[1:]):
+        if r0[0] <= z <= r1[0]:
+            t = (z - r0[0]) / (r1[0] - r0[0]) if r1[0] > r0[0] else 0.0
+            cy, rf, rb, rs, sn = (r0[i] + (r1[i] - r0[i]) * t for i in range(1, 6))
+            break
+    k = RADIUS_COMP
+    a = math.atan2(p.y - cy, p.x)
+    c, s_ = math.cos(a), math.sin(a)
+    ry = rf if s_ < 0 else rb
+    xs = 1.0 - sn * (-s_) if s_ < 0 else 1.0
+    surf = Vector((rs * k * c * xs, ry * k * s_, 0.0))
+    return surf.length - Vector((p.x, p.y - cy, 0.0)).length
+
+
 def body_color(p: Vector, n: Vector):
     """bake_albedo 用: 体色 + おなか + 3面デカール(トライプラナー投影)。"""
     base = SHEET["main"]
@@ -853,3 +880,123 @@ def texture_blockout(parts: dict, size: int = 3072) -> None:
         C.smart_uv(o)
         im = C.bake_albedo(o, body_color, size=px, name=f"{o.name}_albedo")
         C.assign_material(o, C.make_textured_material(f"{o.name}_mat", im, roughness=0.8))
+
+
+# ------------------------------------------------------------------- 本番モデル
+# ブロックアウト(別メッシュのまま)を1枚に統合し、三角形数を落として
+# アーマチュアを付ける。voxel remesh は使わない ―― join しただけなので、
+# 腕と胴の谷・顎下のくぼみといった負の空間はそのまま残る。
+TARGET_TRIS = 5600          # v2(5,184)と同程度。ブロックアウトは 21,552
+TEX_SIZE = 1024             # 本体(顔以外)
+FACE_TEX = 1024             # 顔だけの専用アトラス
+# 顔を本体から切り離す球。**頭全体ではなく前面だけ**にする(ガルドと同じ。
+# 頭全体を1枚に取ると後頭部がタイルの大半を占めて顔の密度が半分になる)
+FACE_ISLAND_C = (0.0, -0.028, 0.101)
+FACE_ISLAND_R = 0.052        # 頬(±0.043)まで届く大きさが要る
+FACE_ISLAND_MAX_Y = -0.004   # ここより後ろ(裏側)は顔に含めない
+FACE_BOOST = 3.0
+
+# 関節。v3 の実際の形状から拾った(BODY_LOOPS・build_arms・build_legs・build_tail)
+JOINTS_HALF = {
+    "hip": (0.000, 0.0090, 0.0285),      # 骨盤(尾・後脚の付け根)
+    "chest": (0.000, -0.0010, 0.0700),   # 胸(前脚の付け根の高さ)
+    "head": (0.000, -0.0170, 0.1000),    # 頭の中心
+    "snout": (0.000, -0.0380, 0.0980),   # 鼻先。下顎の支点でもある
+    "jaw": (0.000, -0.0420, 0.0860),     # 下顎の先(あくびで開く)
+    "legF.L": (0.028, -0.0120, 0.0580),  # 肩
+    "footF.L": (0.027, -0.0410, 0.0080),
+    "legB.L": (0.034, 0.0160, 0.0280),   # 腿
+    "footB.L": (0.054, -0.0160, 0.0090),
+    # 尾: build_tail の中心線から7点を間引く(渦まで骨を通す)
+    "tail1": (0.000, 0.0520, 0.0220),
+    "tail2": (-0.008, 0.0830, 0.0140),
+    "tail3": (-0.020, 0.1050, 0.0230),
+    "tail4": (-0.029, 0.1058, 0.0480),
+    "tail5": (-0.032, 0.0960, 0.0560),
+    "tail6": (-0.033, 0.0866, 0.0426),
+    "tail7": (-0.031, 0.0975, 0.0362),
+}
+BONES_HALF = [
+    ("hip", "chest"), ("chest", "head"), ("head", "snout"), ("snout", "jaw"),
+    ("chest", "legF.L"), ("legF.L", "footF.L"),
+    ("hip", "legB.L"), ("legB.L", "footB.L"),
+    ("hip", "tail1"), ("tail1", "tail2"), ("tail2", "tail3"), ("tail3", "tail4"),
+    ("tail4", "tail5"), ("tail5", "tail6"), ("tail6", "tail7"),
+]
+HEIGHT = 0.140              # 設定画の想定身長。最後に一様スケールで合わせる
+
+
+def build() -> tuple[list, bpy.types.Object]:
+    """本番モデル(メッシュ+アーマチュア)を返す。"""
+    parts = build_v3_blockout()
+    # 背びれは薄い1枚なので、自動ウェイト(bone heat)がその頂点から胴の中の
+    # ボーンを見通せず 162 頂点を取りこぼす。背骨に沿って3区間へ明示的に
+    # 固定する(背びれ自体は変形させる必要がない)
+    pins = []
+    for o in parts["extras"]:
+        if "frill" not in o.name:
+            continue
+        seg = {"frill_head": [], "frill_back": [], "frill_hip": []}
+        for v in o.data.vertices:
+            key = ("frill_head" if v.co.z > 0.098 else
+                   "frill_back" if v.co.z > 0.055 else "frill_hip")
+            seg[key].append(v.index)
+        for name, idx in seg.items():
+            if not idx:
+                continue
+            o.vertex_groups.new(name=name).add(idx, 1.0, "REPLACE")
+            pins.append((name, {"frill_head": "chest-head",
+                                "frill_back": "hip-chest",
+                                "frill_hip": "hip-tail1"}[name]))
+    mesh = C.join([parts["body"]] + parts["extras"], NAME)
+    bpy.data.objects.remove(parts["cage"], do_unlink=True)
+    C.decimate_to(mesh, TARGET_TRIS)
+    # 設定画の身長へ一様スケール(ケージは圧縮テーマのぶん 0.134 で作ってある)
+    lo, hi = C.bounds([mesh])
+    scale = HEIGHT / (hi.z - lo.z)
+    for v in mesh.data.vertices:
+        v.co *= scale
+    joints = {k: Vector(v) * scale for k, v in C.mirrored(JOINTS_HALF).items()}
+    # 塗りは decimate の後に焼く(UV を切り直すため)。デカールはモデル座標を
+    # 使うので、スケール後の座標を元に戻してから引く
+    inv = 1.0 / scale
+
+    def color(p, n):
+        return body_color(p * inv, n)
+
+    # UV: 背中に模様がある四足姿勢なので赤道(z)でシームを引く。顔だけ
+    # boost で独立した島に切り出し、専用アトラスへ移す(smart_uv では
+    # 島が 276 に割れ、顔の密度が 0.75 テクセル/mm しか出なかった)
+    face_c = tuple(v * scale for v in FACE_ISLAND_C)
+    face_r = FACE_ISLAND_R * scale
+    face_max_y = FACE_ISLAND_MAX_Y * scale
+    C.organic_uv(mesh, axis=2, boost=(face_c, face_r, FACE_BOOST, face_max_y))
+    face_faces = C.split_material_region(mesh, face_c, face_r, max_y=face_max_y)
+    # materials.clear() を挟むと面の material_index がスロットを失って
+    # 顔の割り当てが消える。split_material_region が作った2つのスロットを
+    # そのまま差し替える
+    img = C.bake_albedo(mesh, color, size=TEX_SIZE, name=f"{NAME}_albedo",
+                        material_index=0)
+    skin = C.make_textured_material(f"{NAME}_skin", img, roughness=0.8)
+    if face_faces:
+        face_img = C.bake_albedo(mesh, color, size=FACE_TEX, name=f"{NAME}_face",
+                                 material_index=1)
+        face_mat = C.make_textured_material(f"{NAME}_face_mat", face_img, roughness=0.8)
+        mesh.data.materials[0] = skin
+        mesh.data.materials[1] = face_mat
+    else:
+        mesh.data.materials.clear()
+        mesh.data.materials.append(skin)
+    armature = C.build_armature(NAME, joints, C.mirrored_bones(BONES_HALF), mesh, root="hip")
+    for group, bone in pins:
+        C.pin_weight_to_bone(mesh, group, bone)
+    _check(mesh)
+    return [mesh, armature], armature
+
+
+def _check(mesh) -> None:
+    lo, hi = C.bounds([mesh])
+    h, w, d = hi.z - lo.z, hi.x - lo.x, hi.y - lo.y
+    print(f"[{NAME}] 高さ {h:.3f}m 幅 {w:.3f}m 奥行き {d:.3f}m 三角形 {C.tri_count([mesh])}")
+    assert abs(h - HEIGHT) < 0.002, h
+    assert lo.z > -0.002, lo.z
