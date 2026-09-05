@@ -351,7 +351,7 @@ EYE_INSET = (0.0020, 0.0012)   # 外リング(上まぶた)・内リング の i
 EYE_LID_OUT = 0.0020   # 上まぶた(外リング上側)を盛る量(半目そのものは 2D)
 EYE_SLIT_IN = 0.0006   # 眼裂(内側)を奥へ引く量(穴は掘らない。面変化の手がかりだけ)
 MOUTH_Z_ROWS = (0.0844, 0.0885)   # 口の帯の行(jaw〜lip)
-MOUTH_INSET = 0.0009   # 口の開き(閉口時の口線の太さ ≈2mm)
+MOUTH_INSET = 0.0015   # 口の開き(閉口時の口線の太さ ≈1mm。広いと奥壁が見える)
 MOUTH_SLOT_IN = 0.012  # 口の帯を奥へ押し込む深さ=口腔スロット(あくびで開く)
 # 下顎ボーンの蝶番(耳下)。リグ時に、この点を支点に下顔面の頂点を回す
 JAW_HINGE = (0.0, +0.006, 0.082)
@@ -702,3 +702,115 @@ def build_v3_blockout() -> dict:
         C.assign_material(obj, clay)
     C.assign_material(cage, clay)
     return {"cage": cage, "body": body, "extras": extras}
+
+
+# ------------------------------------------------------------------- 塗り(Face Texture Gate)
+# 顔のアイデンティティ(半目・鼻孔・への字口・頬の模様)は 2D が担当する。
+# デカールは tools/akubitokage_face_decal.py が設定画から直接生成した PNG。
+import json as _json
+import os as _os
+
+_ROOT = _os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+FACE_DECAL_PNG = _os.path.join(_ROOT, "design", "characters", "akubitokage", "generated",
+                               "akubitokage-face-decal.png")
+FACE_DECAL_JSON = FACE_DECAL_PNG[:-4] + ".json"
+# パレット(設定画「カラーパレット」。v2 の実測値を引き継ぐ)
+SHEET = {
+    "main": (0.30, 0.28, 0.30),
+    "belly": (0.76, 0.70, 0.78),
+    "spot": (0.565, 0.494, 0.565),
+    "mouth": (0.729, 0.584, 0.675),
+}
+# v3 の腹の膨らみに合わせた「おなか(薄い影)」の楕円体
+BELLY_CENTER = Vector((0.0, -0.030, 0.032))
+BELLY_RADII = Vector((0.022, 0.026, 0.026))
+_decal_cache: list = []
+
+
+def _decal():
+    if not _decal_cache:
+        import numpy as np
+        meta = _json.load(open(FACE_DECAL_JSON))
+        img = bpy.data.images.load(FACE_DECAL_PNG)
+        w, h = img.size
+        px = np.empty(w * h * 4, dtype=np.float32)
+        img.pixels.foreach_get(px)
+        bpy.data.images.remove(img)
+        _decal_cache.append((px.reshape(h, w, 4)[::-1], meta))
+    return _decal_cache[0]
+
+
+def decal_sample(x: float, z: float):
+    """モデル座標(x, z)でデカールを双一次補間で引く。(r, g, b, a)。範囲外は a=0。"""
+    dec, meta = _decal()
+    h, w = dec.shape[:2]
+    fx = (x - meta["x0"]) * meta["ppu"] - 0.5
+    fy = (meta["z1"] - z) * meta["ppu"] - 0.5
+    x0, y0 = math.floor(fx), math.floor(fy)
+    if x0 < 0 or y0 < 0 or x0 + 1 >= w or y0 + 1 >= h:
+        return (0.0, 0.0, 0.0, 0.0)
+    tx, ty = fx - x0, fy - y0
+    p = (dec[y0, x0] * (1 - tx) + dec[y0, x0 + 1] * tx) * (1 - ty) \
+        + (dec[y0 + 1, x0] * (1 - tx) + dec[y0 + 1, x0 + 1] * tx) * ty
+    return (float(p[0]), float(p[1]), float(p[2]), float(p[3]))
+
+
+def _surface_depth(p: Vector) -> float:
+    """点 p が頭ケージの外面からどれだけ内側にあるか(m)。外面上で 0、内側で正。
+    口腔スロット(外面から 12mm 押し込んだ帯)の内側判定に使う。"""
+    rows = BODY_LOOPS
+    z = p.z
+    if z <= rows[0][0] or z >= rows[-1][0]:
+        return 0.0
+    for r0, r1 in zip(rows, rows[1:]):
+        if r0[0] <= z <= r1[0]:
+            t = (z - r0[0]) / (r1[0] - r0[0])
+            cy, rf, rb, rs, sn = (r0[i] + (r1[i] - r0[i]) * t for i in range(1, 6))
+            break
+    k = RADIUS_COMP
+    a = math.atan2(p.y - cy, p.x)
+    c, s_ = math.cos(a), math.sin(a)
+    ry = rf if s_ < 0 else rb
+    xs = 1.0 - sn * (-s_) if s_ < 0 else 1.0
+    surf = Vector((rs * k * c * xs, ry * k * s_))
+    return surf.length - Vector((p.x, p.y - cy)).length
+
+
+def body_color(p: Vector, n: Vector):
+    """bake_albedo 用: 体色 + おなか + 口腔 + 顔デカール(正面投影)。"""
+    base = SHEET["main"]
+    # 口腔スロットの内側だけ。開口付近(3〜6mm)は墨色で閉口時の口線に見せ、
+    # 奥(6mm〜)だけ「口の中(あくび時)」のピンクにする
+    if 0.080 < p.z < 0.094 and p.y < -0.010:
+        depth = _surface_depth(p)
+        if depth > 0.009:      # 奥壁: 閉口時にも僅かに見えるので暗い紫に留める
+            return (0.30, 0.20, 0.31)
+        if depth > 0.003:      # 開口付近: 墨色(閉口時の口線)
+            return (0.14, 0.11, 0.15)
+    # おなか: 前を向く面だけ、楕円体の中で柔らかく
+    d = p - BELLY_CENTER
+    r = math.sqrt((d.x / BELLY_RADII.x) ** 2 + (d.y / BELLY_RADII.y) ** 2 + (d.z / BELLY_RADII.z) ** 2)
+    if n.y < -0.2 and r < 1.0:
+        t = max(0.0, min(1.0, (1.0 - r) / 0.25))
+        t = t * t * (3 - 2 * t)
+        base = tuple(base[i] + (SHEET["belly"][i] - base[i]) * t for i in range(3))
+    # 顔デカール: 正面を向く面へ平行投影。横顔では薄める
+    if p.y < -0.010 and n.y < -0.05 and p.z > 0.072:
+        fade = max(0.0, min(1.0, (-n.y - 0.05) / 0.25))
+        r_, g_, b_, a = decal_sample(p.x, p.z)
+        a *= fade
+        if a > 0.004:
+            base = (base[0] + (r_ - base[0]) * a, base[1] + (g_ - base[1]) * a, base[2] + (b_ - base[2]) * a)
+    return base
+
+
+def texture_blockout(parts: dict, size: int = 1536) -> None:
+    """ブロックアウトへ塗りを載せる(Face Texture Gate 用)。胴+頭は UV を切って
+    bake_albedo、他の部位は体色のベタ。"""
+    body = parts["body"]
+    C.smart_uv(body)
+    img = C.bake_albedo(body, body_color, size=size, name=f"{NAME}_albedo")
+    C.assign_material(body, C.make_textured_material(f"{NAME}_skin", img, roughness=0.8))
+    flat = C.make_material(f"{NAME}_flat", SHEET["main"], roughness=0.8)
+    for o in parts["extras"]:
+        C.assign_material(o, flat)
