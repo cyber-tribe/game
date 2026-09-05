@@ -5,7 +5,7 @@ plan/models/reference-akubitokage-sheet.png の三面図(正面・側面・背�
 - 顔の線画(半目・鼻孔2点・への字口) ―― 正面のみ
 - 全身の明色斑点(頭・首・腕・背中・腰・尾)
 を抽出し、モデル座標へ写した3枚のデカール PNG を作る。モデル側
-(tools/models/akubitokage_v3.py)は法線の向きでこの3枚を混ぜる
+(tools/models/akubitokage.py)は法線の向きでこの3枚を混ぜる
 (トライプラナー投影)。
 
 想像で描かない ―― 設定画の絵をそのまま写すので、似ないという失敗の余地がない
@@ -83,7 +83,7 @@ YAWN_SIDE_CY = -0.0360
 YAWN_SIDE_HALF_W = 0.0175
 HALF_SCALE = (0.85, 0.40)      # 「あくび予備」のコマの縮尺
 
-# ---- モデル座標(tools/models/akubitokage_v3.py と同期させること)
+# ---- モデル座標(tools/models/akubitokage.py と同期させること)
 MODEL_H = 0.134                # 全高(背びれ・頭頂の突起を含む)
 MODEL_EYE = (0.0248, 0.1045)   # 目の島の中心 (|x|, z)
 MODEL_MOUTH_Z = 0.0904         # 口線の高さ

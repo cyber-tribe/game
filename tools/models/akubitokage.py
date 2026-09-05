@@ -1,5 +1,8 @@
 """
-あくびとかげ v3 ―― ベースケージ+Subdivision方式のブロックアウト。
+あくびとかげ ―― ベースケージ+Subdivision方式。
+
+このモジュールが本番の造形。monsters.MONSTERS から呼ばれる
+(monsters.py には状態アニメーション akubitokage_animations だけが残る)。
 
 v2(#1064〜#1068)の「断面ロフト+curve_tube+sculpt_merge/voxel remesh」は、
 首・脇・顎下・腹と腿の境界といった**負の空間をvoxel融合が埋めてしまう**
@@ -267,7 +270,7 @@ import bpy
 import common as C
 from mathutils import Quaternion, Vector
 
-NAME = "akubitokage_v3"
+NAME = "akubitokage"
 
 # 単色Clay用の材質色(レビュー時はテクスチャ・煙・腹色・鱗を一切使わない)
 CLAY = (0.62, 0.58, 0.55)
@@ -765,7 +768,7 @@ def build_frill() -> bpy.types.Object:
     return obj
 
 
-def build_v3_blockout() -> dict:
+def build_blockout() -> dict:
     """ブロックアウト一式を作って返す。
     返り値: {"cage": ローポリケージ, "body": 丸めた胴+頭, "extras": [四肢・尾・背びれ]}
     """
@@ -958,11 +961,26 @@ BONES_HALF = [
     ("tail4", "tail5"), ("tail5", "tail6"), ("tail6", "tail7"),
 ]
 HEIGHT = 0.140              # 設定画の想定身長。最後に一様スケールで合わせる
+# あくびの口は「顎ボーンの開き角 → 顔アトラスのコマ」で切り替える。
+# 下顎を分離する方式(方式1)は口内が閉口時に漏れて棄却したので、
+# 3Dの顎は頬・喉のふくらみだけを担い、口そのものは絵で開く
+MOUTH_BONE = "snout-jaw"
+MOUTH_OPEN_DEG = 60.0       # akubitokage_animations の attack の最大開き
+# あくびの煙。設定画は三面図にも描かれているので常時出す。ひと房を大きさの
+# 違う小さな球の集まりにして、輪郭を完全な円にしない(v2 から引き継ぎ)。
+# 頭に剛体固定するので、頭を動かしても口元から離れない
+SMOKE_RGB = (0.75, 0.70, 0.82)
+SMOKE_PUFFS = [
+    (0.050, -0.030, 0.112, 0.0075), (0.058, -0.022, 0.118, 0.0065),
+    (0.052, -0.020, 0.123, 0.0055),
+    (0.044, 0.005, 0.128, 0.0065), (0.051, 0.001, 0.133, 0.0055),
+    (0.046, 0.008, 0.137, 0.0045),
+]
 
 
 def build() -> tuple[list, bpy.types.Object]:
     """本番モデル(メッシュ+アーマチュア)を返す。"""
-    parts = build_v3_blockout()
+    parts = build_blockout()
     # 背びれは薄い1枚なので、自動ウェイト(bone heat)がその頂点から胴の中の
     # ボーンを見通せず 162 頂点を取りこぼす。背骨に沿って3区間へ明示的に
     # 固定する(背びれ自体は変形させる必要がない)
@@ -982,14 +1000,33 @@ def build() -> tuple[list, bpy.types.Object]:
             pins.append((name, {"frill_head": "chest-head",
                                 "frill_back": "hip-chest",
                                 "frill_hip": "hip-tail1"}[name]))
+    # 煙はここでは**まだ join しない**。split_material_region は球の中の面を
+    # すべてスロット1(顔)へ移してしまうので、口元の煙が顔アトラスの島に
+    # 混ざり、顔の密度を食う。塗りを焼き終えてから3枚目のスロットとして
+    # 合流させる(join は後続オブジェクトのマテリアルをスロットに足すので、
+    # 煙の面だけが index 2 を指したまま残る)
+    smoke_mat = C.make_material(f"{NAME}_smoke", SMOKE_RGB, roughness=0.5, emission=0.15)
+    smoke = []
+    for i, (x, y, z, r) in enumerate(SMOKE_PUFFS):
+        puff = C.uv_sphere(f"{NAME}_smoke{i}", (x, y, z), r, segments=8, rings=6)
+        C.assign_material(puff, smoke_mat)
+        puff.vertex_groups.new(name="smoke_pin").add(
+            [v.index for v in puff.data.vertices], 1.0, "REPLACE")
+        smoke.append(puff)
+    pins.append(("smoke_pin", "chest-head"))
+    smoke_tris = C.tri_count(smoke)
     mesh = C.join([parts["body"]] + parts["extras"], NAME)
     bpy.data.objects.remove(parts["cage"], do_unlink=True)
-    C.decimate_to(mesh, TARGET_TRIS)
-    # 設定画の身長へ一様スケール(ケージは圧縮テーマのぶん 0.134 で作ってある)
+    C.decimate_to(mesh, TARGET_TRIS - smoke_tris)
+    # 設定画の身長へ一様スケール(ケージは圧縮テーマのぶん 0.134 で作ってある)。
+    # 煙は頭より上へ出るので、**煙を含めない身体だけ**で倍率を決める
     lo, hi = C.bounds([mesh])
     scale = HEIGHT / (hi.z - lo.z)
     for v in mesh.data.vertices:
         v.co *= scale
+    for puff in smoke:
+        for v in puff.data.vertices:
+            v.co *= scale
     joints = {k: Vector(v) * scale for k, v in C.mirrored(JOINTS_HALF).items()}
     # 塗りは decimate の後に焼く(UV を切り直すため)。デカールはモデル座標を
     # 使うので、スケール後の座標を元に戻してから引く
@@ -1001,6 +1038,7 @@ def build() -> tuple[list, bpy.types.Object]:
     # UV: 背中に模様がある四足姿勢なので赤道(z)でシームを引く。顔だけ
     # boost で独立した島に切り出し、専用アトラスへ移す(smart_uv では
     # 島が 276 に割れ、顔の密度が 0.75 テクセル/mm しか出なかった)
+    smoke_mat_name = f"{NAME}_smoke"
     face_c = tuple(v * scale for v in FACE_ISLAND_C)
     face_r = FACE_ISLAND_R * scale
     face_max_y = FACE_ISLAND_MAX_Y * scale
@@ -1030,22 +1068,33 @@ def build() -> tuple[list, bpy.types.Object]:
         face_mat = C.make_textured_material(f"{NAME}_face_mat", atlas, roughness=0.8)
         mesh.data.materials[0] = skin
         mesh.data.materials[1] = face_mat
-        # エンジンの表情切り替え用(glTF extras)
+        # エンジンの口切り替え用(glTF extras)。エンジンは mouthBone の
+        # 「静止姿勢からの開き角」をそのままコマ番号へ量子化する。
+        # クリップ側にカーブを二重に持たせない(アニメーションを直せば
+        # 見た目も自動で追従する)
         mesh["mouthTiles"] = len(FACE_FRAMES)
         mesh["mouthMaterial"] = face_mat.name
+        mesh["mouthBone"] = MOUTH_BONE
+        mesh["mouthOpenDeg"] = MOUTH_OPEN_DEG
     else:
         mesh.data.materials.clear()
         mesh.data.materials.append(skin)
+    body_h = hi.z * scale - lo.z * scale
+    mesh = C.join([mesh] + smoke, NAME)
     armature = C.build_armature(NAME, joints, C.mirrored_bones(BONES_HALF), mesh, root="hip")
     for group, bone in pins:
         C.pin_weight_to_bone(mesh, group, bone)
-    _check(mesh)
+    _check(mesh, body_h)
     return [mesh, armature], armature
 
 
-def _check(mesh) -> None:
+def _check(mesh, body_h: float) -> None:
     lo, hi = C.bounds([mesh])
-    h, w, d = hi.z - lo.z, hi.x - lo.x, hi.y - lo.y
-    print(f"[{NAME}] 高さ {h:.3f}m 幅 {w:.3f}m 奥行き {d:.3f}m 三角形 {C.tri_count([mesh])}")
-    assert abs(h - HEIGHT) < 0.002, h
+    w, d = hi.x - lo.x, hi.y - lo.y
+    print(f"[{NAME}] 身長 {body_h:.3f}m(煙込み {hi.z - lo.z:.3f}m) "
+          f"幅 {w:.3f}m 奥行き {d:.3f}m 三角形 {C.tri_count([mesh])}")
+    print(f"[{NAME}] マテリアル {[m.name for m in mesh.data.materials]}")
+    assert abs(body_h - HEIGHT) < 0.002, body_h
     assert lo.z > -0.002, lo.z
+    assert len(mesh.data.materials) == 3, [m.name for m in mesh.data.materials]
+    assert C.tri_count([mesh]) <= TARGET_TRIS, C.tri_count([mesh])

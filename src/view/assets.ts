@@ -134,6 +134,11 @@ function toToonMaterial(
     // metalnessはMeshToonMaterialに存在しないため単純に失われる(想定内。
     // plan/game/archive/toon-shading-pipeline.md参照)
   });
+  // マテリアル名は**必ず引き継ぐ**。顔のアトラス切り替え
+  // (src/view/blink.ts の "eyelid"、src/view/mouth.ts)は
+  // 「どのマテリアルが顔か」を名前で選ぶので、ここで名前が落ちると
+  // 見た目は正常なのにまばたき・あくびだけ静かに止まる
+  material.name = source.name;
   if (withRim) addRimLight(material);
   return material;
 }

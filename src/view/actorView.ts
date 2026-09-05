@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import type { Instance } from "./assets";
 import { BlinkController } from "./blink";
+import { MouthController } from "./mouth";
 import { TILE } from "./renderer";
 import { type Dir, type Vec2, dirDelta } from "../core/grid";
 
@@ -165,6 +166,13 @@ export class ActorView {
    */
   private readonly blink: BlinkController;
 
+  /**
+   * 口の開閉のテクスチャ切り替え(handbook/cage-and-2d3d-split.md)。
+   * 顎ボーンの開き角を見るだけなので、対象(userData.mouthTiles)を
+   * 持たないモデルでは何もしない
+   */
+  private readonly mouth: MouthController;
+
   constructor(instance: Instance, pos: Vec2, facing: Dir = 4, idleSpeedMul = 1, walkSpeedMul = 1) {
     this.root = instance.root;
     this.mixer = instance.mixer;
@@ -172,6 +180,8 @@ export class ActorView {
     this.idleSpeedMul = idleSpeedMul;
     this.walkSpeedMul = walkSpeedMul;
     this.blink = new BlinkController(this.root);
+    // 顎ボーンの静止姿勢を控えるので、play()でクリップを流す前に作る
+    this.mouth = new MouthController(this.root);
     // 位置・回転を乗せる前に測る(AABBがモデル本来のfootprintのままになる)
     const contactShadow = createContactShadow(this.root);
     if (contactShadow) this.root.add(contactShadow);
@@ -367,6 +377,8 @@ export class ActorView {
   update(dt: number): void {
     this.mixer?.update(dt);
     this.blink.update(dt);
+    // ミキサーが顎ボーンを動かした後に読む
+    this.mouth.update();
 
     // 前フレームで足した踏み込みオフセットをまず取り除き、素の位置に戻す
     // (移動中はlerpが位置を丸ごと上書きするので、この減算は無害)。

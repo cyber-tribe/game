@@ -1222,8 +1222,67 @@ v2(#1064〜#1068)の「断面ロフト+curve_tube+sculpt_merge/voxel remesh」�
 - 斑点は小さく淡く(面積 2〜40 シートpx²、alpha 0.38)。顔の造作に重なるものは
   落とす(Face Gate で確定した目と口が読めなくなる)
 
-### 次
+## 追記(本番化 ―― v2 の置き換え)
 
-- あくび用の開口ジオメトリと下顎ボーン(蝶番は z=0.082 の JAW_HINGE)
-- アーマチュアとウェイト(自動ウェイトの警告をビルドログで必ず確認する)
-- `monsters.MONSTERS` への登録と v2 の置き換え、CI の通過
+Face Lock・Body Final Gate を経て「これで良し」の判定を受けたので、v3 を
+本番へ入れた。
+
+### モジュールの整理
+
+- `tools/models/akubitokage_v3.py` → **`tools/models/akubitokage.py`**
+  (`NAME` も `akubitokage`)。v3 が唯一の版になったのでバージョン名を落とす。
+- `tools/models/monsters.py` の v2(`AKUBI_TORSO_RINGS`・`_akubi_*`・
+  `build_akubitokage`・`_akubitokage_check`、約 720 行)を削除し、
+  `build_akubitokage()` は新モジュールへ委譲するだけにした。
+- **`akubitokage_animations()` はそのまま残した。** v2 のクリップが使う骨
+  (`hip-chest` / `chest-head` / `snout-jaw` / `chest-legF.L,R` /
+  `hip-legB.L,R` / `hip-tail1`)は v3 の `BONES_HALF` にすべて存在する。
+
+### あくびの煙
+
+v2 から引き継ぐ(設定画の三面図すべてに描かれているので常時出す)。
+大きさの違う小さな球6個を `chest-head` へ剛体固定する。
+
+ただし**塗りを焼き終えてから join する**。`split_material_region` は球の
+中の面をすべて顔スロットへ移すので、先に join すると口元の煙(顔の中心から
+51mm、球の半径 52mm)が顔アトラスに巻き込まれ、煙自身のマテリアルも失われる。
+三角形数の予算は先に引き(`TARGET_TRIS - 煙の三角形数`)、身長は煙を含めない
+本体で測る。詳細は handbook 4-12。
+
+### エンジン側の口の切り替え
+
+`src/view/mouth.ts`(`MouthController`)を新設し、`ActorView` が毎フレーム
+更新する。方式は `blink.ts` の `"eyelid"` と同じ「顔の UV 島だけ別マテリアル
+にして、横並びアトラスを UV オフセットで切り替える」だが、**コマの選択は
+顎ボーンの静止姿勢からの開き角**から決める。
+
+| glTF extras | 値 |
+|---|---|
+| `mouthTiles` | 3(閉じ / 半開き / 大あくび) |
+| `mouthMaterial` | `akubitokage_face_mat` |
+| `mouthBone` | `snout-jaw` |
+| `mouthOpenDeg` | 60(`attack` の最大開き) |
+
+クリップ側にタイミングのカーブを二重に持たせないので、アニメーションを
+直せば口の絵も自動で追従する。`attack` の実測は 0.00s:0° → 0.38s:52° →
+0.83s:60° → 1.67s:0° で、コマは 閉じ → 半開き → 大あくび → 半開き → 閉じ
+と動く。
+
+### 途中で見つけた別のバグ
+
+`src/view/assets.ts` の `toToonMaterial()` がマテリアル名を引き継いで
+いなかったため、**名前でマテリアルを選ぶ顔アトラスの切り替えが
+エンジン内で無効になっていた**。あくびとかげで気づいたが、ガルドと
+おおねぼすけのまばたきも同じ理由で止まっていた。名前を引き継ぐ1行で
+3体とも動き出した(handbook 4-11)。
+
+### 検証
+
+- `tests/models.test.ts` に「顎ボーンの開き角で顔アトラスを切り替えられる」
+  を追加(extras の存在だけでなく、`attack` が `mouthOpenDeg` の 3/4 以上まで
+  開いて閉じ口へ戻ることまで見る)
+- `tests/mouth.test.ts`(5件)で `MouthController` の量子化・インスタンス
+  ごとの複製を確認
+- `npm run preview-engine` の GIF から `attack` の区間を切り出し、**口が
+  実際に開いているコマを目で確認**した
+- 身長の基準表は 0.138 → **0.147**(本体 0.140 + 頭上の煙)へ更新
