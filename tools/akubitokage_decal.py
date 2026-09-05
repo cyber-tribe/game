@@ -15,6 +15,8 @@ plan/models/reference-akubitokage-sheet.png の三面図(正面・側面・背�
 
 出力: design/characters/akubitokage/generated/
     akubitokage-decal-{front,side,back}.png   RGBA
+    akubitokage-decal-front-half.png          あくび予備(口が少し開く)
+    akubitokage-decal-front-yawn.png          大あくび(口腔が大きく出る)
     akubitokage-decal.json                    座標系
     akubitokage-decal-debug.png               抽出の確認
 """
@@ -66,6 +68,20 @@ LINE_RGB = (0.14, 0.11, 0.15)
 LID_RGB = (0.36, 0.33, 0.36)
 SPOT_RGB = (0.60, 0.55, 0.58)
 SPOT_ALPHA = 0.38              # 設定画の斑点は輪郭が柔らかく淡い
+
+# ---- あくびの開口(顔アトラスのコマ)。設定画に「正面のあくび」は無いので、
+#      側面の あくび表情 から**比**を実測して正面へ補間する(新しいデザインを
+#      発明するのではなく、既に定義されている口の色・開口量・口角を
+#      正面投影へ写す作業)。実測: 口腔の 高さ/幅 = 0.55
+MOUTH_RGB = (0.729, 0.584, 0.675)   # パレットの「口の中(あくび時)」
+MOUTH_EDGE_RGB = (0.30, 0.20, 0.31)  # 口の縁(内側の影)
+YAWN_HALF_W = 0.0229           # 正面: 半幅(通常の口線の幅と同じ)
+YAWN_HALF_H = 0.0126           # 半高(幅 × 0.55 / 2)
+YAWN_CZ = 0.0810               # 口腔の中心の高さ(口線から下へ開く)
+# 側面: 口は顔の前half にある。y の中心と半幅(側面の開口の奥行き)
+YAWN_SIDE_CY = -0.0360
+YAWN_SIDE_HALF_W = 0.0175
+HALF_SCALE = (0.85, 0.40)      # 「あくび予備」のコマの縮尺
 
 # ---- モデル座標(tools/models/akubitokage_v3.py と同期させること)
 MODEL_H = 0.134                # 全高(背びれ・頭頂の突起を含む)
@@ -188,8 +204,8 @@ def extract_face(v: View):
                 if eyes[0]["x1"] < c["cx"] < eyes[1]["x0"]
                 and eye_y - 3 * UPSCALE < c["cy"] < mouth["cy"] - 3 * UPSCALE
                 and 2 * UPSCALE * UPSCALE <= c["size"] <= 30 * UPSCALE * UPSCALE]
-    line = dilate_z(np.isin(lab, [mouth["id"]]), MOUTH_DILATE_Z)
-    line |= dilate_box(np.isin(nlab, [c["id"] for c in nostrils]), NOSTRIL_DILATE)
+    nostril = dilate_box(np.isin(nlab, [c["id"] for c in nostrils]), NOSTRIL_DILATE)
+    line = dilate_z(np.isin(lab, [mouth["id"]]), MOUTH_DILATE_Z) | nostril
 
     # 目は2層。設定画は「上に体色より明るい大きなまぶた面 → 下端に黒い眼裂」。
     # 左右非対称(斜めから描かれている)なので、大きく写っている方を鏡像にする
@@ -222,8 +238,8 @@ def extract_face(v: View):
     lid = smooth(lid, EYE_SMOOTH) | slit
     slit |= mirror(slit)
     lid |= mirror(lid)
-    return (line | slit), lid, dict(eyes=eyes, mouth=mouth, nostrils=nostrils,
-                                    eye_y=eye_y, cx_face=cx_face)
+    return (line | slit), lid, (nostril | slit), dict(
+        eyes=eyes, mouth=mouth, nostrils=nostrils, eye_y=eye_y, cx_face=cx_face)
 
 
 def sample(mask_f: np.ndarray, px: np.ndarray, py: np.ndarray) -> np.ndarray:
@@ -241,7 +257,7 @@ def sample(mask_f: np.ndarray, px: np.ndarray, py: np.ndarray) -> np.ndarray:
 
 def main() -> None:
     views = {k: View(k, b) for k, b in VIEWS.items()}
-    line, lid, info = extract_face(views["front"])
+    line, lid, line_nomouth, info = extract_face(views["front"])
     spots = {k: v.spots() for k, v in views.items()}
     # 顔の造作(まぶた面・眼裂・口・鼻孔)に重なる斑点は落とす。Face Gate で
     # 確定した顔の上に斑点が乗ると、目と口が読めなくなる
@@ -274,26 +290,87 @@ def main() -> None:
         py = np.broadcast_to(py, (H, px.shape[1]))
 
         sp = sample(blur(spots[name].astype(np.float32), 1.6), px, py) * SPOT_ALPHA
-        rgba = np.zeros((H, px.shape[1], 4), np.float32)
-        for c in range(3):
-            rgba[..., c] = SPOT_RGB[c]
-        rgba[..., 3] = sp
-        if name == "front":
+
+        def base_layer():
+            rgba = np.zeros((H, px.shape[1], 4), np.float32)
+            for c in range(3):
+                rgba[..., c] = SPOT_RGB[c]
+            rgba[..., 3] = sp.copy()
+            return rgba
+
+        def over(rgba, alpha, rgb):
+            for c in range(3):
+                rgba[..., c] = rgba[..., c] * (1 - alpha) + rgb[c] * alpha
+            rgba[..., 3] = np.maximum(rgba[..., 3], alpha)
+
+        def save(rgba, fname):
+            im = Image.fromarray((np.clip(rgba, 0, 1) * 255).astype(np.uint8), "RGBA")
+            os.makedirs(OUT_DIR, exist_ok=True)
+            im.save(os.path.join(OUT_DIR, fname))
+            return im
+
+        gx_side = np.broadcast_to(DECAL_Y[0] + (np.arange(px.shape[1]) + 0.5) / PPU,
+                                  (H, px.shape[1])) if name == "side" else None
+        gz_all = np.broadcast_to(zs[:, None], (H, px.shape[1]))
+
+        def side_mouth(sx, sy):
+            u = (gx_side - YAWN_SIDE_CY) / (YAWN_SIDE_HALF_W * sx)
+            v = (gz_all - YAWN_CZ) / (YAWN_HALF_H * sy)
+            dd = np.sqrt(u * u + v * v)
+            return (np.clip((1.0 - dd) / 0.18, 0.0, 1.0),
+                    np.clip(1.0 - abs(dd - 1.0) / 0.22, 0.0, 1.0) * 0.85)
+
+        if name == "back":
+            out_imgs[name] = save(base_layer(), f"akubitokage-decal-{name}.png")
+        elif name == "side":
+            # 側面も3コマ。あくびで口の中が横からも見えるようにする
+            for fname, sc in (("akubitokage-decal-side.png", None),
+                              ("akubitokage-decal-side-half.png", HALF_SCALE),
+                              ("akubitokage-decal-side-yawn.png", (1.0, 1.0))):
+                rgba = base_layer()
+                if sc is not None:
+                    inner, edge = side_mouth(*sc)
+                    over(rgba, inner, MOUTH_RGB)
+                    over(rgba, edge * (1 - inner), MOUTH_EDGE_RGB)
+                im = save(rgba, fname)
+                if sc is None:
+                    out_imgs[name] = im
+        else:
             lda = sample(blur(lid.astype(np.float32), 1.8), px, py)
             la = sample(blur(line.astype(np.float32), 1.2), px, py)
-            for c in range(3):
-                rgba[..., c] = rgba[..., c] * (1 - lda) + LID_RGB[c] * lda
-            rgba[..., 3] = np.maximum(rgba[..., 3], lda)
-            for c in range(3):
-                rgba[..., c] = rgba[..., c] * (1 - la) + LINE_RGB[c] * la
-            rgba[..., 3] = np.maximum(rgba[..., 3], la)
-        img = Image.fromarray((np.clip(rgba, 0, 1) * 255).astype(np.uint8), "RGBA")
-        os.makedirs(OUT_DIR, exist_ok=True)
-        img.save(os.path.join(OUT_DIR, f"akubitokage-decal-{name}.png"))
-        out_imgs[name] = img
+            la_nomouth = sample(blur(line_nomouth.astype(np.float32), 1.2), px, py)
+            # デカール平面上の座標(m)。楕円の口はここで直接描く
+            gx = np.broadcast_to(DECAL_X[0] + (np.arange(px.shape[1]) + 0.5) / PPU,
+                                 (H, px.shape[1]))
+            gz = np.broadcast_to(zs[:, None], (H, px.shape[1]))
+
+            def mouth_layer(sx, sy):
+                """開いた口(楕円)の内側 alpha と縁 alpha。"""
+                u = gx / (YAWN_HALF_W * sx)
+                v = (gz - YAWN_CZ) / (YAWN_HALF_H * sy)
+                d = np.sqrt(u * u + v * v)
+                inner = np.clip((1.0 - d) / 0.18, 0.0, 1.0)
+                edge = np.clip((1.0 - abs(d - 1.0) / 0.22), 0.0, 1.0) * 0.85
+                return inner, edge
+
+            for fname, mouth_scale in (("akubitokage-decal-front.png", None),
+                                       ("akubitokage-decal-front-half.png", HALF_SCALE),
+                                       ("akubitokage-decal-front-yawn.png", (1.0, 1.0))):
+                rgba = base_layer()
+                over(rgba, lda, LID_RGB)
+                if mouth_scale is None:
+                    over(rgba, la, LINE_RGB)          # 通常: への字口
+                else:
+                    over(rgba, la_nomouth, LINE_RGB)  # 口線は消し、開いた口を描く
+                    inner, edge = mouth_layer(*mouth_scale)
+                    over(rgba, inner, MOUTH_RGB)
+                    over(rgba, edge * (1 - inner), MOUTH_EDGE_RGB)
+                im = save(rgba, fname)
+                if mouth_scale is None:
+                    out_imgs[name] = im
         meta["views"][name] = {"scale_m_per_px": v.s * UPSCALE, "sheet_box": VIEWS[name],
                                "spots": int(ndimage.label(spots[name])[1])}
-        print(f"{name}: {img.size}  斑点 {meta['views'][name]['spots']} 個  "
+        print(f"{name}: {out_imgs[name].size}  斑点 {meta['views'][name]['spots']} 個  "
               f"{v.s * UPSCALE * 1000:.3f} mm/シートpx")
     json.dump(meta, open(os.path.join(OUT_DIR, "akubitokage-decal.json"), "w"),
               indent=1, ensure_ascii=False)

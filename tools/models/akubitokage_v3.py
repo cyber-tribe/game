@@ -241,6 +241,17 @@ v2(#1064〜#1068)の「断面ロフト+curve_tube+sculpt_merge/voxel remesh」�
    口腔の「見た目」は 2D、あくびした「動き」は 3D。口のスリットも
    bone heat の問題も要らない。
 
+第17回 ―― あくび(方式2: 顔アトラス + 顎ボーン):
+方式1(下顎分離)が閉口時に破綻したので、口腔の「見た目」は 2D、あくびした
+「動き」は 3D で作る。顔だけ別マテリアルにしてある利点をそのまま使い、
+顔のテクスチャを **通常 / あくび予備 / 大あくび の3コマを横に並べた
+アトラス**にする(ガルドのまばたきと同じ "eyelid" 方式)。あくびの口の絵は
+設定画に正面が無いので、側面のあくび表情から比(口腔の 高さ/幅 = 0.55)を
+実測して正面へ補間した。動きの側は顎ボーンの回転・頭の反り・胸の膨らみで
+作るので、口のスリットも bone heat の問題も要らない。
+glTF の extras に mouthTiles / mouthMaterial を出し、エンジンはアニメーション
+に合わせて顔マテリアルの UV を 1/3 ずつずらす。
+
 座標: -Yが正面、+X右、Z上。単位m。設定画側面の「鼻先」を y=-0.060 に置く。
 
 本番の`monsters.MONSTERS`には登録しない(ゲーム本体・CIには影響しない)。
@@ -810,7 +821,7 @@ def decal_sample(name: str, u: float, z: float):
     """デカールを双一次補間で引く。u は front/back なら x、side なら y。"""
     dec, meta = _decal(name)
     h, w = dec.shape[:2]
-    u0 = meta["y"][0] if name == "side" else meta["x"][0]
+    u0 = meta["y"][0] if name.startswith("side") else meta["x"][0]
     fx = (u - u0) * meta["ppu"] - 0.5
     fy = (meta["z"][1] - z) * meta["ppu"] - 0.5
     x0, y0 = math.floor(fx), math.floor(fy)
@@ -824,6 +835,10 @@ def decal_sample(name: str, u: float, z: float):
 
 DECAL_SHARPNESS = 2.0      # 法線の重みの指数。大きいほど面ごとに1枚へ寄る
 DECAL_FLOOR_Z = 0.008      # これより下は地面の影を拾うので貼らない
+# 顔アトラスのコマ。正面と側面を差し替える(背面は共通)。
+# 側面も切り替えるのは、あくびで口の中が横からも見えるようにするため
+FACE_FRAMES = (("front", "side"), ("front-half", "side-half"),
+               ("front-yawn", "side-yawn"))
 
 
 def _surface_depth(p: Vector) -> float:
@@ -848,8 +863,9 @@ def _surface_depth(p: Vector) -> float:
     return surf.length - Vector((p.x, p.y - cy, 0.0)).length
 
 
-def body_color(p: Vector, n: Vector):
-    """bake_albedo 用: 体色 + おなか + 3面デカール(トライプラナー投影)。"""
+def body_color(p: Vector, n: Vector, frame: int = 0):
+    """bake_albedo 用: 体色 + おなか + 3面デカール(トライプラナー投影)。
+    frame は顔アトラスのコマ(0=通常, 1=あくび予備, 2=大あくび)。"""
     base = SHEET["main"]
     # おなか: 前を向く面だけ、縦長の楕円体の中で柔らかく
     d = p - BELLY_CENTER
@@ -867,7 +883,8 @@ def body_color(p: Vector, n: Vector):
     tot = wf + wb + ws
     if tot < 1e-6:
         return base
-    for name, w, u in (("front", wf, p.x), ("back", wb, p.x), ("side", ws, p.y)):
+    front_name, side_name = FACE_FRAMES[frame]
+    for name, w, u in ((front_name, wf, p.x), ("back", wb, p.x), (side_name, ws, p.y)):
         w /= tot
         if w < 0.02:
             continue
@@ -905,7 +922,7 @@ def texture_blockout(parts: dict, size: int = 3072) -> None:
 # 腕と胴の谷・顎下のくぼみといった負の空間はそのまま残る。
 TARGET_TRIS = 5600          # v2(5,184)と同程度。ブロックアウトは 21,552
 TEX_SIZE = 1024             # 本体(顔以外)
-FACE_TEX = 1024             # 顔だけの専用アトラス
+FACE_TEX = 768              # 顔アトラス1コマぶん(3コマ横並びで 2304x768)
 # 顔を本体から切り離す球。**頭全体ではなく前面だけ**にする(ガルドと同じ。
 # 頭全体を1枚に取ると後頭部がタイルの大半を占めて顔の密度が半分になる)
 FACE_ISLAND_C = (0.0, -0.028, 0.101)
@@ -996,11 +1013,26 @@ def build() -> tuple[list, bpy.types.Object]:
                         material_index=0)
     skin = C.make_textured_material(f"{NAME}_skin", img, roughness=0.8)
     if face_faces:
-        face_img = C.bake_albedo(mesh, color, size=FACE_TEX, name=f"{NAME}_face",
-                                 material_index=1)
-        face_mat = C.make_textured_material(f"{NAME}_face_mat", face_img, roughness=0.8)
+        # 顔は 通常 / あくび予備 / 大あくび の3コマを横に並べたアトラスにする。
+        # UV を 1/3 に縮めて左端のコマ(通常)を指し、エンジンが 1/3 ずつずらす
+        frames = []
+        for fi in range(len(FACE_FRAMES)):
+            frames.append(C.bake_albedo(
+                mesh, (lambda p, n, fi=fi: body_color(p * inv, n, fi)),
+                size=FACE_TEX, name=f"{NAME}_face{fi}", material_index=1))
+        atlas = C.atlas_horizontal(frames, f"{NAME}_face")
+        uv = mesh.data.uv_layers.active.data
+        for pol in mesh.data.polygons:
+            if pol.material_index != 1:
+                continue
+            for li in pol.loop_indices:
+                uv[li].uv.x /= len(FACE_FRAMES)
+        face_mat = C.make_textured_material(f"{NAME}_face_mat", atlas, roughness=0.8)
         mesh.data.materials[0] = skin
         mesh.data.materials[1] = face_mat
+        # エンジンの表情切り替え用(glTF extras)
+        mesh["mouthTiles"] = len(FACE_FRAMES)
+        mesh["mouthMaterial"] = face_mat.name
     else:
         mesh.data.materials.clear()
         mesh.data.materials.append(skin)
