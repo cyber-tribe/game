@@ -155,6 +155,24 @@ v2(#1064〜#1068)の「断面ロフト+curve_tube+sculpt_merge/voxel remesh」�
 - 最初のレビューは 正面Clay・45°Clay・Wire のみ。側面とあくび機構は顔面の
   基本構造が通ってから戻す。
 
+第10回レビュー(Face Topology v2 第1版)で決めたこと ―― Face Clay Gate 終了:
+トポロジーは健全になったが、造形だけで設定画の顔を再現しようとすると
+45° で眼窩・鼻面・口周辺が強く出て、設定画に無い「爬虫類の解剖学」が
+加わる。このキャラは 2D 顔(黒く太い半目・まぶたの形・鼻孔2点・長い
+への字口・頬の模様)への依存度が高い。3D と 2D の分担を明示する:
+  頭蓋シルエット=3D / 頬の大ボリューム=3D(+2D) / 短い鼻先=3D(+2D) /
+  下顎(あくび)=3D / 半目・上まぶた・鼻孔・通常時の口線・頬模様=2D
+- 最後に**造形を減らすパス**: 眼裂 −1.5→−0.6mm、上まぶたの盛り +3→+2mm、
+  鼻 +1.5→+0.8mm、上唇の被さり +2→+1mm。眼窩・鼻翼・鼻孔は彫らない。
+- 閉口時の上下顎境界を目立たせない: 下顎を切り離す方式(境界に crease の
+  線が残る)をやめ、頭は一枚の閉じたメッシュのまま、口の帯を 12mm 奥へ
+  押し込んだ**薄い口腔スロット**にする。閉口時に見えるのは口線1本だけ。
+  あくびは下顎ボーン(蝶番 JAW_HINGE)で下顔面の頂点を回し、スロットが
+  開いて口腔が現れる(ハイブリッド: 通常時のへの字口は BaseColor、開口は 3D)。
+- ここで Face Topology をロックし、次は Face Texture Gate(設定画から半目・
+  鼻孔・への字口・頬の明色模様・顎周辺の色面を BaseColor へ落とし、
+  設定画正面 / textured 正面 / 45° / 側面 / 実ゲームカメラで比較)。
+
 座標: -Yが正面、+X右、Z上。単位m。設定画側面の「鼻先」を y=-0.060 に置く。
 
 本番の`monsters.MONSTERS`には登録しない(ゲーム本体・CIには影響しない)。
@@ -284,10 +302,10 @@ FACE_FEATURES = [
     # 眉: 上まぶたの上の柔らかい庇(目の島の外リングと合わせて「重いまぶた」)
     (FACE_CENTER - 45, 30, 0.30, 0.110, 0.005, 0.30, +0.0012, "brow_R"),
     (FACE_CENTER + 45, 30, 0.30, 0.110, 0.005, 0.30, +0.0012, "brow_L"),
-    # 鼻: 鼻孔間の幅しかない極小の盛り。マズルは作らない
-    (FACE_CENTER, 12, 0.30, 0.1005, 0.0045, 0.30, +0.0015, "nose"),
-    # 上唇: 口の帯のすぐ上をわずかに前へ(上顎がわずかに被さる)
-    (FACE_CENTER, 50, 0.50, 0.0925, 0.0035, 0.30, +0.0020, "upper_lip"),
+    # 鼻: ごく緩やかな鼻先の膨らみだけ。鼻孔2点は BaseColor
+    (FACE_CENTER, 12, 0.30, 0.1005, 0.0045, 0.30, +0.0008, "nose"),
+    # 上唇: 口の帯のすぐ上をわずかに前へ(口境界は目立たせない)
+    (FACE_CENTER, 50, 0.50, 0.0925, 0.0035, 0.30, +0.0010, "upper_lip"),
 ]
 
 
@@ -330,15 +348,13 @@ EYE_DA = 37.5          # 目の中心(正面中心からの角度)。列 210°�
 EYE_HALF_DA = 22.5     # 目の島の半幅(角度)。列3つ分
 EYE_Z = (0.0985, 0.1126)   # 目の島の行(cheek〜brow の2行)
 EYE_INSET = (0.0020, 0.0012)   # 外リング(上まぶた)・内リング の inset 幅
-EYE_LID_OUT = 0.0030   # 上まぶた(外リング上側)を盛る量
-EYE_SLIT_IN = 0.0015   # 眼裂(内側)を奥へ引く量(穴は掘らない)
+EYE_LID_OUT = 0.0020   # 上まぶた(外リング上側)を盛る量(半目そのものは 2D)
+EYE_SLIT_IN = 0.0006   # 眼裂(内側)を奥へ引く量(穴は掘らない。面変化の手がかりだけ)
 MOUTH_Z_ROWS = (0.0844, 0.0885)   # 口の帯の行(jaw〜lip)
-MOUTH_INSET = 0.0011
-MOUTH_GROOVE_IN = 0.0030
-JAW_BACK = +0.006      # 蝶番の面。これより前の「口線より下」の面が下顎になる
-JAW_HINGE = (0.0, JAW_BACK, 0.082)
-JAW_BOTTOM_Z = 0.076   # 下顎の下端の行(collar)
-MOUTH_INSIDE = 0.012   # 口腔の窪みの深さ(頭側の穴を塞ぐ面の中心を奥へ)
+MOUTH_INSET = 0.0009   # 口の開き(閉口時の口線の太さ ≈2mm)
+MOUTH_SLOT_IN = 0.012  # 口の帯を奥へ押し込む深さ=口腔スロット(あくびで開く)
+# 下顎ボーンの蝶番(耳下)。リグ時に、この点を支点に下顔面の頂点を回す
+JAW_HINGE = (0.0, +0.006, 0.082)
 
 
 def _cy_at(z: float) -> float:
@@ -371,9 +387,8 @@ def _between(z, lo, hi, eps=1e-4):
     return lo - eps < z < hi + eps
 
 
-def _face_topology(cage: bpy.types.Object) -> bpy.types.Object:
-    """頭ケージの顔面に意味論的な島を切り、下顎を切り離す。cage を書き換え、
-    下顎のケージオブジェクトを返す。"""
+def _face_topology(cage: bpy.types.Object) -> None:
+    """頭ケージの顔面に意味論的な島(目×2・口)を切る。cage を書き換える。"""
     bm = bmesh.new()
     bm.from_mesh(cage.data)
     bm.verts.ensure_lookup_table()
@@ -394,7 +409,6 @@ def _face_topology(cage: bpy.types.Object) -> bpy.types.Object:
 
     eyes = [sel(*EYE_Z, -EYE_DA, EYE_HALF_DA), sel(*EYE_Z, +EYE_DA, EYE_HALF_DA)]
     mouth = sel(*MOUTH_Z_ROWS, 0.0, MOUTH_HALF_DEG)
-    jaw_faces = sel(JAW_BOTTOM_Z, MOUTH_Z_ROWS[0], 0.0, 180.0, y_max=JAW_BACK)
 
     # 口線の曲線: 口の帯の上下の行を角度に応じて上下させる(帯の高さは保つ)
     z0, z1 = MOUTH_Z_ROWS
@@ -404,7 +418,7 @@ def _face_topology(cage: bpy.types.Object) -> bpy.types.Object:
             if abs(da) <= MOUTH_HALF_DEG + EYE_HALF_DA:
                 v.co.z += mouth_dz(da)
 
-    # 目: 2重 inset。外リング上側=上まぶた(盛る)、内側=眼裂(奥へ)
+    # 目: 2重 inset。外リング上側=上まぶた(盛る)、内側=眼裂(わずかに奥へ)
     for island in eyes:
         if not island:
             continue
@@ -421,75 +435,21 @@ def _face_topology(cage: bpy.types.Object) -> bpy.types.Object:
                 v.co += _radial(v.co) * EYE_LID_OUT
         for v in mid_verts:        # まぶたの縁: 上側は少し前、下側は頬へ
             v.co += _radial(v.co) * (EYE_LID_OUT * 0.5 if v.co.z > zc else 0.0)
-        for v in inner_verts:      # 眼裂: 奥へ、上縁を少し下げて半目に
+        for v in inner_verts:      # 眼裂: わずかに奥へ、上縁を少し下げて半目の土台に
             v.co += _radial(v.co) * -EYE_SLIT_IN
             if v.co.z > zc:
                 v.co.z -= 0.0008
 
-    # 口: 帯を inset して内側を溝にする。溝は島の中で終わる
+    # 口: 帯を inset し、内側を奥へ深く押し込んで薄い口腔スロットにする。
+    # 閉口時は口線1本に見え、下顎ボーンで下顔面を回すとスロットが開く
     if mouth:
         bmesh.ops.inset_region(bm, faces=mouth, thickness=MOUTH_INSET,
                                depth=0.0, use_even_offset=True)
-        _push({v for f in mouth for v in f.verts}, -MOUTH_GROOVE_IN)
+        _push({v for f in mouth for v in f.verts}, -MOUTH_SLOT_IN)
 
-    # 下顎を切り離す(口線より下・蝶番より前)。頂点を複製して別 bmesh へ
-    jaw_bm = bmesh.new()
-    vmap = {}
-    for f in jaw_faces:
-        vs = []
-        for v in f.verts:
-            if v not in vmap:
-                vmap[v] = jaw_bm.verts.new(v.co)
-            vs.append(vmap[v])
-        jaw_bm.faces.new(vs)
-    bmesh.ops.delete(bm, geom=jaw_faces, context="FACES")
-
-    # 継ぎ目の辺は両メッシュで crease=1.0 にして、別々に Subdivision しても
-    # 極限位置が一致する(そうしないと境界に隙間が開く)
-    # (レイヤー作成は既存の BMEdge 参照を無効にするので、辺を集める前に行う)
-    cl = bm.edges.layers.float.get("crease_edge") or bm.edges.layers.float.new("crease_edge")
-    hole = [e for e in bm.edges if e.is_boundary]
-    for e in hole:
-        e[cl] = 1.0
-    jcl = jaw_bm.edges.layers.float.get("crease_edge") or jaw_bm.edges.layers.float.new("crease_edge")
-    for e in jaw_bm.edges:
-        if e.is_boundary:
-            e[jcl] = 1.0
-    # 頭側の穴: 1枚で塞ぎ、中心を奥へ窪めて口腔にする
-    if hole:
-        filled = bmesh.ops.holes_fill(bm, edges=hole, sides=0)["faces"]
-        poked = bmesh.ops.poke(bm, faces=filled, offset=0.0)["verts"]
-        for v in poked:
-            v.co.y += MOUTH_INSIDE
-    # 下顎側: 上端(口線)の行と下端の行を列ごとに直接つないで口底にし、
-    # 両端は中間行の頂点と三角形で閉じる(bridge_loops は曲がった口線で
-    # 鎖の判定を誤ったので、行構造を使って明示的に張る)
-    jaw_bm.verts.ensure_lookup_table()
-    z_top_min = MOUTH_Z_ROWS[0] - MOUTH_CURVE * 0.45 - 0.0005
-    z_bot_max = JAW_BOTTOM_Z + 0.0005
-    top = sorted((v for v in jaw_bm.verts if v.co.z >= z_top_min), key=lambda v: _da_of(v.co))
-    bot = sorted((v for v in jaw_bm.verts if v.co.z <= z_bot_max), key=lambda v: _da_of(v.co))
-    mid = sorted((v for v in jaw_bm.verts if z_bot_max < v.co.z < z_top_min), key=lambda v: _da_of(v.co))
-    if len(top) == len(bot) and len(top) >= 2:
-        for j in range(len(top) - 1):
-            jaw_bm.faces.new((top[j], top[j + 1], bot[j + 1], bot[j]))
-        if mid:
-            jaw_bm.faces.new((top[0], mid[0], bot[0]))
-            jaw_bm.faces.new((top[-1], bot[-1], mid[-1]))
-    rest = [e for e in jaw_bm.edges if e.is_boundary]
-    if rest:
-        bmesh.ops.holes_fill(jaw_bm, edges=rest, sides=0)
-    bmesh.ops.recalc_face_normals(jaw_bm, faces=jaw_bm.faces)
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-
     bm.to_mesh(cage.data)
     bm.free()
-    mesh = bpy.data.meshes.new(f"{NAME}_jaw_cage")
-    jaw_bm.to_mesh(mesh)
-    jaw_bm.free()
-    jaw = bpy.data.objects.new(mesh.name, mesh)
-    bpy.context.collection.objects.link(jaw)
-    return jaw
 
 
 def _apply_modifier(obj: bpy.types.Object, mod: bpy.types.Modifier) -> None:
@@ -514,53 +474,18 @@ def _copy_object(src: bpy.types.Object, name: str) -> bpy.types.Object:
     return dup
 
 
-def build_body_cage():
-    """胴+頭のケージ(ローポリ)、それを丸めた本体、切り離した下顎(丸めたもの・
-    ケージ)を返す。"""
+def build_body_cage() -> tuple[bpy.types.Object, bpy.types.Object]:
+    """胴+頭のケージ(ローポリ)と、それをSubdivisionで丸めた本体を返す。"""
     k = RADIUS_COMP
     sections = [_profile(z, cy, rf * k, rb * k, rs * k, snout)
                 for (z, cy, rf, rb, rs, snout, _n) in BODY_LOOPS]
     _sculpt_face(sections)
     cage = C.section_loft(f"{NAME}_cage", sections, smooth=False,
                           cap_top=True, cap_bottom=True)
-    jaw_cage = _face_topology(cage)
+    _face_topology(cage)
     body = _copy_object(cage, f"{NAME}_body")
     _subdivide(body, 2)
-    jaw = _copy_object(jaw_cage, f"{NAME}_jaw")
-    _subdivide(jaw, 2)
-    jaw_cage.name = f"{NAME}_jaw_cage"
-    return cage, body, jaw, jaw_cage
-
-
-# ------------------------------------------------------------------- 下顎(開閉)
-def open_jaw(jaw: bpy.types.Object, degrees: float) -> None:
-    """レビュー用: 下顎を蝶番回りに degrees だけ開く(正で下へ開く)。"""
-    from mathutils import Matrix
-    pivot = Vector(JAW_HINGE)
-    rot = Matrix.Rotation(math.radians(degrees), 4, "X")
-    jaw.matrix_world = Matrix.Translation(pivot) @ rot @ Matrix.Translation(-pivot)
-
-
-def jaw_clearance_deg(jaw: bpy.types.Object, step: float = 1.0, max_deg: float = 80.0) -> float:
-    """下顎だけを開いたとき、顎先が胴(襟より下)の前面に当たる角度(度)。"""
-    chin = min((v.co for v in jaw.data.vertices), key=lambda c: c.y)
-    pivot = Vector(JAW_HINGE)
-    body = [(z, cy - rf * RADIUS_COMP) for (z, cy, rf, *_r) in BODY_LOOPS if z <= JAW_BOTTOM_Z + 1e-6]
-    def front_at(z):
-        for (z0, f0), (z1, f1) in zip(body, body[1:]):
-            if z0 <= z <= z1:
-                return f0 + (f1 - f0) * (z - z0) / (z1 - z0)
-        return +1.0
-    deg = 0.0
-    while deg < max_deg:
-        th = math.radians(deg)
-        d = Vector(chin) - pivot
-        y = pivot.y + d.y * math.cos(th) - d.z * math.sin(th)
-        z = pivot.z + d.y * math.sin(th) + d.z * math.cos(th)
-        if y > front_at(z):
-            return deg
-        deg += step
-    return max_deg
+    return cage, body
 
 
 # ------------------------------------------------------------------- 四肢・尾
@@ -770,11 +695,10 @@ def build_v3_blockout() -> dict:
     """ブロックアウト一式を作って返す。
     返り値: {"cage": ローポリケージ, "body": 丸めた胴+頭, "extras": [四肢・尾・背びれ]}
     """
-    cage, body, jaw, jaw_cage = build_body_cage()
-    extras = [jaw] + build_arms() + build_legs() + [build_tail(), build_frill()]
+    cage, body = build_body_cage()
+    extras = build_arms() + build_legs() + [build_tail(), build_frill()]
     clay = C.make_material(f"{NAME}_clay", CLAY, roughness=0.6)
     for obj in [body] + extras:
         C.assign_material(obj, clay)
     C.assign_material(cage, clay)
-    C.assign_material(jaw_cage, clay)
-    return {"cage": cage, "body": body, "extras": extras, "jaw_cage": jaw_cage}
+    return {"cage": cage, "body": body, "extras": extras}
