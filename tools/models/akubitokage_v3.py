@@ -79,6 +79,24 @@ v2(#1064〜#1068)の「断面ロフト+curve_tube+sculpt_merge/voxel remesh」�
 - 背びれは 1.5〜2倍(最大0.024)。大・大・中・中・小のリズム。
 - 全高は圧縮後 ≈0.128(背びれ除く)。必要なら本組み時に一様スケールで戻す。
 
+第6回レビュー(第5版への指摘)で決めたこと ―― Face Gate:
+全身ブロックアウトは 7.5/10 まで来たので**仮ロック**(BODY_LOOPS の胴の
+数値・四肢・尾・背びれは触らない)。顔前面は 4/10 で「頭部の外形」しか
+無く、正面ではのっぺらぼう。ここが最大のボトルネック。
+- 頭部ケージは緯度経度グリッドで、リング単位の移動は「顔を作る」ではなく
+  「頭全体を歪ませる」。顔だけトポロジーを一段進める:
+  * ループの頂点を前半分に集中(前180°に FRONT_N=12、後ろ180°に BACK_N=8)
+    して顔面の解像度を上げる(胴も同じ点数になるが影響は無い)。
+  * 口線の高さに「lip」ループを追加(上顎/下顎を分ける)。
+  * 眼窩・眉・頬・口吻・口線・下顎を FACE_FEATURES として、ケージ頂点の
+    **領域ごとに独立して押し引き**する(Subdivision 前に刻むので谷が残る)。
+    球面へ顔を描くのではなく、額→眉→眼窩→頬→口吻→顎の前後差を作る。
+- 合否は「テクスチャを一切描かずに Clay で眠そうな顔に読めるか」。
+  5点: 眼窩がある / 頬が頭幅ではなく独立した張り / 短い口吻が正面で中央
+  ボリュームとして読める / 上下顎が分かる / 額→目→頬→口吻→顎に前後差。
+- レビューは全身ではなく顔だけを大きく: 設定画/Clay/Wire × 正面・側面 +
+  Clay/Wire 45°(scratchpad の face_gate.py / face_sheet.py)。
+
 座標: -Yが正面、+X右、Z上。単位m。設定画側面の「鼻先」を y=-0.060 に置く。
 
 本番の`monsters.MONSTERS`には登録しない(ゲーム本体・CIには影響しない)。
@@ -99,11 +117,17 @@ NAME = "akubitokage_v3"
 # 単色Clay用の材質色(レビュー時はテクスチャ・煙・腹色・鱗を一切使わない)
 CLAY = (0.62, 0.58, 0.55)
 
-# 1ループあたりの頂点数。ケージなので少なく保つ(Subdivisionで丸める)
-LOOP_N = 12
-# Subdivisionは12角形のケージを約7%内側へ縮める。実測半径をそのまま置くと
+# 1ループあたりの頂点配置。顔面の解像度を上げるため、前半分(顔側)に
+# FRONT_N 点、後ろ半分に BACK_N 点を置く(両端 0°/180° は共有)。
+# 角度 a は _profile と同じ規約: sin(a)<0 が前(-Y)。前の中心は 270°
+FRONT_N = 12
+BACK_N = 8
+LOOP_ANGLES = ([math.radians(180 + 180 * i / FRONT_N) for i in range(FRONT_N)]
+               + [math.radians(180 * j / BACK_N) for j in range(BACK_N)])
+LOOP_N = len(LOOP_ANGLES)
+# Subdivisionはケージを内側へ縮める(20角形で約2.5%)。実測半径をそのまま置くと
 # 全体が一回り細くなるので、半径にだけ掛けて補正する(中心位置は変えない)
-RADIUS_COMP = 1.06
+RADIUS_COMP = 1.025
 
 # ---------------------------------------------------------------- 胴+頭のケージ
 # (z, cy, r_front, r_back, r_side, snout, name)
@@ -133,12 +157,17 @@ BODY_LOOPS = [
     (0.076, -0.005, 0.030, 0.029, 0.037, 0.05, "collar"),     # 胸上端。顎下が乗る
     # 喉〜顎: 首は見えない。胸→襟→喉→顎と幅が連続して広がる
     (0.080, -0.010, 0.035, 0.031, 0.040, 0.15, "throat"),
-    (0.0844, -0.012, 0.039, 0.036, 0.0425, 0.30, "jaw"),      # 顎下。頬の最大幅
-    (0.0915, -0.0155, 0.037, 0.0375, 0.0425, 0.40, "mouth"),  # 口の高さ。後縁+0.022=項の谷
-    (0.0985, -0.015, 0.039, 0.041, 0.039, 0.48, "cheek"),
-    (0.1056, -0.0145, 0.041, 0.0455, 0.036, 0.52, "snout_eye"),  # 鼻先(-0.0555)。後頭部最後(+0.031)
+    # 顎〜口: 基礎の横幅は 0.040 に落とし、頬の張り(+0.005)は FACE_FEATURES で
+    # 独立した凸として足す(「頭を洋梨形にした」ではなく「頬を作る」)
+    # 前面(r_front)は「眼窩の平面」。口吻の前後差は FACE_FEATURES の muzzle で
+    # 足すので、基礎ループでは鼻先を作らない
+    (0.0844, -0.012, 0.037, 0.036, 0.040, 0.30, "jaw"),       # 下顎
+    (0.088, -0.014, 0.035, 0.036, 0.040, 0.35, "lip"),        # 口線(上顎/下顎の境)
+    (0.0915, -0.0155, 0.034, 0.0375, 0.040, 0.40, "mouth"),   # 上顎。後縁+0.022=項の谷
+    (0.0985, -0.015, 0.035, 0.041, 0.039, 0.48, "cheek"),
+    (0.1056, -0.0145, 0.037, 0.0455, 0.036, 0.52, "snout_eye"),  # 目の高さ。後頭部最後(+0.031)
     # 頭頂へ: 正面幅は急に絞る(頬張り形)、側面の奥行きは平らに残る
-    (0.1126, -0.020, 0.035, 0.038, 0.030, 0.50, "brow"),
+    (0.1126, -0.020, 0.034, 0.038, 0.030, 0.50, "brow"),
     (0.1196, -0.016, 0.030, 0.032, 0.023, 0.35, "forehead"),
     (0.1249, -0.0115, 0.025, 0.0255, 0.014, 0.20, "crown"),
     (0.128, -0.010, 0.014, 0.014, 0.006, 0.10, "top"),
@@ -146,20 +175,81 @@ BODY_LOOPS = [
 
 
 def _profile(z: float, cy: float, r_front: float, r_back: float, r_side: float,
-             snout: float = 0.0, n: int = LOOP_N, cx: float = 0.0
+             snout: float = 0.0, cx: float = 0.0
              ) -> list[tuple[float, float, float]]:
-    """前/後/横で半径の違う閉じた断面ループ。
+    """前/後/横で半径の違う閉じた断面ループ(頂点角は LOOP_ANGLES)。
     象限ごとに楕円を繋ぐので、卵形(腹・口吻)や横張り(頬)を1ループで表せる。
     snout>0 で前半分の横幅を前へ行くほど絞り、平面視を卵形にする。"""
     pts = []
-    for i in range(n):
-        a = i * math.tau / n
+    for a in LOOP_ANGLES:
         c, s = math.cos(a), math.sin(a)
         # y方向の半径は前(s<0)と後ろ(s>0)で切り替える
         ry = r_front if s < 0 else r_back
         x_scale = 1.0 - snout * (-s) if s < 0 else 1.0
         pts.append((cx + r_side * c * x_scale, cy + ry * s, z))
     return pts
+
+
+# ---------------------------------------------------------------- 顔の彫り
+# ケージ頂点を領域ごとに、ループ中心からの放射方向へ押し引きする。
+# (角度中心deg, 角度半幅deg, z中心, z半高, 変位m, 名前)
+#   角度は _profile の規約(前の中心=270°、+X側が 270°より大きい側)。
+#   変位 >0 で外(前)へ、<0 で内(奥)へ。左右対称の特徴は ± で2つ書く。
+# 落ち込みは (1-d²)² の丸い山なので、Subdivision 後も谷・丘として残る。
+FACE_CENTER = 270.0
+# (角度中心, 角度半幅, 角度の平坦率, z中心, z半高, zの平坦率, 変位, 名前)
+#   平坦率 f: 中心から半幅×f までは変位が一定(台地)、その外で丸く落ちる。
+#   口吻のように「幅広・薄い・短い」面を作るには台地が要る(尖った山にすると
+#   人間の鼻のような一本の突起になる)。
+FACE_FEATURES = [
+    # 眼窩: 半目を置く場所を頭面よりわずかに奥へ。広く浅く
+    # (設定画の半目は幅≈14mm。狭くすると鼻孔のような小さな窪みになる)
+    (FACE_CENTER - 42, 32, 0.35, 0.102, 0.009, 0.30, -0.0032, "socket_R"),
+    (FACE_CENTER + 42, 32, 0.35, 0.102, 0.009, 0.30, -0.0032, "socket_L"),
+    # 眉: 眼窩の上の軽い庇(眠そうな半目の上まぶたの土台)。広く緩く
+    (FACE_CENTER - 42, 34, 0.30, 0.111, 0.005, 0.20, +0.0016, "brow_R"),
+    (FACE_CENTER + 42, 34, 0.30, 0.111, 0.005, 0.20, +0.0016, "brow_L"),
+    # 頬: 頭蓋から一段張り出した柔らかい頬肉。45°で眼窩→頬→口吻の三段を作る
+    (FACE_CENTER - 74, 34, 0.30, 0.090, 0.012, 0.30, +0.0055, "cheek_R"),
+    (FACE_CENTER + 74, 34, 0.30, 0.090, 0.012, 0.30, +0.0055, "cheek_L"),
+    # 口吻: 幅広・薄い・短いスラブを顔の中央に前へ出す(台地 ±32°, z 0.089〜0.103)
+    (FACE_CENTER, 58, 0.55, 0.096, 0.013, 0.50, +0.0065, "muzzle"),
+    # 口線: 上顎と下顎の境をわずかに引く(口線を描かなくても位置が分かる)
+    (FACE_CENTER, 50, 0.50, 0.087, 0.003, 0.0, -0.0022, "mouth_line"),
+    # 下顎: 口線の下の厚い顎を前へ(上顎よりは控えめ=軽いアンダーバイト無し)
+    (FACE_CENTER, 44, 0.40, 0.081, 0.006, 0.30, +0.0035, "lower_jaw"),
+]
+
+
+def _bump(d: float, flat: float = 0.0) -> float:
+    """中心1・縁0の丸い山。flat>0 で中心付近を台地にする。"""
+    d = abs(d)
+    if d >= 1.0:
+        return 0.0
+    if d <= flat:
+        return 1.0
+    t = (d - flat) / (1.0 - flat)
+    return (1.0 - t * t) ** 2
+
+
+def _sculpt_face(sections: list[list[tuple[float, float, float]]]) -> None:
+    """BODY_LOOPS の各ループ頂点に FACE_FEATURES の変位を加える(in place)。"""
+    for li, row in enumerate(BODY_LOOPS):
+        z, cy = row[0], row[1]
+        pts = sections[li]
+        for vi, a in enumerate(LOOP_ANGLES):
+            a_deg = math.degrees(a) % 360.0
+            x, y, _z = pts[vi]
+            radial = Vector((x, y - cy, 0.0))
+            if radial.length < 1e-9:
+                continue
+            radial.normalize()
+            disp = 0.0
+            for ang, hw, fa, zc, hh, fz, amp, _name in FACE_FEATURES:
+                da = (a_deg - ang + 180.0) % 360.0 - 180.0
+                disp += amp * _bump(da / hw, fa) * _bump((z - zc) / hh, fz)
+            if disp:
+                pts[vi] = (x + radial.x * disp, y + radial.y * disp, _z)
 
 
 def _apply_modifier(obj: bpy.types.Object, mod: bpy.types.Modifier) -> None:
@@ -189,6 +279,7 @@ def build_body_cage() -> tuple[bpy.types.Object, bpy.types.Object]:
     k = RADIUS_COMP
     sections = [_profile(z, cy, rf * k, rb * k, rs * k, snout)
                 for (z, cy, rf, rb, rs, snout, _n) in BODY_LOOPS]
+    _sculpt_face(sections)
     cage = C.section_loft(f"{NAME}_cage", sections, smooth=False,
                           cap_top=True, cap_bottom=True)
     body = _copy_object(cage, f"{NAME}_body")
