@@ -23,6 +23,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import sys
 
@@ -45,7 +46,8 @@ EYE_LUM = 100                     # 目は眼裂の縁(60〜90)まで含める(�
 EYE_PAD = 2                       # 目の外接箱を広げる量(シートpx)
 # 実ゲーム距離では半目の黒い形しか読まれないので、眼裂を縦に膨張させて誇張する
 # (設定画の眼裂は高さ 2mm しかなく、そのままだと細い波線に見える)
-EYE_DILATE_Z = 4                  # 縦方向の膨張(拡大後px。横には太らせない)
+EYE_DILATE_Z = 2                  # 眼裂の縦膨張(拡大後px)。太さはまぶた面が担う
+EYE_SMOOTH = 2.5                  # 眼裂の輪郭を滑らかにする半径(拡大後px)
 MOUTH_DILATE_Z = 4                # 口線も同様に太らせる(設定画の線は 2px しかない)
 NOSTRIL_DILATE = 2
 BODY_LUM = 150                    # 体(暗い紫)の明度上限。頭の輪郭マスクに使う
@@ -64,6 +66,11 @@ PPU = 10000.0
 
 LINE_RGB = (0.14, 0.11, 0.15)     # 線画の色(体より暗い墨紫)
 LIGHT_RGB = (0.565, 0.494, 0.565) # 明色パッチ(パレットの「斑点・模様」)
+# 上まぶたの面。設定画の実測(sRGB 114,101,121)を、体色の実測(96,86,102)と
+# モデルの体色 SHEET["main"](0.30,0.28,0.30)の比で写した値。体色より少し明るい紫
+LID_RGB = (0.36, 0.33, 0.36)
+# まぶた面の高さ。設定画の実測(眼裂の上 11px = 9mm が lum 111〜160)
+LID_UP = 11
 
 
 def components(mask: np.ndarray):
@@ -137,7 +144,7 @@ def main() -> None:
             out |= np.roll(mask, d, axis=0) | np.roll(mask, -d, axis=0)
         return out
 
-    def dilate_box(mask, r):
+    def dilate_box(mask, r):  # noqa: E306
         im = Image.fromarray((mask * 255).astype(np.uint8)).filter(ImageFilter.MaxFilter(2 * r + 1))
         return np.asarray(im) > 127
 
@@ -145,27 +152,49 @@ def main() -> None:
     line_mask = np.maximum(mouth_mask.astype(np.float32),
                            dilate_box(nostril_mask > 0.5, NOSTRIL_DILATE).astype(np.float32))
     # 目: 外接箱(少し広げる)の中で、より明るい影まで含めて拾う → 重い半目
-    # 目: 設定画はわずかに斜めから描かれていて左右非対称(実測 幅 20.0px と
-    # 14.9px)。モデルは左右対称なので、**大きく写っている方だけ**を採り、
-    # 顔の正中で鏡像にして反対側に置く
-    eye_soft = (lum < EYE_LUM) & inner
+    # 目は**2層**にする。設定画の目は「黒い太線」ではなく、
+    #   上側に体色より明るい紫の大きなまぶた面 → その下端にほぼ直線的な黒い眼裂
+    # という構造(実測: 眼裂の上 9mm が lum 110〜160、体の中央値は 96)。
+    # 黒帯だけを太らせると「しかめっ面・眉毛」に見える。
+    # 設定画はわずかに斜めで左右非対称(幅 20.0px と 14.9px)なので、
+    # **大きく写っている方だけ**を採り、顔の正中で鏡像にして反対側に置く
+    def smooth(mask, r):
+        im = Image.fromarray((mask * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(r))
+        return np.asarray(im) > 127
+
+    def mirror(mask):
+        out = np.zeros_like(mask)
+        xs = np.arange(mask.shape[1])
+        src = np.round(2 * cx_face - xs).astype(int)
+        ok = (src >= 0) & (src < mask.shape[1])
+        out[:, ok] = mask[:, src[ok]]
+        return out
+
     eye_src = max(eyes, key=lambda c: (c["x1"] - c["x0"]) * (c["y1"] - c["y0"]))
     pad = EYE_PAD * UPSCALE
-    box = np.zeros_like(eye_soft)
+    box = np.zeros_like(inner)
     box[max(0, eye_src["y0"] - pad):eye_src["y1"] + pad + 1,
         max(0, eye_src["x0"] - pad):eye_src["x1"] + pad + 1] = True
-    eye = eye_soft & box
-    # 縦にだけ膨張(誇張)。MaxFilter は正方形で横にも太り、弧が「く」の字に折れる
-    grown = eye.copy()
-    for d in range(1, EYE_DILATE_Z + 1):
-        grown |= np.roll(eye, d, axis=0) | np.roll(eye, -d, axis=0)
-    eye = grown
-    mirrored = np.zeros_like(eye)
-    xs = np.arange(eye.shape[1])
-    src = np.round(2 * cx_face - xs).astype(int)
-    ok = (src >= 0) & (src < eye.shape[1])
-    mirrored[:, ok] = eye[:, src[ok]]
-    line_mask = np.maximum(line_mask, (eye | mirrored).astype(np.float32))
+    slit = smooth((lum < EYE_LUM) & inner & box, EYE_SMOOTH)
+    slit = dilate_z(slit, EYE_DILATE_Z)
+    # まぶた面: 設定画の明色領域は紙目で連結が切れるので、**眼裂の形から**
+    # 半月形を作る(眼裂の各列の上端から、中央で LID_UP・端で 0 の高さだけ上へ)。
+    # 形の出どころは設定画の眼裂そのものなので、想像で描くことにはならない
+    lid = np.zeros_like(slit)
+    cols = np.where(slit.any(axis=0))[0]
+    if len(cols):
+        x_lo, x_hi = cols.min(), cols.max()
+        half = max(1.0, (x_hi - x_lo) / 2.0)
+        for x in cols:
+            top = np.where(slit[:, x])[0].min()
+            u = abs(x - (x_lo + x_hi) / 2.0) / half
+            hh = int(LID_UP * UPSCALE * math.sqrt(max(0.0, 1.0 - u * u)))
+            if hh:
+                lid[max(0, top - hh):top, x] = True
+    lid = smooth(lid, EYE_SMOOTH) | slit
+    slit = slit | mirror(slit)
+    lid = lid | mirror(lid)
+    line_mask = np.maximum(line_mask, slit.astype(np.float32))
 
     # 明色パッチ: 頭の内側(侵食後)にある小さめの明るい塊。目・口の上には置かない
     # 明色パッチは頭の縁にもあるので、侵食は輪郭線を除く最小限(1シートpx)にする
@@ -183,6 +212,7 @@ def main() -> None:
         return np.asarray(im).astype(np.float32) / 255.0
     line_soft = blur(line_mask, 1.2)
     light_soft = blur(light_mask, 2.5)
+    lid_soft = blur(lid.astype(np.float32), 1.8)
 
     # 設定画px → モデル(x,z) のアフィン: 目の中心・口の中心で合わせる
     eye_dx = (eyes[1]["cx"] - eyes[0]["cx"]) / 2
@@ -208,11 +238,15 @@ def main() -> None:
 
     la = sample(line_soft)
     lia = sample(light_soft) * 0.75
+    lda = sample(lid_soft)
     rgba = np.zeros((H, W, 4), np.float32)
-    # 明色を下、線画を上に重ねる
+    # 明色パッチ → 上まぶた面 → 線画(眼裂・口・鼻孔)の順に重ねる
     for c in range(3):
         rgba[..., c] = LIGHT_RGB[c]
     rgba[..., 3] = lia
+    for c in range(3):
+        rgba[..., c] = rgba[..., c] * (1 - lda) + LID_RGB[c] * lda
+    rgba[..., 3] = np.maximum(rgba[..., 3], lda)
     a_line = la
     for c in range(3):
         rgba[..., c] = rgba[..., c] * (1 - a_line) + LINE_RGB[c] * a_line

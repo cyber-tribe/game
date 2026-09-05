@@ -188,6 +188,16 @@ v2(#1064〜#1068)の「断面ロフト+curve_tube+sculpt_merge/voxel remesh」�
    上下へ丸く後退させる(額 −7mm、顎 −4mm)。**唯一の 3D 修正**。
 体の細さ・腕の長さ・胸の高さは Face Gate 収束後の Body Final Gate で扱う。
 
+第12回レビュー(Face Texture Gate 第2版)で決めたこと ―― 残り2点:
+1. 目は「黒いギザギザの太線」ではなく **2層**。設定画は上側に体色より明るい
+   紫の大きなまぶた面があり、その下端にほぼ直線的な黒い眼裂が乗る構造
+   (実測: 眼裂の上 9mm が lum 111〜160、体の中央値は 96)。黒帯だけを
+   太らせると「しかめっ面・眉毛」に見える。
+2. 閉口時の 3D 顎境界(口腔スロットの溝)を**完全に消す**。通常時に
+   プレイヤーが見る口は BaseColor のへの字一本だけにする。あくびは
+   アーマチュアを載せる工程で、下顎ボーンと開口用のジオメトリを一緒に作る
+   (蝶番 JAW_HINGE の位置だけ残す)。
+
 座標: -Yが正面、+X右、Z上。単位m。設定画側面の「鼻先」を y=-0.060 に置く。
 
 本番の`monsters.MONSTERS`には登録しない(ゲーム本体・CIには影響しない)。
@@ -373,11 +383,6 @@ EYE_INSET = (0.0020, 0.0012)   # 外リング(上まぶた)・内リング の i
 EYE_LID_OUT = 0.0020   # 上まぶた(外リング上側)を盛る量(半目そのものは 2D)
 EYE_SLIT_IN = 0.0006   # 眼裂(内側)を奥へ引く量(穴は掘らない。面変化の手がかりだけ)
 MOUTH_Z_ROWS = (0.0875, 0.0910)   # 口の帯の行(jaw〜lip)
-MOUTH_INSET = 0.0004   # 口の開き。通常時の口はデカールが描くので極小にする
-# 口の帯を奥へ押し込む深さ。12mm では開口を 0.4mm に絞っても閉口時に奥まで
-# 見通せて、口の中の色が「開いた口」に見えた。閉口時の見た目を優先して浅くする
-# (あくびは下顎ボーンで下顔面ごと回すので、そのとき口腔は自然に開く)
-MOUTH_SLOT_IN = 0.005
 # 下顎ボーンの蝶番(耳下)。リグ時に、この点を支点に下顔面の頂点を回す
 JAW_HINGE = (0.0, +0.006, 0.082)
 
@@ -433,15 +438,6 @@ def _face_topology(cage: bpy.types.Object) -> None:
         return out
 
     eyes = [sel(*EYE_Z, -EYE_DA, EYE_HALF_DA), sel(*EYE_Z, +EYE_DA, EYE_HALF_DA)]
-    mouth = sel(*MOUTH_Z_ROWS, 0.0, MOUTH_HALF_DEG)
-
-    # 口線の曲線: 口の帯の上下の行を角度に応じて上下させる(帯の高さは保つ)
-    z0, z1 = MOUTH_Z_ROWS
-    for v in bm.verts:
-        if _between(v.co.z, z0, z0) or _between(v.co.z, z1, z1):
-            da = _da_of(v.co)
-            if abs(da) <= MOUTH_HALF_DEG + EYE_HALF_DA:
-                v.co.z += mouth_dz(da)
 
     # 目: 2重 inset。外リング上側=上まぶた(盛る)、内側=眼裂(わずかに奥へ)
     for island in eyes:
@@ -465,13 +461,10 @@ def _face_topology(cage: bpy.types.Object) -> None:
             if v.co.z > zc:
                 v.co.z -= 0.0008
 
-    # 口: 帯を inset し、内側を奥へ深く押し込んで薄い口腔スロットにする。
-    # 閉口時は口線1本に見え、下顎ボーンで下顔面を回すとスロットが開く
-    if mouth:
-        bmesh.ops.inset_region(bm, faces=mouth, thickness=MOUTH_INSET,
-                               depth=0.0, use_even_offset=True)
-        _push({v for f in mouth for v in f.verts}, -MOUTH_SLOT_IN)
-
+    # 口の 3D スロットは作らない。閉口時に「描いたへの字口」と「3Dの溝」が
+    # 二重の口に見え、溝を浅く(12→5mm)しても水平な暗い線として残った。
+    # 通常時の口は BaseColor が描くへの字一本だけにする(あくび用の開口
+    # ジオメトリは、下顎ボーンと一緒にアーマチュアの工程で作る)
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
     bm.to_mesh(cage.data)
     bm.free()
@@ -806,11 +799,6 @@ def body_color(p: Vector, n: Vector):
     base = SHEET["main"]
     # 口腔スロットの内側だけ。開口付近(3〜6mm)は墨色で閉口時の口線に見せ、
     # 奥(6mm〜)だけ「口の中(あくび時)」のピンクにする
-    if 0.084 < p.z < 0.098 and p.y < -0.010:
-        # 通常時の口はデカールのへの字口が描く。3D の溝は「口の影」に留め、
-        # 口の中(あくび時)の淡い紫は塗らない(閉口時に開いた口に見える)
-        if _surface_depth(p) > 0.0025:
-            return (0.20, 0.16, 0.21)
     # おなか: 前を向く面だけ、楕円体の中で柔らかく
     d = p - BELLY_CENTER
     r = math.sqrt((d.x / BELLY_RADII.x) ** 2 + (d.y / BELLY_RADII.y) ** 2 + (d.z / BELLY_RADII.z) ** 2)
