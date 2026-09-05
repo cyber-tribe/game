@@ -129,6 +129,32 @@ v2(#1064〜#1068)の「断面ロフト+curve_tube+sculpt_merge/voxel remesh」�
 - あくびは機構確認の 30° に加え、頭を倒さずに開ける限界角(jaw_clearance_deg)
   の側面も出す。60〜80° の大あくびは頭を後ろへ倒す動きと組み合わせる前提。
 
+第9回レビュー(Face Gate 第4版への指摘)で決めたこと ―― Face Topology v2:
+舟形の下顎・曲がった口線・中央マズルには対応したが、設定画との距離が
+大きいのはパラメータ不足ではなく**顔の構成原理**の違い。設定画の顔は
+「マズルのある動物顔」ではなく「大きな一枚の顔面+重く垂れた左右のまぶた+
+極小の鼻+頬に埋もれた長い口+大きく柔らかな顎」。水平リングの何番目を
+前へ出す方式は、口の高さで頭を横断する帯を作りやすい。
+- 全身・頭蓋・首のケージは維持。顔面だけを**ケージ段階で意味論的に切り直す**
+  (_face_topology): 水平ループの変位フィールド(FACE_FEATURES の眼窩・
+  マズル・口線溝)を廃止し、bmesh の inset で島を作る。
+  * 目: 2重 inset のリング。眼窩を掘らず、外リング上側(上まぶた)を盛り、
+    内側の眼裂だけを少し奥へ。下側は頬へつなぐ。
+  * 口: ±62° の帯を inset した溝。溝は島の中で終わる=頬に埋もれた口。
+    口線は中央が下がり口角へ上がる曲線(MOUTH_CURVE)。
+  * 鼻: 鼻孔間の幅しかない極小の盛り(+1.5mm)。マズルは作らない。
+  * 頬: 目の下〜口角の外側を前下方へ(横には広げない)。
+- 下顎分離は維持するが、別ピースを重ねるのではなく、頭ケージから口線の
+  下・蝶番より前の面を**切り離して**下顎メッシュにする(_split_jaw)。
+  境界は口線の辺そのものなので、閉口時に見える境界は口線(と顎下の1本)だけ。
+  頭側の穴は内側へ窪めた口腔で塞ぎ、下顎側は口底で塞ぐ。
+- Face Gate の合格条件を修正: 「Clay だけで眠そうな顔に見える」ではなく、
+  「テクスチャ無しでも頬・目を置く面・鼻を置く中央面・口周囲・顎の立体関係が
+  成立している」。その後、設定画から作った仮の半目・鼻孔・口線を載せる
+  BaseColor Gate を別に設ける。
+- 最初のレビューは 正面Clay・45°Clay・Wire のみ。側面とあくび機構は顔面の
+  基本構造が通ってから戻す。
+
 座標: -Yが正面、+X右、Z上。単位m。設定画側面の「鼻先」を y=-0.060 に置く。
 
 本番の`monsters.MONSTERS`には登録しない(ゲーム本体・CIには影響しない)。
@@ -196,12 +222,15 @@ BODY_LOOPS = [
     # 下顔面: jaw ループの前面は 5mm 引っ込めて口の溝(奥)にする。その前を
     # 下顎ピース(build_jaw)が覆う。mouth ループが上唇。口吻の前後差は
     # FACE_FEATURES の muzzle で足す
-    (0.0844, -0.012, 0.037, 0.036, 0.040, 0.30, "jaw"),       # 下顎の高さ(前面は下顎ピースが覆う)
-    (0.0915, -0.0155, 0.034, 0.0375, 0.040, 0.40, "mouth"),   # 上唇。後縁+0.022=項の谷
-    (0.0985, -0.015, 0.035, 0.041, 0.039, 0.48, "cheek"),
-    (0.1056, -0.0145, 0.037, 0.0455, 0.036, 0.52, "snout_eye"),  # 目の高さ。後頭部最後(+0.031)
+    # 顔面は「大きな一枚の面」。前面半径は自然な顔の平面(口吻は作らない)。
+    # jaw〜lip の行が口の帯(inset で溝になる)。jaw 行より下・蝶番より前が下顎
+    (0.0844, -0.012, 0.037, 0.036, 0.040, 0.30, "jaw"),       # 口線の下=下顎の上端
+    (0.0885, -0.0135, 0.0365, 0.036, 0.040, 0.35, "lip"),     # 口の帯の上端
+    (0.0915, -0.0155, 0.036, 0.0375, 0.040, 0.40, "mouth"),   # 上唇。後縁+0.022=項の谷
+    (0.0985, -0.015, 0.037, 0.041, 0.039, 0.48, "cheek"),     # 目の下端
+    (0.1056, -0.0145, 0.038, 0.0455, 0.036, 0.52, "snout_eye"),  # 目の上端。後頭部最後(+0.031)
     # 頭頂へ: 正面幅は急に絞る(頬張り形)、側面の奥行きは平らに残る
-    (0.1126, -0.020, 0.034, 0.038, 0.030, 0.50, "brow"),
+    (0.1126, -0.020, 0.036, 0.038, 0.030, 0.50, "brow"),
     (0.1196, -0.016, 0.030, 0.032, 0.023, 0.35, "forehead"),
     (0.1249, -0.0115, 0.025, 0.0255, 0.014, 0.20, "crown"),
     (0.128, -0.010, 0.014, 0.014, 0.006, 0.10, "top"),
@@ -249,21 +278,16 @@ def mouth_dz(da_deg: float) -> float:
 #   口吻のように「幅広・薄い・短い」面を作るには台地が要る(尖った山にすると
 #   人間の鼻のような一本の突起になる)。
 FACE_FEATURES = [
-    # 眼裂: 上まぶたの下だけ奥へ。下側は頬へつなぐ(楕円の穴にしない)
-    (FACE_CENTER - 42, 32, 0.35, 0.1005, 0.0065, 0.30, -0.0038, "socket_R"),
-    (FACE_CENTER + 42, 32, 0.35, 0.1005, 0.0065, 0.30, -0.0038, "socket_L"),
-    # 眉弓/上まぶた: 眼裂の上の厚い庇(重く垂れた上まぶたの土台)。前へ
-    (FACE_CENTER - 42, 34, 0.30, 0.1085, 0.0055, 0.30, +0.0032, "brow_R"),
-    (FACE_CENTER + 42, 34, 0.30, 0.1085, 0.0055, 0.30, +0.0032, "brow_L"),
-    # 頬: 目の下〜口角の外側を前下方へ(横には広げない)。45°で眼裂(奥)→頬(手前)
-    (FACE_CENTER - 58, 30, 0.30, 0.089, 0.011, 0.30, +0.0065, "cheek_R"),
-    (FACE_CENTER + 58, 30, 0.30, 0.089, 0.011, 0.30, +0.0065, "cheek_L"),
-    # 中央マズル: 鼻孔間の幅しかない、狭く短い鼻先。頬とは別の奥行き
-    (FACE_CENTER, 26, 0.35, 0.1000, 0.0060, 0.35, +0.0050, "muzzle_top"),
-    # 上唇: マズルの下でやや広がる。口線の上の面
-    (FACE_CENTER, 46, 0.45, 0.0930, 0.0050, 0.40, +0.0040, "upper_lip"),
-    # 口線の溝: 下顎ピースの上端と上唇の間。z は MOUTH_CURVE で角度により変わる
-    (FACE_CENTER, 62, 0.60, MOUTH_Z, 0.0035, 0.0, -0.0025, "mouth_groove"),
+    # 頬: 目の下〜口角の外側を前下方へ(横には広げない)
+    (FACE_CENTER - 58, 30, 0.30, 0.089, 0.011, 0.30, +0.0060, "cheek_R"),
+    (FACE_CENTER + 58, 30, 0.30, 0.089, 0.011, 0.30, +0.0060, "cheek_L"),
+    # 眉: 上まぶたの上の柔らかい庇(目の島の外リングと合わせて「重いまぶた」)
+    (FACE_CENTER - 45, 30, 0.30, 0.110, 0.005, 0.30, +0.0012, "brow_R"),
+    (FACE_CENTER + 45, 30, 0.30, 0.110, 0.005, 0.30, +0.0012, "brow_L"),
+    # 鼻: 鼻孔間の幅しかない極小の盛り。マズルは作らない
+    (FACE_CENTER, 12, 0.30, 0.1005, 0.0045, 0.30, +0.0015, "nose"),
+    # 上唇: 口の帯のすぐ上をわずかに前へ(上顎がわずかに被さる)
+    (FACE_CENTER, 50, 0.50, 0.0925, 0.0035, 0.30, +0.0020, "upper_lip"),
 ]
 
 
@@ -295,11 +319,177 @@ def _sculpt_face(sections: list[list[tuple[float, float, float]]],
             disp = 0.0
             for ang, hw, fa, zc, hh, fz, amp, name in FACE_FEATURES:
                 da = (a_deg - ang + 180.0) % 360.0 - 180.0
-                if name == "mouth_groove":
-                    zc = zc + mouth_dz(da)
                 disp += amp * _bump(da / hw, fa) * _bump((z - zc) / hh, fz)
             if disp:
                 pts[vi] = (x + radial.x * disp, y + radial.y * disp, _z)
+
+
+# ---------------------------------------------------------------- 顔面の島(Face Topology v2)
+# 目の島は「目+まぶた」の領域(≈30×14mm)。小さくすると鼻孔のような窪みになる
+EYE_DA = 37.5          # 目の中心(正面中心からの角度)。列 210°〜255° / 285°〜330°
+EYE_HALF_DA = 22.5     # 目の島の半幅(角度)。列3つ分
+EYE_Z = (0.0985, 0.1126)   # 目の島の行(cheek〜brow の2行)
+EYE_INSET = (0.0020, 0.0012)   # 外リング(上まぶた)・内リング の inset 幅
+EYE_LID_OUT = 0.0030   # 上まぶた(外リング上側)を盛る量
+EYE_SLIT_IN = 0.0015   # 眼裂(内側)を奥へ引く量(穴は掘らない)
+MOUTH_Z_ROWS = (0.0844, 0.0885)   # 口の帯の行(jaw〜lip)
+MOUTH_INSET = 0.0011
+MOUTH_GROOVE_IN = 0.0030
+JAW_BACK = +0.006      # 蝶番の面。これより前の「口線より下」の面が下顎になる
+JAW_HINGE = (0.0, JAW_BACK, 0.082)
+JAW_BOTTOM_Z = 0.076   # 下顎の下端の行(collar)
+MOUTH_INSIDE = 0.012   # 口腔の窪みの深さ(頭側の穴を塞ぐ面の中心を奥へ)
+
+
+def _cy_at(z: float) -> float:
+    rows = BODY_LOOPS
+    if z <= rows[0][0]:
+        return rows[0][1]
+    for (z0, c0, *_a), (z1, c1, *_b) in zip(rows, rows[1:]):
+        if z0 <= z <= z1:
+            t = (z - z0) / (z1 - z0)
+            return c0 + (c1 - c0) * t
+    return rows[-1][1]
+
+
+def _da_of(co) -> float:
+    a = math.degrees(math.atan2(co.y - _cy_at(co.z), co.x)) % 360.0
+    return (a - FACE_CENTER + 180.0) % 360.0 - 180.0
+
+
+def _radial(co) -> Vector:
+    r = Vector((co.x, co.y - _cy_at(co.z), 0.0))
+    return r.normalized() if r.length > 1e-9 else Vector((0, -1, 0))
+
+
+def _push(verts, amount: float) -> None:
+    for v in verts:
+        v.co += _radial(v.co) * amount
+
+
+def _between(z, lo, hi, eps=1e-4):
+    return lo - eps < z < hi + eps
+
+
+def _face_topology(cage: bpy.types.Object) -> bpy.types.Object:
+    """頭ケージの顔面に意味論的な島を切り、下顎を切り離す。cage を書き換え、
+    下顎のケージオブジェクトを返す。"""
+    bm = bmesh.new()
+    bm.from_mesh(cage.data)
+    bm.verts.ensure_lookup_table()
+    bm.faces.ensure_lookup_table()
+
+    def sel(z_lo, z_hi, da_c, da_half, y_max=None):
+        out = []
+        for f in bm.faces:
+            c = f.calc_center_median()
+            if not _between(c.z, z_lo, z_hi):
+                continue
+            if abs(_da_of(c) - da_c) > da_half:
+                continue
+            if y_max is not None and c.y >= y_max:
+                continue
+            out.append(f)
+        return out
+
+    eyes = [sel(*EYE_Z, -EYE_DA, EYE_HALF_DA), sel(*EYE_Z, +EYE_DA, EYE_HALF_DA)]
+    mouth = sel(*MOUTH_Z_ROWS, 0.0, MOUTH_HALF_DEG)
+    jaw_faces = sel(JAW_BOTTOM_Z, MOUTH_Z_ROWS[0], 0.0, 180.0, y_max=JAW_BACK)
+
+    # 口線の曲線: 口の帯の上下の行を角度に応じて上下させる(帯の高さは保つ)
+    z0, z1 = MOUTH_Z_ROWS
+    for v in bm.verts:
+        if _between(v.co.z, z0, z0) or _between(v.co.z, z1, z1):
+            da = _da_of(v.co)
+            if abs(da) <= MOUTH_HALF_DEG + EYE_HALF_DA:
+                v.co.z += mouth_dz(da)
+
+    # 目: 2重 inset。外リング上側=上まぶた(盛る)、内側=眼裂(奥へ)
+    for island in eyes:
+        if not island:
+            continue
+        zc = sum(f.calc_center_median().z for f in island) / len(island)
+        outer_ring = bmesh.ops.inset_region(bm, faces=island, thickness=EYE_INSET[0],
+                                            depth=0.0, use_even_offset=True)["faces"]
+        inner_ring = bmesh.ops.inset_region(bm, faces=island, thickness=EYE_INSET[1],
+                                            depth=0.0, use_even_offset=True)["faces"]
+        inner_verts = {v for f in island for v in f.verts}
+        mid_verts = {v for f in inner_ring for v in f.verts} - inner_verts
+        outer_verts = {v for f in outer_ring for v in f.verts} - mid_verts - inner_verts
+        for v in outer_verts:      # 上まぶた: 上側だけ前へ
+            if v.co.z > zc:
+                v.co += _radial(v.co) * EYE_LID_OUT
+        for v in mid_verts:        # まぶたの縁: 上側は少し前、下側は頬へ
+            v.co += _radial(v.co) * (EYE_LID_OUT * 0.5 if v.co.z > zc else 0.0)
+        for v in inner_verts:      # 眼裂: 奥へ、上縁を少し下げて半目に
+            v.co += _radial(v.co) * -EYE_SLIT_IN
+            if v.co.z > zc:
+                v.co.z -= 0.0008
+
+    # 口: 帯を inset して内側を溝にする。溝は島の中で終わる
+    if mouth:
+        bmesh.ops.inset_region(bm, faces=mouth, thickness=MOUTH_INSET,
+                               depth=0.0, use_even_offset=True)
+        _push({v for f in mouth for v in f.verts}, -MOUTH_GROOVE_IN)
+
+    # 下顎を切り離す(口線より下・蝶番より前)。頂点を複製して別 bmesh へ
+    jaw_bm = bmesh.new()
+    vmap = {}
+    for f in jaw_faces:
+        vs = []
+        for v in f.verts:
+            if v not in vmap:
+                vmap[v] = jaw_bm.verts.new(v.co)
+            vs.append(vmap[v])
+        jaw_bm.faces.new(vs)
+    bmesh.ops.delete(bm, geom=jaw_faces, context="FACES")
+
+    # 継ぎ目の辺は両メッシュで crease=1.0 にして、別々に Subdivision しても
+    # 極限位置が一致する(そうしないと境界に隙間が開く)
+    # (レイヤー作成は既存の BMEdge 参照を無効にするので、辺を集める前に行う)
+    cl = bm.edges.layers.float.get("crease_edge") or bm.edges.layers.float.new("crease_edge")
+    hole = [e for e in bm.edges if e.is_boundary]
+    for e in hole:
+        e[cl] = 1.0
+    jcl = jaw_bm.edges.layers.float.get("crease_edge") or jaw_bm.edges.layers.float.new("crease_edge")
+    for e in jaw_bm.edges:
+        if e.is_boundary:
+            e[jcl] = 1.0
+    # 頭側の穴: 1枚で塞ぎ、中心を奥へ窪めて口腔にする
+    if hole:
+        filled = bmesh.ops.holes_fill(bm, edges=hole, sides=0)["faces"]
+        poked = bmesh.ops.poke(bm, faces=filled, offset=0.0)["verts"]
+        for v in poked:
+            v.co.y += MOUTH_INSIDE
+    # 下顎側: 上端(口線)の行と下端の行を列ごとに直接つないで口底にし、
+    # 両端は中間行の頂点と三角形で閉じる(bridge_loops は曲がった口線で
+    # 鎖の判定を誤ったので、行構造を使って明示的に張る)
+    jaw_bm.verts.ensure_lookup_table()
+    z_top_min = MOUTH_Z_ROWS[0] - MOUTH_CURVE * 0.45 - 0.0005
+    z_bot_max = JAW_BOTTOM_Z + 0.0005
+    top = sorted((v for v in jaw_bm.verts if v.co.z >= z_top_min), key=lambda v: _da_of(v.co))
+    bot = sorted((v for v in jaw_bm.verts if v.co.z <= z_bot_max), key=lambda v: _da_of(v.co))
+    mid = sorted((v for v in jaw_bm.verts if z_bot_max < v.co.z < z_top_min), key=lambda v: _da_of(v.co))
+    if len(top) == len(bot) and len(top) >= 2:
+        for j in range(len(top) - 1):
+            jaw_bm.faces.new((top[j], top[j + 1], bot[j + 1], bot[j]))
+        if mid:
+            jaw_bm.faces.new((top[0], mid[0], bot[0]))
+            jaw_bm.faces.new((top[-1], bot[-1], mid[-1]))
+    rest = [e for e in jaw_bm.edges if e.is_boundary]
+    if rest:
+        bmesh.ops.holes_fill(jaw_bm, edges=rest, sides=0)
+    bmesh.ops.recalc_face_normals(jaw_bm, faces=jaw_bm.faces)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+
+    bm.to_mesh(cage.data)
+    bm.free()
+    mesh = bpy.data.meshes.new(f"{NAME}_jaw_cage")
+    jaw_bm.to_mesh(mesh)
+    jaw_bm.free()
+    jaw = bpy.data.objects.new(mesh.name, mesh)
+    bpy.context.collection.objects.link(jaw)
+    return jaw
 
 
 def _apply_modifier(obj: bpy.types.Object, mod: bpy.types.Modifier) -> None:
@@ -324,76 +514,25 @@ def _copy_object(src: bpy.types.Object, name: str) -> bpy.types.Object:
     return dup
 
 
-def build_body_cage() -> tuple[bpy.types.Object, bpy.types.Object]:
-    """胴+頭のケージ(ローポリ)と、それをSubdivisionで丸めた本体を返す。"""
+def build_body_cage():
+    """胴+頭のケージ(ローポリ)、それを丸めた本体、切り離した下顎(丸めたもの・
+    ケージ)を返す。"""
     k = RADIUS_COMP
     sections = [_profile(z, cy, rf * k, rb * k, rs * k, snout)
                 for (z, cy, rf, rb, rs, snout, _n) in BODY_LOOPS]
     _sculpt_face(sections)
     cage = C.section_loft(f"{NAME}_cage", sections, smooth=False,
                           cap_top=True, cap_bottom=True)
+    jaw_cage = _face_topology(cage)
     body = _copy_object(cage, f"{NAME}_body")
     _subdivide(body, 2)
-    return cage, body
-
-
-# ------------------------------------------------------------------- 下顎
-# 頭ケージの下側スライス。頭と同じ _profile / 頬の彫りを使い、蝶番より前だけを
-# 切り出す。閉口時は頭の下顔面と同じシルエット(口線の溝だけが見える)。
-# (z, cy, r_front, r_back, r_side, snout, name) ―― 頭の collar〜jaw に対応。
-# 半径は頭ケージより JAW_OUT だけ外に置き、面の重なり(ちらつき)を避ける。
-JAW_BACK = +0.006      # この y より後ろは平らに切る(蝶番の面)
-JAW_HINGE = (0.0, JAW_BACK, 0.084)
-JAW_OUT = 0.0005       # 正面(口の範囲)では頭の面より外に出す
-JAW_IN = -0.0015       # 口角より後ろでは頭の中に沈める(側面に稜線を出さない)
-JAW_CORNER_DEG = (50.0, 72.0)  # 正面中心からこの角度の間で外→内へ移る(口角)
-# 上端は平らなキャップにせず、唇が口の中へ巻き込む縮小ループ(jaw_lip)を
-# 挟んで丸める(平らなキャップだと「頭の下の皿」に見える)。
-# 下端も同様に、下顎の裏側が喉へ向かって丸く巻き込むループを置き、底の
-# キャップは頭ケージの中に隠す(底を襟の高さで平らに切ると「引き出し」になる)。
-JAW_LOOPS = [
-    (0.0710, -0.004, 0.012, 0.018, 0.022, 0.0, "jaw_under_in"),  # 頭の中(隠れる)
-    (0.0730, -0.007, 0.024, 0.024, 0.029, 0.05, "jaw_under"),    # 裏側(側方は細い=蹄鉄)
-    (0.0765, -0.010, 0.032, 0.029, 0.035, 0.10, "jaw_under_fr"), # 丸い下面
-    (0.0805, -0.011, 0.037, 0.032, 0.039, 0.20, "jaw_throat"),
-    # 顎先は上唇(≈-0.054)より 3mm 後ろ: 上顎がわずかに被さる(同じ面まで
-    # 出すと「への字の分厚い下唇」に見える)
-    (0.0844, -0.012, 0.0375, 0.036, 0.040, 0.30, "jaw_body"),    # 下顎の厚み
-    (0.0872, -0.013, 0.037, 0.036, 0.040, 0.35, "jaw_top"),      # 顎先(最前)
-    (0.0888, -0.013, 0.0335, 0.036, 0.037, 0.35, "jaw_lip"),     # 唇の巻き込み(口線)
-]
-
-
-def build_jaw() -> bpy.types.Object:
-    """下顎。JAW_HINGE を支点に X軸回りで開く(あくび)。"""
-    k = RADIUS_COMP
-    sections = []
-    a0, a1 = JAW_CORNER_DEG
-    for (z, cy, rf, rb, rs, snout, _n) in JAW_LOOPS:
-        pts = _profile(z, cy, rf * k, rb * k, rs * k, snout)
-        # 口の範囲(正面)だけ頭より外、口角より後ろは頭の中へ
-        adj = []
-        for (x, y, _z), a in zip(pts, LOOP_ANGLES):
-            da = abs((math.degrees(a) - FACE_CENTER + 180.0) % 360.0 - 180.0)
-            w = 1.0 if da <= a0 else 0.0 if da >= a1 else 1.0 - (da - a0) / (a1 - a0)
-            w = w * w * (3 - 2 * w)
-            off = JAW_OUT * w + JAW_IN * (1.0 - w)
-            r = Vector((x, y - cy, 0.0))
-            if r.length > 1e-9:
-                r.normalize()
-                x, y = x + r.x * off, y + r.y * off
-            # 口線の曲線: 上端のループほど強く追従(下面は動かさない)
-            wz = min(max((_z - 0.0765) / (0.0888 - 0.0765), 0.0), 1.0)
-            adj.append((x, y, _z + mouth_dz(da) * wz))
-        sections.append(adj)
-    _sculpt_face(sections, JAW_LOOPS)
-    # 蝶番より後ろを平らに切る
-    sections = [[(x, min(y, JAW_BACK), z) for (x, y, z) in sec] for sec in sections]
-    jaw = C.section_loft(f"{NAME}_jaw", sections, smooth=False, cap_top=True, cap_bottom=True)
+    jaw = _copy_object(jaw_cage, f"{NAME}_jaw")
     _subdivide(jaw, 2)
-    return jaw
+    jaw_cage.name = f"{NAME}_jaw_cage"
+    return cage, body, jaw, jaw_cage
 
 
+# ------------------------------------------------------------------- 下顎(開閉)
 def open_jaw(jaw: bpy.types.Object, degrees: float) -> None:
     """レビュー用: 下顎を蝶番回りに degrees だけ開く(正で下へ開く)。"""
     from mathutils import Matrix
@@ -402,24 +541,20 @@ def open_jaw(jaw: bpy.types.Object, degrees: float) -> None:
     jaw.matrix_world = Matrix.Translation(pivot) @ rot @ Matrix.Translation(-pivot)
 
 
-def jaw_clearance_deg(step: float = 1.0, max_deg: float = 60.0) -> float:
-    """下顎だけを開いたとき、顎先(最も前に出るループの前縁)が胴(襟より下の
-    腹・胸)の前面に当たる角度(度)を返す。頭を後ろへ倒さずに開ける限界の目安。"""
-    z_top, cy_top, rf_top = max(((r[0], r[1], r[2]) for r in JAW_LOOPS),
-                                key=lambda t: -(t[1] - t[2] * RADIUS_COMP))
-    chin = Vector((0.0, cy_top - rf_top * RADIUS_COMP, z_top))
+def jaw_clearance_deg(jaw: bpy.types.Object, step: float = 1.0, max_deg: float = 80.0) -> float:
+    """下顎だけを開いたとき、顎先が胴(襟より下)の前面に当たる角度(度)。"""
+    chin = min((v.co for v in jaw.data.vertices), key=lambda c: c.y)
     pivot = Vector(JAW_HINGE)
-    names = [r[-1] for r in BODY_LOOPS]
-    body = [(z, cy - rf * RADIUS_COMP) for (z, cy, rf, *_r) in BODY_LOOPS[:names.index("collar") + 1]]
+    body = [(z, cy - rf * RADIUS_COMP) for (z, cy, rf, *_r) in BODY_LOOPS if z <= JAW_BOTTOM_Z + 1e-6]
     def front_at(z):
         for (z0, f0), (z1, f1) in zip(body, body[1:]):
             if z0 <= z <= z1:
                 return f0 + (f1 - f0) * (z - z0) / (z1 - z0)
-        return +1.0  # 襟より上は胴が無い(当たらない)
+        return +1.0
     deg = 0.0
     while deg < max_deg:
         th = math.radians(deg)
-        d = chin - pivot
+        d = Vector(chin) - pivot
         y = pivot.y + d.y * math.cos(th) - d.z * math.sin(th)
         z = pivot.z + d.y * math.sin(th) + d.z * math.cos(th)
         if y > front_at(z):
@@ -635,11 +770,11 @@ def build_v3_blockout() -> dict:
     """ブロックアウト一式を作って返す。
     返り値: {"cage": ローポリケージ, "body": 丸めた胴+頭, "extras": [四肢・尾・背びれ]}
     """
-    cage, body = build_body_cage()
-    extras = ([build_jaw()] + build_arms() + build_legs()
-              + [build_tail(), build_frill()])
+    cage, body, jaw, jaw_cage = build_body_cage()
+    extras = [jaw] + build_arms() + build_legs() + [build_tail(), build_frill()]
     clay = C.make_material(f"{NAME}_clay", CLAY, roughness=0.6)
     for obj in [body] + extras:
         C.assign_material(obj, clay)
     C.assign_material(cage, clay)
-    return {"cage": cage, "body": body, "extras": extras}
+    C.assign_material(jaw_cage, clay)
+    return {"cage": cage, "body": body, "extras": extras, "jaw_cage": jaw_cage}
