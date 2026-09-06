@@ -14,6 +14,7 @@ import math
 
 import akubitokage
 import common as C
+import madoromi
 from mathutils import Matrix, Vector
 
 EYE_DARK = (0.07, 0.06, 0.09)
@@ -1429,75 +1430,14 @@ def tsubute_animations():
 
 # =================================================================== マドロミダケ
 
-MADOROMI_JOINTS = {
-    "root": (0.0, 0.0, 0.05),
-    "stem": (0.0, 0.0, 0.24),
-    "capbase": (0.0, 0.0, 0.36),
-    "captop": (0.0, 0.0, 0.50),
-}
-MADOROMI_RADII = {"root": 0.115, "stem": 0.095, "capbase": 0.275, "captop": 0.055}
-MADOROMI_BONES = [("root", "stem"), ("stem", "capbase"), ("capbase", "captop")]
-
-
-def cap_surface_z(dist: float) -> float:
-    """
-    傘の表面の高さ。capbase(半径0.275)から captop(半径0.055)へ向かう円錐を、
-    サブディビジョンで丸まるぶん少し内側に見積もって近似する。
-    """
-    base_z, top_z = MADOROMI_JOINTS["capbase"][2], MADOROMI_JOINTS["captop"][2]
-    base_r, top_r = MADOROMI_RADII["capbase"] * 0.86, MADOROMI_RADII["captop"]
-    t = min(1.0, max(0.0, (base_r - dist) / (base_r - top_r)))
-    return base_z + t * (top_z - base_z) - 0.012
+# 造形は tools/models/madoromi.py(ベースケージ+Subdivision)にある。
+# ここに残すのは状態アニメーションだけ。ボーン名は madoromi.BONES と
+# 一致している(root-stem / stem-capbase / capbase-captop)。
+MADOROMI_HEIGHT = madoromi.HEIGHT
 
 
 def build_madoromi():
-    """歩くキノコ。傘を大きく広げ、笠の下に眠たげな顔をつける。"""
-    body = C.build_skinned("madoromi", MADOROMI_JOINTS, MADOROMI_BONES, MADOROMI_RADII,
-                           root="root", subsurf=2)
-    stem_mat = C.make_material("madoromi_stem", (0.90, 0.86, 0.74), roughness=0.75)
-    cap_mat = C.make_material("madoromi_cap", (0.62, 0.24, 0.42), roughness=0.6)
-    C.assign_materials_by_region(body, [stem_mat, cap_mat], lambda c: 1 if c.z > 0.315 else 0)
-
-    extras = []
-    for side in (-1.0, 1.0):
-        # 半分閉じた眠たい目
-        eye = C.uv_sphere(f"madoromi_eye{side}", (0.062 * side, -0.098, 0.20), 0.032,
-                          segments=14, rings=10, scale=(1.0, 0.6, 0.35))
-        C.assign_material(eye, C.make_material(f"madoromi_eye{side}_m", EYE_DARK, roughness=0.3))
-        extras.append(eye)
-    mouth = C.uv_sphere("madoromi_mouth", (0.0, -0.098, 0.145), 0.030,
-                        segments=12, rings=8, scale=(0.8, 0.5, 1.0))
-    C.assign_material(mouth, C.make_material("madoromi_mouth_m", (0.36, 0.20, 0.22), roughness=0.4))
-    extras.append(mouth)
-
-    # 傘の斑点。傘の断面は capbase から captop へ絞られる円錐なので、
-    # 中心からの距離に応じた高さに置かないと浮いたり埋まったりする。
-    spot_mat = C.make_material("madoromi_spot", (0.94, 0.92, 0.86), roughness=0.6)
-    for i, (angle_deg, dist, r) in enumerate([
-        (200.0, 0.055, 0.042), (300.0, 0.105, 0.036), (60.0, 0.090, 0.038),
-        (130.0, 0.130, 0.030), (10.0, 0.145, 0.026),
-    ]):
-        angle = math.radians(angle_deg)
-        spot = C.uv_sphere(
-            f"madoromi_spot{i}",
-            (math.cos(angle) * dist, math.sin(angle) * dist, cap_surface_z(dist)),
-            r, segments=12, rings=8, scale=(1.0, 1.0, 0.40),
-        )
-        C.assign_material(spot, spot_mat)
-        extras.append(spot)
-
-    # 軸の根元に食い込む、面取りした木質の輪(plan/models/archive/sheet-madoromi.md、
-    # plan/models/archive/silhouette-hard-surface-parts.mdの義務項目)。
-    # 「根を張った眠気」を、地に食い込む硬いつばで表す
-    collar_mat = C.make_material("madoromi_collar", (0.52, 0.40, 0.26), roughness=0.75)
-    collar = C.cylinder("madoromi_collar", (0.0, 0.0, 0.062), 0.128, 0.030,
-                        segments=24, bevel=0.008)
-    C.assign_material(collar, collar_mat)
-    extras.append(collar)
-
-    mesh = C.join([body] + extras, "madoromi")
-    armature = C.build_armature("madoromi", MADOROMI_JOINTS, MADOROMI_BONES, mesh, root="root")
-    return [mesh, armature], armature
+    return madoromi.build()
 
 
 def madoromi_animations():
@@ -1524,27 +1464,35 @@ def madoromi_animations():
             (27, {stem: (6, 0, 0), cap: (-5, 0, 0)}),
             (36, {stem: (0, 0, -9), cap: (0, 0, 6)}),
         ]),
-        # タメ→LINEARで鋭く傘を振る打撃→行き過ぎ→ゆっくり戻る
+        # 胞子をためる(タメで縮む)→ ぽんと開放(傘が開いて反る)→
+        # ゆっくり戻る。設定画の「胞子をためる/胞子を一気に放つ」に対応。
+        # 直接の打撃は無い種なので、傘を振り下ろす動きは使わない
         ("attack", [
             (1, {stem: (0, 0, 0), cap: (0, 0, 0), captop: (0, 0, 0)}),
-            (5, {stem: (-14, 0, 0), cap: (-16, 0, 0)}, {"interp": "LINEAR"}),
-            (8, {stem: (30, 0, 0), cap: (32, 0, 0), captop: (23, 0, 0)}),
-            (10, {stem: (16, 0, 0), cap: (18, 0, 0), captop: (12, 0, 0)}),
-            (20, {stem: (0, 0, 0), cap: (0, 0, 0), captop: (0, 0, 0)}),
+            (7, {stem: (6, 0, 0), cap: (10, 0, 0), captop: (8, 0, 0)},
+                {"interp": "LINEAR"}),
+            (10, {stem: (-10, 0, 0), cap: (-22, 0, 0), captop: (-16, 0, 0)}),
+            (14, {stem: (-4, 0, 0), cap: (-12, 0, 0), captop: (-8, 0, 0)}),
+            (26, {stem: (0, 0, 0), cap: (0, 0, 0), captop: (0, 0, 0)}),
         ]),
-        # 入りだけLINEARで鋭くする。振幅・戻り時間は現行どおり中程度に保つ
+        # びっくり。入りだけLINEARで鋭くし、傘が遅れて跳ねる
         ("hit", [
             (1, {stem: (0, 0, 0)}, {"interp": "LINEAR"}),
             (4, {stem: (-20, 0, 0), cap: (-18, 0, 0)}),
+            (7, {cap: (10, 0, 0)}, {"partial": True}),
             (14, {stem: (0, 0, 0), cap: (0, 0, 0)}),
         ]),
-        # 初動をLINEARで鋭くする。24f到達後、大きく倒れた姿勢からわずかな
-        # 跳ね返りを1回追加する
+        # **しぼんでいく**(設定画の終了状態)。倒れるのではなく、
+        # 傘が垂れて体が潰れ、そのまま小さくなる
         ("die", [
-            (1, {stem: (0, 0, 0)}, {"interp": "LINEAR"}),
-            (10, {stem: (-34, 0, 10), cap: (-20, 0, 0)}),
-            (24, {stem: (-86, 0, 22), cap: (-34, 0, 0)}),
-            (28, {stem: (-77, 0, 20), cap: (-31, 0, 0)}, {"partial": True}),
+            (1, {stem: {"scale": (1.0, 1.0, 1.0)}, cap: (0, 0, 0)},
+                {"interp": "LINEAR"}),
+            (10, {stem: {"scale": (1.08, 0.78, 1.08)}, cap: (26, 0, 0),
+                  captop: (18, 0, 0)}),
+            (26, {stem: {"scale": (1.16, 0.34, 1.16)}, cap: (46, 0, 0),
+                  captop: (34, 0, 0)}),
+            (34, {stem: {"scale": (1.10, 0.16, 1.10)}, cap: (52, 0, 0),
+                  captop: (40, 0, 0)}, {"partial": True}),
         ]),
     ]
 
