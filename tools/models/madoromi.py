@@ -109,14 +109,16 @@ BODY_LOOPS = [
     (80.0, -53.2, +60.8, 66.0, "belly_low"),
     (83.0, -52.2, +67.8, 69.5, "hip"),
     (86.0, -49.2, +74.8, 72.5, "hip_low"),
-    (89.0, -47.2, +78.8, 74.5, "seat"),        # 最大半幅
-    # 92% から下は地面の花・草がマスクに混ざって測れない。上の傾きを
-    # そのまま延ばす(接地でわずかに絞る)
-    (92.0, -45.0, +80.0, 75.5, "seat_low"),
-    (96.0, -42.0, +78.0, 75.0, "base"),
-    (99.0, -38.0, +72.0, 69.0, "base_low"),
-    (100.0, -30.0, +58.0, 56.0, "ground"),     # 接地面。設定画の体は
-                                               # 地面まで太いまま座っている
+    (89.5, -47.2, +78.0, 74.0, "seat"),        # 最大半幅(正面図で ±74)
+    # **胴は接地しない。** 設定画の正面図では、足と足の間の胴の下端は
+    # 高さ 94.5% で止まり、その下は地面が見えている(4本の足で支えて
+    # いる)。100% まで伸ばすと足が胴に埋まって消える
+    (92.0, -46.0, +78.0, 71.0, "seat_low"),
+    (93.6, -42.0, +74.0, 64.0, "underside"),
+    (94.6, -36.0, +66.0, 48.0, "bottom"),      # 胴の下端(z≈0.025m)。
+                                               # 幅を残して**平たい底**にする。
+                                               # 一気に絞ると Subdivision が
+                                               # 丸めて底が浮き上がる
 ]
 
 # 口の突き出し。側面図の 74% にある小さな前方の尖り(とがった口)。
@@ -309,20 +311,30 @@ def build_cap() -> tuple[bpy.types.Object, bpy.types.Object]:
 
 
 # ----------------------------------------------------------------------- 足
-# 正面図の下端に、菌糸の塊の小さな足が2つ前へのぞく。
-# x ±27px、前へ -62px まで、高さ 0〜16px(接地)
-FOOT_C = (26.0, -54.0, 8.5)     # px (x, y, z)
-FOOT_R = (22.0, 21.0, 9.5)      # px 半径
+# 菌糸の塊の足。設定画は**4本**(前2・後2)で、どれも卵ではなく平たい
+# パッド。三面図から実測した(px、x は片側だけ書いて鏡像にする):
+#   前脚 正面 x 22〜58 / 側面 y -55〜-12 / 高さ 90〜99%
+#   後脚 背面 x 20〜47 / 側面 y  -5〜+40 / 高さ 91〜99%
+# 指(3本)は溝ではなく**塗り**で描く。幅 1mm 以下の溝は自動ウェイトを
+# 壊す(handbook 3-40)
+FEET = [
+    # (x中心, y中心, z中心, 半幅, 半長, 半高, つま先の向き)
+    (38.0, -32.0, 9.5, 20.0, 22.0, 10.0, (-0.30, -0.95)),   # 前
+    (34.0, +18.0, 9.0, 15.0, 22.0, 9.5, (-0.25, +0.97)),   # 後
+]
+TOE_COUNT = 3
+TOE_RGB = (0.330, 0.245, 0.195)   # 指の間の溝。設定画の線は細く淡い
 
 
 def build_feet() -> list[bpy.types.Object]:
     out = []
-    for side in (-1.0, 1.0):
-        c = (FOOT_C[0] * PX * side, FOOT_C[1] * PX, FOOT_C[2] * PX)
-        f = C.uv_sphere(f"{NAME}_foot{'L' if side > 0 else 'R'}", c, FOOT_R[0] * PX,
-                        segments=16, rings=12,
-                        scale=(1.0, FOOT_R[1] / FOOT_R[0], FOOT_R[2] / FOOT_R[0]))
-        out.append(f)
+    for i, (fx, fy, fz, rw, rl, rh, _toe) in enumerate(FEET):
+        for side in (-1.0, 1.0):
+            c = (fx * PX * side, fy * PX, fz * PX)
+            tag = ("F" if i == 0 else "B") + ("L" if side > 0 else "R")
+            out.append(C.uv_sphere(f"{NAME}_foot{tag}", c, rw * PX,
+                                   segments=16, rings=12,
+                                   scale=(1.0, rl / rw, rh / rw)))
     return out
 
 
@@ -388,10 +400,12 @@ SHEET = {
     "body_speck": (0.60, 0.46, 0.35),
     "gill":       (0.185, 0.140, 0.115),   # 傘の裏のヒダ(溝の線)
     "gill_lit":   (0.300, 0.235, 0.190),   # ヒダの面(絵の中 #917860 相当)
-    "foot":       (0.400, 0.315, 0.262),   # 足。体よりかなり沈める。単色の
-                                           # 明るい面はトゥーン+リムライトで
-                                           # 白く飛び、設定画の「体と同じ質感の
-                                           # 小さな塊」に見えなかった
+    "foot":       (0.775, 0.635, 0.520),   # 足。設定画では**体と同じ生成り**
+                                           # (むしろ少し明るい)。以前ここを
+                                           # 暗くしていたのは、足だけ単色
+                                           # マテリアルでトゥーンに白く飛んだ
+                                           # ため。体と同じ焼き込みに変えたので
+                                           # 設定画どおりへ戻した
     "spore":      (0.652, 0.505, 0.500),   # 胞子(パレット #d2bbba)
 }
 
@@ -540,7 +554,15 @@ def cap_color(p: Vector, n: Vector):
 
 
 def body_color(p: Vector, n: Vector):
-    """体の色。生成り + 下へ沈む陰 + 斑点、前面になぞった顔を載せる。"""
+    """体の色。生成り + 下へ沈む陰 + 斑点、前面になぞった顔を載せる。
+    足も同じマテリアルなので、ここで足の色と指の溝も描く。"""
+    center, toe = _foot_at(p)
+    if center is not None:
+        base = SHEET["foot"]
+        g = _toe_groove(p, center, toe)
+        if g > 0:
+            base = tuple(base[i] + (TOE_RGB[i] - base[i]) * g for i in range(3))
+        return base
     pct = (1.0 - p.z / HEIGHT) * 100.0
     # 上(柄)と下(接地際)が沈み、腹の面が明るい ―― 設定画の陰の付き方
     t_low = max(0.0, (pct - 86.0) / 14.0)
@@ -576,8 +598,35 @@ def body_color(p: Vector, n: Vector):
     return base
 
 
-def foot_color(p: Vector, n: Vector):
-    return SHEET["foot"]
+def _foot_at(p: Vector):
+    """点が足の上なら (足の中心, つま先の向き) を返す。"""
+    for fx, fy, fz, rw, rl, rh, toe in FEET:
+        for side in (-1.0, 1.0):
+            cx, cy, cz = fx * PX * side, fy * PX, fz * PX
+            dx = (p.x - cx) / (rw * PX)
+            dy = (p.y - cy) / (rl * PX)
+            dz = (p.z - cz) / (rh * PX)
+            if dx * dx + dy * dy + dz * dz < 1.25:
+                return (cx, cy), (toe[0] * side, toe[1])
+    return None, None
+
+
+def _toe_groove(p: Vector, center, toe) -> float:
+    """指の間の溝。つま先の向きの先端側にだけ、細い線を TOE_COUNT-1 本。"""
+    dx, dy = p.x - center[0], p.y - center[1]
+    fwd = dx * toe[0] + dy * toe[1]          # つま先方向の距離
+    lat = -dx * toe[1] + dy * toe[0]         # 横方向
+    if fwd <= 0.004:
+        return 0.0
+    reach = min(1.0, (fwd - 0.004) / 0.016)  # 先端へ行くほど濃く
+    best = 0.0
+    span = 0.010
+    for k in range(TOE_COUNT - 1):
+        t = (k + 1) / TOE_COUNT - 0.5        # -1/6, +1/6
+        d = abs(lat - t * 2 * span) / 0.0016
+        if d < 1.0:
+            best = max(best, (1 - d * d) ** 2)
+    return best * reach
 
 
 def build_spores() -> list[bpy.types.Object]:
@@ -604,16 +653,15 @@ def build_blockout(clay: bool = True, spores: bool = True) -> dict:
 
 def texture_blockout(parts: dict, size: int = 2048) -> None:
     """ブロックアウトへ塗りを載せる(レビュー用。本番化は別工程)。"""
+    # 足は体と同じ色関数で塗る(指の溝を描くため)。まとめて1枚に焼く
+    foot_join = C.join([parts["body"]] + parts["extras"], f"{NAME}_body")
+    parts["body"], parts["extras"] = foot_join, []
     for obj, fn, px in ((parts["body"], body_color, size),
                         (parts["cap"], cap_color, size)):
         C.smart_uv(obj)
         img = C.bake_albedo(obj, fn, size=px, name=f"{obj.name}_albedo")
         C.assign_material(obj, C.make_textured_material(f"{obj.name}_mat", img,
                                                         roughness=0.85))
-    foot_srgb = tuple(v ** (1 / 2.2) for v in SHEET["foot"])   # make_material は sRGB
-    foot_mat = C.make_material(f"{NAME}_foot", foot_srgb, roughness=0.85)
-    for o in parts["extras"]:
-        C.assign_material(o, foot_mat)
     spore_srgb = tuple(v ** (1 / 2.2) for v in SHEET["spore"])
     spore_mat = C.make_material(f"{NAME}_spore", spore_srgb, roughness=0.5,
                                 emission=0.05, alpha=SPORE_ALPHA)
@@ -648,15 +696,13 @@ def build() -> tuple[list, bpy.types.Object]:
                                parts["extras"], parts["spores"])
     # 焼き分けのため、join する前に別々のマテリアルを割り当てておく
     # (join はスロットを保つので、あとで material_index で焼き分けられる)
+    # 足は**体と同じスロット**にする。指の溝を body_color が描くので、
+    # 単色マテリアルのままだと指が出ない
     slots = [C.make_material(f"{NAME}_body", (0.5, 0.5, 0.5)),
-             C.make_material(f"{NAME}_cap", (0.5, 0.5, 0.5)),
-             C.make_material(f"{NAME}_foot",
-                             tuple(v ** (1 / 2.2) for v in SHEET["foot"]),
-                             roughness=0.85)]
-    C.assign_material(body, slots[0])
+             C.make_material(f"{NAME}_cap", (0.5, 0.5, 0.5))]
+    for o in [body] + feet:
+        C.assign_material(o, slots[0])
     C.assign_material(cap, slots[1])
-    for o in feet:
-        C.assign_material(o, slots[2])
     # 胞子は**塗りを焼き終えてから**合流させる(handbook 4-12)。
     # 先に join すると UV の取り直しと焼きに巻き込まれ、自前の
     # マテリアルも失われる
@@ -697,5 +743,5 @@ def _check(mesh) -> None:
     print(f"[{NAME}] マテリアル {[m.name for m in mesh.data.materials]}")
     assert abs(h - HEIGHT) < 0.006, h
     assert lo.z > -0.006, lo.z
-    assert len(mesh.data.materials) == 4, [m.name for m in mesh.data.materials]
+    assert len(mesh.data.materials) == 3, [m.name for m in mesh.data.materials]
     assert C.tri_count([mesh]) <= TARGET_TRIS, C.tri_count([mesh])
