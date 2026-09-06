@@ -67,6 +67,30 @@ const AXIS_KEYS = {
   east: ["ArrowRight", "KeyD"],
 } as const;
 
+/** 方向に関わるキーコードの一覧(タップの取りこぼし対策のtimerを張るかどうかの判定用) */
+const DIRECTION_KEY_CODES: ReadonlySet<string> = new Set<string>([
+  ...Object.keys(NUMPAD_DIRS),
+  ...AXIS_KEYS.north,
+  ...AXIS_KEYS.south,
+  ...AXIS_KEYS.west,
+  ...AXIS_KEYS.east,
+]);
+
+/**
+ * タップ取りこぼし対策のフォールバックtimer(setTimeout)の遅延(ミリ秒)。
+ * 一歩/ダッシュの計測(update(dt))は本来render loop(requestAnimationFrame)
+ * 頻度で回る前提だが、自動テスト(tools/auto-tester.mjs)のような重い
+ * ソフトウェア描画環境ではrender loopが数百msに1回まで間引かれることがあり、
+ * 「短く押してすぐ離す」タップがrender loopの1周も回らないまま完結すると、
+ * update()が一度も新しい方向を検知できず、タップが丸ごと失われていた
+ * (#745/#746/#747/#748の低確信度レポートの実際の原因。auto-tester.mjs
+ * 側の再生ロック待ちを直した#745コメントの修正後も再発し続けていたのは、
+ * 原因がロック待ちではなくrender loopの間引きそのものだったため)。
+ * render loopに頼らず、setTimeoutで独立にフォールバックすることで、
+ * render loopがどれだけ間引かれてもこの遅延の範囲でタップが確定する
+ */
+const TAP_FALLBACK_DELAY_MS = 80;
+
 /**
  * 攻撃専用キー(plan/attack-button.md)。WASD移動クラスタの近くにある
  * 未使用キーから選んだ(README操作表・plan/attack-button.mdのアーカイブ
@@ -143,14 +167,22 @@ export class Input {
   private dashDir: Dir | null = null;
   /** dashDir を押し続けている秒数(update()で積み上げる) */
   private dashHeldFor = 0;
-  /** この方向入力ぶんの「一歩」をすでに発行済みか */
-  private tapMoveTaken = false;
   /**
    * この方向入力を打ち切り済みか(壁・押し出しでその場に留まった等)。
    * true の間は direction() が変わらない限り、一歩もダッシュも発行しない
    * (cancelDash() 参照)
    */
   private dirBlocked = false;
+  /**
+   * まだ取り出されていない「一歩」の向き(TAP_FALLBACK_DELAY_MSのコメント
+   * 参照)。direction()の変化を検知した瞬間に確定するので、その後キーが
+   * 離されて現在のdirection()がnullに戻っていても、確定時点の向きへ
+   * ちゃんと1マス進める。新しい変化が来ると上書きされる(最新の1件だけ
+   * 覚えておけばよい。壁バンプ等で立ち消えになった古いタップを後から
+   * 遅れて発行してしまわないよう、キューに積まず単一値にしてある)
+   */
+  private pendingTapDir: Dir | null = null;
+  private tapFallbackHandle: ReturnType<typeof setTimeout> | null = null;
 
   constructor(target: EventTarget = window) {
     target.addEventListener("keydown", (raw) => {
@@ -194,11 +226,48 @@ export class Input {
     this.held.add(code);
     const action = ACTION_KEYS[code];
     if (action) this.pending.push(action);
+    if (DIRECTION_KEY_CODES.has(code)) this.scheduleTapFallback();
   }
 
   /** タッチの指を離した・ボタンを離したときに呼ぶ */
   release(code: string): void {
     this.held.delete(code);
+    if (DIRECTION_KEY_CODES.has(code)) this.scheduleTapFallback();
+  }
+
+  /**
+   * TAP_FALLBACK_DELAY_MS後にcommitDirection()を1回だけ呼ぶ。方向に
+   * 関わるキーが押される・離されるたびに呼び直し、直前の予約は
+   * 取り消す(斜め入力のように複数キーがほぼ同時に変化するとき、
+   * 呼び出しのたびに確定させてしまうと1回の斜め移動のつもりが
+   * 直交2回分の移動に化けてしまう。render loop(update())が1フレーム
+   * 分のキー変化をまとめて見るのと同じことを、独立のtimerでも再現する)
+   */
+  private scheduleTapFallback(): void {
+    if (this.tapFallbackHandle !== null) clearTimeout(this.tapFallbackHandle);
+    this.tapFallbackHandle = setTimeout(() => {
+      this.tapFallbackHandle = null;
+      this.commitDirection();
+    }, TAP_FALLBACK_DELAY_MS);
+    (this.tapFallbackHandle as unknown as { unref?: () => void }).unref?.();
+  }
+
+  /**
+   * direction()の変化を検知し、変化していればdashDir/dashHeldFor/
+   * dirBlockedを計測し直す(変化していなければ何もしない)。update(dt)と
+   * press()/release()経由のscheduleTapFallback()の両方から呼ばれる
+   * 共通ロジック。変化を検知して初めて1マスぶんのタップが確定するので、
+   * ここでpendingTapDirへ積む。戻り値は「このフレーム(または呼び出し)で
+   * 変化を検知したか」
+   */
+  private commitDirection(): boolean {
+    const dir = this.direction();
+    if (dir === this.dashDir) return false;
+    this.dashDir = dir;
+    this.dashHeldFor = 0;
+    this.dirBlocked = false;
+    if (dir !== null) this.pendingTapDir = dir;
+    return true;
   }
 
   /**
@@ -245,14 +314,7 @@ export class Input {
    * 送れない間だけ計測が止まってしまうと、しきい値の意味がずれる)
    */
   update(dt: number): void {
-    const dir = this.direction();
-    if (dir === null || dir !== this.dashDir) {
-      this.dashDir = dir;
-      this.dashHeldFor = 0;
-      this.tapMoveTaken = false;
-      this.dirBlocked = false;
-      return;
-    }
+    if (this.commitDirection()) return;
     this.dashHeldFor += dt;
   }
 
@@ -265,15 +327,17 @@ export class Input {
   }
 
   /**
-   * この方向入力ぶんの「一歩」をまだ発行していなければ、発行済みに
-   * 記録して true を返す(呼び出し側はそのまま1回だけ移動コマンドを
-   * 送る)。タップ(短く押して離す)がしきい値未満で終わっても必ず
-   * 1マスぶん進むのは、この最初の1回のおかげ
+   * まだ取り出されていない「一歩」があれば、その向きを1回だけ取り出す
+   * (呼び出し側はそのまま1回だけ移動コマンドを送る)。タップ(短く押して
+   * 離す)がしきい値未満で終わっても必ず1マスぶん進むのは、これのおかげ。
+   * 取り出す時点の direction()(押されているキー)ではなく、確定した
+   * 時点の向きを返すので、render loopが間引かれてキーがもう離されて
+   * いても正しい向きへ進める(TAP_FALLBACK_DELAY_MSのコメント参照)
    */
-  consumeTapMove(): boolean {
-    if (this.dirBlocked || this.tapMoveTaken) return false;
-    this.tapMoveTaken = true;
-    return true;
+  takeTapMove(): Dir | null {
+    const dir = this.pendingTapDir;
+    this.pendingTapDir = null;
+    return dir;
   }
 
   /**
