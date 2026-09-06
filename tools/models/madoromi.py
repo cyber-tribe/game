@@ -3,7 +3,7 @@
 
 `handbook/cage-and-2d3d-split.md` の手順をそのまま適用する
 (あくびとかげで確立した方式の2体目)。仕様は
-`plan/models/madoromi-remake.md`、設定画は
+`plan/models/archive/madoromi-remake.md`、設定画は
 `plan/models/reference-madoromidake-sheet.png`。
 
 ## 3D / 2D の分担(handbook 手順1: 彫り始める前に決める)
