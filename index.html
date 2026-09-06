@@ -54,8 +54,25 @@
         --safe-right: env(safe-area-inset-right, 0px);
         --safe-bottom: env(safe-area-inset-bottom, 0px);
         --safe-left: env(safe-area-inset-left, 0px);
+
+        /*
+         * ベースフォントサイズ(plan/game/archive/base-font-size.md)。文字サイズは
+         * 個別pxの直書きを禁止し、この基準からのrem/トークン指定に統一する。
+         * 数値は現状の最頻値帯(11〜13px)の上端から選んだたたき台
+         */
+        --font-base: 13px;
+        --fs-xs: 0.8rem; /* 補足・ヒント・脚注 */
+        --fs-sm: 0.88rem; /* HUDのサブ情報・ラベル */
+        --fs-md: 1rem; /* 本文・メニュー項目(既定) */
+        --fs-lg: 1.15rem; /* 見出し小・強調(階数表示等) */
+        --fs-xl: 1.4rem; /* パネル見出し */
+        --fs-2xl: 1.7rem; /* 拠点タイトル等の大見出し */
+        --fs-3xl: 2.3rem; /* 演出的な特大(エンディング等) */
       }
       * { box-sizing: border-box; }
+      html {
+        font-size: var(--font-base);
+      }
       html, body {
         margin: 0;
         height: 100%;
@@ -189,8 +206,8 @@
         display: flex; align-items: baseline; justify-content: space-between;
         gap: 12px;
       }
-      #hud-depth { font-size: 15px; font-weight: 700; letter-spacing: 0.06em; }
-      #hud-level { font-size: 13px; color: var(--dim); }
+      #hud-depth { font-size: var(--fs-lg); font-weight: 700; letter-spacing: 0.06em; }
+      #hud-level { font-size: var(--fs-md); color: var(--dim); }
       .bar {
         position: relative;
         height: 11px;
@@ -212,19 +229,19 @@
       #hud-satiety-fill[data-level="danger"] { background: linear-gradient(90deg, #d6544f, #ef8a84); }
       .label {
         display: flex; justify-content: space-between;
-        font-size: 11px; color: var(--dim); margin-top: 9px;
+        font-size: var(--fs-sm); color: var(--dim); margin-top: 9px;
         letter-spacing: 0.08em;
       }
-      #hud-exp { font-size: 11px; color: var(--dim); margin-top: 8px; }
+      #hud-exp { font-size: var(--fs-sm); color: var(--dim); margin-top: 8px; }
       #hud-status {
-        margin-top: 7px; font-size: 12px; color: #ffb0bb; font-weight: 600;
+        margin-top: 7px; font-size: var(--fs-sm); color: #ffb0bb; font-weight: 600;
       }
 
       #hud-carry {
         margin-top: 8px;
         padding: 4px 8px;
         border-radius: 5px;
-        font-size: 12px;
+        font-size: var(--fs-sm);
         font-weight: 600;
         background: rgba(200, 140, 70, 0.18);
         border: 1px solid rgba(200, 140, 70, 0.45);
@@ -248,7 +265,7 @@
         margin-top: 4px;
         padding: 3px 8px;
         border-radius: 5px;
-        font-size: 11.5px;
+        font-size: var(--fs-sm);
         font-weight: 600;
         background: rgba(255, 255, 255, 0.07);
         border: 1px solid rgba(255, 255, 255, 0.16);
@@ -279,16 +296,16 @@
         display: none;
       }
       .allies-title {
-        font-size: 11px; letter-spacing: 0.1em; color: var(--dim);
+        font-size: var(--fs-sm); letter-spacing: 0.1em; color: var(--dim);
         padding-bottom: 6px; margin-bottom: 6px;
         border-bottom: 1px solid var(--edge);
       }
       .ally-row {
         display: flex; justify-content: space-between; align-items: baseline;
-        font-size: 12.5px; margin-top: 6px;
+        font-size: var(--fs-md); margin-top: 6px;
       }
       .ally-name { color: #c9b4ff; font-weight: 600; }
-      .ally-hp { font-size: 11px; color: var(--dim); }
+      .ally-hp { font-size: var(--fs-sm); color: var(--dim); }
       .ally-bar {
         height: 6px; margin-top: 3px; border-radius: 4px;
         background: rgba(255, 255, 255, 0.09); overflow: hidden;
@@ -300,8 +317,8 @@
       }
       .ally-bar > i[data-level="warn"] { background: linear-gradient(90deg, #e0b755, #f2d27a); }
       .ally-bar > i[data-level="danger"] { background: linear-gradient(90deg, #e05f6b, #f38b93); }
-      .ally-stance { font-size: 10.5px; color: #7fd6ff; margin-top: 2px; }
-      .ally-status { font-size: 10.5px; color: #f2d27a; margin-top: 2px; }
+      .ally-stance { font-size: var(--fs-xs); color: #7fd6ff; margin-top: 2px; }
+      .ally-status { font-size: var(--fs-xs); color: #f2d27a; margin-top: 2px; }
       /* 仲間のレベルアップ・ゆめわざ習得(plan/game/archive/companion-leveling-and-arts.md)。
          DOMは毎回作り直すので、クラスを立てるだけでアニメーションが最初から再生される */
       .ally-flash { animation: ally-flash-glow 1.1s ease-out; border-radius: 6px; }
@@ -327,7 +344,7 @@
         left: 14px; bottom: calc(14px + var(--zone-bottom-reserve));
         max-width: 46vw;
         padding: 10px 14px;
-        font-size: 13px;
+        font-size: var(--fs-md);
         line-height: 1.65;
       }
 
@@ -348,7 +365,7 @@
         background: rgba(10, 13, 24, 0.58);
         border: 1px solid var(--edge);
         backdrop-filter: blur(4px);
-        font-size: 12px;
+        font-size: var(--fs-sm);
         line-height: 1.5;
         text-align: left;
         pointer-events: none;
@@ -388,16 +405,16 @@
         border-radius: 12px;
       }
       .log-modal-box h2 {
-        margin: 0 0 10px; font-size: 14px; letter-spacing: 0.08em; color: #7fd6ff;
+        margin: 0 0 10px; font-size: var(--fs-lg); letter-spacing: 0.08em; color: #7fd6ff;
       }
       .log-modal-list { list-style: none; margin: 0; padding: 0; }
       .log-modal-list li {
-        padding: 5px 0; font-size: 13px; line-height: 1.6;
+        padding: 5px 0; font-size: var(--fs-md); line-height: 1.6;
         border-bottom: 1px solid rgba(255, 255, 255, 0.06);
       }
       .log-modal-close {
         display: block; width: 100%; margin-top: 14px; padding: 10px;
-        font-family: inherit; font-size: 13px; letter-spacing: 0.05em;
+        font-family: inherit; font-size: var(--fs-md); letter-spacing: 0.05em;
         color: #05060c; background: #7fd6ff; border: none; border-radius: 8px; cursor: pointer;
       }
 
@@ -411,7 +428,7 @@
         position: absolute;
         right: 14px; bottom: 14px;
         padding: 9px 13px;
-        font-size: 11px;
+        font-size: var(--fs-sm);
         color: var(--dim);
         line-height: 1.75;
         text-align: right;
@@ -422,22 +439,11 @@
       }
 
       /* ------------------------------------------------ アクセシビリティ */
-      /* plan/difficulty-modes.md: メッセージログ・メニューの文字サイズを2段階から選べる */
-      body[data-font-size="large"] #log,
-      body[data-font-size="large"] #help,
-      body[data-font-size="large"] #menu,
-      body[data-font-size="large"] #stance,
-      body[data-font-size="large"] #arts,
-      body[data-font-size="large"] #stairsConfirm,
-      body[data-font-size="large"] #doorConfirm,
-      body[data-font-size="large"] #branchEntranceConfirm,
-      body[data-font-size="large"] #skillChoice,
-      body[data-font-size="large"] #town,
-      body[data-font-size="large"] #naming,
-      body[data-font-size="large"] #village-hint,
-      body[data-font-size="large"] .overlay-box,
-      body[data-font-size="large"] .ending-box {
-        zoom: 1.25;
+      /* plan/difficulty-modes.md: メッセージログ・メニューの文字サイズを2段階から選べる。
+         plan/game/archive/base-font-size.md: 個別要素の列挙+zoomをやめ、ベース値の
+         差し替え1行にする(remで書いた全UIへ構造的に効き、列挙漏れが起きない) */
+      html[data-font-size="large"] {
+        font-size: calc(var(--font-base) * 1.25);
       }
 
       /* ------------------------------------------------ 拠点の3D化(plan/town-3d-exploration.md) */
@@ -446,7 +452,7 @@
         position: absolute;
         left: 50%; bottom: 24px; transform: translateX(-50%);
         padding: 8px 16px;
-        font-size: 13px;
+        font-size: var(--fs-md);
         font-weight: 600;
         color: #7fd6ff;
       }
@@ -460,9 +466,9 @@
         padding: 14px 20px;
         text-align: center;
       }
-      #gallery-info h2 { margin: 0 0 6px; font-size: 18px; color: #c9b4ff; }
-      #gallery-info p { margin: 0; font-size: 13px; line-height: 1.6; color: var(--ink); }
-      #gallery-info .hint { margin-top: 10px; font-size: 11px; color: var(--dim); }
+      #gallery-info h2 { margin: 0 0 6px; font-size: var(--fs-xl); color: #c9b4ff; }
+      #gallery-info p { margin: 0; font-size: var(--fs-md); line-height: 1.6; color: var(--ink); }
+      #gallery-info .hint { margin-top: 10px; font-size: var(--fs-sm); color: var(--dim); }
       /*
        * タッチ端末では画面の左側へ寄せ、回転台のモデル(src/view/gallery.ts
        * が同じ条件でfilmOffsetを使ってモデルを右へ寄せる)と左右に分ける
@@ -483,17 +489,19 @@
 
       /* ------------------------------------------------ ダメージ表示 */
       #fx { position: absolute; inset: 0; overflow: hidden; }
+      /* 演出用の例外(plan/game/archive/base-font-size.md): 型スケールに収まらない
+         値のため、remの直指定のまま残す(pxには戻さない) */
       .damage {
         position: absolute;
         transform: translate(-50%, -50%);
-        font-size: 20px;
+        font-size: 1.538rem;
         font-weight: 800;
         color: #ffd9dd;
         text-shadow: 0 2px 6px rgba(0, 0, 0, 0.9), 0 0 2px #000;
         animation: float-up 0.9s ease-out forwards;
         pointer-events: none;
       }
-      .damage.critical { font-size: 27px; color: #ffe27a; }
+      .damage.critical { font-size: 2.077rem; color: #ffe27a; }
       .damage.heal { color: #96f0b8; }
       @keyframes float-up {
         0% { opacity: 0; transform: translate(-50%, -30%) scale(0.7); }
@@ -556,21 +564,21 @@
           left: calc(8px + var(--safe-left));
         }
         #status .row { display: contents; }
-        #hud-depth { font-size: 12px; }
-        #hud-level { font-size: 11px; }
+        #hud-depth { font-size: var(--fs-sm); }
+        #hud-level { font-size: var(--fs-sm); }
         #status .label {
           margin: 0;
           gap: 4px;
-          font-size: 10.5px;
+          font-size: var(--fs-xs);
           white-space: nowrap;
           justify-content: flex-start;
         }
         #status .bar { width: 34px; height: 7px; margin: 0; }
         #hud-exp { display: none; }
-        #hud-status { margin: 0; font-size: 10.5px; }
-        #hud-carry { margin: 0; padding: 2px 7px; font-size: 10.5px; }
+        #hud-status { margin: 0; font-size: var(--fs-xs); }
+        #hud-carry { margin: 0; padding: 2px 7px; font-size: var(--fs-xs); }
         /* 捕獲の見込みも、抱え中の表示と同じくHUDバーの1要素として横に並べる */
-        #hud-capture { margin: 0; padding: 2px 7px; font-size: 10.5px; }
+        #hud-capture { margin: 0; padding: 2px 7px; font-size: var(--fs-xs); }
 
         /* なかまパネルは、丈の低くなったHUDバーのすぐ下へ寄せる。
            高さは無制限にせず、パッド/ボタン側のゾーンを侵食しないようにする */
@@ -603,14 +611,14 @@
         #allies .ally + .ally { margin-top: 4px; }
         #allies .ally-row { margin: 0; flex: 1 1 auto; min-width: 0; }
         #allies .ally-name {
-          display: block; font-size: 11px;
+          display: block; font-size: var(--fs-sm);
           overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
         #allies .ally-hp { display: none; }
         #allies .ally-bar { flex: 0 0 56px; margin: 0; }
         #allies .ally-stance { display: none; }
         #allies .ally-status {
-          font-size: 9.5px; margin: 0; flex: 1 0 100%;
+          font-size: var(--fs-xs); margin: 0; flex: 1 0 100%;
           overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
 
@@ -695,7 +703,7 @@
         background: rgba(10, 13, 24, 0.62);
         border: 1px solid var(--edge);
         color: var(--ink);
-        font-size: 12px;
+        font-size: var(--fs-sm);
         touch-action: none;
       }
       .touch-btn:active { background: rgba(127, 190, 255, 0.28); }
@@ -723,7 +731,7 @@
         background: rgba(10, 13, 24, 0.62);
         border: 1px solid var(--edge);
         color: var(--ink);
-        font-size: 18px;
+        font-size: var(--fs-xl);
         touch-action: none;
       }
       /*
@@ -764,7 +772,7 @@
         background: rgba(255, 255, 255, 0.04);
         border: 1px solid var(--edge);
         color: var(--ink);
-        font-size: 12px;
+        font-size: var(--fs-sm);
         text-align: left;
         touch-action: none;
       }
@@ -799,9 +807,9 @@
       body.rotate-prompt #rotatePrompt { display: flex; }
       #rotatePrompt svg { width: 64px; height: 64px; color: #7fd6ff; }
       #rotatePrompt p {
-        margin: 0; max-width: 280px; font-size: 15px; line-height: 1.7; color: var(--ink);
+        margin: 0; max-width: 280px; font-size: var(--fs-lg); line-height: 1.7; color: var(--ink);
       }
-      #rotatePrompt p.rotate-prompt-note { font-size: 12px; color: var(--dim); }
+      #rotatePrompt p.rotate-prompt-note { font-size: var(--fs-sm); color: var(--dim); }
 
       /* ------------------------------------------------ メニュー */
       #menu, #stance, #arts, #stairsConfirm, #doorConfirm, #branchEntranceConfirm, #skillChoice {
@@ -819,7 +827,7 @@
         backdrop-filter: blur(8px);
       }
       .menu-title {
-        margin: 0; font-size: 13px; font-weight: 700; letter-spacing: 0.1em;
+        margin: 0; font-size: var(--fs-md); font-weight: 700; letter-spacing: 0.1em;
         color: var(--dim); padding-bottom: 8px;
         border-bottom: 1px solid var(--edge);
       }
@@ -835,7 +843,7 @@
        */
       .menu-list { max-height: max(96px, calc(74vh - 140px)); overflow-y: auto; }
       .menu-list li, .menu-sub li {
-        padding: 5px 10px; border-radius: 5px; font-size: 14px;
+        padding: 5px 10px; border-radius: 5px; font-size: var(--fs-lg);
       }
       .menu-list li.selected, .menu-sub li.selected {
         background: rgba(127, 190, 255, 0.20);
@@ -847,11 +855,11 @@
         border-top: 1px solid var(--edge);
       }
       .menu-desc {
-        margin-top: 9px; font-size: 12px; color: var(--dim); line-height: 1.6;
+        margin-top: 9px; font-size: var(--fs-sm); color: var(--dim); line-height: 1.6;
       }
-      .menu-empty { margin-top: 12px; font-size: 13px; color: var(--dim); }
+      .menu-empty { margin-top: 12px; font-size: var(--fs-md); color: var(--dim); }
       .menu-hint {
-        margin-top: 11px; font-size: 11px; color: #6b789e; text-align: right;
+        margin-top: 11px; font-size: var(--fs-sm); color: #6b789e; text-align: right;
       }
 
       /* ------------------------------------------------ 拠点 */
@@ -960,14 +968,14 @@
         }
       }
       .town-box h2 {
-        margin: 0 0 6px; font-size: 22px; letter-spacing: 0.12em; color: #7fd6ff;
+        margin: 0 0 6px; font-size: var(--fs-2xl); letter-spacing: 0.12em; color: #7fd6ff;
       }
       /* 建物・村人ごとの役割メニュー(plan/game/archive/village-scoped-menus.md):
          近づいて入った建物名の見出し */
-      .town-building { margin: 0 0 10px; font-size: 13px; color: #b6c1e4; }
-      .town-stats { margin: 0 0 12px; font-size: 12px; color: var(--dim); }
+      .town-building { margin: 0 0 10px; font-size: var(--fs-md); color: #b6c1e4; }
+      .town-stats { margin: 0 0 12px; font-size: var(--fs-sm); color: var(--dim); }
       .town-lead {
-        margin: 0 0 18px; font-size: 12.5px; color: #b6c1e4; line-height: 1.75;
+        margin: 0 0 18px; font-size: var(--fs-md); color: #b6c1e4; line-height: 1.75;
       }
       /*
        * 拠点の機能が増えるほど列も増えていくため(現在14列)、幅を均等割り
@@ -1000,13 +1008,13 @@
       }
       .town-col.active { border-color: #7fd6ff; box-shadow: 0 0 0 1px rgba(127, 214, 255, 0.35); }
       .town-col-title {
-        margin: 0 0 7px; font-size: 12px; font-weight: 400; color: var(--dim); letter-spacing: 0.08em;
+        margin: 0 0 7px; font-size: var(--fs-sm); font-weight: 400; color: var(--dim); letter-spacing: 0.08em;
         padding-bottom: 7px; border-bottom: 1px solid var(--edge);
         cursor: pointer;
       }
       .town-col ul { list-style: none; margin: 0; padding: 0; }
-      .town-col li { padding: 4px 8px; border-radius: 5px; font-size: 13.5px; cursor: pointer; }
-      .town-col li.empty { color: #5c6788; font-size: 12px; }
+      .town-col li { padding: 4px 8px; border-radius: 5px; font-size: var(--fs-md); cursor: pointer; }
+      .town-col li.empty { color: #5c6788; font-size: var(--fs-sm); }
       /* セーブデータの管理(plan/game/save-delete-touch.md): ダイブ中は無効表示にする */
       .town-col li.disabled { color: var(--dim); }
       .town-col li.selected {
@@ -1017,12 +1025,12 @@
       .town-col li.chosen::before { content: "✓ "; }
       .town-col li.axis { color: #ffe27a; }
       .town-desc {
-        margin: 14px 0 0; min-height: 20px; font-size: 12px; color: var(--dim);
+        margin: 14px 0 0; min-height: 20px; font-size: var(--fs-sm); color: var(--dim);
         overflow-wrap: break-word;
       }
-      .town-hint { margin: 10px 0 0; font-size: 11px; color: #6b789e; text-align: right; }
-      .town-mood { margin: 4px 0 10px; font-size: 11px; color: #9aa8cc; }
-      .town-flavor { margin: 4px 0 0; font-size: 11px; color: #8a94b8; font-style: italic; }
+      .town-hint { margin: 10px 0 0; font-size: var(--fs-sm); color: #6b789e; text-align: right; }
+      .town-mood { margin: 4px 0 10px; font-size: var(--fs-sm); color: #9aa8cc; }
+      .town-flavor { margin: 4px 0 0; font-size: var(--fs-sm); color: #8a94b8; font-style: italic; }
       /* タッチ操作向け(#308): どの列にいてもSpaceで潜れるのと同じ操作を、
          キーボードが無くても行えるようにする常時表示のボタン。.town-boxが
          自前でスクロールするので、position:stickyでその下端に張り付ける */
@@ -1030,7 +1038,7 @@
       .town-depart-button {
         flex: none;
         display: block; width: auto; margin-top: 16px;
-        padding: 10px; font-size: 14px; letter-spacing: 0.08em;
+        padding: 10px; font-size: var(--fs-lg); letter-spacing: 0.08em;
         color: #05060c; background: #7fd6ff; border: none; border-radius: 8px;
         cursor: pointer;
       }
@@ -1051,7 +1059,7 @@
        */
       @media (max-height: 560px) {
         .town-box { padding: 12px 18px 10px; }
-        .town-box h2 { font-size: 17px; margin-bottom: 2px; }
+        .town-box h2 { font-size: 1.308rem; margin-bottom: 2px; }
         .town-building { margin-bottom: 4px; }
         .town-stats { margin-bottom: 4px; }
         /* 低い画面では出さない(issue #519)。2行ぶん(約44px)を列に回す。
@@ -1111,11 +1119,11 @@
         text-align: center;
       }
       .naming-box h3 {
-        margin: 0 0 14px; font-size: 15px; color: #7fd6ff; font-weight: 700;
+        margin: 0 0 14px; font-size: var(--fs-lg); color: #7fd6ff; font-weight: 700;
       }
       .naming-input {
         width: 100%; box-sizing: border-box;
-        padding: 8px 10px; font-size: 15px;
+        padding: 8px 10px; font-size: var(--fs-lg);
         background: rgba(255, 255, 255, 0.06);
         border: 1px solid var(--edge); border-radius: 6px;
         color: inherit; font-family: inherit;
@@ -1129,7 +1137,7 @@
       .naming-button {
         flex: 1;
         padding: 9px 10px;
-        font-family: inherit; font-size: 13px;
+        font-family: inherit; font-size: var(--fs-md);
         color: var(--ink);
         background: rgba(255, 255, 255, 0.06);
         border: 1px solid var(--edge); border-radius: 6px;
@@ -1140,7 +1148,7 @@
         color: #05060c; background: #7fd6ff; border-color: #7fd6ff; font-weight: 700;
       }
       .naming-hint {
-        margin: 10px 0 0; font-size: 11px; color: #6b789e; text-align: right;
+        margin: 10px 0 0; font-size: var(--fs-sm); color: #6b789e; text-align: right;
       }
 
       /* ------------------------------------------------ セーブ枠選択(plan/save-slots.md) */
@@ -1159,7 +1167,7 @@
         border-radius: 12px;
       }
       .slot-box h2 {
-        margin: 0 0 16px; font-size: 18px; letter-spacing: 0.1em; color: #7fd6ff; text-align: center;
+        margin: 0 0 16px; font-size: var(--fs-xl); letter-spacing: 0.1em; color: #7fd6ff; text-align: center;
       }
       .slot-box ul { list-style: none; margin: 0; padding: 0; }
       .slot-row {
@@ -1172,27 +1180,27 @@
         background: rgba(127, 214, 255, 0.16);
         border-color: #7fd6ff;
       }
-      .slot-row .slot-name { font-size: 14.5px; }
+      .slot-row .slot-name { font-size: var(--fs-lg); }
       .slot-row-right { display: flex; align-items: center; gap: 8px; }
-      .slot-row .slot-detail { font-size: 11.5px; color: var(--dim); }
+      .slot-row .slot-detail { font-size: var(--fs-sm); color: var(--dim); }
       .slot-row.empty .slot-name { color: #96f0b8; }
       /* スマホからの削除(plan/game/save-delete-touch.md): Deleteキーが無い
          タッチ環境向けの常設ボタン。行タップ(選択)とは独立して確認へ入る */
       .slot-delete-btn {
         margin-left: 10px; padding: 5px 10px;
-        font-family: inherit; font-size: 11.5px;
+        font-family: inherit; font-size: var(--fs-sm);
         color: var(--warn); background: rgba(230, 180, 85, 0.12);
         border: 1px solid var(--warn); border-radius: 6px;
         cursor: pointer; flex-shrink: 0;
       }
       .slot-delete-btn:active { background: rgba(230, 180, 85, 0.28); }
-      .slot-hint { margin: 14px 0 0; font-size: 11px; color: #6b789e; text-align: center; }
-      .slot-confirm { margin: 10px 0 0; font-size: 12px; color: var(--warn); text-align: center; }
+      .slot-hint { margin: 14px 0 0; font-size: var(--fs-sm); color: #6b789e; text-align: center; }
+      .slot-confirm { margin: 10px 0 0; font-size: var(--fs-sm); color: var(--warn); text-align: center; }
       .slot-confirm-actions { display: flex; gap: 10px; margin-top: 10px; }
       .slot-confirm-btn {
         flex: 1;
         padding: 9px 10px;
-        font-family: inherit; font-size: 13px;
+        font-family: inherit; font-size: var(--fs-md);
         color: var(--ink);
         background: rgba(255, 255, 255, 0.06);
         border: 1px solid var(--edge); border-radius: 6px;
@@ -1214,10 +1222,10 @@
       }
       .overlay-box { text-align: center; padding: 30px 44px; }
       .overlay-box h2 {
-        margin: 0 0 12px; font-size: 30px; letter-spacing: 0.1em; color: #7fd6ff;
+        margin: 0 0 12px; font-size: var(--fs-3xl); letter-spacing: 0.1em; color: #7fd6ff;
       }
-      .overlay-box p { margin: 6px 0; font-size: 15px; }
-      .overlay-box .hint { margin-top: 20px; font-size: 12px; color: var(--dim); }
+      .overlay-box p { margin: 6px 0; font-size: var(--fs-lg); }
+      .overlay-box .hint { margin-top: 20px; font-size: var(--fs-sm); color: var(--dim); }
       /*
        * ダイブ終了オーバーレイの「拠点にもどる」(plan/game/gameover-touch-return.md)。
        * #overlayはinset:0・pointer-events:autoで画面全体を覆い、下にある
@@ -1230,7 +1238,7 @@
         padding: 12px 28px;
         min-height: 44px;
         font-family: inherit;
-        font-size: 14px;
+        font-size: var(--fs-lg);
         letter-spacing: 0.08em;
         color: #05060c;
         background: #7fd6ff;
@@ -1256,12 +1264,12 @@
         overflow-y: auto;
       }
       .ending-box h2 {
-        margin: 0 0 16px; font-size: 22px; letter-spacing: 0.14em; color: #7fd6ff;
+        margin: 0 0 16px; font-size: var(--fs-2xl); letter-spacing: 0.14em; color: #7fd6ff;
       }
       .ending-box ul { list-style: none; margin: 0; padding: 0; }
-      .ending-box li { margin: 6px 0; font-size: 14px; color: var(--ink); }
-      .ending-box p { margin: 8px 0; font-size: 15px; line-height: 1.7; }
-      .ending-hint { margin-top: 22px; font-size: 12px; color: var(--dim); }
+      .ending-box li { margin: 6px 0; font-size: var(--fs-lg); color: var(--ink); }
+      .ending-box p { margin: 8px 0; font-size: var(--fs-lg); line-height: 1.7; }
+      .ending-hint { margin-top: 22px; font-size: var(--fs-sm); color: var(--dim); }
 
       /* ------------------------------------------------ 出先デバッグパネル(plan/mobile-debug-panel.md) */
       /* ?debug=1のときだけ src/ui/debug-panel.ts が中身を生成する。通常は空のまま非表示 */
@@ -1274,17 +1282,17 @@
         overflow-y: auto;
         padding: 8px 10px;
         pointer-events: auto;
-        font-size: 11px;
+        font-size: var(--fs-sm);
         line-height: 1.5;
         z-index: 30;
       }
       #debugPanel:not(:empty) { display: block; }
       .debug-panel-title {
-        margin: 0 0 6px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: #ff9ea6;
+        margin: 0 0 6px; font-size: var(--fs-sm); font-weight: 700; letter-spacing: 0.08em; color: #ff9ea6;
       }
       .debug-panel-row { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
       .debug-panel-row button {
-        font-family: inherit; font-size: 11px; padding: 4px 8px;
+        font-family: inherit; font-size: var(--fs-sm); padding: 4px 8px;
         border-radius: 6px; background: rgba(255, 255, 255, 0.06);
         border: 1px solid var(--edge); color: var(--ink); cursor: pointer;
       }
@@ -1298,7 +1306,7 @@
       .debug-panel-snapshot {
         margin: 0; padding: 6px; max-height: 160px; overflow-y: auto;
         background: rgba(255, 255, 255, 0.04); border-radius: 6px;
-        white-space: pre-wrap; word-break: break-all; font-size: 10px;
+        white-space: pre-wrap; word-break: break-all; font-size: var(--fs-xs);
       }
 
       #loading {
@@ -1308,9 +1316,9 @@
         background: #05060c; z-index: 10;
       }
       #loading h1 {
-        font-size: 20px; letter-spacing: 0.26em; font-weight: 600; color: #7fd6ff; margin: 0;
+        font-size: 1.538rem; letter-spacing: 0.26em; font-weight: 600; color: #7fd6ff; margin: 0;
       }
-      #loading p { font-size: 12px; color: var(--dim); margin: 0; }
+      #loading p { font-size: var(--fs-sm); color: var(--dim); margin: 0; }
     </style>
   </head>
   <body>

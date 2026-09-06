@@ -1398,11 +1398,12 @@ class App {
   }
 
   /**
-   * アクセシビリティ(plan/difficulty-modes.md)。メッセージログ・メニューの
-   * 文字サイズを`document.body`のdata属性に反映する(CSS側で拾う)
+   * アクセシビリティ(plan/difficulty-modes.md)。文字サイズ設定を`document.documentElement`
+   * のdata属性に反映する(plan/game/archive/base-font-size.md: ベースフォントサイズを
+   * html側で差し替える1行のCSSで拾うため、bodyでなくhtmlに付与する)
    */
   private applyFontSize(): void {
-    document.body.dataset.fontSize = this.save.fontSize;
+    document.documentElement.dataset.fontSize = this.save.fontSize;
   }
 
   /** サウンド再生(plan/audio-playback.md)。セーブされたミュート・音量をAudioPlayerへ反映する */
