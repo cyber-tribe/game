@@ -9,15 +9,17 @@ import { DASH_HOLD_THRESHOLD, Input } from "../src/view/input";
  * (この機能自体がdt積算の状態機械のため、それが一番素直に確かめられる)。
  *
  * src/main.ts の step() がやっているのと同じ判定(タップなら
- * consumeTapMove()、それ以外はisDashing())を1フレームぶんまとめた
+ * takeTapMove()、それ以外はisDashing())を1フレームぶんまとめた
  * ヘルパーを使い、「このフレームで移動コマンドを送るか」を数える
  */
 function pollMove(input: Input): boolean {
-  // src/main.ts の step() も、方向が無いフレームでは
-  // consumeTapMove()/isDashing() を呼ばない(direction() === null で
-  // 早期returnする)。ここでも同じ順序を守る
+  // src/main.ts の step() も、まずtakeTapMove()を優先する(確定済みの
+  // タップは、キーがもう離されてdirection()がnullに戻っていても送る)。
+  // 取り出せなければ、方向が無いフレームではisDashing()も呼ばない
+  // (direction() === null で早期returnする)
+  if (input.takeTapMove() !== null) return true;
   if (input.direction() === null) return false;
-  return input.consumeTapMove() || input.isDashing();
+  return input.isDashing();
 }
 
 /** 1フレームぶん(dt秒)進め、そのフレームで移動を送るならtrueを返す */

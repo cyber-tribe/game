@@ -1267,17 +1267,20 @@ class App {
       return;
     }
 
-    const dir = this.input.direction();
+    // 一歩/ダッシュ(plan/step-movement-and-dash.md): 押した瞬間の1回は
+    // 必ず一歩ぶん送る(タップ)。takeTapMove()は確定した時点の向きを返す
+    // ため、render loopが間引かれてこのフレームまでにキーがもう離されて
+    // いても(direction()がnullに戻っていても)正しい向きへ1マス進める
+    // (#745/#746/#747/#748)。しきい値を超えて押し続けているあいだは
+    // 従来どおりdirection()を毎フレーム見てダッシュを送り続ける
+    const tapDir = this.input.takeTapMove();
+    const dir = tapDir ?? this.input.direction();
     if (dir === null) return;
     if (this.input.turnOnly) {
       this.submit({ type: "face", dir });
       return;
     }
-
-    // 一歩/ダッシュ(plan/step-movement-and-dash.md): 押した瞬間の1回は
-    // 必ず一歩ぶん送る(タップ)。しきい値を超えて押し続けているあいだは
-    // 従来どおり毎フレーム送り続ける(ダッシュ)
-    if (!this.input.consumeTapMove() && !this.input.isDashing()) return;
+    if (tapDir === null && !this.input.isDashing()) return;
 
     const before = this.game.player.pos;
     this.submit({ type: "move", dir });

@@ -64,7 +64,7 @@ export async function startInjectedRun(page: Page, payload: InjectedRunPayload):
  * 仮想パッド(#touchPad)を実際にドラッグする(plan/touch-controls.md)。
  * `dx`/`dy`は見た目どおり(画面上で右に倒したいなら`dx>0`)で指定する。
  * DASH_HOLD_THRESHOLD(0.25秒)未満で離せば、押した瞬間の1回ぶんだけ
- * 移動コマンドが発行される(src/view/input.ts の consumeTapMove())ので、
+ * 移動コマンドが発行される(src/view/input.ts の takeTapMove())ので、
  * holdMsは既定で短くしてタップ相当(1マスだけ進む)にしてある
  */
 export async function dragTouchPad(page: Page, dx: number, dy: number, holdMs = 60): Promise<void> {
@@ -88,7 +88,7 @@ export async function dragTouchPad(page: Page, dx: number, dy: number, holdMs = 
     clientY: originY + dy,
     button: 0,
   });
-  // consumeTapMove()が拾えるよう、押している間に最低1フレームは進める
+  // takeTapMove()が拾えるよう、押している間に最低1フレームは進める
   await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
   await page.waitForTimeout(holdMs);
   await pad.dispatchEvent("pointerup", {
