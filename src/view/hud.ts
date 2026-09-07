@@ -210,6 +210,12 @@ export class Hud {
       name.className = "ally-name";
       name.textContent = displayActorName(ally);
 
+      // 仲間のレベル表示(plan/game/archive/ally-hud-hp-and-level.md): 従来は
+      // 描画自体が無く、レベルアップしても表示に反映されなかった実装漏れ
+      const level = document.createElement("span");
+      level.className = "ally-level";
+      level.textContent = t("hud.level", { level: ally.level });
+
       const hp = document.createElement("span");
       hp.className = "ally-hp";
       hp.textContent = `${Math.max(0, ally.hp)} / ${ally.maxHp}`;
@@ -227,7 +233,7 @@ export class Hud {
       stance.className = "ally-stance";
       stance.textContent = t("hud.stance", { name: ALLY_STANCE_NAMES[ally.stance ?? "free"] });
 
-      row.append(name, hp);
+      row.append(name, level, hp);
       // 1体ぶんを入れ物で包む(issue #552)。タッチ端末のCSSがこの入れ物を
       // flex行にして「名前+小さなHPバー」の1行へ圧縮する。デスクトップは
       // 中身がブロックのまま縦に積まれるので見た目は変わらない
