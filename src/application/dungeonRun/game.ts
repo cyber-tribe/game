@@ -334,8 +334,9 @@ const LIGHT_BARREL_OPEN_VISION = 2;
 const LIGHT_BARREL_CARRY_VISION_BONUS = 2;
 // ---- plan/tarukurabe-minigame.md ----
 /**
- * 遠の的(距離9)は通常のBARREL_RANGE(8)より遠いため、専用モードだけ
- * タルの飛距離を伸ばす(他のダイブの投擲距離には一切影響しない)
+ * 遠の的(距離9)は通常のBARREL_RANGE(plan/game/archive/barrel-throw-range.md
+ * で8→5に変更済み)より遠いため、専用モードだけタルの飛距離を伸ばす
+ * (他のダイブの投擲距離には一切影響しない)
  */
 const TARUKURABE_THROW_RANGE = 9;
 export { TARUKURABE_PERFECT_SCORE };
