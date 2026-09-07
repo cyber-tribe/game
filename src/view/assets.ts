@@ -139,6 +139,30 @@ function toToonMaterial(
   // 「どのマテリアルが顔か」を名前で選ぶので、ここで名前が落ちると
   // 見た目は正常なのにまばたき・あくびだけ静かに止まる
   material.name = source.name;
+  // **alphaTest と side も必ず引き継ぐ。** glTF の alphaMode=MASK は
+  // three.js では transparent ではなく alphaTest で表現されるので、
+  // ここで落ちると切り抜きが効かず、板が不透明な四角として描かれる
+  // (ホネガラミの植物カード・手のカードがそうなった)。
+  // 板は裏からも見えないと消えるので side も引き継ぐ。
+  material.alphaTest = std.alphaTest;
+  material.side = std.side;
+  // 植物カード・手のカードのような**切り抜き**は、モデル側が glTF の
+  // material extras に alphaCutout を入れてくる(tools/models/honegarami.py)。
+  // Blender 5 では blend_method の CLIP が廃止されて alphaMode=MASK を
+  // 書き出せず、BLEND になる。BLEND は深度を書かないので大きな板だと
+  // 前後関係が壊れ、不透明な灰色の板に見える。ここで alphaTest へ戻す。
+  // three.js の GLTFLoader はマテリアルの extras を userData へ移さない
+  // 版があるので、**マテリアル名の接尾辞**でも判定する
+  const cutout =
+    (source.userData as { alphaCutout?: number } | undefined)?.alphaCutout ??
+    (/_card(\.\d+)?$/.test(source.name) ? 0.5 : undefined);
+  if (typeof cutout === "number" && cutout > 0) {
+    material.alphaTest = cutout;
+    material.transparent = false;
+    material.depthWrite = true;
+  } else if (std.alphaTest > 0) {
+    material.depthWrite = true;
+  }
   if (withRim) addRimLight(material);
   return material;
 }
@@ -174,6 +198,45 @@ function addRimLight(material: THREE.MeshToonMaterial): void {
 }
 
 /**
+ * 輪郭線メッシュに**本体と同じ切り抜き**を渡すための情報。
+ *
+ * アルファ抜きのカード(蔦の房・手)は本体側でalphaTestを効かせて
+ * 抜いているが、輪郭線メッシュはジオメトリだけを共有した別マテリアル
+ * なので、そのままだと**板の全面が不透明な輪郭色で塗られる**。
+ * 実際ホネガラミの手カードがエンジン内で灰色の板になっていた原因が
+ * これで、本体の抜きは正しく効いていた(材質のalphaTestは0.5)のに
+ * 手前に無地の板が乗っていた。
+ */
+type OutlineCutout = { map: THREE.Texture; alphaTest: number };
+
+function cutoutOf(material: THREE.Material | THREE.Material[]): OutlineCutout | undefined {
+  const list = Array.isArray(material) ? material : [material];
+  for (const m of list) {
+    const std = m as THREE.MeshStandardMaterial;
+    if (std && std.alphaTest > 0 && std.map) return { map: std.map, alphaTest: std.alphaTest };
+  }
+  return undefined;
+}
+
+/**
+ * 切り抜きを輪郭線マテリアルへ適用する。テクスチャは**アルファだけ**を
+ * 使い、色は輪郭色のまま残す(mapのRGBを掛けると輪郭が色付きになる)。
+ */
+function applyCutout(material: THREE.MeshBasicMaterial, cutout: OutlineCutout): void {
+  material.map = cutout.map;
+  material.alphaTest = cutout.alphaTest;
+  material.transparent = false;
+}
+
+/** onBeforeCompileでmapのRGBを捨てる(アルファはalphatest_fragmentが使う) */
+function stripCutoutColor(shader: { fragmentShader: string }): void {
+  shader.fragmentShader = shader.fragmentShader.replace(
+    "#include <map_fragment>",
+    "#include <map_fragment>\ndiffuseColor.rgb = diffuse;",
+  );
+}
+
+/**
  * 輪郭線用マテリアル。背面だけを描画し、頂点シェーダーで法線方向に
  * 少し押し出す(Inverted Hull法)。
  *
@@ -181,13 +244,17 @@ function addRimLight(material: THREE.MeshToonMaterial): void {
  * スキニング適用前のローカル法線でオフセットすると、ボーンが回転した
  * 状態で押し出し方向がずれる。
  */
-function makeOutlineMaterial(color: THREE.Color, thickness: number): THREE.MeshBasicMaterial {
+function makeOutlineMaterial(
+  color: THREE.Color, thickness: number, cutout?: OutlineCutout,
+): THREE.MeshBasicMaterial {
   const material = new THREE.MeshBasicMaterial({
     color,
     side: THREE.BackSide,
   });
+  if (cutout) applyCutout(material, cutout);
   material.onBeforeCompile = (shader) => {
     shader.uniforms.outlineThickness = { value: thickness };
+    if (cutout) stripCutoutColor(shader);
     shader.vertexShader = shader.vertexShader
       .replace("#include <common>", "#include <common>\nuniform float outlineThickness;")
       .replace(
@@ -210,13 +277,17 @@ function makeOutlineMaterial(color: THREE.Color, thickness: number): THREE.MeshB
  * (`normal`)をそのまま使えば十分。押し出しは`#include <begin_vertex>`
  * (常に存在する)の直後でよい。
  */
-function makeRigidOutlineMaterial(color: THREE.Color, thickness: number): THREE.MeshBasicMaterial {
+function makeRigidOutlineMaterial(
+  color: THREE.Color, thickness: number, cutout?: OutlineCutout,
+): THREE.MeshBasicMaterial {
   const material = new THREE.MeshBasicMaterial({
     color,
     side: THREE.BackSide,
   });
+  if (cutout) applyCutout(material, cutout);
   material.onBeforeCompile = (shader) => {
     shader.uniforms.outlineThickness = { value: thickness };
+    if (cutout) stripCutoutColor(shader);
     shader.vertexShader = shader.vertexShader
       .replace("#include <common>", "#include <common>\nuniform float outlineThickness;")
       .replace(
@@ -235,7 +306,10 @@ function makeRigidOutlineMaterial(color: THREE.Color, thickness: number): THREE.
  * 複数のSkinnedMeshが同じスケルトンを共有する構成を正しく扱う)。
  */
 function addOutlineMesh(mesh: THREE.SkinnedMesh, thickness: number): void {
-  const outline = new THREE.SkinnedMesh(mesh.geometry, makeOutlineMaterial(outlineColorFor(mesh.material), thickness));
+  const outline = new THREE.SkinnedMesh(
+    mesh.geometry,
+    makeOutlineMaterial(outlineColorFor(mesh.material), thickness, cutoutOf(mesh.material)),
+  );
   outline.name = `${mesh.name}__outline`;
   outline.bind(mesh.skeleton, mesh.bindMatrix);
   outline.castShadow = false;
@@ -269,7 +343,10 @@ function addOutlineMesh(mesh: THREE.SkinnedMesh, thickness: number): void {
  * 効果は大きい。
  */
 function addRigidOutlineMesh(mesh: THREE.Mesh, thickness: number): void {
-  const outline = new THREE.Mesh(mesh.geometry, makeRigidOutlineMaterial(outlineColorFor(mesh.material), thickness));
+  const outline = new THREE.Mesh(
+    mesh.geometry,
+    makeRigidOutlineMaterial(outlineColorFor(mesh.material), thickness, cutoutOf(mesh.material)),
+  );
   outline.name = `${mesh.name}__outline`;
   outline.castShadow = false;
   outline.receiveShadow = false;
@@ -286,6 +363,22 @@ function addRigidOutlineMesh(mesh: THREE.Mesh, thickness: number): void {
  *   「光」なので、囲むと暗い輪になる。輪郭線はシルエットを立てるための
  *   もので、ハイライトに付けるものではない。
  */
+/**
+ * **アルファ抜きのカードには輪郭線を付けない。**
+ *
+ * カードは平らな板なので、法線方向へ押し出す反転ハル法では「一回り
+ * 大きい板」になるだけで輪郭にならない。斜めに交差させたカードでは
+ * その板が真横から見えて**縦一本の帯**として絵に残る(ホネガラミの
+ * 手が、指の絵の上に灰色の縦帯を重ねた状態になっていた)。
+ */
+function isCutoutCard(material: THREE.Material | THREE.Material[]): boolean {
+  const list = Array.isArray(material) ? material : [material];
+  return list.some((m) => {
+    const std = m as THREE.MeshStandardMaterial | undefined;
+    return !!std && std.alphaTest > 0 && !!std.map;
+  });
+}
+
 function skipOutline(material: THREE.Material | THREE.Material[]): boolean {
   const list = Array.isArray(material) ? material : [material];
   return list.some((m) => {
@@ -328,10 +421,9 @@ export function collectOutlineTargets(root: THREE.Object3D): {
     mesh.material = Array.isArray(mesh.material)
       ? mesh.material.map((m) => toToonMaterial(m, isSkinned, hasVertexColors))
       : toToonMaterial(mesh.material, isSkinned, hasVertexColors);
+    if (mesh.name.endsWith("__outline") || isCutoutCard(mesh.material)) return;
     if (isSkinned) skinned.push(mesh as THREE.SkinnedMesh);
-    else if (!mesh.name.endsWith("__outline") && !skipOutline(mesh.material)) {
-      rigid.push(mesh);
-    }
+    else if (!skipOutline(mesh.material)) rigid.push(mesh);
   });
   return { skinned, rigid };
 }
