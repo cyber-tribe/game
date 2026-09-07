@@ -2,8 +2,12 @@ import type { Dir, Vec2 } from "../../core/grid";
 import type { Actor, FloorState } from "../../core/types";
 import { actorAt, barrelAt, walkLine } from "../../core/types";
 
-/** タルを投げたときの基本射程 */
-export const BARREL_RANGE = 8;
+/**
+ * タルを投げたときの基本射程(plan/game/archive/barrel-throw-range.md)。
+ * 以前は8で、標準的な部屋をほぼ端から端まで一撃で届いてしまい、位置取りの
+ * 駆け引きが薄れていたため詰めた
+ */
+export const BARREL_RANGE = 5;
 /** スキル「かるがる」(plan/game/archive/run-build-skills.md): タルの投げ射程+2 */
 export const LIGHT_CARRY_RANGE_BONUS = 2;
 
