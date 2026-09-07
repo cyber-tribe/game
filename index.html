@@ -300,18 +300,26 @@
         padding-bottom: 6px; margin-bottom: 6px;
         border-bottom: 1px solid var(--edge);
       }
+      /* 名前+レベル(plan/game/archive/ally-hud-hp-and-level.md)をまとめ、
+         HP数値はmargin-left: autoで右端へ寄せる(space-betweenだと3要素目の
+         レベルが名前から離れて中央寄りに浮いてしまうため) */
       .ally-row {
-        display: flex; justify-content: space-between; align-items: baseline;
+        display: flex; align-items: baseline; gap: 6px;
         font-size: var(--fs-md); margin-top: 6px;
       }
       .ally-name { color: #c9b4ff; font-weight: 600; }
-      .ally-hp { font-size: var(--fs-sm); color: var(--dim); }
+      .ally-level { color: var(--dim); font-size: var(--fs-sm); flex-shrink: 0; }
+      .ally-hp { font-size: var(--fs-sm); color: var(--dim); margin-left: auto; flex-shrink: 0; }
       .ally-bar {
         height: 6px; margin-top: 3px; border-radius: 4px;
         background: rgba(255, 255, 255, 0.09); overflow: hidden;
       }
       .ally-bar > i {
         display: block; height: 100%; border-radius: 4px;
+        /* 瀕死でもバーが視認できるよう最低幅を確保する(plan/game/archive/
+           ally-hud-hp-and-level.md)。コンパクト表示はHP数値を隠すため、
+           割合0近くでバーが消えると状態が読めなくなる */
+        min-width: 3px;
         background: linear-gradient(90deg, #8a6ce8, #b39cff);
         transition: width 0.18s ease-out;
       }
@@ -609,13 +617,24 @@
            .ally-row(名前を含む)が0pxまで潰れて名前が完全に見えなくなっていた */
         #allies .ally { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
         #allies .ally + .ally { margin-top: 4px; }
-        #allies .ally-row { margin: 0; flex: 1 1 auto; min-width: 0; }
+        #allies .ally-row { margin: 0; flex: 1 1 auto; min-width: 0; gap: 4px; }
         #allies .ally-name {
-          display: block; font-size: var(--fs-sm);
+          display: block; font-size: var(--fs-sm); min-width: 0;
           overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
+        /* レベルは名前の直後に残す(plan/game/archive/ally-hud-hp-and-level.md)。
+           名前が長ければ.ally-nameのellipsisで縮み、レベルは省略しない */
+        #allies .ally-level { font-size: var(--fs-xs); flex-shrink: 0; }
         #allies .ally-hp { display: none; }
-        #allies .ally-bar { flex: 0 0 56px; margin: 0; }
+        /*
+         * バーを固定幅(56px)から伸縮(flex: 1 1 auto)へ変更
+         * (plan/game/archive/ally-hud-hp-and-level.md)。固定幅+折り返し許可の
+         * 組み合わせは、名前が短い仲間だとパネルが名前+バーぶんまで縮み、実機の
+         * フォントメトリクス次第でバーが次の行に折り返して見切れる不具合があった。
+         * 伸縮にすることでバーは必ず名前と同じ行に収まり、幅が不足すれば
+         * バー自身が縮む(min-widthで最低限の視認性は確保する)
+         */
+        #allies .ally-bar { flex: 1 1 auto; min-width: 40px; max-width: 72px; margin: 0; }
         #allies .ally-stance { display: none; }
         #allies .ally-status {
           font-size: var(--fs-xs); margin: 0; flex: 1 0 100%;
