@@ -21,9 +21,35 @@ const MODEL_DIR = join(import.meta.dirname, "..", "public", "models");
  * にじむ(実測: 顔1,212 texels/unit では口の線が保てない)。
  * 同時に十数体描かれるモンスター・村人の枠は据え置く。
  */
-const SIZE_BUDGET: Record<string, number> = { garudo: 2600 * 1024 };
+const SIZE_BUDGET: Record<string, number> = {
+  garudo: 2600 * 1024,
+  /**
+   * ホネガラミは三角形枠を 24,000 に上げてある(TRI_BUDGET のコメント参照)。
+   * 容量はほぼ三角形数に比例する ―― 実測 20,060三角形でメッシュ 885KB、
+   * テクスチャ 90KB。既定 700KB は約12,000三角形ぶんなので、枠を上げた
+   * 以上ここも合わせないと意味がない。ガルド(24,000三角形 / 2,600KB)と
+   * 同じ比率で 1,400KB とする。
+   */
+  honegarami: 1400 * 1024,
+};
 const TRI_BUDGET: Record<string, number> = {
   garudo: 24000,
+  /**
+   * ホネガラミは設定画の書き込み密度が他のモンスターと桁違いで、
+   * 骨・骨塊・板状骨・主要蔓・二次蔓・細枝・巻付・外周のレースという
+   * 8層でできている。層ごとにLOD(断面4面・補間最小・外周はalpha card)
+   * を通しても 20,000 を切れなかった。
+   *
+   * 既定 12,000 は「同時に十数体描かれる」ことが根拠だが、この種は
+   *   - weight 4(野生の抽選で最も稀)
+   *   - minFloor 6(深い階のみ)
+   *   - idleSpeedMul 0.3(ほとんど動かない)
+   * なので、群れで画面を埋める種ではない。
+   *
+   * 削るならまず外周のレース(alpha card 40枚=80三角形で、幾何版
+   * 13,948三角形の代わり)と同じ方法を、二次蔓・細枝へも広げる。
+   */
+  honegarami: 24000,
 };
 const DEFAULT_SIZE_BUDGET = 700 * 1024;
 const DEFAULT_TRI_BUDGET = 12000;

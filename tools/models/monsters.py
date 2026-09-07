@@ -14,6 +14,7 @@ import math
 
 import akubitokage
 import common as C
+import honegarami
 import madoromi
 from mathutils import Matrix, Vector
 
@@ -1499,119 +1500,8 @@ def madoromi_animations():
 
 # =================================================================== ホネガラミ
 
-HONE_HALF = {
-    "hip": (0.0, 0.0, 0.36),
-    "chest": (0.0, 0.0, 0.56),
-    "neck": (0.0, 0.0, 0.66),
-    "head": (0.0, -0.01, 0.78),
-    "crown": (0.0, 0.0, 0.88),
-    "shoulder.L": (0.135, 0.0, 0.595),
-    "elbow.L": (0.205, 0.01, 0.47),
-    "hand.L": (0.205, -0.03, 0.34),
-    "thigh.L": (0.072, 0.0, 0.32),
-    "knee.L": (0.078, 0.0, 0.17),
-    "foot.L": (0.082, -0.03, 0.03),
-}
-HONE_RADII_HALF = {
-    # 手足はぐっと細く、胴も絞る。細い胴に太い肋骨を重ねることで
-    # 「骨が浮いている」silhouette を作る
-    "hip": 0.062, "chest": 0.060, "neck": 0.030, "head": 0.108, "crown": 0.062,
-    "shoulder.L": 0.030, "elbow.L": 0.022, "hand.L": 0.030,
-    "thigh.L": 0.032, "knee.L": 0.026, "foot.L": 0.034,
-}
-HONE_BONES_HALF = [
-    ("hip", "chest"), ("chest", "neck"), ("neck", "head"), ("head", "crown"),
-    ("chest", "shoulder.L"), ("shoulder.L", "elbow.L"), ("elbow.L", "hand.L"),
-    ("hip", "thigh.L"), ("thigh.L", "knee.L"), ("knee.L", "foot.L"),
-]
-
-
 def build_honegarami():
-    """
-    骸骨の剣士。ガルドと同じ人型の骨組みだが、四肢をぐっと細くして骨らしくし、
-    肋骨と眼窩を足してある。
-    """
-    joints = C.mirrored(HONE_HALF)
-    radii = C.mirrored_radii(HONE_RADII_HALF)
-    bones = C.mirrored_bones(HONE_BONES_HALF)
-
-    body = C.build_skinned("honegarami", joints, bones, radii, root="hip", subsurf=2)
-    C.assign_material(body, C.make_material("hone_bone", (0.88, 0.86, 0.76), roughness=0.72))
-
-    extras = []
-    bone_mat = C.make_material("hone_bone2", (0.88, 0.86, 0.76), roughness=0.72)
-    dark = C.make_material("hone_socket", (0.05, 0.05, 0.07), roughness=0.9)
-
-    # 顎。頭を球のままにせず、下側に張り出させて頭蓋らしい輪郭にする
-    jaw = C.uv_sphere("hone_jaw", (0.0, -0.048, 0.712), 0.082,
-                      segments=18, rings=12, scale=(0.92, 1.12, 0.58))
-    C.assign_material(jaw, bone_mat)
-    extras.append(jaw)
-
-    for side in (-1.0, 1.0):
-        socket = C.uv_sphere(f"hone_socket{side}", (0.046 * side, -0.086, 0.800), 0.034,
-                             segments=14, rings=10, scale=(1.0, 0.85, 1.15))
-        C.assign_material(socket, dark)
-        extras.append(socket)
-        # 眼窩の奥で光る目
-        glow = C.uv_sphere(f"hone_glow{side}", (0.046 * side, -0.094, 0.800), 0.016,
-                           segments=10, rings=8)
-        C.assign_material(glow, C.make_material(f"hone_glow{side}_m", (1.0, 0.45, 0.15),
-                                                roughness=0.3, emission=3.0))
-        extras.append(glow)
-        # 頬骨
-        cheek = C.uv_sphere(f"hone_cheek{side}", (0.078 * side, -0.052, 0.762), 0.032,
-                            segments=12, rings=8, scale=(0.8, 1.0, 0.7))
-        C.assign_material(cheek, bone_mat)
-        extras.append(cheek)
-
-    # 歯。縦の切れ込みを入れて歯並びに見せる
-    teeth_mat = C.make_material("hone_teeth_m", (0.93, 0.91, 0.82), roughness=0.5)
-    for i in range(5):
-        tooth = C.box(f"hone_tooth{i}", ((i - 2) * 0.026, -0.098, 0.700),
-                      (0.019, 0.026, 0.030), bevel=0.005)
-        C.assign_material(tooth, teeth_mat)
-        extras.append(tooth)
-
-    # 肋骨。細い胴に対して十分太い輪を重ね、はっきり浮き出させる
-    rib_mat = C.make_material("hone_rib", (0.87, 0.85, 0.75), roughness=0.72)
-    for i, z in enumerate((0.455, 0.500, 0.545, 0.588)):
-        radius = 0.108 - abs(i - 1) * 0.010
-        rib = C.cylinder(f"hone_rib{i}", (0.0, -0.005, z), radius, 0.022, segments=20)
-        # 前後に潰して胸郭らしい楕円にする
-        for vert in rib.data.vertices:
-            vert.co.y *= 0.72
-        C.assign_material(rib, rib_mat)
-        extras.append(rib)
-
-    # 背骨
-    spine = C.cylinder("hone_spine", (0.0, 0.030, 0.46), 0.026, 0.20, segments=12)
-    C.assign_material(spine, rib_mat)
-    extras.append(spine)
-
-    # 腰骨
-    pelvis = C.uv_sphere("hone_pelvis", (0.0, 0.0, 0.350), 0.092,
-                         segments=16, rings=12, scale=(1.0, 0.62, 0.58))
-    C.assign_material(pelvis, bone_mat)
-    extras.append(pelvis)
-
-    # 右手に錆びた剣
-    blade = C.box("hone_blade", (-0.205, -0.055, 0.475), (0.034, 0.014, 0.32), bevel=0.008)
-    # 切先を細める
-    for vert in blade.data.vertices:
-        if vert.co.z > 0.60:
-            vert.co.x *= 0.35
-    C.assign_material(blade, C.make_material("hone_blade_m", (0.52, 0.50, 0.46),
-                                             roughness=0.45, metallic=0.75))
-    guard = C.box("hone_guard", (-0.205, -0.050, 0.322), (0.095, 0.028, 0.022), bevel=0.007)
-    C.assign_material(guard, C.make_material("hone_guard_m", (0.34, 0.28, 0.20), roughness=0.7))
-    grip = C.cylinder("hone_grip", (-0.205, -0.050, 0.290), 0.017, 0.075, segments=12)
-    C.assign_material(grip, C.make_material("hone_grip_m", (0.26, 0.19, 0.13), roughness=0.85))
-    extras += [blade, guard, grip]
-
-    mesh = C.join([body] + extras, "honegarami")
-    armature = C.build_armature("honegarami", joints, bones, mesh, root="hip")
-    return [mesh, armature], armature
+    return honegarami.build()
 
 
 def honegarami_animations():
@@ -1626,9 +1516,11 @@ def honegarami_animations():
     foreR = "shoulder.R-elbow.R"
     legL, legR = "hip-thigh.L", "hip-thigh.R"
     shinL, shinR = "thigh.L-knee.L", "thigh.R-knee.R"
+    _hj = honegarami._joints_half()
+    _v = lambda k: Vector((_hj[k][0] * honegarami.PX, _hj[k][1] * honegarami.PX,
+                           honegarami._z(_hj[k][2])))
     head_delay = C.secondary_delay_frames(
-        (Vector(HONE_HALF["head"]) - Vector(HONE_HALF["neck"])).length
-        / (Vector(HONE_HALF["chest"]) - Vector(HONE_HALF["hip"])).length
+        (_v("head") - _v("neck")).length / (_v("chest") - _v("hip")).length
     )
     return [
         # 頭が胴より遅れて追従する(二次揺れ)
