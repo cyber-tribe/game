@@ -40,7 +40,7 @@ export const MODEL_HEIGHT_BASELINE: Record<string, number> = {
   kodamagitsune: 0.407,
   kodamagumo: 0.262,
   kodamausagi: 0.296,
-  mabutamushi: 0.114,
+  mabutamushi: 0.214,
   madoromi: 0.458,
   madoromigumo: 0.278,
   matsurinonushi: 0.316,

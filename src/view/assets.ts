@@ -88,7 +88,16 @@ export function outlineColorFor(material: THREE.Material | THREE.Material[]): TH
   if (!base) return new THREE.Color(OUTLINE_COLOR);
   const hsl = { h: 0, s: 0, l: 0 };
   base.getHSL(hsl);
-  return new THREE.Color().setHSL(hsl.h, hsl.s * OUTLINE_SATURATION_SCALE, OUTLINE_LIGHTNESS);
+  // **明度の端では HSL の彩度は当てにならない。** (1.00, 0.97, 0.93) の
+  // ような「ほぼ白」は、RGB の幅がたった 0.07 しかないのに HSL 彩度は
+  // 1.0 になる(s = (max-min)/(2-max-min) の分母が同じだけ小さくなる
+  // ため)。そのまま L=0.06 へ落とすと、白い体のモンスターの輪郭線が
+  // **濃い山吹色の輪**になった(まぶたむしで発覚)。
+  // 見た目の色みは「明度が中間からどれだけ離れているか」で薄まるので、
+  // その分だけ彩度を落としてから使う。中間調(L=0.5)は従来どおり。
+  const vividness = 1 - Math.abs(2 * hsl.l - 1);
+  const s = hsl.s * OUTLINE_SATURATION_SCALE * vividness;
+  return new THREE.Color().setHSL(hsl.h, s, OUTLINE_LIGHTNESS);
 }
 
 /**
@@ -153,6 +162,8 @@ function toToonMaterial(
   // 前後関係が壊れ、不透明な灰色の板に見える。ここで alphaTest へ戻す。
   // three.js の GLTFLoader はマテリアルの extras を userData へ移さない
   // 版があるので、**マテリアル名の接尾辞**でも判定する
+  const src = source.userData as { noOutline?: boolean } | undefined;
+  if (src?.noOutline) material.userData.noOutline = true;
   const cutout =
     (source.userData as { alphaCutout?: number } | undefined)?.alphaCutout ??
     (/_card(\.\d+)?$/.test(source.name) ? 0.5 : undefined);
@@ -384,6 +395,13 @@ function skipOutline(material: THREE.Material | THREE.Material[]): boolean {
   return list.some((m) => {
     if (!m) return false;
     if (m.transparent === true || (m.opacity ?? 1) < 1) return true;
+    // **髪の毛のように細い部品は輪郭線を切れる。** 反転ハルの太さは
+    // 世界座標で固定(モデル高 × 0.03、上限 12mm)なので、それより細い
+    // 部品は**ハルに丸ごと飲み込まれ、輪郭色そのものになる**。
+    // まぶたむしの触角(直径2.2mm)は高さ22cmのモデルで 6.6mm の
+    // ハルに包まれ、絵では髪の毛のような線なのに黒い棒になっていた。
+    // モデル側が `noOutline` を立てた材質だけ対象から外す
+    if ((m.userData as { noOutline?: boolean } | undefined)?.noOutline) return true;
     const std = m as THREE.MeshStandardMaterial;
     const e = std.emissive;
     if (!e) return false;
