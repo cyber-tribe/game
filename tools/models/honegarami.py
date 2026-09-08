@@ -120,9 +120,13 @@ TORSO_LOOPS = [
     (18.0, -30.0, +14.0, 22.0, "nape"),        # 頸は前へ出る
     (24.0, -38.0, +24.0, 32.0, "neck_high"),
     (30.0, -44.0, +38.0, 42.0, "neck"),
-    (36.0, -50.0, +62.0, 76.0, "shoulder"),    # 肩帯。外へ張る
-    (44.0, -50.0, +70.0, 78.0, "shoulder_low"),  # 上背がいちばん膨らむ
-    (52.0, -48.0, +66.0, 62.0, "ribs"),        # 胸郭。ここから絞り始める
+    # **肩〜胸郭の前面を後ろへ引く。** ここが前へ出ていると、側面の
+    # 黒ベタで頭蓋と胸が一続きになり「頭」が読めない。設定画の側面は
+    # 頭蓋が塊から大きく前へ庇のように張り出し、顎の下が空いている。
+    # 幅(side)は変えないので正面のシルエットは動かない
+    (36.0, -44.0, +62.0, 76.0, "shoulder"),    # 肩帯。外へ張る
+    (44.0, -36.0, +70.0, 78.0, "shoulder_low"),  # 上背がいちばん膨らむ
+    (52.0, -40.0, +66.0, 62.0, "ribs"),        # 胸郭。ここから絞り始める
     (62.0, -46.0, +56.0, 48.0, "ribs_low"),
     (72.0, -46.0, +44.0, 40.0, "waist"),       # 腰。前へ入る
     (80.0, -50.0, +40.0, 50.0, "pelvis"),      # 骨盤で再び広がる
@@ -157,7 +161,7 @@ BONE_END = 1.75             # 端の太さの倍率(骨端のふくらみ)
 RIB_N = 8
 RIB_Z = (34.0, 74.0)        # 高さ%の範囲。上端を下げ、
                             # 腰まで覆わない
-RIB_R = 0.018
+RIB_R = 0.015   # 細くする。太いと肋骨のあいだの暗部が消えて壁になる
 
 
 def _profile(z: float, cy: float, r_front: float, r_back: float, r_side: float
@@ -357,7 +361,10 @@ def build_sternum() -> list[bpy.types.Object]:
                             [Vector((0.0, y0, _z(STERN_Z[0] - 3))),
                              Vector((0.0, y0 - 0.012, _z((STERN_Z[0] + STERN_Z[1]) * 0.5))),
                              Vector((0.0, y0, _z(STERN_Z[1] + 3)))],
-                            [0.016, 0.020, 0.014], bevel_resolution=1))
+                            # **細く。** 太い胸骨は正面の中央を縦に走る
+                            # 明るい柱になり、96px で胴の中央が全身で
+                            # いちばん明るい区画になっていた
+                            [0.009, 0.012, 0.008], bevel_resolution=1))
     # 第9版は中点・終点の z 落差が小さく、正面から**水平の棒が並んだ
     # 木琴**に見えた。設定画の肋骨は脊椎側から下外へ大きく垂れる弧。
     # 落差を肋骨の幅に比例させ、外端を胴の側面まで回り込ませる
@@ -371,8 +378,13 @@ def build_sternum() -> list[bpy.types.Object]:
                    Vector((w * 0.62 * side, y0 + 0.012, z - drop * 0.28)),
                    Vector((w * 1.02 * side, y0 + 0.052, z - drop * 0.78)),
                    Vector((w * 1.06 * side, y0 + 0.115, z - drop))]
+            # **細くする。** 96px で設定画と比べると、胴の中央の相対輝度が
+            # 設定画 0.66(全身でいちばん暗い)に対してモデル 1.45
+            # (いちばん明るい)だった。設定画の胸は暗い蔦と影が主で、
+            # 細い肋骨がそこに浮いている。太い前肋骨が胸を白い壁に
+            # していたので、面積を落として隙間の暗がりを出す
             out.append(C.curve_tube(f"{NAME}_srib{i}{'L' if side > 0 else 'R'}",
-                                    pts, [0.012, 0.011, 0.009, 0.007],
+                                    pts, [0.0095, 0.0085, 0.0072, 0.0055],
                                     bevel_resolution=1))
     return out
 
@@ -485,9 +497,22 @@ def build_ribs() -> list[bpy.types.Object]:
     out.append(C.curve_tube(f"{NAME}_spine", spine,
                             [0.022, 0.031, 0.028, 0.022],
                             resolution=2, bevel_resolution=1))
-    # **意図的な崩し**は3か所だけ。乱数で全体をガタつかせると
-    # 「ノイズを掛けた教科書」になるので、欠け・短縮・曲がりを1つずつ
-    BREAK = {(2, -1.0): "gone", (5, 1.0): "short", (6, -1.0): "bent"}
+    # **意図的な崩し。** 乱数で全体をガタつかせると「ノイズを掛けた
+    # 教科書」になるので、欠け・短縮・切断・傾きを決め打ちで置く。
+    #
+    # 設定画のホネガラミは「巨大な骸骨」ではなく、複数の骨が崩れて
+    # 別の骨と蔦に絡め取られ、かろうじて人型を保っている塊。正面で
+    # 肋骨が左右対称の水平リズムを作っていると、それだけで
+    # 「骨格標本」に見えてキャラクター設定と衝突する。
+    # **中央は読ませたまま、外側1/3を左右非対称に壊す。**
+    BREAK = {
+        (1, -1.0): "short",   # 右上を1本詰める
+        (2, -1.0): "gone",    # 右の1本を落とす(いちばん強い非対称)
+        (3, +1.0): "cut",     # 左の1本を途中で切り、外の破片をずらす
+        (5, +1.0): "short",
+        (6, -1.0): "bent",
+        (6, +1.0): "tilt",    # 1本だけ水平のリズムから外す
+    }
     for i in range(RIB_N):
         f = i / (RIB_N - 1)
         pct = RIB_Z[0] + (RIB_Z[1] - RIB_Z[0]) * f
@@ -503,14 +528,41 @@ def build_ribs() -> list[bpy.types.Object]:
                 continue
             ww = w * (0.62 if flaw == "short" else 1.0)
             drop = 0.014 + 0.028 * f
-            pts = [Vector((0.0, root, z)),
-                   Vector((ww * 0.72 * side, root - rb * 0.36, z - drop)),
-                   Vector((ww * side, cy + rb * 0.18,
-                           z - drop * 2.4 - (0.030 if flaw == "bent" else 0.0)))]
+            lift = 0.030 if flaw == "tilt" else 0.0
+            tip = Vector((ww * side, cy + rb * 0.18,
+                          z - drop * 2.4 - (0.030 if flaw == "bent" else 0.0)
+                          + lift))
+            mid = Vector((ww * 0.72 * side, root - rb * 0.36,
+                          z - drop + lift * 0.4))
+            pts = [Vector((0.0, root, z)), mid, tip]
             rr = RIB_R * (1.0 - 0.30 * f)
-            out.append(C.curve_tube(f"{NAME}_rib{i}{'L' if side > 0 else 'R'}",
-                                    pts, [rr, rr, rr * 0.75],
-                                    bevel_resolution=1))
+            tag = f"{i}{'L' if side > 0 else 'R'}"
+            if flaw == "cut":
+                # 内側だけ残し、外側の破片を前下がりにずらして置く
+                inner = [pts[0], (pts[0] + mid) * 0.5, mid * 0.98 + pts[0] * 0.02]
+                out.append(C.curve_tube(f"{NAME}_rib{tag}", inner,
+                                        [rr, rr, rr * 0.8], bevel_resolution=1))
+                d = Vector((0.012 * side, -0.030, -0.024))
+                out.append(C.curve_tube(f"{NAME}_ribfrag{tag}",
+                                        [mid + d, (mid + tip) * 0.5 + d, tip + d],
+                                        [rr * 0.8, rr * 0.85, rr * 0.6],
+                                        bevel_resolution=1))
+                continue
+            out.append(C.curve_tube(f"{NAME}_rib{tag}", pts,
+                                    [rr, rr, rr * 0.75], bevel_resolution=1))
+    # **胸の前を1本の太い骨が斜めに横切る。** 肋骨の水平リズムを断ち、
+    # 「別の骨に絡め取られている」を1本で出す。設定画の正面でも胸郭の
+    # 上を骨と蔦が斜めに走っている
+    zt, zb = _z(38.0), _z(70.0)
+    cyt, _a, rbt, rst = _loop_at(zt)
+    cyb, _b, rbb, rsb = _loop_at(zb)
+    out.append(C.curve_tube(
+        f"{NAME}_crossbone",
+        [Vector((-rst * 0.92, cyt - rbt * 0.30, zt + 0.018)),
+         Vector((-rst * 0.30, cyt - rbt * 1.02, zt - 0.055)),
+         Vector((rsb * 0.34, cyb - rbb * 1.02, zb + 0.030)),
+         Vector((rsb * 0.86, cyb - rbb * 0.24, zb - 0.010))],
+        [0.013, 0.022, 0.020, 0.011], resolution=3, bevel_resolution=1))
     return out
 
 
@@ -546,7 +598,10 @@ def build_mass_cage() -> tuple[bpy.types.Object, bpy.types.Object]:
 # y は胴の前縁(30〜44% で -30〜-46px)より**後ろ**に置く。-62 では
 # 頭蓋が首の上に突き出て、側面で亀のように見えた。設定画の頭蓋は
 # 塊の中に埋まっていて、顔だけが出ている
-SKULL_C = (-2.0, -40.0, 24.5)     # 頭蓋の中心 px (x, y, 高さ%)
+# 頭蓋の中心 px (x, y, 高さ%)。**y は設定画の側面図に合わせて前へ出す。**
+# 側面図では頭蓋が塊から明確に前へ突き出し、その前と顎の下に大きな
+# 空きがある。-40 だと 90度から見たとき頭が胴の中に埋まっていた
+SKULL_C = (-2.0, -52.0, 23.5)
 SKULL_H = 62.0                    # 高さ px(全高の28% × 221px)
 SKULL_N = 24   # 眼窩は彫らずトレースで持つので、角度解像度は
                # 輪郭の滑らかさのぶんだけあればよい
@@ -698,9 +753,21 @@ def build_skull() -> list[bpy.types.Object]:
 ARM_JOINTS = [
     # (x, y, 高さ%)  x は片側
     (52.0, -12.0, 34.0),    # 肩。胴の中に埋める
-    (70.0, -6.0, 58.0),     # 肘。設定画の腕は脇に沿って下りる
-    (74.0, -22.0, 63.0),    # 手根
+    (70.0, -14.0, 56.0),    # 肘。設定画の腕は脇に沿って下りる
+    # 手根。**手のカードの位置に合わせる。** カードを前(-60px)へ出した
+    # あとも -22px のままだったので、前腕の先がカードより後ろ・外側で
+    # 終わり、45度から見ると腕の骨の切り口が手の外に丸く浮いていた
+    (70.0, -46.0, 60.0),
 ]
+
+
+def _hand_anchor(side: float) -> "Vector":
+    """手のカードの「手首側」の点。腕はここへ着地させる。"""
+    for sd, _tex, _w, h, xpx, bottom, ypx in HAND_CARDS:
+        if sd == side:
+            return Vector((xpx * PX * sd, ypx * PX,
+                           _z(bottom - (h / HEIGHT * 100.0) * 0.82)))
+    return Vector((HAND_C[0] * PX * side, HAND_C[1] * PX, _z(HAND_C[2])))
 UPPER_R = (0.034, 0.028)   # 手より細いが、束としては見える太さ
 FORE_R = (0.026, 0.021)   # 96px判定で手の区画の上部(前腕)が空いていた     # 前腕は2本(橈骨・尺骨)に分ける
 FORE_SPLIT = 0.042
@@ -778,7 +845,7 @@ def build_arms() -> list[bpy.types.Object]:
                                     [el + d * 0.4, (el + wr) * 0.5 + d, wr + d * 0.5],
                                     [FORE_R[0], FORE_R[0] * 0.9, FORE_R[1]],
                                     bevel_resolution=1))
-        hc = Vector((HAND_C[0] * PX * side, HAND_C[1] * PX, _z(HAND_C[2])))
+        hc = _hand_anchor(side)
         if LAYERS.get("hand_cards", True):
             # 手はトレースしたカードで持つ(build_hand_cards)。
             # 手首の関節だけ残して腕とつなぐ
@@ -949,15 +1016,17 @@ MAJOR_VINES = [
     # 第4版は表面を這うだけで、45°/135° で見える→隠れる→出る が
     # 一度も起きていなかった。設定画の面白さはその断続性にある。
     ("crown_front", [           # 頭蓋の**前**を通る冠。頂点は高さ8%
-        (-116.0, 46.0, +5.0), (-124.0, 36.0, DIVE), (-108.0, 27.0, +9.0, -4.0),
-        (-70.0, 17.0, +14.0, -12.0), (-24.0, 9.0, +16.0, -18.0),
-        (22.0, 7.0, +16.0, -18.0), (66.0, 15.0, +14.0, -12.0),
-        (102.0, 25.0, +8.0, -4.0), (120.0, 35.0, DIVE),
+        # 前後ずらしを**後ろ向き**にする。前へ出していたので、90度の
+        # 黒ベタで頭蓋の前に紫の弧が重なり、頭の輪郭が消えていた
+        (-116.0, 46.0, +5.0), (-124.0, 36.0, DIVE), (-108.0, 27.0, +12.0, +6.0),
+        (-70.0, 17.0, +11.0, +14.0), (-24.0, 9.0, +12.0, +18.0),
+        (22.0, 7.0, +12.0, +18.0), (66.0, 15.0, +11.0, +14.0),
+        (102.0, 25.0, +11.0, +6.0), (120.0, 35.0, DIVE),
         (134.0, 46.0, +7.0), (146.0, 56.0, +4.0)], 3.2),
     ("crown_back", [            # 頭蓋の**後ろ**を通る冠。頂点は高さ1%
-        (74.0, 44.0, +5.0), (92.0, 33.0, DIVE), (116.0, 23.0, +10.0, +6.0),
-        (156.0, 11.0, +17.0, +16.0), (198.0, 3.0, +19.0, +18.0),
-        (240.0, 10.0, +17.0, +14.0), (272.0, 21.0, +11.0, +5.0),
+        (74.0, 44.0, +5.0), (92.0, 33.0, DIVE), (116.0, 23.0, +16.0, +6.0),
+        (156.0, 11.0, +15.0, +16.0), (198.0, 3.0, +16.0, +18.0),
+        (240.0, 10.0, +15.0, +14.0), (272.0, 21.0, +11.0, +5.0),
         (292.0, 31.0, DIVE), (308.0, 42.0, +8.0), (322.0, 54.0, +4.0)], 3.0),
     ("back_sash", [             # 右肩 → 背中を斜めに横切る → 左腰
         (74.0, 28.0, +7.0), (104.0, 36.0, DIVE), (142.0, 44.0, +8.0),
@@ -984,9 +1053,11 @@ VINE_SUB = 3            # 通過点のあいだに入れる補間点
 
 # 棘と芽。設定画の蔦は棘だらけで、ところどころに淡紫の小さな芽が付く。
 # **Major Vine Gate では出さない**(主要蔓の経路だけを見る)
-THORN_PER_VINE = 7
-THORN_LEN = 0.026
-THORN_R = 0.008
+THORN_PER_VINE = 6      # 増やすと外周が紫のもやになる(三角形の余裕も要る)
+# 棘は**設定画で輪郭のギザギザとして効く**大きさが要る。0.026 では
+# 蔦の太さ(0.014)に埋もれて、96px では滑らかな弧にしか見えなかった
+THORN_LEN = 0.036
+THORN_R = 0.010
 BUD_PER_VINE = 2
 BUD_R = 0.013
 
@@ -1054,11 +1125,29 @@ def _way(w):
     return tuple(w) + (0.0,) * (5 - len(w))
 
 
+# 側面図で「鼻先 → あご → 後頭部」の頭蓋シルエットが一発で読めるように、
+# **顔の前だけは蔦を通さない**(通す場合は必ず頭蓋の裏へ潜らせる)。
+# 設定画の側面図では頭蓋が塊から明確に前へ突き出していて、その前に
+# 大きな空きがある。ここを蔦が横切ると、頭が「籠の中の塊」になる。
+FACE_CLEAR_AZ = 40.0     # 正面から±この角度
+FACE_CLEAR_PCT = (20.0, 42.0)   # 眉〜あごの高さ%
+
+
+def _in_face_zone(az: float, pct: float) -> bool:
+    a = (az + 180.0) % 360.0 - 180.0
+    return abs(a) <= FACE_CLEAR_AZ and FACE_CLEAR_PCT[0] <= pct <= FACE_CLEAR_PCT[1]
+
+
 def _vine_path(way, seed: float) -> tuple[list[Vector], list[float]]:
     """通過点を体表沿いの点列にし、各点のオフセットも返す。
 
     太さはオフセットから決める ―― **骨へ締め付ける所は細く、
     自由に張り出す所は太く**。一定太さだとケーブルに見える。"""
+    # **顔の前を通る通過点は問答無用で潜らせる。** 個々の蔓を手で
+    # 直すと、密度表から生成する蔓(build_fill_vines)で必ず再発する
+    way = [w if not _in_face_zone(_way(w)[0], _way(w)[1])
+           else (_way(w)[0], _way(w)[1], DIVE, _way(w)[3], _way(w)[4])
+           for w in way]
     pts, offs = [], []
     for i in range(len(way) - 1):
         a0, h0, o0, y0, x0 = _way(way[i])
@@ -1213,6 +1302,27 @@ SECONDARY = [
                          (14.0, 75.0, +10.0), (48.0, 78.0, +9.0)], 0.9),
     ("right_loop", 0.90, [(56.0, 80.0, +10.0), (22.0, 83.0, DIVE),
                           (-14.0, 85.0, +10.0), (-48.0, 87.0, +8.0)], 0.85),
+    # 7-b) **ゲームカメラで効く太い流れ。** 96px へ落として設定画と
+    #      比べると、胴の中央(高さ33〜67%)の暗部が 設定画61% に対して
+    #      モデル3% しかなかった(背面も 53% 対 2%)。設定画の胴は
+    #      「暗い蔦と影が塊を作り、細い骨がそこに浮く」構図で、
+    #      モデルはその逆になっていた。
+    #      **細い蔦を増やしても96pxでは消える**ので、主要蔓と同じ太さの
+    #      流れだけを前後に2本ずつ足す(wf>=1.1 は太い流れの印で、
+    #      build_branches が断面を丸くする)。顔の前(高さ20〜42%)へは
+    #      入れない ―― _vine_path が潜らせるので効かない
+    ("crown_front", 0.70, [(-58.0, 44.0, +12.0), (-30.0, 52.0, DIVE),
+                           (0.0, 60.0, +15.0), (30.0, 68.0, DIVE),
+                           (58.0, 75.0, +12.0)], 1.25),
+    ("crown_back", 0.66, [(46.0, 42.0, +12.0), (16.0, 50.0, DIVE),
+                          (-14.0, 58.0, +16.0), (-44.0, 66.0, DIVE),
+                          (-72.0, 73.0, +11.0)], 1.20),
+    ("back_sash", 0.30, [(150.0, 44.0, +12.0), (178.0, 52.0, DIVE),
+                         (206.0, 60.0, +16.0), (234.0, 68.0, DIVE),
+                         (258.0, 75.0, +11.0)], 1.20),
+    ("back_sash", 0.50, [(212.0, 42.0, +11.0), (184.0, 50.0, DIVE),
+                         (156.0, 58.0, +15.0), (128.0, 66.0, DIVE),
+                         (104.0, 73.0, +10.0)], 1.15),
     # 7) 右腕まわりを追加(設定画の非対称)
     ("crown_back", 0.14, [(88.0, 38.0, +16.0), (94.0, 48.0, DIVE),
                           (98.0, 58.0, +22.0), (92.0, 68.0, +16.0)], 0.95),
@@ -1245,9 +1355,13 @@ def build_branches() -> tuple[list, list]:
                  for o in offs]
         radii[0] *= 1.25          # 分岐の根元は膨らむ
         radii[-1] *= 0.45
-        # 二次蔓は断面を落とす(細いので見えない)
+        # 二次蔓は断面を落とす(細いので見えない)。ただし wf>=1.1 の
+        # 「太い流れ」だけは丸く割る ―― 96px で読ませたい線なので、
+        # 三角断面のままだと角度によって細く消える
+        big = wf >= 1.1
         sec.append(C.curve_tube(f"{NAME}_sec{i}", pts, radii,
-                                resolution=1, bevel_resolution=0))
+                                resolution=2 if big else 1,
+                                bevel_resolution=1 if big else 0))
         # 細枝。二次蔓の途中から短く出る
         for k in range(TWIG_PER_SEC):
             u = 0.32 + 0.34 * k + 0.12 * _rand(i * 5 + k, 131.0)
@@ -1349,14 +1463,18 @@ def build_limb_wraps() -> list[bpy.types.Object]:
 # 冠2本だけだと「頭の上に載る輪」に見える。設定画の頭部は
 # 頭頂→こめかみ→頬横→肩 まで蔓が落ちてきて**頭蓋を包む籠**になっている
 HEAD_CAGE = [
-    ("crown_front", 0.30, [(-84.0, 20.0, +8.0), (-78.0, 30.0, DIVE),
-                           (-74.0, 40.0, +9.0), (-80.0, 50.0, +6.0)], 0.85),
-    ("crown_front", 0.62, [(72.0, 18.0, +8.0), (66.0, 28.0, DIVE),
-                           (64.0, 38.0, +9.0), (72.0, 48.0, +6.0)], 0.85),
-    ("crown_back", 0.36, [(126.0, 20.0, +8.0), (134.0, 30.0, DIVE),
-                          (140.0, 40.0, +8.0), (148.0, 50.0, +5.0)], 0.8),
-    ("crown_back", 0.70, [(-126.0, 22.0, +8.0), (-134.0, 32.0, DIVE),
-                          (-140.0, 42.0, +8.0), (-148.0, 52.0, +5.0)], 0.8),
+    # **頭蓋から離して回す。** +8px だと 90度から見て頭蓋の投影の
+    # 内側に重なり、黒ベタで「頭」が消えていた
+    # 頭蓋から少し離して回す(+8 では 90度で頭蓋の投影に埋もれ、
+    # +18 まで出すと主要蔓と同じ半径に並んで「頭巾」になった)
+    ("crown_front", 0.30, [(-84.0, 20.0, +12.0), (-78.0, 30.0, DIVE),
+                           (-74.0, 40.0, +13.0), (-80.0, 50.0, +7.0)], 0.85),
+    ("crown_front", 0.62, [(72.0, 18.0, +12.0), (66.0, 28.0, DIVE),
+                           (64.0, 38.0, +13.0), (72.0, 48.0, +7.0)], 0.85),
+    ("crown_back", 0.36, [(126.0, 20.0, +12.0), (134.0, 30.0, DIVE),
+                          (140.0, 40.0, +12.0), (148.0, 50.0, +6.0)], 0.8),
+    ("crown_back", 0.70, [(-126.0, 22.0, +12.0), (-134.0, 32.0, DIVE),
+                          (-140.0, 42.0, +12.0), (-148.0, 52.0, +6.0)], 0.8),
     ("crown_front", 0.44, [(-34.0, 16.0, +12.0, -10.0), (-30.0, 26.0, +6.0, -12.0),
                            (-26.0, 34.0, DIVE), (-22.0, 42.0, +7.0)], 0.7),
     ("crown_back", 0.52, [(36.0, 16.0, +12.0, -8.0), (32.0, 26.0, +6.0, -12.0),
@@ -1637,8 +1755,14 @@ def _fringe_texture() -> "bpy.types.Image":
     n = CARD_TEX
     rgba = np.zeros((n, n, 4), dtype=np.float32)
     # 色(リニア)。骨寄りの淡色ではなく蔦の暗紫
-    stem = np.array(_fix_lin((0.075, 0.052, 0.088), VINE_FIX), dtype=np.float32)
-    bud = np.array(_fix_lin((0.34, 0.24, 0.42), VINE_FIX), dtype=np.float32)
+    # 色は sRGB(img.pixels がそのまま byte になる)。蔦より一段暗く
+    stem = np.array(_fix_srgb(tuple((v ** (1 / 2.2)) * 0.78
+                                    for v in SHEET["vine"]), VINE_FIX),
+                    dtype=np.float32)
+    # 芽はパレットの淡紫のままだと外周のノイズが目立つので落とす
+    bud = np.array(_fix_srgb(tuple((v ** (1 / 2.2)) * 0.70
+                                   for v in SHEET["crystal"]), VINE_FIX),
+                   dtype=np.float32)
 
     def disc(cx, cy, r, col):
         x0, x1 = max(0, int(cx - r) - 1), min(n, int(cx + r) + 2)
@@ -1740,6 +1864,23 @@ def build_fringe_cards(existing) -> list[bpy.types.Object]:
     for score, ci, cj, base, radial, out3 in cand:
         if len(out) >= CARD_N:
             break
+        # **頭のまわりには生やさない。** 房カードは輪郭に細かい毛羽を
+        # 足すためのものだが、頭蓋の外周に付くと側面図で頭のシルエットが
+        # 紫のもやに溶け、「鼻先→あご→後頭部」が読めなくなる。頭の
+        # イバラは build_halo の実体で持っているので、ここは要らない
+        c_az, c_pct = _cell_center(ci, cj)
+        if c_pct <= SKULL_C[2] + SKULL_H * 0.5 / 2.21 + 4.0:
+            continue
+        # 顎の下(頭蓋と胴のあいだ)にも生やさない。ここに房が出ると
+        # 側面の黒ベタで頭と胴がつながって「頭」が消える
+        if _in_face_zone(c_az, c_pct) or (abs((c_az + 180.0) % 360.0 - 180.0) <= 45.0
+                                          and c_pct <= 52.0):
+            continue
+        # **手の前にも生やさない。** 手は左右のサブシルエットなので、
+        # 細かい房がその上に重なると塊が割れて読めなくなる
+        if 62.0 <= c_pct <= 96.0 and 45.0 <= abs(
+                (c_az + 180.0) % 360.0 - 180.0) <= 125.0:
+            continue
         # 方位角だけで間引くと高さ方向が空く。方位角3区分・高さ3区分の
         # 粗い格子で1枚ずつ置き、外周の全周に行き渡らせる
         key = (ci // 3, cj // 3)
@@ -1761,50 +1902,106 @@ def build_fringe_cards(existing) -> list[bpy.types.Object]:
     return out
 
 
-# ================================================ 頭蓋のイバラ(正面の輪)
-# 設定画の頭部のイバラは**正面向きの輪**で、顔を取り囲み、頭蓋が輪の
-# 中から前へ突き出している(側面図では輪が頭の後ろにあり、顔だけが
-# 手前に出ている)。第4版までの冠は頭の上を横切る**鉢巻き**で、顔の
-# 左右へ回り込んでいなかった ―― 輪の平面が90度違っていた。
+# ============================================ 頭蓋まわりの蔓(有機パス)
+# 第5版までは頭蓋を**閉じた楕円の輪**(HALO_RINGS)で4本囲っていた。
+# 20分割の輪を resolution=1 で通していたので、正面・45°・側面の
+# どこから見ても「太い多角形のワイヤーフレーム」に見えた。
 #
-# 方位角(体の縦軸まわり)では正面向きの輪を書けないので、頭蓋まわり
-# だけ別の生成器にする。頭蓋中心のまわりに、法線がほぼ -y(前)の
-# 平面で円を描く。
-HALO_SEG = 20
-# (中心のずれpx(x,y,高さ%), 半径px(x,z), 面の法線, 太さpx, うねり)
-HALO_RINGS = [
-    ((0.0, +28.0, 27.0), (50.0, 58.0), (0.10, -1.00, 0.20), 3.4, 0.14),
-    ((-6.0, +38.0, 24.0), (43.0, 50.0), (-0.20, -1.00, -0.10), 3.0, 0.17),
-    ((5.0, +20.0, 29.0), (56.0, 62.0), (0.24, -1.00, 0.04), 2.8, 0.20),
-    ((-3.0, +33.0, 31.0), (47.0, 54.0), (0.05, -1.00, -0.26), 2.4, 0.22),
+# **これは分割数の問題ではなく経路の問題。** 輪はどこにも始まりも
+# 終わりも無く、骨の裏へ潜ることもないので、細かく割っても
+# 「骨格の外側にかぶせた籠」のままになる。設定画の蔓のリズムは
+#
+#   大きな弧 → 骨の裏へ潜る → 別の位置から出る → 小さく方向転換
+#
+# なので、開いたパスへ作り替える。「角→直線→角→直線」を長く
+# 続けないこと ―― 弧は弧のまま、方向転換は短く。
+#
+# 制御点は (方位角deg, t, オフセットpx)。t は頭蓋の上端0〜下端1、
+# オフセットは頭蓋表面から外向きの距離(負なら頭蓋の中=見えない)。
+# 方位角は 0=+X(右)、-90=正面、±180=左、+90=背面。
+HEAD_DIVE = -15.0        # 頭蓋の中へ潜る量 px(最大半幅は約30px)
+HEAD_BACK_BIAS = 24.0    # 顔の前を通る区間を後ろへ逃がす量 px
+
+
+def _head_point(deg: float, t: float, off: float) -> Vector:
+    """頭蓋表面から外向きに off px ずらした点。
+
+    `_skull_point` の k(半径倍率)ではなく**距離**でずらす。倍率だと
+    頭頂(半径5px)ではほとんど動かず、頬骨(30px)では大きく飛ぶので、
+    冠の蔓だけ頭にめり込んで見えた。"""
+    p = _skull_point(deg, t, 1.0)
+    cx, cy0 = SKULL_C[0] * PX, SKULL_C[1] * PX
+    n = Vector((p.x - cx, p.y - cy0, 0.0))
+    if n.length < 1e-5:
+        n = Vector((math.cos(math.radians(deg)), math.sin(math.radians(deg)), 0.0))
+    n.normalize()
+    # 頭頂では法線が上を向く。**この帯を広く取る。** 0.20 だと額の
+    # 高さ(t≈0.12)でまだ半分が水平方向で、冠が頭の「上」ではなく
+    # 「前」へ張り出し、側面の黒ベタで頭と一つの塊になっていた
+    up = min(max((0.36 - t) / 0.36, 0.0), 1.0)
+    up = up * up * (3.0 - 2.0 * up)
+    n = (n * (1.0 - up) + Vector((0, 0, 1)) * up)
+    n.normalize()
+    # **顔の前を通る区間は後ろへ逃がす。** 90度の黒ベタでは前後関係が
+    # 消えるので、頭蓋の前に蔓があると輪郭が一つの塊になり「額 → 鼻先 →
+    # 上顎 → 顎」が読めない。冠の弧の頂点を額の前から頭頂の上へずらす
+    fr = math.cos(math.radians(deg + 90.0))          # 1=正面 / -1=真後ろ
+    back = max(0.0, fr) * min(max((0.42 - t) / 0.42, 0.0), 1.0)
+    return p + n * (off * PX) + Vector((0.0, HEAD_BACK_BIAS * back * PX, 0.0))
+
+
+HEAD_VINES = [
+    # (名前, [(方位角, t, オフセットpx)...], 太さpx)
+    #
+    # **全部を同じ太さ・同じ角度で回さない。** 4本が同じ半径で頭を
+    # 囲うと、太さの違う輪が重なった「籠」に見える。1本を主役として
+    # 太く大きく張り出させ、残りは細く、面の向きを変えて添える。
+    #
+    # 弧の**中間点は外へ大きく膨らませる**。制御点を増やすのではなく
+    # 中間を膨らませる方が、少ない点数で大弧になる。頭蓋に張り付いた
+    # まま角を曲がると、どこから見ても多角形に見えた。
+    ("crown_diag", [        # 主役。右の首筋 → 額の上を大きく越える
+        (78.0, 0.88, 6.0), (46.0, 0.60, 14.0), (12.0, 0.30, 20.0),
+        (-40.0, 0.13, 21.0), (-100.0, 0.10, 20.0), (-158.0, 0.24, 18.0),
+        (-198.0, 0.44, HEAD_DIVE), (-236.0, 0.62, HEAD_DIVE),
+        (-266.0, 0.70, 10.0), (-284.0, 0.76, 15.0)], 3.6),
+    ("temple_arc", [        # 補助。頭頂の後ろを低く回る(主役より内側)
+        (-150.0, 0.28, 7.0), (-178.0, 0.20, 12.0), (-208.0, 0.14, 13.0),
+        (-246.0, 0.18, HEAD_DIVE), (-284.0, 0.28, HEAD_DIVE),
+        (-318.0, 0.38, 10.0), (-346.0, 0.45, 12.0), (-366.0, 0.51, 15.0)], 2.4),
+    ("nape_loop", [         # 後頭部を大きく回って左の側面で止める
+        (28.0, 0.30, 12.0), (64.0, 0.42, 22.0), (100.0, 0.54, 21.0),
+        (134.0, 0.64, HEAD_DIVE), (166.0, 0.68, HEAD_DIVE),
+        (188.0, 0.58, 12.0), (196.0, 0.50, 14.0), (202.0, 0.44, 16.0)], 2.8),
+    ("crown_hook", [        # 頭頂で小さく方向転換する短い蔓
+        (-64.0, 0.16, 13.0), (-30.0, 0.08, 18.0), (2.0, 0.06, 17.0),
+        (28.0, 0.13, 14.0), (42.0, 0.24, HEAD_DIVE), (54.0, 0.36, HEAD_DIVE),
+        (62.0, 0.45, 10.0), (66.0, 0.52, 14.0)], 1.9),
 ]
+HEAD_RES = 3            # 制御点のあいだのベジェ分割。1 だと多角形に見える
 
 
 def build_halo() -> list[bpy.types.Object]:
+    """頭蓋まわりの蔓。名前は据え置き(build_blockout から呼ばれる)。"""
     out = []
-    cx, cy0 = SKULL_C[0] * PX, SKULL_C[1] * PX
-    for i, (c, r, n, th, wob) in enumerate(HALO_RINGS):
-        center = Vector((cx + c[0] * PX, cy0 + c[1] * PX, _z(c[2])))
-        nz = Vector(n).normalized()
-        u = nz.cross(Vector((0, 0, 1)))
-        if u.length < 1e-4:
-            u = nz.cross(Vector((1, 0, 0)))
-        u.normalize()
-        v = nz.cross(u)
-        pts = []
-        for k in range(HALO_SEG + 3):
-            a = math.tau * k / HALO_SEG
-            # 一定半径だとフラフープに見えるので、うねりを入れる
-            w = 1.0 + wob * (math.sin(3 * a + i * 1.7)
-                             + 0.5 * math.sin(5 * a + i * 2.3))
-            dep = nz * (math.sin(2 * a + i) * 0.026)
-            pts.append(center + u * (r[0] * PX * math.cos(a) * w)
-                       + v * (r[1] * PX * math.sin(a) * w) + dep)
-        rr = th * PX
-        radii = [rr * (0.85 + 0.25 * math.sin(k * 0.7 + i))
-                 for k in range(len(pts))]
+    for i, (name, way, th) in enumerate(HEAD_VINES):
+        pts, offs = [], []
+        for k, (deg, t, off) in enumerate(way):
+            # うねりは制御点そのものへ入れる。均一な弧はホースに見える
+            w = math.sin(k * 1.7 + i * 2.1) * 1.6
+            pts.append(_head_point(deg + w, min(max(t + w * 0.006, 0.0), 1.0),
+                                   off + (w * 0.8 if off > 0 else 0.0)))
+            offs.append(off)
+        r = th * PX
+        radii = []
+        for k, o in enumerate(offs):
+            f = 0.78 + 0.30 * min(max((o + 16.0) / 30.0, 0.0), 1.0)
+            radii.append(r * f * (1.0 + 0.07 * math.sin(k * 1.1 + i * 2.0)))
+        radii[0] *= 0.5
+        radii[-1] *= 0.45          # 末端は細く ―― 切り口を目立たせない
+        _VINE_PATHS[f"head_{name}"] = (pts, offs)
         out.append(C.curve_tube(f"{NAME}_halo{i}", pts, radii,
-                                resolution=1, bevel_resolution=1))
+                                resolution=HEAD_RES, bevel_resolution=1))
     return out
 
 
@@ -1813,22 +2010,32 @@ def build_halo() -> list[bpy.types.Object]:
 # 大きくすれば「別の生き物」、小さくすれば96pxで消える、の板挟みに
 # なった(96px判定 0.57→0.78 まで上げたが両立しなかった)。
 # 頭蓋と同じく**設定画をトレース**して、交差カードで持つ。
-# 形も陰影も絵と一致し、1枚2三角形で済む。
-HAND_TEX = "textures/honegarami_hand.png"
-# 切り出し枠 x1.0〜24.5% / h62.5〜93.0%(設定画の正面図に対する比)。
-# **枠は骨の占有率で割り戻さない。** 以前は「枠内で骨が68%」として
-# 1.5倍に拡大していたが、その68%は**紙の地色を骨と誤判定していた**
-# 数字で、実際は42%。抜き自体を直したので、枠をそのまま設定画の
-# 比率で置けばよい(正面図の全身高 232px に対し枠は 51×72px)。
-HAND_CARD_W = 0.185      # m = 51/232 × 全高
-HAND_CARD_H = 0.260      # m = 72/232 × 全高
-HAND_CARD_X = 79.0       # 中心の |x| px(正面図の枠中心と全身中心の差)
-HAND_CARD_Z = 77.8       # 中心の高さ%
-HAND_CARD_Y = -30.0      # 中心の前後 px
-# 交差カードの角度 deg。**大きくしすぎない。** 58度にしていたときは
-# 正面から見て2枚目がほぼ真横(sin58=0.85)を向き、指の絵の上に
-# **明るい縦一本の線**として重なって手が読めなかった
-HAND_CROSS = 38.0
+#
+# **左右を別々にトレースする。** 片方を鏡像で使い回していたが、設定画の
+# 左右の手は形が違う ―― 画面左は大きな掌から太い指が垂れ下がり、画面右は
+# 短い指が詰まった塊。鏡像だと「同じ手が2つ」に見え、骨格模型らしさが出る。
+#
+# 生成: scratchpad/hone_handtex.py
+#   ・**外周シルエットを先に取る**(骨に接する暗部まで領域に入れ、
+#     最大連結成分の穴を埋める)。指を組み上げてから外形を合わせない
+#   ・隙間は骨の平均色ではなく**絵の暗部**で埋める。平均色だと骨の線が
+#     地より明るく浮き、塊より先に指が1本ずつ読めてしまう
+#   ・膨張はしない。膨らませると外周が丸まり、垂れ下がる指の形が消える
+#
+# 寸法は設定画の実測(正面図の全身高 232px)に対する比を 1.40 倍した値。
+# 実機の灯りと解像度では絵ほどコントラストが出ないぶんだけ大きく取る。
+# **下端は設定画の位置(画面左 91.4% / 画面右 92.7%)に置く** ――
+# 指先が足より下がると接地が手に移る。
+HAND_CROSS = 38.0        # 交差カードの角度 deg。**大きくしすぎない。**
+                         # 58度では2枚目がほぼ真横(sin58=0.85)を向き、
+                         # 指の絵の上に明るい縦一本の線として重なった
+HAND_CARDS = [
+    # (側 +1=画面左, テクスチャ名, 幅m, 高さm, 中心の|x|px, 下端の高さ%, 前後px)
+    # 前後は -60px。-30 だと腕まわりの蔦・房カードに前を横切られ、
+    # せっかくの塊が細かい紫のノイズで割れていた
+    (+1.0, "l", 0.218, 0.329, 72.0, 91.4, -60.0),
+    (-1.0, "r", 0.213, 0.223, 59.0, 92.7, -60.0),
+]
 _hand_cache: dict = {}
 
 
@@ -1882,14 +2089,15 @@ def _tinted_copy(img, name: str, gain=None):
     return out
 
 
-def _hand_material():
-    if "mat" not in _hand_cache:
+def _hand_material(tex: str):
+    if tex not in _hand_cache:
         import os
-        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), HAND_TEX)
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            f"textures/honegarami_hand_{tex}.png")
         src = bpy.data.images.load(path)
-        img = _tinted_copy(src, f"{NAME}_hand", _hand_gain(src))
-        _hand_cache["mat"] = _fringe_material_from(img, f"{NAME}_hand_card")
-    return _hand_cache["mat"]
+        img = _tinted_copy(src, f"{NAME}_hand_{tex}", _hand_gain(src))
+        _hand_cache[tex] = _fringe_material_from(img, f"{NAME}_hand_card_{tex}")
+    return _hand_cache[tex]
 
 
 def _hand_gain(src):
@@ -1901,45 +2109,118 @@ def _hand_gain(src):
     ゲームの灯りが作り直すので、**アルベドとしては他の骨と同じ明るさ**
     へ正規化するのが正しい。"""
     px = list(src.pixels)
+    # **明るい画素(=描かれた骨)だけで合わせる。** 不透明画素の平均だと
+    # 指のあいだの暗部まで混ざり、合わせた結果カード全体が持ち上がって
+    # 「新品の骨」に見える。暗部は暗いまま残すのが設定画の読み方
+    lum = sorted(px[i] for i in range(0, len(px), 4) if px[i + 3] > 0.5)
+    if not lum:
+        return LIGHT_FIX
+    cut = lum[int(len(lum) * 0.55)]
     acc, n = [0.0, 0.0, 0.0], 0
     for i in range(0, len(px), 4):
-        if px[i + 3] > 0.5:
+        if px[i + 3] > 0.5 and px[i] >= cut:
             for j in range(3):
                 acc[j] += px[i + j]
             n += 1
     if n == 0:
         return LIGHT_FIX
-    have = [(a / n) ** (1 / 2.2) for a in acc]
-    want = [v ** (1 / 2.2) for v in _face_image()["avg"]]
+    have = [a / n for a in acc]              # sRGB のまま
+    # 描かれた骨を頭蓋の骨色の HAND_BONE 倍へ合わせる(設定画の実測比)
+    want = [v * HAND_BONE for v in _face_image()["avg"]]
     return tuple(min(2.5, w_ / max(h_, 1e-4)) * g
                  for w_, h_, g in zip(want, have, LIGHT_FIX))
 
 
 def build_hand_cards() -> list[bpy.types.Object]:
-    """左右の手をトレースした交差カードで作る。1手2枚=4三角形。"""
+    """左右の手をそれぞれトレースした交差カードで作る。1手3枚=6三角形。"""
     out = []
-    mat = _hand_material()
-    for side in (-1.0, 1.0):
-        tag = "L" if side > 0 else "R"
-        c = Vector((HAND_CARD_X * PX * side, HAND_CARD_Y * PX, _z(HAND_CARD_Z)))
-        base = c - Vector((0.0, 0.0, HAND_CARD_H * 0.5))
+    for side, tex, w, h, xpx, bottom, ypx in HAND_CARDS:
+        mat = _hand_material(tex)
+        base = Vector((xpx * PX * side, ypx * PX, _z(bottom)))
         # 3枚にして、どの角度からも手として読めるようにする
         for k, ang in enumerate((0.0, HAND_CROSS, -HAND_CROSS)):
             a = math.radians(ang)
             right = Vector((math.cos(a) * side, math.sin(a), 0.0)).normalized()
-            o = _card(f"{NAME}_handcard{tag}{k}", base, right,
-                      Vector((0, 0, 1)), HAND_CARD_W, HAND_CARD_H)
+            o = _card(f"{NAME}_handcard{tex}{k}", base, right,
+                      Vector((0, 0, 1)), w, h)
             C.assign_material(o, mat)
             out.append(o)
     return out
 
 
 def build_thorns() -> tuple[list, list]:
-    """蔦の棘と芽。**Detail Vine Gate で作る。**
+    """蔦の棘と芽。**主要蔓と頭部の蔦にだけ生やす。**
 
-    Major Vine Gate では主要蔓の経路そのものを見たいので空を返す。
-    棘・芽は経路が確定してから、経路に沿って生やす。"""
-    return [], []
+    設定画の蔦は棘だらけで、ところどころに淡紫の小さな芽が付く。96px でも
+    輪郭のギザギザと紫の点として効いている ―― ただしそれは**太い蔦の上に
+    あるとき**だけで、二次蔓や細枝まで棘を付けると外周が紫のもやになる
+    (`handbook/reading-at-game-size.md` 1)。
+
+    棘は体の中心から**外向き**に、進行方向へ少し寝かせて生やす。潜って
+    いる区間(オフセットが負)には出さない ―― 骨の裏なので見えないうえ、
+    骨を突き抜けて刺さって見える。"""
+    thorns, buds = [], []
+    body_c = Vector((0.0, 0.0, HEIGHT * 0.5))
+    skull_c = Vector((SKULL_C[0] * PX, SKULL_C[1] * PX, _z(SKULL_C[2])))
+    for vi, (name, (path, poff)) in enumerate(sorted(_VINE_PATHS.items())):
+        head = name.startswith("head_")
+        # **外向きの基準は部位で変える。** 頭の蔦で体の中心を基準にすると
+        # 棘がほぼ真上を向き、弧に沿って寝てしまって輪郭に出なかった
+        center = skull_c if head else body_c
+        # 頭の蔦は通過点が8〜10個しかない。棘を撒くには粗いので、
+        # 区間ごとに中点を足して倍に刻む
+        pts, offs = [], []
+        for i in range(len(path) - 1):
+            pts.append(path[i]); offs.append(poff[i])
+            pts.append((path[i] + path[i + 1]) * 0.5)
+            offs.append((poff[i] + poff[i + 1]) * 0.5)
+        pts.append(path[-1]); offs.append(poff[-1])
+        n = len(pts)
+        if n < 4:
+            continue
+        r = THORN_R * (0.85 if head else 1.0)
+        ln = THORN_LEN * (0.85 if head else 1.0)
+        step = max(2, (n - 2) // THORN_PER_VINE)
+        for k in range(1, n - 1, step):
+            if offs[k] < 2.0:          # 潜っている区間には出さない
+                continue
+            p = pts[k]
+            d = (pts[k + 1] - pts[k - 1]).normalized()
+            outv = (p - center)
+            outv -= d * outv.dot(d)    # 進行方向の成分を抜く
+            if outv.length < 1e-4:
+                continue
+            outv.normalize()
+            # ねじって生やす。全部が真横を向くと櫛に見える
+            a = math.tau * _rand(vi * 11 + k, 223.0)
+            side = d.cross(outv)
+            # 外向き成分は**必ず正**にする。cos の符号をそのまま使うと
+            # 半分が内向きになり、頭の蔦では棘が頭蓋へ刺さって見えた
+            v = (outv * (0.55 + 0.45 * abs(math.cos(a)))
+                 + side * math.sin(a) * 0.55
+                 + d * 0.22).normalized()
+            tip = p + v * ln
+            thorns.append(C.curve_tube(
+                f"{NAME}_thorn{vi}_{k}", [p, p + v * ln * 0.45, tip],
+                [r, r * 0.55, r * 0.12], resolution=1, bevel_resolution=0))
+        # 芽。**末端寄りに少しだけ。** 数を増やすと外周のノイズになる
+        for b in range(BUD_PER_VINE):
+            k = int(n * (0.42 + 0.34 * b + 0.12 * _rand(vi * 7 + b, 227.0)))
+            k = min(max(k, 1), n - 2)
+            if offs[k] < 4.0:
+                continue
+            p = pts[k]
+            d = (pts[k + 1] - pts[k - 1]).normalized()
+            outv = (p - center)
+            outv -= d * outv.dot(d)
+            if outv.length < 1e-4:
+                continue
+            outv.normalize()
+            c = p + outv * (BUD_R * 0.9)
+            buds.append(C.uv_sphere(f"{NAME}_bud{vi}_{b}", c,
+                                    BUD_R * (0.8 + 0.4 * _rand(vi * 3 + b, 229.0)),
+                                    segments=4, rings=3, scale=(1.0, 1.0, 1.25)))
+    return thorns, buds
 
 
 # ------------------------------------------------------------------ 補助関数
@@ -2131,18 +2412,36 @@ def _face_image():
         rows = []
         tot, tot_n = [0.0, 0.0, 0.0], 0
         for y in range(h):
-            acc, cnt = [0.0, 0.0, 0.0], 0
+            acc, cnt, lit = [0.0, 0.0, 0.0], 0, []
             for x in range(w):
                 i = (y * w + x) * 4
-                # 骨だけ拾う(明るく、赤が青より強い)
-                if px[i] > 0.22 and px[i] > px[i + 2] * 1.25:
+                # 骨だけ拾う(明るく、赤が青より強い)。**しきい値は
+                # sRGB 基準。** リニアのつもりで 0.22 / 1.25 にしていた
+                # あいだ、輪郭線の暗い画素まで骨に入って平均が沈んでいた
+                if px[i] > 0.50 and px[i] > px[i + 2] * 1.10:
                     for j in range(3):
                         acc[j] += px[i + j]
                     cnt += 1
-            rows.append(tuple(a / cnt for a in acc) if cnt >= 6 else None)
-            for j in range(3):
-                tot[j] += acc[j]
-            tot_n += cnt
+                    lit.append((px[i], px[i + 1], px[i + 2]))
+            # **行の平均ではなく「明るい側の半分」の平均を使う。**
+            # 平均だと輪郭線ぎわの暗い画素まで混ざり、側面〜後頭部が
+            # 正面のトレース(生成り)より一段濃い茶色になって、
+            # 側面図で頭蓋が「穴」に見えていた
+            if cnt >= 6:
+                lit.sort(key=lambda c_: c_[0])
+                half = lit[len(lit) // 2:]
+                rows.append(tuple(sum(c_[j] for c_ in half) / len(half)
+                                  for j in range(3)))
+                # 骨の**アルベド**は「明るい側の半分」で取る。全画素の
+                # 平均は輪郭線と陰の画素を含むので、そのまま平板な骨へ
+                # 塗ると生成りではなく革の茶になる(実測 194,174,150 →
+                # 明るい半分だと 214,195,170 でパレット #d5c1ab と一致)
+                for c_ in half:
+                    for j in range(3):
+                        tot[j] += c_[j]
+                tot_n += len(half)
+            else:
+                rows.append(None)
         # 骨が無かった行は上下から埋める
         last = SHEET["bone"]
         for y in range(h):
@@ -2200,9 +2499,12 @@ def skull_color(p: Vector, n: Vector):
     front = math.cos(math.radians(deg + 90.0))          # 1=正面 / -1=真後ろ
 
     # 絵をそのまま貼れるのは正面のうち、絵の枠に収まる範囲だけ
-    inside = (0.0 <= u <= 1.0) and (v <= FACE_VMAX) and front > 0.30
+    # **正面投影は浅い角度まで引っ張らない。** 0.30(正面から±72度)
+    # まで貼っていたので、眼窩が側面へ横に伸びた黒い筋になっていた。
+    # 眼窩そのものは正面から±35度にあるので 0.42(±65度)で足りる
+    inside = (0.0 <= u <= 1.0) and (v <= FACE_VMAX) and front > 0.42
     if inside:
-        k = min((front - 0.30) / 0.46, 1.0)
+        k = min((front - 0.42) / 0.34, 1.0)
         k = k * k * (3 - 2 * k)
         if k >= 0.999:
             return _face_sample(c, u, v)
@@ -2213,11 +2515,11 @@ def skull_color(p: Vector, n: Vector):
     # 後ろへ回るほど暗く(頭の丸み)。真後ろで 68%
     shade = 0.68 + 0.32 * (0.5 + 0.5 * front)
     base = tuple(b * shade for b in base)
-    base = _fix_lin(base)
+    base = _fix_srgb(base)
     if inside:
-        k = min((front - 0.30) / 0.46, 1.0)
+        k = min((front - 0.42) / 0.34, 1.0)
         k = k * k * (3 - 2 * k)
-        col = _fix_lin(_face_sample(c, u, v))
+        col = _fix_srgb(_face_sample(c, u, v))
         return tuple(col[j] * k + base[j] * (1 - k) for j in range(3))
     return base
 
@@ -2228,25 +2530,126 @@ def skull_color(p: Vector, n: Vector):
 # (86,75,67)・暖色差 r-b=+19 なのに対しモデルは (103,96,111)・r-b=-8
 # だった。差はほぼ灯りの色なので、**このモデルの全材質**へチャンネル
 # ごとの乗率を掛けて打ち消す。骨だけ直すと蔦と欠片が青いまま残る。
-LIGHT_FIX = (0.90, 0.80, 0.58)
+LIGHT_FIX = (0.95, 0.88, 0.70)
+# **明度の階層。** 設定画の骨画素(明るい側の半分)を部位ごとに実測すると
+#   頭蓋 (195,171,144) / 手 (185,166,138)・(175,156,127) /
+#   足 (166,148,126) / 胸郭 (163,141,111)
+# ―― つまり**いちばん暗いのは胸郭**で、手はむしろ明るい。手が「汚れて
+# 暗い」ように見えるのは骨の色ではなく、骨と骨のあいだの暗部が広いから。
+# だから塊としての暗さはトレース(隙間の絵)に持たせ、材質の側では
+# 頭蓋を基準にした部位ごとの明度比だけを再現する。
+# 領域ごとの平均輝度(絵の中の実測)は 頭蓋107 / 手97・89 / 胸郭61。
+# **胸郭がいちばん暗い。** 設定画の胸は暗い蔦と影が主で、細い肋骨が
+# そこに浮いている。モデルは逆に太い肋骨が明るく、手が沈んでいた
+RIB_BONE = 0.68          # 胸郭・肩帯・骨盤(頭蓋の骨色に対する比)
+# 腕・脚・足・散らばる骨。絵の骨色の比は 0.85 だが、モデルの足は
+# 大きく滑らかな面で影が乗らないぶん画面では明るく出るので落とす
+DIRTY_BONE = 0.76
+HAND_BONE = 1.00         # 手のカードの「描かれた骨」
 # 蔦と記憶の欠片は**紫であること自体が設定**なので、青を骨ほど落とすと
 # ただの枯れ枝になる。暗さだけ揃えて色相は残す
-VINE_FIX = (0.90, 0.80, 0.82)
+VINE_FIX = (0.95, 0.88, 0.92)
 
 
 def _fix_srgb(c, fix=LIGHT_FIX):
-    """sRGBの材質色へ寒色補正を掛ける。"""
+    """材質色(sRGB)へ寒色補正を掛ける。
+
+    **このモデルの色はすべて sRGB で扱う。** Blender の `img.pixels` は
+    この bpy ビルドでは読み書きとも sRGB のまま(0.5 を書くと byte 128、
+    byte 128 を読むと 0.5)で、`C.bake_albedo` も同じ経路なので
+    `color_fn` は sRGB を返さなければならない。リニアだと思って
+    2.2乗の補正を掛けていたあいだ、頭蓋の側面〜後頭部だけ実測 (124,90,47)
+    まで沈み、側面図で頭が「穴」に見えていた。
+    """
     return tuple(min(1.0, v * g) for v, g in zip(c, fix))
 
 
-def _fix_lin(c, fix=LIGHT_FIX):
-    """リニア色(焼き込み用)へ同じ補正を掛ける。"""
-    return tuple(min(1.0, v * (g ** 2.2)) for v, g in zip(c, fix))
+def _bone_srgb(k: float = 1.0):
+    """骨の材質色(sRGB)。トレースの骨画素の平均へ補正を掛ける。
+
+    k は頭蓋の骨色に対する部位ごとの明度比(RIB_BONE / DIRTY_BONE)。"""
+    return _fix_srgb(tuple(v * k for v in _face_image()["avg"]))
 
 
-def _bone_srgb():
-    """骨の材質色(sRGB)。トレースの骨画素の平均へ補正を掛ける。"""
-    return _fix_srgb(tuple(v ** (1 / 2.2) for v in _face_image()["avg"]))
+# ============================================== 骨の手描き BaseColor
+# `handbook/hand-painted-standard.md` 3「単色マテリアルを貼らない」。
+# **形を増やさずに情報量を作る。** 設定画と実機を並べると、差はもう
+# 形状ではなく
+#   設定画 = 暗い古骨 + 黒い隙間 + 紫蔓
+#   モデル = 均一な茶色い骨 + 紫蔓
+# というマテリアルの差になっている。ここから先は骨や蔓を足すのではなく、
+# 「根元の汚れ・骨端の明暗差・まだらのくすみ・蔦が触れる所の暗部」を
+# BaseColor へ描く。
+BONE_TEX = 256
+LIMB_TEX = 192
+VG = 0.022               # 蔦の距離場の格子(m)
+
+
+def _vine_field(vines) -> dict:
+    """蔦の頂点から粗い距離場を作る。骨の塗りで「蔦が触れている所」を
+    暗くするのに使う。テクセルごとに最近傍探索をすると遅いので、
+    先に格子へ距離を焼いておいて1回の辞書引きで済ませる。"""
+    f: dict = {}
+    for o in vines:
+        mw = o.matrix_world
+        vs = o.data.vertices
+        for i in range(0, len(vs), 2):          # 間引いてよい(距離場は粗い)
+            p = mw @ vs[i].co
+            c = (int(p.x / VG), int(p.y / VG), int(p.z / VG))
+            for dx in range(-2, 3):
+                for dy in range(-2, 3):
+                    for dz in range(-2, 3):
+                        k = (c[0] + dx, c[1] + dy, c[2] + dz)
+                        d = math.sqrt(dx * dx + dy * dy + dz * dz) * VG
+                        if d < f.get(k, 9.0):
+                            f[k] = d
+    return f
+
+
+def _bone_paint(base, field: dict):
+    """骨のBase Colorを描く color_fn(sRGB を返す)。"""
+    def fn(p, n):
+        # ① **面法線は使わない。** curve_tube の管は面ごとに法線が
+        # 一定なので、法線で明暗を付けると骨に沿って硬い縦縞が出て
+        # 「塗った絵」ではなく「面取りの粗」に見えた。位置で描く ――
+        # 手前(胴の断面中心より前)を明るく、奥を暗く
+        cy = _loop_at(p.z)[0]
+        k = 1.02 + 0.26 * max(-1.0, min(1.0, (cy - p.y) / 0.16))
+        # ② 下へ行くほど汚れる(地面に近い骨ほど古い)
+        # **平均を1.0に保つ。** 全部の項を「1から引く」形にすると
+        # 塗り全体が沈み、材質の色を決め直した意味が無くなる
+        pct = (1.0 - p.z / HEIGHT) * 100.0
+        k *= 1.12 - 0.34 * min(max((pct - 30.0) / 60.0, 0.0), 1.0)
+        # ③ 蔦が触れている所を暗く(接触の影は形ではなく塗りで持つ)
+        d = field.get((int(p.x / VG), int(p.y / VG), int(p.z / VG)), 9.0)
+        if d < 0.060:
+            k *= 0.42 + 0.58 * (d / 0.060)
+        # ④ まだらのくすみ。**格子のハッシュは使わない。** 補間が無いので
+        # テクスチャに四角い斑が出た。正弦の重ね合わせで滑らかに作る
+        m = (math.sin(p.x * 23.0 + 1.3) + math.sin(p.y * 19.0 + 2.7)
+             + math.sin(p.z * 17.0 + 0.7)
+             + 0.5 * math.sin(p.x * 47.0 + p.z * 39.0))
+        k *= 1.0 + 0.09 * m / 3.5
+        # ⑤ 骨端の明暗差。胴の中心から離れた端ほど明るい
+        r = math.hypot(p.x, p.y - cy)
+        k *= 0.93 + 0.16 * min(r / 0.22, 1.0)
+        # 明るい所だけ暖かくする。暗い所まで寒色へ振ると、ゲームの
+        # 寒色の環境光と重なって胸郭が灰青色に沈んだ
+        t = max(0.0, k - 1.0) * 0.34
+        return tuple(min(1.0, v * k * f)
+                     for v, f in zip(base, (1.0 + t, 1.0, 1.0 - t)))
+    return fn
+
+
+def _paint_bone_group(objs, name: str, tier: float, size: int, field: dict):
+    """骨の一群を1メッシュへまとめ、手描きBase Colorを焼いて返す。"""
+    obj = C.join(objs, f"{NAME}_{name}")
+    C.smart_uv(obj)
+    img = C.bake_albedo(obj, _bone_paint(_bone_srgb(tier), field),
+                        size=size, name=f"{NAME}_{name}_albedo")
+    C.assign_material(obj, C.make_textured_material(
+        f"{NAME}_{name}_mat", img, roughness=0.85))
+    return obj
 
 
 def paint(parts: dict) -> None:
@@ -2260,14 +2663,23 @@ def paint(parts: dict) -> None:
     # 骨の色は**設定画のトレースの平均**に合わせる。パレットの
     # SHEET["bone"] のままだと、トレースを貼った頭蓋だけ暖色で、
     # 他の骨が桃色に浮く
-    bone_m = C.make_material(f"{NAME}_bone", _bone_srgb(), roughness=0.85)
+    field = _vine_field(parts["vines"])
     vine_m = mat("vine", "vine", 0.6, VINE_FIX)
     # **塊は「影=骨の隙間」で塗る。** 塊は骨と骨のあいだの暗がりを
     # 埋めるために置いた芯なので、骨と同じ生成りで塗ると隙間が消えて
     # のっぺりした団子になる(第1版でそうなった)
-    C.assign_material(parts["mass"], mat("gap", "gap"))
-    for o in parts["bones"] + parts["arms"]:
-        C.assign_material(o, bone_m)
+    # **隙間はパレットの色よりさらに落とす。** 設定画の骨と骨のあいだは
+    # 実測で下位1割が (12,9,9) ―― ほぼ黒。スウォッチ #564b44 のままだと
+    # ゲームの環境光(寒色 ×1.7)で持ち上がり、下位1割が (46,43,59) に
+    # しかならず、明暗の幅が設定画の半分になっていた
+    C.assign_material(parts["mass"], C.make_material(
+        f"{NAME}_gap",
+        _fix_srgb(tuple((v ** (1 / 2.2)) * 0.45 for v in SHEET["gap"])),
+        roughness=0.9))
+    parts["bones"] = [_paint_bone_group(parts["bones"], "bone",
+                                        RIB_BONE, BONE_TEX, field)]
+    parts["arms"] = [_paint_bone_group(parts["arms"], "limb",   # 腕・脚・足
+                                       DIRTY_BONE, LIMB_TEX, field)]
     for o in parts["vines"]:
         C.assign_material(o, vine_m)
     skull = parts["skull"][0]
@@ -2299,7 +2711,9 @@ def _joints_half() -> dict:
         "crown": (0.0, -6.0, 8.0),
         "shoulder.L": (ARM_JOINTS[0][0], ARM_JOINTS[0][1], ARM_JOINTS[0][2]),
         "elbow.L": (ARM_JOINTS[1][0], ARM_JOINTS[1][1], ARM_JOINTS[1][2]),
-        "hand.L": (HAND_CARD_X, HAND_CARD_Y, HAND_CARD_Z),
+        # 手のカード(画面左)の中心。カードは下端で置くので中心を出す
+        "hand.L": (HAND_CARDS[0][4], HAND_CARDS[0][6],
+                   HAND_CARDS[0][5] - HAND_CARDS[0][3] * 50.0 / HEIGHT),
         "thigh.L": (LEG_JOINTS[0][0], LEG_JOINTS[0][1], LEG_JOINTS[0][2]),
         "knee.L": (LEG_JOINTS[1][0], LEG_JOINTS[1][1], LEG_JOINTS[1][2]),
         "foot.L": (FOOT_C[0], FOOT_C[1], FOOT_C[2]),
