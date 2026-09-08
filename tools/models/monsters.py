@@ -15,6 +15,7 @@ import math
 import akubitokage
 import common as C
 import honegarami
+import mabutamushi
 import madoromi
 from mathutils import Matrix, Vector
 
@@ -832,135 +833,68 @@ def gajiri_animations():
 
 # ===================================================================== まぶたむし
 
-MABUTAMUSHI_HALF = {
-    "body": (0.0, 0.020, 0.075),
-    "head": (0.0, -0.098, 0.058),
-    "legF.L": (0.075, -0.020, 0.045),
-    "footF.L": (0.128, -0.052, 0.006),
-    "legB.L": (0.078, 0.078, 0.050),
-    "footB.L": (0.132, 0.110, 0.006),
-}
-MABUTAMUSHI_RADII_HALF = {
-    "body": 0.085, "head": 0.040,
-    "legF.L": 0.022, "footF.L": 0.015,
-    "legB.L": 0.024, "footB.L": 0.016,
-}
-MABUTAMUSHI_BONES_HALF = [
-    ("body", "head"),
-    ("body", "legF.L"), ("legF.L", "footF.L"),
-    ("body", "legB.L"), ("legB.L", "footB.L"),
-]
-
-
 def build_mabutamushi():
-    """
-    瞼の隙間に湧く小さな夢。gajiriと同じ「胴+頭+前後の脚」という関節構成を
-    踏襲しつつ、swarmで複数体まとめて出現する前提のため尻尾と耳を削り、
-    関節数をgajiriの半分ほどまで落として軽くする(その分subsurfは変えず
-    形の滑らかさは保つ)。
-    """
-    joints = C.mirrored(MABUTAMUSHI_HALF)
-    radii = C.mirrored_radii(MABUTAMUSHI_RADII_HALF)
-    bones = C.mirrored_bones(MABUTAMUSHI_BONES_HALF)
-
-    body = C.build_skinned("mabutamushi", joints, bones, radii, root="body", subsurf=2)
-    dust = C.make_material("mabuta_dust", (0.72, 0.63, 0.56), roughness=0.55)
-    shade = C.make_material("mabuta_shade", (0.40, 0.32, 0.28), roughness=0.6)
-    # 丸い背中だけ参道の土埃色に浮かせ、脚と腹側は影のように落として引き締める
-    # (tsubuteの背/腹の塗り分けと同じ、高さだけで切る手法)
-    C.assign_materials_by_region(body, [shade, dust], lambda c: 1 if c.z > 0.05 else 0)
-
-    # まばたき対象(plan/models/archive/eye-blink-liveliness.md)。join()の
-    # 対象から外し、armature構築後に頭の骨(body-head)へ直接つなぐ
-    eyes = []
-    for side in (-1.0, 1.0):
-        eyes += eyeball(f"mabuta_eye{side}", (0.022 * side, -0.083, 0.060), 0.014,
-                        look=(0.2 * side, -1.0, 0.0),
-                        white=(0.97, 0.92, 0.80), dark=(0.34, 0.20, 0.12), blink=True)
-
-    # 背に1枚だけ乗る、面取りした小さな甲殻(plan/models/
-    # sheet-mabutamushi.md、plan/models/archive/
-    # silhouette-hard-surface-parts.mdの義務項目)。丸い体表面に唯一の
-    # 角のある面を作る
-    shell_mat = C.make_material("mabuta_shell", (0.30, 0.22, 0.18), roughness=0.55)
-    shell = C.box("mabuta_shell", (0.0, 0.030, 0.108), (0.038, 0.048, 0.014), bevel=0.006)
-    C.assign_material(shell, shell_mat)
-    # dieの大きな崩れで自動ウェイト計算のブレンドが本体から取り残す
-    # (plan/models/archive/hard-part-bone-pinning-audit.mdの「要確認」を
-    # 実測で確認)。唯一近い骨(body-head)へ剛体固定する
-    shell_group = C.mark_for_pin(shell)
-
-    mesh = C.join([body, shell], "mabutamushi")
-    armature = C.build_armature("mabutamushi", joints, bones, mesh, root="body")
-    C.pin_weight_to_bone(mesh, shell_group, "body-head")
-    for eye in eyes:
-        C.parent_to_bone(eye, armature, "body-head")
-    return [mesh, armature] + eyes, armature
+    """設定画のまぶたむし。造形は tools/models/mabutamushi.py。"""
+    return mabutamushi.build()
 
 
 def mabutamushi_animations():
-    """
-    plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
-    タメ・ツメ(LINEAR補間)・脚の遅れ追従(二次揺れ)を足してある。
-    swarm・HP5/def0の「群れの中の1匹」らしい、極端に軽く素早い反応を
-    強調する。脚が4本しかなく尻尾・耳もないため、二次揺れは前脚/後脚の
-    位相ずれで表現する。
+    """設定画の「状態パターン」に合わせた5クリップ。
+
+    骨は body-head / body-wing.L・R / body-belly の4本だけ(触角・脚・尾は
+    変形しない剛体部品として骨へ親化してある)。旧モデルの四足の脚を
+    使った波状の二次揺れは、頭 → 翅 の位相ずれへ作り直した。
     """
     head = "body-head"
-    legF_L, legF_R = "body-legF.L", "body-legF.R"
-    legB_L, legB_R = "body-legB.L", "body-legB.R"
+    wl, wr = "body-wing.L", "body-wing.R"
+    belly = "body-belly"
     return [
-        # 群れの中でそわそわ落ち着かず、小刻みに震える。頭→前脚(2フレーム
-        # 遅れ)→後脚(4フレーム遅れ)と波状に伝わる本物の二次揺れにする
-        # (`partial`が無く単なる往復になっていた現行の不備を修正)
+        # 「通常(ふわふわ)」。翅をゆっくり開閉し、頭が遅れて付いてくる。
+        # 直接攻撃をしない種なので、待機は落ち着かない震えではなく浮遊感
         ("idle", [
-            (1, {head: (0, 0, 0), legF_L: (0, 0, 0), legF_R: (0, 0, 0),
-                 legB_L: (0, 0, 0), legB_R: (0, 0, 0)}),
-            (16, {head: (-6, 0, 4)}),
-            (18, {legF_L: (4, 0, 0), legF_R: (-4, 0, 0)}, {"partial": True}),
-            (32, {head: (0, 0, -4)}),
-            (36, {legB_L: (-4, 0, 0), legB_R: (4, 0, 0)}, {"partial": True}),
-            (44, {head: (0, 0, 0)}),
-            (46, {legF_L: (0, 0, 0), legF_R: (0, 0, 0)}, {"partial": True}),
-            (48, {legB_L: (0, 0, 0), legB_R: (0, 0, 0)}, {"partial": True}),
+            (1, {wl: (0, 0, 0), wr: (0, 0, 0), head: (0, 0, 0), belly: (0, 0, 0)}),
+            (14, {wl: (14, 0, 0), wr: (-14, 0, 0)}),
+            (18, {head: (-4, 0, 0), belly: (2, 0, 0)}, {"partial": True}),
+            (30, {wl: (-6, 0, 0), wr: (6, 0, 0)}),
+            (34, {head: (3, 0, 0), belly: (-1, 0, 0)}, {"partial": True}),
+            (46, {wl: (0, 0, 0), wr: (0, 0, 0)}),
+            (50, {head: (0, 0, 0), belly: (0, 0, 0)}, {"partial": True}),
         ]),
+        # 「群れでふわふわ移動」。地を駆けるのではなく速い羽ばたきで浮く
         ("walk", [
-            (1, {legF_L: (26, 0, 0), legF_R: (-26, 0, 0),
-                 legB_L: (-24, 0, 0), legB_R: (24, 0, 0), head: (4, 0, 0)}),
-            (5, {legF_L: (0, 0, 0), legF_R: (0, 0, 0),
-                 legB_L: (0, 0, 0), legB_R: (0, 0, 0), head: (0, 0, 0)}),
-            (9, {legF_L: (-26, 0, 0), legF_R: (26, 0, 0),
-                 legB_L: (24, 0, 0), legB_R: (-24, 0, 0), head: (-4, 0, 0)}),
-            (13, {legF_L: (0, 0, 0), legF_R: (0, 0, 0),
-                  legB_L: (0, 0, 0), legB_R: (0, 0, 0), head: (0, 0, 0)}),
+            (1, {wl: (26, 0, 0), wr: (-26, 0, 0), belly: (3, 0, 0), head: (-3, 0, 0)}),
+            (4, {wl: (-18, 0, 0), wr: (18, 0, 0), belly: (-2, 0, 0), head: (2, 0, 0)}),
+            (7, {wl: (26, 0, 0), wr: (-26, 0, 0), belly: (3, 0, 0), head: (-3, 0, 0)}),
+            (10, {wl: (-18, 0, 0), wr: (18, 0, 0), belly: (-2, 0, 0), head: (2, 0, 0)}),
         ]),
-        # タメ→LINEARで鋭く突く→わずかな行き過ぎ→戻り。小さな体格に合わせ
-        # 他種族よりさらに短い間隔のまま保つ
+        # 「触れる」。攻撃意志は無いので、ふわっと体を寄せるだけ。タメを
+        # 置いてから LINEAR で寄せ、すぐ引く
         ("attack", [
-            (1, {head: (0, 0, 0), legF_L: (0, 0, 0), legF_R: (0, 0, 0)}),
-            (3, {head: (-16, 0, 0), legF_L: (-14, 0, 0), legF_R: (-14, 0, 0)}, {"interp": "LINEAR"}),
-            (5, {head: (22, 0, 0), legF_L: (10, 0, 0), legF_R: (10, 0, 0)}),
-            (7, {head: (26, 0, 0), legF_L: (12, 0, 0), legF_R: (12, 0, 0)}),
-            (14, {head: (0, 0, 0), legF_L: (0, 0, 0), legF_R: (0, 0, 0)}),
+            (1, {head: (0, 0, 0), belly: (0, 0, 0), wl: (0, 0, 0), wr: (0, 0, 0)}),
+            (3, {head: (10, 0, 0), belly: (-6, 0, 0),
+                 wl: (22, 0, 0), wr: (-22, 0, 0)}, {"interp": "LINEAR"}),
+            (6, {head: (-14, 0, 0), belly: (8, 0, 0),
+                 wl: (-10, 0, 0), wr: (10, 0, 0)}),
+            (16, {head: (0, 0, 0), belly: (0, 0, 0), wl: (0, 0, 0), wr: (0, 0, 0)}),
         ]),
-        # 入りをLINEARで鋭くし、HP5/def0という最弱格らしく振幅をひとまわり
-        # 大きくして戻りも延ばし、小さな体が大きく怯む見た目にする
+        # 「驚き」。HP5・def0 の最弱格らしく、鋭く跳び退いて翅を畳む
         ("hit", [
-            (1, {head: (0, 0, 0), legB_L: (0, 0, 0), legB_R: (0, 0, 0)}, {"interp": "LINEAR"}),
-            (3, {head: (24, 0, 0), legB_L: (-22, 0, 0), legB_R: (-22, 0, 0)}),
-            (13, {head: (0, 0, 0), legB_L: (0, 0, 0), legB_R: (0, 0, 0)}),
+            (1, {head: (0, 0, 0), belly: (0, 0, 0),
+                 wl: (0, 0, 0), wr: (0, 0, 0)}, {"interp": "LINEAR"}),
+            (3, {head: (26, 0, 0), belly: (16, 0, 0),
+                 wl: (-32, 0, 0), wr: (32, 0, 0)}),
+            (14, {head: (0, 0, 0), belly: (0, 0, 0), wl: (0, 0, 0), wr: (0, 0, 0)}),
         ]),
-        # 小さな夢らしく、脚を丸く縮めて消えていく。初動をLINEARで鋭くし
-        # 「最初にびくっと縮む」瞬間を加える。18f到達後、脚を縮めたまま
-        # 消える前の小さな跳ね返りを1回追加する
+        # 「消える(夢に還る)」。ふわりと浮き上がってしぼむ。初動を
+        # LINEAR で鋭くし、最後に小さな戻りを1回入れる
         ("die", [
-            (1, {head: (0, 0, 0)}, {"interp": "LINEAR"}),
-            (8, {head: (20, 0, 0), legF_L: (-40, 0, 0), legF_R: (-40, 0, 0),
-                 legB_L: (-36, 0, 0), legB_R: (-36, 0, 0)}),
-            (18, {head: (34, 0, 0), legF_L: (-70, 0, 0), legF_R: (-70, 0, 0),
-                  legB_L: (-64, 0, 0), legB_R: (-64, 0, 0)}),
-            (22, {head: (30, 0, 0), legF_L: (-62, 0, 0), legF_R: (-62, 0, 0),
-                  legB_L: (-56, 0, 0), legB_R: (-56, 0, 0)}, {"partial": True}),
+            (1, {head: (0, 0, 0), belly: (0, 0, 0)}, {"interp": "LINEAR"}),
+            (8, {wl: (40, 0, 0), wr: (-40, 0, 0), head: (-16, 0, 0),
+                 belly: (-10, 0, 0)}),
+            (20, {wl: (66, 0, 0), wr: (-66, 0, 0), head: (-30, 0, 0),
+                  belly: (-22, 0, 0)}),
+            (24, {wl: (60, 0, 0), wr: (-60, 0, 0), head: (-26, 0, 0),
+                  belly: (-19, 0, 0)}, {"partial": True}),
         ]),
     ]
 
