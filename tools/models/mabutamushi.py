@@ -415,12 +415,14 @@ def _card(name: str, base: Vector, side: float, w: float, h: float,
         p = p + Vector((math.cos(a) * side, math.sin(a), 0.0)) * (w / seg)
         pts.append(p.copy())
     up = Vector((0.0, 0.0, h))
-    flip = side < 0
+    # **UV を左右反転しない。** 反転は幾何の側(side)で既に起きている
+    # ―― 帯が -X へ伸びるのだから、同じ向きに貼った絵はそれだけで
+    # 鏡像になる。ここでさらに u を裏返すと**二重に反転**し、翅の
+    # 「先」がテクスチャの根元、「根元」が先になる。実機では左の翅だけ
+    # 尖った先が体側に、細い根元が外側に来て、明らかに向きが狂った
     for i, q in enumerate(pts):
         co += [tuple(q), tuple(q + up)]
-        u = i / seg
-        if flip:
-            u = 1.0 - u
+        u = i / seg          # 0 = 根元(体側) / 1 = 翅の先
         uvs += [(u, 0.0), (u, 1.0)]
     for i in range(seg):
         faces.append((i * 2, i * 2 + 2, i * 2 + 3, i * 2 + 1))
