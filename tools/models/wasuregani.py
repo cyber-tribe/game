@@ -88,7 +88,7 @@ TINT_FIX = (1.237, 1.078, 0.672)
 # 持ち上げ無し)のエンジン描画は L=87.6 / 標準偏差 22.7 / **R-B -9.1** で、
 # 寒色の灯りに 21 ぶん青へ引かれ、13 ぶん暗かった。
 TINT_W = {
-    "shell": 0.60, "shelldark": 0.70, "shelllite": 0.42, "rim": 0.74,
+    "shell": 0.76, "shelldark": 0.86, "shelllite": 0.58, "rim": 0.88,
     "limb": 0.62, "limblite": 0.38, "limbdark": 0.78,
     "eye": 0.60, "paper": 0.30, "moss": 0.30,
 }
@@ -104,7 +104,7 @@ LIFT = 1.16
 # 甲羅と下半身を別々に測った差(甲羅 L+8.4 / R-B+6.0、下半身 L-4.8)から
 # 決めた倍率。SHEET は実測のまま残し、補正はここに分けて置く。
 GAIN = {
-    "shell": 0.84, "shelldark": 0.64, "shelllite": 0.95, "rim": 0.66,
+    "shell": 0.88, "shelldark": 0.60, "shelllite": 1.02, "rim": 0.62,
     "limb": 1.06, "limbdark": 1.06, "limblite": 1.06,
     "moss": 0.78, "paper": 1.04, "eye": 1.00,
 }
@@ -334,9 +334,11 @@ ARM_R = (0.060, 0.062, 0.056)
 # 掌。**球で作らない**(`common.tapered_slab` の注意書きのとおり、球だと
 # ミトンになる)。手首で絞り、中ほどで最も太り、先でまた絞る中心線に
 # 楕円断面を積む ―― 設定画の鋏は「拳」の形で、腕との継ぎ目が細い。
-PALM_SPINE = ((0.250, -0.220, 0.272), (0.272, -0.288, 0.222),
-              (0.284, -0.352, 0.170), (0.278, -0.412, 0.116),
-              (0.256, -0.452, 0.072))
+# 脚が読めるよう、掌を 22mm だけ内へ寄せた。鋏の大きさは変えていない
+# ―― 外側に背景の帯ができないと、歩脚が鋏の塊に吸収されてしまう。
+PALM_SPINE = ((0.232, -0.220, 0.272), (0.252, -0.288, 0.222),
+              (0.262, -0.352, 0.170), (0.256, -0.412, 0.116),
+              (0.234, -0.452, 0.072))
 PALM_W = (0.052, 0.112, 0.135, 0.116, 0.062)    # 左右(x)の半幅
 PALM_T = (0.058, 0.126, 0.148, 0.126, 0.068)    # 中心線に直交する半厚
 # 指。設定画の鋏は**淡い骨色の刃が2枚**で、下へ、やや前へ向き、先で
@@ -411,12 +413,16 @@ def build_claws() -> list:
 # 太さを上げ、前後の開きを広げて、甲羅の輪郭の外へ膝を出す。
 LEGS = [
     # (付け根の前後y, 付け根のx, 膝, 足先) ―― x は右側(side=+1)基準
-    (-0.118, 0.250, (0.442, -0.186, 0.124), (0.378, -0.232, 0.010)),
-    (+0.082, 0.262, (0.462, +0.108, 0.116), (0.396, +0.140, 0.010)),
-    (+0.246, 0.238, (0.428, +0.330, 0.108), (0.360, +0.412, 0.010)),
+    (-0.120, 0.250, (0.420, -0.186, 0.128), (0.366, -0.230, 0.010)),
+    (+0.082, 0.262, (0.438, +0.110, 0.120), (0.384, +0.146, 0.010)),
+    (+0.244, 0.238, (0.408, +0.318, 0.112), (0.350, +0.386, 0.010)),
 ]
+# **誇張は外周の実測を超えない範囲で。** 後脚を +0.428 まで引いた版は
+# 側面の奥行きが設定画より 61mm(6.5%)深くなり、Anatomy Gate が
+# 0.852 → 0.834 に落ちた。読ませるために必要なのは脚の「太さと明度差」で、
+# 長さではなかった。
 THIGH_R = (0.070, 0.058, 0.049)       # 付け根 / 中 / 膝
-KNEE_R = 0.050
+KNEE_R = 0.048
 SHIN_R = (0.048, 0.030, 0.009)        # 膝 / 中 / 足先(尖る)
 
 
@@ -509,9 +515,17 @@ DEBRIS_BIG = (          # 隆起としてシルエットに出る。3〜5個に�
 # 中・小は表で書かない。**大・中・小の三階級で散らす** ―― 設定画の甲羅は
 # 石板の大きさが不揃いで、それが「長い年月の堆積」に見える最大の要因。
 # 均一な大きさで敷き詰めると、どれだけ数を増やしても石畳になる。
-DEBRIS_N = 92
+# **大きさの絶対値が効く。** 一辺が甲羅の幅の 6〜10% の斑を敷き詰めると、
+# それは「堆積」ではなく**迷彩**に見える。設定画の石粒は甲羅の幅の 2〜4%
+# しかなく、96px では 1〜2px ―― 個々には読めず「古びた肌理」として効く。
+# 数を増やして一粒を小さくする。
+DEBRIS_N = 150
 DEBRIS_KINDS = ("stone", "moss", "mud")
-DEBRIS_KEY = {"stone": "shelllite", "moss": "moss", "mud": "limbdark"}
+# **甲羅から色相を飛ばさない。** 泥に limbdark(暖かい暗褐色)を当てたら
+# 甲羅が迷彩柄になった ―― 斑の大きさではなく**色相の跳び**が軍装に見える
+# 原因。堆積物は甲羅と同じ青灰の family の中で明度だけ振る。
+# 例外は苔だけ(設定画のパレットにオリーブがある)。
+DEBRIS_KEY = {"stone": "shelllite", "moss": "moss", "mud": "shelldark"}
 _SCATTER: tuple | None = None
 
 
@@ -524,16 +538,26 @@ def _debris_scatter() -> tuple:
     global _SCATTER
     if _SCATTER is not None:
         return _SCATTER
-    out = [(deg, v, r, kind, 4 + i % 3, i * 1.7)
+    out = [(deg, v, r, kind, 4 + i % 3, i * 1.7, 1.0)
            for i, (deg, v, r, kind) in enumerate(DEBRIS_BIG)]
+    # **均等に撒かない。** 一様分布だと粒の大きさを直しても水玉になる。
+    # 設定画の堆積は房になっていて、濃いところと素肌のところがある ――
+    # それが「溜まった」ように見える理由。16 房に寄せて散らす。
     for i in range(DEBRIS_N):
+        ci = i % 16
+        ca = _jitter(ci * 9.1 + 0.5, ci * 2.3 + 1.7)
+        cv = _jitter(ci * 4.7 + 2.2, ci * 6.1 + 0.9)
+        sp = 0.16 + 0.26 * _jitter(ci * 1.1 + 3.3, ci * 0.7 + 0.4)
         a = _jitter(i * 3.7 + 1.3, i * 0.91 + 0.2)
         b = _jitter(i * 1.9 + 0.7, i * 5.3 + 1.1)
         c = _jitter(i * 6.1 + 2.4, i * 2.2 + 0.8)
         k = _jitter(i * 0.53 + 4.1, i * 7.7 + 0.3)
-        r = 0.082 if c > 0.78 else 0.052 if c > 0.44 else 0.030
-        out.append((a * 360.0, 0.04 + 0.94 * b ** 0.70, r * (0.78 + 0.44 * k),
-                    DEBRIS_KINDS[int(k * 2.999)], 4 + i % 3, c * 6.3))
+        r = 0.046 if c > 0.88 else 0.029 if c > 0.58 else 0.017
+        out.append(((ca * 360.0 + (a - 0.5) * sp * 300.0) % 360.0,
+                    min(0.99, max(0.03, 0.08 + 0.90 * cv ** 0.62
+                                  + (b - 0.5) * sp * 0.85)),
+                    r * (0.78 + 0.44 * k), DEBRIS_KINDS[int(k * 2.999)],
+                    4 + i % 3, c * 6.3, 0.55 + 0.45 * k))
     _SCATTER = tuple(out)
     return _SCATTER
 
@@ -551,14 +575,14 @@ def _debris_at(p):
     """
     global _DEBRIS_POS
     if _DEBRIS_POS is None:
-        _DEBRIS_POS = [(shell_surface(v, math.radians(deg))[0], r, kind, lo, ph)
-                       for deg, v, r, kind, lo, ph in _debris_scatter()]
+        _DEBRIS_POS = [(shell_surface(v, math.radians(deg))[0], r, kind, lo, ph, st)
+                       for deg, v, r, kind, lo, ph, st in _debris_scatter()]
     w1 = w2 = 0.0
     k1 = None
-    for c, r, kind, lobes, phase in _DEBRIS_POS:
+    for c, r, kind, lobes, phase, strength in _DEBRIS_POS:
         dv = p - c
         dl = dv.length
-        if dl > r * 1.45:
+        if dl > r * 1.50:
             continue
         # **正弦で半径を振らない。** 3〜5山の正弦は花びらになる ―― 出来る
         # のは四つ葉であって石の欠片ではない。正多角形の半径式を使うと
@@ -568,7 +592,7 @@ def _debris_at(p):
         a2 = (ang + phase) % seg - seg * 0.5
         rr = r * math.cos(math.pi / lobes) / max(0.34, math.cos(a2))
         # 縁は**鋭く**落とす。なだらかに落とすと塊どうしが融けて霞になる。
-        w = min(1.0, max(0.0, (1.02 - dl / max(rr, 1e-6)) / 0.22))
+        w = min(1.0, max(0.0, (1.02 - dl / max(rr, 1e-6)) / 0.22)) * strength
         if w > w1:
             w2, w1, k1 = w1, w, kind
         elif w > w2:
@@ -576,7 +600,8 @@ def _debris_at(p):
     if k1 is None:
         return 0.0, None, False
     seam = w1 > 0.06 and (w1 - w2) < DEBRIS_SEAM
-    w = min(1.0, max(0.0, w1 * 1.20 + _mottle(p, 2.6) * 0.26 - 0.16))
+    # 完全に置き換えず 0.78 までにする ―― 塗り分けではなく「覆い」
+    w = 0.82 * min(1.0, max(0.0, w1 * 1.25 + _mottle(p, 4.2) * 0.24 - 0.14))
     return w, DEBRIS_KEY[k1], seam
 
 
@@ -612,7 +637,7 @@ def shell_paint(p, n):
         t = _srgb(key)
         col = tuple(a + (b - a) * w for a, b in zip(col, t))
     if seam:
-        col = tuple(c * 0.62 for c in col)
+        col = tuple(c * 0.78 for c in col)
     return tuple(min(1.0, max(0.0, c)) for c in col)
 
 
@@ -689,6 +714,41 @@ PAPERS = (
     (104.0, 0.24, 0.088, 0.066, -8.0, False),
 )
 PAPER_LIFT = 0.005
+PAPER_TEX = 64
+
+
+def paper_texture():
+    """記憶のカケラの絵 ―― 墨の縁取りと筆致。**文字は書かない。**
+
+    96px では札は数px しかないので、読ませるのは「縁があって、中に横線が
+    走っている」ことだけ。無地のクリーム色の板のままだと、設定画の一番の
+    記号(貼り付いた古い紙)が「甲羅の明るい染み」に落ちる。
+
+    `img.pixels` は**下の行から**並ぶ(4-14)。ここは上下で意味が変わら
+    ない絵だが、v を下から数えることを明示しておく。
+    """
+    n = PAPER_TEX
+    img = bpy.data.images.new(f"{NAME}_paper", n, n, alpha=False)
+    base, ink = _srgb("paper"), _srgb("rim")
+    px = []
+    for y in range(n):
+        v = (y + 0.5) / n                       # 0=下
+        for x in range(n):
+            u = (x + 0.5) / n
+            edge = min(u, 1.0 - u, v, 1.0 - v)
+            # 古び: 縁と四隅を汚す
+            k = 0.74 + 0.26 * min(1.0, edge / 0.17)
+            c = [a * k for a in base]
+            if 0.050 < edge < 0.098:            # 墨の縁取り
+                c = [a + (b - a) * 0.82 for a, b in zip(c, ink)]
+            for ly, x0, x1 in ((0.32, 0.22, 0.80), (0.50, 0.24, 0.66),
+                               (0.68, 0.21, 0.75)):
+                if abs(v - ly) < 0.032 and x0 < u < x1:
+                    c = [a + (b - a) * 0.70 for a, b in zip(c, ink)]
+            px += [min(1.0, max(0.0, a)) for a in c] + [1.0]
+    img.pixels.foreach_set(px)
+    img.pack()
+    return img
 
 
 def build_papers() -> list:
@@ -721,6 +781,14 @@ def build_papers() -> list:
         me = bpy.data.meshes.new(f"{NAME}_paper{pi}")
         me.from_pydata([tuple(c) for c in co], [], faces)
         me.update()
+        # 格子の並び順(行優先)をそのまま UV にする。全部の札が同じ
+        # 0..1 の正方形を使うので、絵は1枚で足りる。
+        me.uv_layers.new(name="UVMap")
+        uvl = me.uv_layers.active.data
+        for poly in me.polygons:
+            for li in poly.loop_indices:
+                vi = me.loops[li].vertex_index
+                uvl[li].uv = ((vi % g) / (g - 1), (vi // g) / (g - 1))
         obj = bpy.data.objects.new(f"{NAME}_paper{pi}", me)
         bpy.context.collection.objects.link(obj)
         for poly in me.polygons:
@@ -782,11 +850,17 @@ def build():
                         name=f"{NAME}_albedo")
     C.assign_material(shell[0], C.make_textured_material(
         f"{NAME}_shell", img, roughness=0.82))
-    moss_m, paper_m = _mat("moss", rough=0.9), _mat("paper", rough=0.85)
+    moss_m = _mat("moss", rough=0.9)
+    paper_m = C.make_textured_material(f"{NAME}_paper", paper_texture(),
+                                      roughness=0.85)
     # 堆積物は種別ごとに色を分ける ―― 全部同じ色だと甲羅の瘤にしか見えない
     debris_m = {"stone": _mat("shelllite", 0.88, rough=0.88),
                 "moss": moss_m, "mud": _mat("limbdark", 1.0, rough=0.92)}
     limb_m = _mat("limb", rough=0.62)
+    # **脚は鋏より明るくする。** 同じ色だと 96px で鋏の塊に吸収され、
+    # 甲羅・目・鋏の3要素しか残らない(設定画では紙の地色が明るいので
+    # 暗い脚でも分離するが、実機の背景は暗いので同じ手は使えない)。
+    leg_m = _mat("limb", 1.16, rough=0.60)
     dark_m = _mat("limbdark", rough=0.7)
     nail_m = _mat("limblite", rough=0.42)
     eye_m = _mat("eye", rough=0.22)
@@ -808,7 +882,7 @@ def build():
     for o in body:
         C.assign_material(o, dark_m)
     for o in legs["L"] + legs["R"]:
-        C.assign_material(o, limb_m)
+        C.assign_material(o, leg_m)
 
     # **苔と紙片は甲羅の骨へ固定する。** 甲羅の面から数 mm 浮いた小さな
     # 部品で、自動ウェイトだと胴の骨を拾って揺れたときに甲羅から剥がれる。
