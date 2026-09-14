@@ -16,6 +16,7 @@ import akubitokage
 import common as C
 import honegarami
 import mabutamushi
+import surigarasu
 import madoromi
 from mathutils import Matrix, Vector
 
@@ -9855,130 +9856,70 @@ def moyautsubo_animations():
 
 # ========================================================================= スリガラス
 
-SURIGARASU_HALF = {
-    "hip": (0.0, 0.09, 0.13),
-    "chest": (0.0, -0.02, 0.15),
-    "neck": (0.0, -0.13, 0.16),
-    "snout": (0.0, -0.24, 0.155),
-    "tail1": (0.0, 0.18, 0.15),
-    "tail2": (0.0, 0.24, 0.17),
-    "tail3": (0.0, 0.29, 0.20),
-    "ear.L": (0.05, -0.13, 0.20),
-    "hipF.L": (0.09, -0.05, 0.13),
-    "footF.L": (0.20, -0.06, 0.10),
-    "hipB.L": (0.06, 0.08, 0.09),
-    "footB.L": (0.06, 0.10, 0.01),
-}
-SURIGARASU_RADII_HALF = {
-    "hip": 0.085, "chest": 0.095, "neck": 0.060, "snout": 0.028,
-    "tail1": 0.024, "tail2": 0.016, "tail3": 0.010,
-    "ear.L": 0.014,
-    "hipF.L": 0.032, "footF.L": 0.020,
-    "hipB.L": 0.026, "footB.L": 0.016,
-}
-SURIGARASU_BONES_HALF = [
-    ("chest", "hip"), ("chest", "neck"), ("neck", "snout"),
-    ("hip", "tail1"), ("tail1", "tail2"), ("tail2", "tail3"),
-    ("neck", "ear.L"),
-    ("chest", "hipF.L"), ("hipF.L", "footF.L"),
-    ("hip", "hipB.L"), ("hipB.L", "footB.L"),
-]
-
 
 def build_surigarasu():
-    """
-    ヨリシロのふとした衝動が形になった、カラスに似た姿。gajiriと同じ
-    関節構成をベースに、細身ですばやそうな鳥のシルエットに作り替える。
-    何かを掴んで抱え込むための前肢を目立たせ、平たい翼を左右の肩に
-    重ねる。耳は鳥らしからぬため小さく切り詰め、鼻先には尖った嘴を
-    足す。配色は第一地方(うたたねの参道)の、参道の土色に馴染む
-    素朴な淡い色合い。
-    """
-    joints = C.mirrored(SURIGARASU_HALF)
-    radii = C.mirrored_radii(SURIGARASU_RADII_HALF)
-    bones = C.mirrored_bones(SURIGARASU_BONES_HALF)
-
-    body = C.build_skinned("surigarasu", joints, bones, radii, root="chest", subsurf=2)
-    feather = C.make_material("suriga_feather", (0.62, 0.56, 0.46), roughness=0.7)
-    C.assign_material(body, feather)
-
-    extras = []
-    wing_mat = C.make_material("suriga_wing", (0.50, 0.44, 0.36), roughness=0.65)
-    for side in (-1.0, 1.0):
-        wing = C.uv_sphere(f"suriga_wing{side}", (0.155 * side, -0.02, 0.145), 0.075,
-                           segments=14, rings=10, scale=(1.0, 1.3, 0.28))
-        C.assign_material(wing, wing_mat)
-        extras.append(wing)
-        extras += eyeball(f"suriga_eye{side}", (0.038 * side, -0.185, 0.185), 0.020,
-                          look=(0.3 * side, -1.0, 0.1))
-    beak = C.cone("suriga_beak", (0.0, -0.255, 0.148), 0.022, 0.003, 0.055, segments=10)
-    C.assign_material(beak, C.make_material("suriga_beak_m", (0.68, 0.56, 0.32), roughness=0.4))
-    extras.append(beak)
-    # 尻尾の先に扇状の尾羽
-    for i, angle_deg in enumerate([-18.0, 0.0, 18.0]):
-        angle = math.radians(angle_deg)
-        fx = math.sin(angle) * 0.03
-        feather_tail = C.cone(f"suriga_tailfeather{i}", (fx, 0.29, 0.20 - i * 0.006),
-                              0.014, 0.002, 0.06, segments=8)
-        C.assign_material(feather_tail, feather)
-        extras.append(feather_tail)
-
-    mesh = C.join([body] + extras, "surigarasu")
-    armature = C.build_armature("surigarasu", joints, bones, mesh, root="chest")
-    return [mesh, armature], armature
+    """設定画のスリガラス。造形は tools/models/surigarasu.py。"""
+    return surigarasu.build()
 
 
 def surigarasu_animations():
+    """設定画の「表情・状態パターン」に合わせた5クリップ。
+
+    骨は body-head / body-tail / body-wing.L・R / body-leg.L・R の6本
+    (嘴・脚・欠片は変形しない剛体部品として骨へ親化してある)。旧モデルは
+    四足獣の前肢・後肢を振る歩容だったが、設定画は**二本足で跳ねる鳥**なので、
+    頭のきょろきょろと尾の遅れ追従を主役に組み直した。
     """
-    plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
-    タメ・ツメ(LINEAR補間)・尻尾の遅れ追従(二次揺れ)を足してある。
-    thiefらしく間合いを詰めるフレーム数自体はtsubuteより詰めたまま
-    (俊敏さを維持)。防御1というごく薄い装甲のためhitの振幅は大きめに保つ。
-    """
-    neck, snout = "chest-neck", "neck-snout"
-    hipF_L, hipF_R = "chest-hipF.L", "chest-hipF.R"
-    hipB_L, hipB_R = "hip-hipB.L", "hip-hipB.R"
-    tail1 = "hip-tail1"
+    head, tail = "body-head", "body-tail"
+    ll, lr = "body-leg.L", "body-leg.R"
+    wl, wr = "body-wing.L", "body-wing.R"
     return [
-        # きょろきょろと、光るものを探して落ち着かない。尻尾(tail1)が
-        # 首より3フレーム遅れて追従する(gajiriと同じ手法の二次揺れ)
+        # 「きょろきょろ」。光るものを探して落ち着かない。尾が首より
+        # 3フレーム遅れて追従する(二次揺れ)
         ("idle", [
-            (1, {neck: (0, 0, 0), tail1: (0, 0, 0)}),
-            (14, {neck: (3, 12, 0)}),
-            (17, {tail1: (0, 0, 12)}, {"partial": True}),
-            (28, {neck: (0, 0, 0)}),
-            (31, {tail1: (0, 0, 0)}, {"partial": True}),
-            (42, {neck: (-3, -12, 0)}),
-            (45, {tail1: (0, 0, -12)}, {"partial": True}),
+            (1, {head: (0, 0, 0), tail: (0, 0, 0)}),
+            (13, {head: (0, 26, 0)}),
+            (16, {tail: (0, 0, 8)}, {"partial": True}),
+            (26, {head: (-5, 0, 0)}),
+            (29, {tail: (0, 0, 0)}, {"partial": True}),
+            (40, {head: (0, -26, 0)}),
+            (43, {tail: (0, 0, -8)}, {"partial": True}),
+            (54, {head: (0, 0, 0)}),
+            (57, {tail: (0, 0, 0)}, {"partial": True}),
         ]),
-        # 飛び去るように、羽ばたきながら跳ねて進む
+        # 「素早く近づく」。歩くのではなく、両脚で小刻みに跳ねる
         ("walk", [
-            (1, {hipF_L: (0, 0, 16), hipF_R: (0, 0, -16), hipB_L: (14, 0, 0), hipB_R: (-14, 0, 0)}),
-            (7, {hipF_L: (0, 0, -16), hipF_R: (0, 0, 16), hipB_L: (-14, 0, 0), hipB_R: (14, 0, 0)}),
-            (14, {hipF_L: (0, 0, 16), hipF_R: (0, 0, -16), hipB_L: (14, 0, 0), hipB_R: (-14, 0, 0)}),
+            (1, {ll: (-22, 0, 0), lr: (18, 0, 0), head: (6, 0, 0), tail: (-6, 0, 0)}),
+            (5, {ll: (18, 0, 0), lr: (-22, 0, 0), head: (-4, 0, 0), tail: (4, 0, 0)}),
+            (9, {ll: (-22, 0, 0), lr: (18, 0, 0), head: (6, 0, 0), tail: (-6, 0, 0)}),
+            (13, {ll: (18, 0, 0), lr: (-22, 0, 0), head: (-4, 0, 0), tail: (4, 0, 0)}),
         ]),
-        # タメ→LINEARで鋭く掠め取るツメ→行き過ぎ→飛び去る構えに戻る
+        # 「盗む瞬間」。タメてから LINEAR で鋭くつつき、すぐ引く
         ("attack", [
-            (1, {neck: (0, 0, 0), hipF_L: (0, 0, 0), hipF_R: (0, 0, 0)}),
-            (4, {neck: (-12, 0, 0), hipF_L: (0, 0, 30), hipF_R: (0, 0, -30)}, {"interp": "LINEAR"}),
-            (7, {neck: (18, 0, 0), hipF_L: (0, 0, -36), hipF_R: (0, 0, 36)}),
-            (9, {neck: (18, 0, 0), hipF_L: (0, 0, -40), hipF_R: (0, 0, 40)}),
-            (16, {neck: (0, 0, 0), hipF_L: (0, 0, 0), hipF_R: (0, 0, 0)}),
+            (1, {head: (0, 0, 0), tail: (0, 0, 0)}),
+            (4, {head: (-16, 0, 0), tail: (10, 0, 0)}, {"interp": "LINEAR"}),
+            (7, {head: (30, 0, 0), tail: (-14, 0, 0)}),
+            (9, {head: (26, 0, 0), tail: (-10, 0, 0)}),
+            (16, {head: (0, 0, 0), tail: (0, 0, 0)}),
         ]),
-        # 入りをLINEARで鋭くし、紙装甲らしく振幅を大きくする一方、
-        # thiefらしくすぐ逃げに転じるため戻りは伸ばさず速く戻す
+        # 「驚く」。防御が低い種なので振幅は大きく、thief らしく戻りは速い。
+        # 羽を逆立てるように翼をわずかに開く
         ("hit", [
-            (1, {neck: (0, 0, 0)}, {"interp": "LINEAR"}),
-            (4, {neck: (18, 0, 0), hipF_L: (0, 0, -20), hipF_R: (0, 0, 20)}),
-            (12, {neck: (0, 0, 0), hipF_L: (0, 0, 0), hipF_R: (0, 0, 0)}),
+            (1, {head: (0, 0, 0), tail: (0, 0, 0)}, {"interp": "LINEAR"}),
+            (4, {head: (24, 0, 0), tail: (-18, 0, 0), wl: (0, 0, 22), wr: (0, 0, -22),
+                 ll: (16, 0, 0), lr: (-16, 0, 0)}),
+            (12, {head: (0, 0, 0), tail: (0, 0, 0), wl: (0, 0, 0), wr: (0, 0, 0),
+                  ll: (0, 0, 0), lr: (0, 0, 0)}),
         ]),
-        # 初動をLINEARで鋭くする。18f到達後、消える直前に首がわずかに
-        # 戻る小さな跳ね返りを追加
+        # 「飛び去る」。翼を開き、脚を畳んで上体を反らし、上空へ抜ける構え
         ("die", [
-            (1, {neck: (0, 0, 0)}, {"interp": "LINEAR"}),
-            (8, {neck: (10, 0, 0), hipF_L: (0, 0, 20), hipF_R: (0, 0, -20)}),
-            (18, {neck: (24, 0, 0), hipF_L: (0, 0, 44), hipF_R: (0, 0, -44)}),
-            (22, {neck: (20, 0, 0)}, {"partial": True}),
+            (1, {head: (0, 0, 0), tail: (0, 0, 0)}, {"interp": "LINEAR"}),
+            (8, {head: (-18, 0, 0), tail: (14, 0, 0), wl: (0, 0, 34), wr: (0, 0, -34),
+                 ll: (-34, 0, 0), lr: (34, 0, 0)}),
+            (18, {head: (-34, 0, 0), tail: (26, 0, 0), wl: (0, 0, 62), wr: (0, 0, -62),
+                  ll: (-58, 0, 0), lr: (58, 0, 0)}),
+            (22, {head: (-30, 0, 0), tail: (22, 0, 0), wl: (0, 0, 56),
+                  wr: (0, 0, -56)}, {"partial": True}),
         ]),
     ]
 
