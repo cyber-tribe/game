@@ -70,10 +70,14 @@ SHEET = {
 # **明度は動かさず色みだけ回す**(`modeling-pitfalls.md` 4-49)。回す強さは
 # 色ごと ―― 一律に掛けると明るい差し色が金色に転ぶ。
 TINT_FIX = (1.237, 1.078, 0.672)
+# **スリガラスの重みをそのまま持ってこない。** あれは黒く玉虫色の体を
+# 寒色の灯りから救うための値で、そのまま当てるとこの甲羅(R-B が +6 の
+# ほぼ中性の灰)が R-B +64 の砂色になった ―― 石ではなく段ボールに見える。
+# ワスレガニは設定画の時点でほぼ中性なので、回すのはごく浅くてよい。
 TINT_W = {
-    "shell": 0.85, "shelldark": 1.00, "shelllite": 0.55, "rim": 1.00,
-    "limb": 0.55, "limblite": 0.30, "limbdark": 0.90,
-    "eye": 1.00, "paper": 0.30, "moss": 0.45,
+    "shell": 0.26, "shelldark": 0.34, "shelllite": 0.18, "rim": 0.40,
+    "limb": 0.22, "limblite": 0.12, "limbdark": 0.34,
+    "eye": 0.30, "paper": 0.10, "moss": 0.16,
 }
 
 
@@ -147,7 +151,7 @@ SHELL_SPAN = SHELL_TOP - SHELL_Z0
 # 見た天辺が尖っていた。
 SHELL_RX = 0.4306         # 正面図の最大半幅
 SHELL_RY = 0.3884         # 側面図の最大半奥行き
-SHELL_SEG, SHELL_RING = 48, 30
+SHELL_SEG, SHELL_RING = 44, 26
 # 縁は分厚い。**薄い皿にしない** ―― 設定画は「殻は分厚く硬い」。
 RIM_DROP = 0.042
 RIM_IN = 0.940
@@ -241,7 +245,8 @@ EYE_SCALE = (1.00, 0.88, 1.14)    # 縦長
 
 
 def build_body() -> list:
-    b = C.uv_sphere(f"{NAME}_body", BODY_C, 1.0, segments=28, rings=18,
+    # **解像度を落としてよい。** 甲羅と鋏にほぼ覆われて外から見えない。
+    b = C.uv_sphere(f"{NAME}_body", BODY_C, 1.0, segments=20, rings=14,
                     scale=BODY_R)
     return [b]
 
@@ -251,7 +256,7 @@ def build_eyes() -> list:
     目玉が膨れて「目が飛び出したカニ」になる。設定画の目は奥まっている。"""
     return [C.uv_sphere(f"{NAME}_eye{'L' if side > 0 else 'R'}",
                         (EYE_X * side, EYE_Y, EYE_Z), EYE_R,
-                        segments=18, rings=14, scale=EYE_SCALE)
+                        segments=16, rings=12, scale=EYE_SCALE)
             for side in (-1.0, 1.0)]
 
 
@@ -305,7 +310,7 @@ def claw_parts() -> tuple:
     """(甲殻色の部分, 淡い指) を分けて返す ―― 指だけ別の色を当てる。"""
     hard, nail = [], []
     hard.append(C.uv_sphere(f"{NAME}_sternum", STERNUM_C, 1.0,
-                            segments=20, rings=14, scale=STERNUM_R))
+                            segments=18, rings=12, scale=STERNUM_R))
     for side in (-1.0, 1.0):
         tag = "L" if side > 0 else "R"
         hard.append(_tube(f"{NAME}_arm{tag}",
@@ -360,11 +365,193 @@ def build_legs() -> dict:
                       list(THIGH_R), side),
                 C.uv_sphere(f"{NAME}_knee{tag}{k}",
                             (knee[0] * side, knee[1], knee[2]), KNEE_R,
-                            segments=12, rings=8),
+                            segments=8, rings=6),
                 _tube(f"{NAME}_shin{tag}{k}",
                       (knee, tuple((a + b) * 0.5 for a, b in zip(knee, foot)),
                        foot), list(SHIN_R), side),
             ]
+    return out
+
+
+# ================================================== 甲羅の板割り・苔・紙片
+#
+# 設定画の甲羅は、暗い溝で仕切られた多角形の板でできている(「殻は分厚く
+# 硬い」「石のように硬く、古びた質感」)。**溝はジオメトリにしない** ――
+# 彫れば三角形が数千増えるうえ、96px では溝が潰れて甲羅が汚れて見えるだけ
+# になる。`bake_albedo` の color_fn は3D位置を受け取るので、展開図ではなく
+# 甲羅の座標系(θ, v)のまま板割りを組める。
+#
+# 種は (v, 個数) の準格子。**縁ほど小さく多く、天辺ほど大きく少ない** ――
+# 設定画の甲羅は天辺に大きな板が1枚あり、そこから放射状に割れていく。
+PLATE_RINGS = ((0.055, 15), (0.230, 13), (0.420, 10), (0.615, 7),
+               (0.810, 4), (0.975, 1))
+PLATE_SEAM = 0.0105       # 溝の幅(m)
+_SEEDS: list | None = None
+
+
+def _plate_seeds() -> list:
+    """板の種を甲羅の面の上に置く。"""
+    out = []
+    for ri, (v, n) in enumerate(PLATE_RINGS):
+        for i in range(n):
+            a = _jitter(ri * 7.3 + 1.7, i * 3.1 + 0.9)
+            b = _jitter(i * 5.7 + 2.3, ri * 2.9 + 0.4)
+            th = (i + 0.47 * ri + 0.34 * (a - 0.5)) * math.tau / n
+            vv = min(0.99, max(0.0, v + 0.05 * (b - 0.5)))
+            out.append((shell_surface(vv, th)[0], b))
+    return out
+
+
+def _seeds() -> list:
+    global _SEEDS
+    if _SEEDS is None:
+        _SEEDS = _plate_seeds()
+    return _SEEDS
+
+
+def _mottle(p, k: float = 1.0) -> float:
+    """石の斑。-1..1。**格子ノイズを使わない** ―― 床関数のノイズは
+    テクセル単位で段が出て、縮小すると砂嵐に見える。正弦の和は滑らか。"""
+    return (math.sin(p.x * 27.7 * k + p.y * 11.3 * k + 0.7) * 0.50
+            + math.sin(p.y * 19.1 * k - p.z * 33.7 * k + 2.1) * 0.32
+            + math.sin(p.z * 44.3 * k + p.x * 7.9 * k - 1.4) * 0.18)
+
+
+# 苔・藻。**色の面と瘤の両方**を置く ―― 設定画の苔は輪郭を凸凹させて
+# いて、色だけだと甲羅がつるりとしたままになる。ここは (θ度, v) で指定。
+MOSS_SPOTS = (
+    (18.0, 0.92, 0.150), (86.0, 0.80, 0.130), (150.0, 0.88, 0.120),
+    (212.0, 0.72, 0.145), (256.0, 0.86, 0.115), (318.0, 0.64, 0.125),
+    (54.0, 0.52, 0.100), (188.0, 0.44, 0.095), (300.0, 0.36, 0.090),
+    (122.0, 0.62, 0.105),
+)
+
+
+def _moss_weight(p) -> float:
+    """位置 p が苔に覆われる度合い(0..1)。境界は斑で崩す。"""
+    w = 0.0
+    for deg, v, r in MOSS_SPOTS:
+        c, _ = shell_surface(v, math.radians(deg))
+        d = (p - c).length / r
+        w = max(w, 1.0 - min(1.0, d * d))
+    return min(1.0, max(0.0, w * 1.35 + _mottle(p, 2.6) * 0.30 - 0.28))
+
+
+def shell_paint(p, n):
+    """甲羅の表面色。板割りの溝 → 板ごとの明度 → 石の斑 → 苔 の順に重ねる。"""
+    d1 = d2 = 1e9
+    jit = 0.5
+    for c, j in _seeds():
+        d = (p - c).length
+        if d < d1:
+            d2, d1, jit = d1, d, j
+        elif d < d2:
+            d2 = d
+    base = _srgb("shell")
+    v = (p.z - SHELL_Z0) / SHELL_SPAN
+    # 縁の帯は**板割りを入れない**。設定画の甲羅は下の帯だけ滑らかな厚い
+    # 唇になっていて、そこに板の溝は走っていない。
+    lip = min(1.0, max(0.0, (0.155 - v) / 0.105))
+    if d2 - d1 < PLATE_SEAM and lip < 0.5:   # 板と板の溝
+        t = (d2 - d1) / PLATE_SEAM
+        rim = _srgb("rim")
+        k = t * t
+        col = tuple(a + (b - a) * k for a, b in zip(rim, base))
+    else:
+        # 板ごとの明度差(設定画の甲羅は板単位で明暗が散っている)
+        lo, hi = _srgb("shelldark"), _srgb("shelllite")
+        u = 0.30 + 0.55 * jit + 0.18 * _mottle(p, 0.55)
+        u = min(1.0, max(0.0, u))
+        col = tuple(a + (b - a) * u for a, b in zip(lo, hi))
+        col = tuple(c * (1.0 + 0.055 * _mottle(p, 3.7)) for c in col)
+    if lip > 0.0:
+        dark = _srgb("shelldark")
+        col = tuple(a + (b - a) * (lip * 0.55) for a, b in zip(col, dark))
+    # 下向きの面(縁の巻き込みの裏)は落とす
+    if n.z < -0.25:
+        col = tuple(c * 0.62 for c in col)
+    w = _moss_weight(p)
+    if w > 0.0:
+        moss = _srgb("moss")
+        col = tuple(a + (b - a) * w for a, b in zip(col, moss))
+    return tuple(min(1.0, max(0.0, c)) for c in col)
+
+
+# 苔の瘤。色の面の中に、輪郭を崩す小さな塊を散らす。
+# **大きい塊は 3 個まで** ―― 全部を大きくすると甲羅が苺になる。
+def build_moss() -> list:
+    out = []
+    for si, (deg, v, r) in enumerate(MOSS_SPOTS):
+        # **数を絞らない。** 2〜3個だと甲羅にボルトを打ったように見える。
+        # 設定画の苔はフジツボのように寄り集まった小さな瘤の房。
+        n_knob = 7 if v > 0.6 else 5
+        for k in range(n_knob):
+            a = _jitter(si * 4.1 + k * 1.7, deg * 0.013 + 0.3)
+            b = _jitter(k * 6.3 + 0.9, si * 2.7 + v)
+            c = _jitter(si * 1.3 + k * 3.9, v * 5.1)
+            th = math.radians(deg) + (a - 0.5) * r * 2.6
+            vv = min(0.995, max(0.02, v + (b - 0.5) * r * 0.8))
+            # **角張らせない。** subdivisions=0 の二十面体は「硬い面の記号」
+            # (common.gem の注意書き)で、甲羅に散らすと苔ではなく氷の
+            # 結晶に見えた。苔は丸い瘤。
+            rad = r * (0.105 + 0.085 * c)
+            pos, _ = shell_surface(vv, th, out=rad * 0.34)
+            out.append(C.gem(f"{NAME}_moss{si}_{k}", pos, rad,
+                             subdivisions=1, scale=(1.0, 1.0, 0.62)))
+    return out
+
+
+# 記憶のカケラ(紙片)。設定画では甲羅にわずかに反った四角い紙が数枚
+# 貼り付いている。**平らな板を浮かせない** ―― 甲羅の面を実際にサンプル
+# して曲げる。文字は書かない(実在の文字列を置かない)。
+# **大きく貼らない。** 設定画の紙片は甲羅の板1枚ぶんより小さく、
+# 貼られた向きもばらばらで、剥がれかけた角がある。大きく揃った四角を
+# 並べると付箋を貼ったカボチャになる。
+PAPERS = (
+    # (θ度, v, 幅m, 高さm, 傾き度)
+    (302.0, 0.60, 0.104, 0.076, -26.0),
+    (32.0, 0.47, 0.092, 0.070, 17.0),
+    (74.0, 0.27, 0.100, 0.072, -8.0),
+    (166.0, 0.55, 0.096, 0.074, 31.0),
+    (208.0, 0.29, 0.088, 0.066, -15.0),
+    (248.0, 0.70, 0.082, 0.062, 11.0),
+    (130.0, 0.38, 0.090, 0.068, -21.0),
+)
+PAPER_GRID = 3            # 1枚あたり 3x3 頂点 = 8三角形
+PAPER_LIFT = 0.004
+
+
+def build_papers() -> list:
+    """甲羅の面に沿って曲げた薄い四角。"""
+    out = []
+    for pi, (deg, v, w, h, rot) in enumerate(PAPERS):
+        th0 = math.radians(deg)
+        ca, sa = math.cos(math.radians(rot)), math.sin(math.radians(rot))
+        rx, ry, _ = shell_ring(v)
+        span = (rx + ry) * 0.5              # その高さでの周長の目安(半径)
+        co, faces = [], []
+        g = PAPER_GRID
+        for iy in range(g):
+            for ix in range(g):
+                u = (ix / (g - 1) - 0.5) * w
+                t = (iy / (g - 1) - 0.5) * h
+                du, dt = u * ca - t * sa, u * sa + t * ca
+                pos, _ = shell_surface(
+                    min(0.99, max(0.0, v + dt / SHELL_SPAN)),
+                    th0 + du / max(span, 1e-6), out=PAPER_LIFT)
+                co.append(pos)
+        for iy in range(g - 1):
+            for ix in range(g - 1):
+                a = iy * g + ix
+                faces.append((a, a + 1, a + g + 1, a + g))
+        me = bpy.data.meshes.new(f"{NAME}_paper{pi}")
+        me.from_pydata([tuple(c) for c in co], [], faces)
+        me.update()
+        obj = bpy.data.objects.new(f"{NAME}_paper{pi}", me)
+        bpy.context.collection.objects.link(obj)
+        for poly in me.polygons:
+            poly.use_smooth = True
+        out.append(obj)
     return out
 
 
