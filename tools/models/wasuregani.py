@@ -586,3 +586,101 @@ def _check(objs) -> None:
     print(f"[{NAME}] 高さ {hi.z - lo.z:.3f}m 幅 {hi.x - lo.x:.3f}m "
           f"奥行き {hi.y - lo.y:.3f}m 三角形 {C.tri_count(objs)}")
     assert lo.z > -0.004, lo.z
+
+
+# ============================================================== 組み立て
+# 骨は12本。**甲羅を独立させる**のが要 ―― 設定画の「攻撃が当たると軽い
+# 混乱を起こす」「その殻がゆるく揺れ、景色を曇らせる」は甲羅の揺れで
+# 見せる。根は body-belly(下向きの短い幹)で、甲羅も鋏も脚もそこへ
+# ぶら下げる。甲羅を根にすると殻を揺らしたとき脚まで一緒に回ってしまう。
+JOINTS_HALF = {
+    "body": (0.0, -0.055, 0.235),
+    "belly": (0.0, -0.055, 0.140),      # 幹(ここが根)
+    "shell": (0.0, 0.010, 0.520),
+    "claw.L": (0.206, -0.150, 0.286),
+    "nip.L": (0.268, -0.412, 0.138),    # 掌の先。ここから指が開閉する
+    "legA.L": (0.250, -0.105, 0.235),
+    "legB.L": (0.262, 0.082, 0.235),
+    "legC.L": (0.238, 0.232, 0.235),
+}
+BONES_HALF = [
+    ("body", "belly"), ("body", "shell"),
+    ("body", "claw.L"), ("claw.L", "nip.L"),
+    ("body", "legA.L"), ("body", "legB.L"), ("body", "legC.L"),
+]
+SHELL_TEX = 512
+
+
+def build():
+    """本番モデル(メッシュ+アーマチュア)を返す。"""
+    shell, body, eyes, claws, legs = bare_parts()
+    moss, papers = build_moss(), build_papers()
+
+    # **甲羅だけ先に展開して焼く。** 苔と紙片を join してから展開すると、
+    # 甲羅の島が小さくなって板の溝が滲む(4-54 の逆で、密度が足りなくなる)。
+    C.smart_uv(shell[0])
+    img = C.bake_albedo(shell[0], shell_paint, size=SHELL_TEX,
+                        name=f"{NAME}_albedo")
+    C.assign_material(shell[0], C.make_textured_material(
+        f"{NAME}_shell", img, roughness=0.82))
+    moss_m, paper_m = _mat("moss", rough=0.9), _mat("paper", rough=0.85)
+    limb_m = _mat("limb", rough=0.62)
+    dark_m = _mat("limbdark", rough=0.7)
+    nail_m = _mat("limblite", rough=0.42)
+    eye_m = _mat("eye", rough=0.22)
+    # **目に輪郭線を付けない** ―― 径 74mm の球に反転ハルが付くと目玉が
+    # 膨れて「目が飛び出したカニ」になる。設定画の目は奥まっている。
+    eye_m["noOutline"] = True
+    nail_m["noOutline"] = True
+    for o in moss:
+        C.assign_material(o, moss_m)
+    for o in papers:
+        C.assign_material(o, paper_m)
+    for o in eyes:
+        C.assign_material(o, eye_m)
+    for o in claws:
+        C.assign_material(o, nail_m if "finger" in o.name
+                          else dark_m if "sternum" in o.name else limb_m)
+    for o in body:
+        C.assign_material(o, dark_m)
+    for o in legs["L"] + legs["R"]:
+        C.assign_material(o, limb_m)
+
+    # **苔と紙片は甲羅の骨へ固定する。** 甲羅の面から数 mm 浮いた小さな
+    # 部品で、自動ウェイトだと胴の骨を拾って揺れたときに甲羅から剥がれる。
+    pins = [C.mark_for_pin(o) for o in moss + papers]
+    sternum = [o for o in claws if "sternum" in o.name]
+    arms = {t: [o for o in claws if o.name.endswith(t)
+                and ("arm" in o.name or "palm" in o.name)] for t in ("L", "R")}
+    nails = {t: [o for o in claws if o.name.endswith(t) and "finger" in o.name]
+             for t in ("L", "R")}
+    # **join する前に全部の組を作っておく。** join は渡したオブジェクトを
+    # 消すので、あとから同じリストを走査すると削除済みの参照に当たる。
+    leg_groups = {(t, k): [o for o in legs[t] if o.name.endswith(f"{t}{k}")]
+                  for t in ("L", "R") for k in range(len(LEGS))}
+
+    mesh = C.join(shell + moss + papers + body + sternum, NAME)
+    joints = C.mirrored(JOINTS_HALF)
+    bones = C.mirrored_bones(BONES_HALF)
+    armature = C.build_armature(NAME, joints, bones, mesh, root="body")
+    for grp in pins:
+        C.pin_weight_to_bone(mesh, grp, "body-shell")
+
+    parts = []
+    eyes_o = C.join(eyes, f"{NAME}_eyes")
+    C.parent_to_bone(eyes_o, armature, "body-belly")
+    parts.append(eyes_o)
+    for tag in ("L", "R"):
+        a = C.join(arms[tag], f"{NAME}_arm{tag}")
+        C.parent_to_bone(a, armature, f"body-claw.{tag}")
+        n = C.join(nails[tag], f"{NAME}_nip{tag}")
+        C.parent_to_bone(n, armature, f"claw.{tag}-nip.{tag}")
+        parts += [a, n]
+        # **脚は1本ずつ別の骨へ。** 片側3本をまとめて1つの骨に付けると、
+        # 歩行で3本が完全に同位相で振れて「脚の生えた箱」に見える。
+        for k, lab in enumerate("ABC"):
+            o = C.join(leg_groups[(tag, k)], f"{NAME}_leg{tag}{k}")
+            C.parent_to_bone(o, armature, f"body-leg{lab}.{tag}")
+            parts.append(o)
+    _check([mesh] + parts)
+    return [mesh, armature] + parts, armature
