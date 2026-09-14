@@ -127,21 +127,31 @@ def _lerp_table(table, u: float):
 # 正面図から rx、側面図から ry と cy を読む。**前後の中心はわずかに前**
 # ―― 側面図の甲羅は前へ庇のように張り出し、その下に目が入る。
 SHELL_Z0 = 0.311          # 甲羅の縁(sheet y250)
-SHELL_TOP = 0.795         # 甲羅の天辺(sheet y155)
+SHELL_TOP = 0.782         # ドームの天辺。**苔の突起は含めない**
 SHELL_SPAN = SHELL_TOP - SHELL_Z0
 # **測った表をそのまま積まない。** 手描きの実測は 1〜2px 揺れていて、
 # Catmull-Rom で引くとドームに横縞の段が出た(4-40 の続き)。形が素直な
 # ドームなので、実測に**関数を当てはめて**から積む。
 #
-#   rx(v) = RX * (1 - v^2.4)^0.622      実測との差は最大 1.1%
-#   ry(v) = RY * (1 - v^2.4)^0.75       同 1.5%
-#   cy(v) = -0.016 + 0.072 * v^2        天辺ほど後ろへ寄る(前が庇になる)
-SHELL_RX = 0.4280         # 正面図 168px の半分
-SHELL_RY = 0.3924         # 側面図 154px の半分
+# 当てはめは**最大誤差ではなく中央値**で採る ―― 外周には苔の瘤が外へ出て
+# いて、最大誤差で合わせると瘤に引っぱられて全体が太る(front で 6.7%→
+# 13.6mm、中央値なら 6.7mm)。
+#
+#   rx(v) = RX * (1 - v^2.00)^0.63     実測との差は中央値 6.7mm
+#   ry(v) = RY * (1 - v^2.05)^0.58     同 5.6mm
+#   cy(v) = -0.016 - 0.172*v + 0.234*v^2
+#
+# **cy は単調ではない。** 中ほど(v≈0.37)で 32mm 前へ張り出し、天辺で
+# 46mm 後ろへ戻る ―― 側面図の「目の上にせり出す庇」がこの二次項。
+# 旧式の ry 指数 0.75 は v=0.90 で実測より 18% 細く、そのせいで側面から
+# 見た天辺が尖っていた。
+SHELL_RX = 0.4306         # 正面図の最大半幅
+SHELL_RY = 0.3884         # 側面図の最大半奥行き
 SHELL_SEG, SHELL_RING = 48, 30
 # 縁は分厚い。**薄い皿にしない** ―― 設定画は「殻は分厚く硬い」。
-RIM_DROP = 0.038
-RIM_IN = 0.955
+RIM_DROP = 0.042
+RIM_IN = 0.940
+RIM_RING = 4              # 巻き込みのリング数。2枚だと面が立って鋸歯に見えた
 # **前縁に切り欠きを作る。** 設定画の顔は甲羅の前面の窪みに収まっていて、
 # 切り欠きが無いと目が甲羅の中に埋まって正面から一切見えない。
 # 前(th=270°)でいちばん深く、側面へ向かって 0 に戻す。
@@ -160,9 +170,9 @@ def _notch(th: float) -> float:
 
 def shell_ring(v: float):
     v = min(1.0, max(0.0, v))
-    k = max(0.0, 1.0 - v ** 2.4)
-    return (SHELL_RX * k ** 0.622, SHELL_RY * k ** 0.75,
-            -0.016 + 0.072 * v * v)
+    return (SHELL_RX * max(0.0, 1.0 - v ** 2.00) ** 0.63,
+            SHELL_RY * max(0.0, 1.0 - v ** 2.05) ** 0.58,
+            -0.016 - 0.172 * v + 0.234 * v * v)
 
 
 def shell_surface(v: float, th: float, out: float = 0.0):
@@ -179,19 +189,19 @@ def build_shell() -> list:
     (loft のリングは水平)。断面を自前で積む。"""
     me = bpy.data.meshes.new(f"{NAME}_shell")
     co, faces = [], []
-    rings = SHELL_RING + 2                       # +2 は縁の厚み
+    rings = SHELL_RING + RIM_RING                # 縁の巻き込みを足す
     for i in range(rings + 1):
         for j in range(SHELL_SEG):
             th = j * math.tau / SHELL_SEG
             v0 = NOTCH_V * _notch(th)            # その角での下端
-            if i < 2:                            # 縁の下のスカート(厚み)
-                t = (2 - i) / 2.0
+            if i < RIM_RING:                     # 縁の巻き込み(1/4円)
+                ang = (RIM_RING - 1 - i) / (RIM_RING - 1) * math.pi * 0.5
                 rx, ry, cy = shell_ring(v0)
-                k = RIM_IN * (1.0 - 0.07 * t)
-                z = SHELL_Z0 + v0 * SHELL_SPAN - RIM_DROP * t
+                k = 1.0 - (1.0 - RIM_IN) * (1.0 - math.cos(ang))
+                z = SHELL_Z0 + v0 * SHELL_SPAN - RIM_DROP * math.sin(ang)
                 co.append((rx * k * math.cos(th), cy + ry * k * math.sin(th), z))
                 continue
-            v = v0 + (1.0 - v0) * (i - 2) / SHELL_RING
+            v = v0 + (1.0 - v0) * (i - RIM_RING) / SHELL_RING
             rx, ry, cy = shell_ring(v)
             co.append((rx * math.cos(th), cy + ry * math.sin(th),
                        SHELL_Z0 + v * SHELL_SPAN))
@@ -247,18 +257,38 @@ def build_eyes() -> list:
 
 
 # ============================================================ 鋏
-# 側面図の実測: 鋏は sheet x798..864(前方へ突き出す)、y245..303。
-# 正面図: 左の鋏は sheet x607..666。**大きく硬い**(設定画の明記)。
+# 設定画(正面図を 6 倍に拡大して実測):
+#   掌  x 0.114..0.330m、z 0.055..0.310m ―― **甲羅の縁から地面近くまで**
+#       届く塊で、腕は正面からほとんど見えない
+#   指  掌の**内側前面**に貼り付く淡い色の三日月が2枚。上で離れ、下の
+#       先端で噛み合う。長さ 0.19m ほど
 #
-# 腕(付け根)→ 前腕 → 二叉の指。指は下向きに閉じている。
-# 正面図の実測: 左の鋏は sheet x607..666(幅 301mm)、y249..303。
-# **指先は地面すれすれ**(z=0.041)まで降りる。設定画の鋏は体を支える
-# ように前へ突き出して接地している。
-CLAW_ROOT = (0.215, -0.140, 0.250)
-CLAW_ELBOW = (0.262, -0.318, 0.196)
-CLAW_HAND = (0.222, -0.452, 0.132)
-CLAW_TIP = (0.170, -0.545, 0.048)
-CLAW_R = (0.098, 0.112, 0.094)      # 付け根 / 肘 / 手の太さ
+# **ここが読みの要。** 設定画の売りは「ハサミは大きく硬い」で、正面像の
+# 面積の3割を鋏が占める。前の版は掌の縦を 0.18m しか取らず(実測 0.25m)、
+# 指を掌の下へ生やしていたので、腕の先に小さな牙が付いた形にしか見え
+# なかった。指は**掌から突き出す別の付属肢ではなく、掌の内側の面**。
+ARM_ROOT = (0.206, -0.150, 0.286)     # 甲羅の下、胴の前側面
+ARM_MID = (0.238, -0.196, 0.280)
+ARM_R = (0.060, 0.062, 0.056)
+# 掌。**球で作らない**(`common.tapered_slab` の注意書きのとおり、球だと
+# ミトンになる)。手首で絞り、中ほどで最も太り、先でまた絞る中心線に
+# 楕円断面を積む ―― 設定画の鋏は「拳」の形で、腕との継ぎ目が細い。
+PALM_SPINE = ((0.250, -0.220, 0.272), (0.272, -0.292, 0.226),
+              (0.284, -0.362, 0.174), (0.278, -0.432, 0.118),
+              (0.252, -0.482, 0.070))
+PALM_W = (0.052, 0.112, 0.135, 0.118, 0.066)    # 左右(x)の半幅
+PALM_T = (0.058, 0.126, 0.148, 0.130, 0.072)    # 中心線に直交する半厚
+# 指: 掌の**内側前面**。上で開き、下の先で噛み合う三日月2枚。
+# 実測 x 0.107..0.275、z 0.031..0.245 ―― 先は地面すれすれまで降りる。
+# **太くしない** ―― 半径を掌と同じ桁にすると、掌が指の陰に隠れて
+# 「指の多い手」になる。設定画の指は掌の面に彫り込まれた細い刃。
+FINGER_R = [0.034, 0.030, 0.020, 0.007]
+FINGER_UP = ((0.262, -0.430, 0.248), (0.272, -0.500, 0.170),
+             (0.246, -0.505, 0.098), (0.196, -0.470, 0.046))
+FINGER_LO = ((0.146, -0.426, 0.238), (0.132, -0.498, 0.166),
+             (0.150, -0.502, 0.098), (0.190, -0.466, 0.042))
+STERNUM_C = (0.0, -0.296, 0.196)
+STERNUM_R = (0.136, 0.098, 0.116)
 
 
 def _tube(name, pts, radii, side):
@@ -266,54 +296,70 @@ def _tube(name, pts, radii, side):
     return C.curve_tube(name, p, radii, resolution=3, bevel_resolution=3)
 
 
-def build_claws() -> list:
-    out = []
+def claw_parts() -> tuple:
+    """(甲殻色の部分, 淡い指) を分けて返す ―― 指だけ別の色を当てる。"""
+    hard, nail = [], []
+    hard.append(C.uv_sphere(f"{NAME}_sternum", STERNUM_C, 1.0,
+                            segments=20, rings=14, scale=STERNUM_R))
     for side in (-1.0, 1.0):
         tag = "L" if side > 0 else "R"
-        out.append(_tube(f"{NAME}_arm{tag}", (CLAW_ROOT, CLAW_ELBOW, CLAW_HAND),
-                         [CLAW_R[0], CLAW_R[1], CLAW_R[2]], side))
-        # 二叉の指。上の指は太く短く、下の指は細く長い(設定画どおり)
-        h = Vector((CLAW_HAND[0] * side, CLAW_HAND[1], CLAW_HAND[2]))
-        t = Vector((CLAW_TIP[0] * side, CLAW_TIP[1], CLAW_TIP[2]))
-        up = h + Vector((0.0, -0.052, 0.030))
-        out.append(_tube(f"{NAME}_fingerU{tag}",
-                         ((h.x / side, h.y, h.z), (up.x / side, up.y, up.z),
-                          (t.x / side, t.y + 0.012, t.z + 0.034)),
-                         [0.070, 0.052, 0.016], side))
-        lo = h + Vector((0.0, -0.058, -0.022))
-        out.append(_tube(f"{NAME}_fingerL{tag}",
-                         ((h.x / side, h.y, h.z), (lo.x / side, lo.y, lo.z),
-                          (t.x / side, t.y, t.z)),
-                         [0.064, 0.046, 0.014], side))
-    return out
+        hard.append(_tube(f"{NAME}_arm{tag}",
+                          (ARM_ROOT, ARM_MID, PALM_SPINE[0]), list(ARM_R), side))
+        hard.append(C.tapered_slab(
+            f"{NAME}_palm{tag}",
+            [(x * side, y, z) for x, y, z in PALM_SPINE],
+            list(PALM_W), list(PALM_T), (1.0, 0.0, 0.0), segments=16))
+        for lab, pts in (("U", FINGER_UP), ("L", FINGER_LO)):
+            nail.append(_tube(f"{NAME}_finger{lab}{tag}", pts,
+                              list(FINGER_R), side))
+    return hard, nail
+
+
+def build_claws() -> list:
+    hard, nail = claw_parts()
+    return hard + nail
 
 
 # ============================================================ 脚
-# 側面図で脚の付け根は sheet x884 / 922 / 942 あたり ―― 前後3対。
+# 側面図で脚の付け根は sheet x884 / 922 / 942 ―― 前後3対。
 # 正面図では甲羅の下から外へ張り出し、膝で折れて地面へ降りる。
-# **細い**(幅 8px = 41mm)。設定画「足はゆっくりと動く」。
 # 正面図の実測: いちばん広いのは接地の少し上(z≈0.08)で 948mm、接地では
 # 724mm に狭まる ―― **足先は膝より内側**。脚は膝で外へ張ってから内へ降りる。
+#
+# **一本の筒で繋がない。** 等太さの筒で root→膝→足先を通すと、設定画の
+# 「節のある脚」ではなく曲げたストローになる(裸の三面図で実際そう見えた)。
+# 設定画の脚は太い腿・膨らんだ膝・尖って接地する脛の3つで出来ている。
 LEGS = [
     # (付け根の前後y, 付け根のx, 膝, 足先) ―― x は右側(side=+1)基準
-    (-0.105, 0.250, (0.418, -0.145, 0.118), (0.352, -0.175, 0.014)),
-    (+0.085, 0.262, (0.438, +0.105, 0.112), (0.370, +0.130, 0.014)),
-    (+0.258, 0.238, (0.404, +0.315, 0.106), (0.338, +0.380, 0.014)),
+    (-0.105, 0.250, (0.418, -0.145, 0.118), (0.352, -0.178, 0.010)),
+    (+0.082, 0.262, (0.438, +0.102, 0.112), (0.370, +0.132, 0.010)),
+    (+0.232, 0.238, (0.404, +0.300, 0.106), (0.338, +0.372, 0.010)),
 ]
-LEG_R = (0.050, 0.036, 0.016)
+THIGH_R = (0.062, 0.052, 0.044)       # 付け根 / 中 / 膝
+KNEE_R = 0.046
+SHIN_R = (0.044, 0.026, 0.008)        # 膝 / 中 / 足先(尖る)
 
 
 def build_legs() -> dict:
-    """細い脚3対。左右を別々に返す(それぞれの骨へ親化するため)。
+    """節のある脚3対。左右を別々に返す(それぞれの骨へ親化するため)。
 
-    **輪郭線を付けない** ―― 直径 41mm の脚に反転ハルが付くと丸太になる。"""
+    **輪郭線を付けない** ―― この太さに反転ハルが付くと丸太になる。"""
     out = {"L": [], "R": []}
     for side in (-1.0, 1.0):
         tag = "L" if side > 0 else "R"
         for k, (ry, rx, knee, foot) in enumerate(LEGS):
             root = (rx, ry, 0.235)
-            out[tag].append(_tube(f"{NAME}_leg{tag}{k}", (root, knee, foot),
-                                  list(LEG_R), side))
+            mid = tuple((a + b) * 0.5 for a, b in zip(root, knee))
+            out[tag] += [
+                _tube(f"{NAME}_thigh{tag}{k}", (root, mid, knee),
+                      list(THIGH_R), side),
+                C.uv_sphere(f"{NAME}_knee{tag}{k}",
+                            (knee[0] * side, knee[1], knee[2]), KNEE_R,
+                            segments=12, rings=8),
+                _tube(f"{NAME}_shin{tag}{k}",
+                      (knee, tuple((a + b) * 0.5 for a, b in zip(knee, foot)),
+                       foot), list(SHIN_R), side),
+            ]
     return out
 
 
