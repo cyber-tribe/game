@@ -105,8 +105,8 @@ LIFT = 1.16
 # 甲羅と下半身を別々に測った差(甲羅 L+8.4 / R-B+6.0、下半身 L-4.8)から
 # 決めた倍率。SHEET は実測のまま残し、補正はここに分けて置く。
 GAIN = {
-    "shell": 0.83, "shelldark": 0.54, "shelllite": 1.00, "rim": 0.56,
-    "limb": 1.10, "limbdark": 1.16, "nail": 1.10, "nailshade": 1.04,
+    "shell": 0.85, "shelldark": 0.54, "shelllite": 1.02, "rim": 0.56,
+    "limb": 1.08, "limbdark": 1.14, "nail": 1.00, "nailshade": 1.00,
     "moss": 0.78, "paper": 1.04, "eye": 1.00,
 }
 
@@ -448,12 +448,86 @@ CLAW_SCALE = {"L": 0.962, "R": 1.000}
 CLAW_CHIP = {"L": 0.918, "R": 1.000}     # 固定指の先の残り
 
 
+# --- 爪のテクスチャ ---
+# **色の乗算では出せないものを描く。** 頂点カラーは補間するので、
+#   ・噛み合わせの縁に走る鋸歯の線
+#   ・暗い殻が淡い指の根元を包む帆立貝のような境目
+#   ・刃の背に1本だけ通る稜線の明かり
+#   ・古い爪の縦の筋と欠け
+# のような**輪郭のはっきりした描写**は描けない。ここはテクスチャの仕事。
+#
+# u = 手首(0)→ 固定指の先(1)、v = 断面の周り。
+# **v の向きを取り違えない。** `_claw_body` は角 a=0 を横(x)から始めるので
+#   v=0.00 横 / v=0.25 **背(上)** / v=0.50 横 / v=0.75 **噛み合わせ側(下)**
+# になる。稜線を v=0 に、鋸歯を v=0.5 に置いた最初の版は、どちらも刃の
+# **側面**に出ていて、背にも噛み合わせにも何も無かった。
+CLAW_TEX = 128
+CLAW_EDGE = 0.030         # 噛み合わせの縁の太さ(v)
+CLAW_TEETH = 7.0          # 縁に並ぶ鋸歯の数(u 方向)
+
+
+def claw_texture():
+    """爪の絵。設定画を8〜10倍に拡大して読んだ描写をそのまま置く。"""
+    n = CLAW_TEX
+    img = bpy.data.images.new(f"{NAME}_claw", n, n, alpha=False)
+    shell = _srgb("limb")
+    bone = _srgb("nail")
+    bone_s = _srgb("nailshade")
+    ink = _srgb("rim")
+    px = []
+    for y in range(n):
+        v = (y + 0.5) / n                       # 0=下。断面の周り
+        for x in range(n):
+            u = (x + 0.5) / n
+            # 掌(殻)と指(骨)の境目。**直線にしない** ―― v で波打たせて
+            # 帆立貝の縁にする。設定画の殻は指の根元を包んでいる。
+            edge = FIXED_FROM + 0.055 * math.sin(v * math.tau * 3.0 + 0.6) \
+                + 0.022 * math.sin(v * math.tau * 7.0)
+            t = min(1.0, max(0.0, (u - edge) / 0.035))
+            col = [a + (b - a) * t for a, b in zip(shell, bone)]
+            if abs(u - edge) < 0.016:           # 境目の墨の線
+                col = [a + (b - a) * 0.55 for a, b in zip(col, ink)]
+            # 背(v=0.25)の稜線 ―― 刃の部分だけ1本通す
+            ridge = abs(v - 0.25)
+            if ridge < 0.105:
+                k = (1.0 - ridge / 0.105) ** 2 * (0.16 + 0.26 * t)
+                col = [c * (1.0 + k) for c in col]
+            # 噛み合わせ側(v=0.75)の鋸歯。**刃の部分だけ** ―― 掌には歯が
+            # 無い。歯の外にひとつ明るい縁を置くと、線ではなく歯に見える。
+            if t > 0.15:
+                saw = CLAW_EDGE * (0.30 + 0.70 * abs(
+                    math.sin(u * math.pi * CLAW_TEETH)))
+                d = abs(v - 0.75)
+                if d < saw:
+                    col = [a + (b - a) * (0.86 if d > saw * 0.5 else 0.60)
+                           for a, b in zip(col, ink)]
+                elif d < saw + 0.030:
+                    col = [c * 1.16 for c in col]          # 歯の外の明るい縁
+                elif d < saw + 0.085:
+                    w = 1.0 - (d - saw - 0.030) / 0.055
+                    col = [a + (b - a) * (0.40 * w)
+                           for a, b in zip(col, bone_s)]
+            # 古い爪の縦の筋(u 方向に走る細い線を数本)
+            line = math.sin(v * math.tau * 9.0 + 1.3)
+            if line > 0.86 and t > 0.25:
+                col = [c * 0.90 for c in col]
+            # 根元の汚れと、先の欠け
+            col = [c * (0.82 + 0.18 * min(1.0, u / 0.22)) for c in col]
+            if u > 0.93:
+                col = [c * (1.0 - 0.18 * (u - 0.93) / 0.07) for c in col]
+            px += [min(1.0, max(0.0, c)) for c in col] + [1.0]
+    img.pixels.foreach_set(px)
+    img.pack()
+    return img
+
+
 def _tube(name, pts, radii, side):
     p = [Vector((v[0] * side, v[1], v[2])) for v in pts]
     return C.curve_tube(name, p, radii, resolution=3, bevel_resolution=3)
 
 
-def _claw_body(name, spine, r_out, r_in, r_side, seg, side, k=1.0, chip=1.0):
+def _claw_body(name, spine, r_out, r_in, r_side, seg, side, k=1.0, chip=1.0,
+               u0=0.0, u1=1.0):
     """中心線に沿って**上下非対称の断面**を積む。
 
     `tapered_slab` は楕円断面なので、外側と内側を別々に絞れない。鋏は
@@ -492,6 +566,17 @@ def _claw_body(name, spine, r_out, r_in, r_side, seg, side, k=1.0, chip=1.0):
     faces.append(tuple((len(pts) - 1) * seg + j for j in range(seg)))
     me.from_pydata([tuple(v) for v in co], [], faces)
     me.update()
+    me.uv_layers.new(name="UVMap")
+    uvl = me.uv_layers.active.data
+    nring = len(pts)
+    for poly in me.polygons:
+        for li in poly.loop_indices:
+            vi = me.loops[li].vertex_index
+            if vi >= nring * seg:               # 蓋(見えない)
+                uvl[li].uv = (u0, 0.0)
+                continue
+            i, j = divmod(vi, seg)
+            uvl[li].uv = (u0 + (u1 - u0) * i / max(1, nring - 1), j / seg)
     obj = bpy.data.objects.new(name, me)
     bpy.context.collection.objects.link(obj)
     for poly in me.polygons:
@@ -542,16 +627,21 @@ def claw_parts() -> tuple:
                                 scale=(0.86, 1.10, 0.92)))
         # 掌側(甲殻色)と固定指側(骨色)。**同じ中心線・同じ半径表**から
         # 切り出すので、継ぎ目で輪郭が折れない。
+        # u は手首(0)から固定指の先(1)まで通しで張る。掌と固定指で
+        # 別のテクスチャを使わないので、**色の境目はテクスチャの中で
+        # 波打たせられる** ―― 設定画の、暗い殻が淡い指の根元を包む
+        # 帆立貝のような縁がこれで出る(オブジェクトの境で切ると直線になる)。
         hard.append(_claw_body(
             f"{NAME}_palm{tag}", CLAW_SPINE[:cut + 1], CLAW_OUT[:cut + 1],
-            CLAW_IN[:cut + 1], CLAW_SIDE[:cut + 1], CLAW_SEG, side, k))
+            CLAW_IN[:cut + 1], CLAW_SIDE[:cut + 1], CLAW_SEG, side, k,
+            u0=0.0, u1=FIXED_FROM))
         nail.append(_claw_body(
             f"{NAME}_fixed{tag}", CLAW_SPINE[cut:], CLAW_OUT[cut:],
             CLAW_IN[cut:], CLAW_SIDE[cut:], CLAW_SEG, side, k,
-            CLAW_CHIP[tag]))
+            CLAW_CHIP[tag], u0=FIXED_FROM, u1=1.0))
         nail.append(_claw_body(
             f"{NAME}_movable{tag}", MOV_SPINE, MOV_OUT, MOV_IN, MOV_SIDE,
-            MOV_SEG, side, k))
+            MOV_SEG, side, k, u0=0.46, u1=0.98))
         nail += _bite(f"{NAME}_bitef{tag}", CLAW_SPINE, CLAW_IN,
                       BITE_FIXED, side, k, -1.0)
         nail += _bite(f"{NAME}_bitem{tag}", MOV_SPINE, MOV_OUT,
@@ -1100,22 +1190,18 @@ def paint_limbs(eyes: list, claws: list, legs: dict) -> None:
         nm = o.name
         if "sternum" in nm:
             continue          # 本体メッシュへ join されるので塗らない
+        if "palm" in nm:
+            continue      # テクスチャを貼るので頂点カラーは載せない
         if "arm" in nm:
             _paint_vertex(o, _limb_fn(ARM_ROOT, CARPUS, 0.70, 1.0, 0.18))
         elif "carpus" in nm:
             # 腕節は**周囲より暗い**。ここが明るいと節ではなく玉に見える
             _paint_vertex(o, lambda co, n: ((lambda k: (k, k, k))(
                 0.78 * (1.0 + 0.16 * max(0.0, n.z)))))
-        elif "palm" in nm:
-            _paint_vertex(o, _limb_fn(CLAW_SPINE[0], CLAW_SPINE[-1],
-                                      0.76, 1.0, 0.22, stain=0.10))
     for o in nail:
-        if "fixed" in o.name:
-            _paint_vertex(o, _blade_fn(CLAW_SPINE))
-        elif "movable" in o.name:
-            _paint_vertex(o, _blade_fn(MOV_SPINE))
-        else:                                        # 噛み合わせの歯
-            _paint_vertex(o, lambda co, n: (0.88, 0.88, 0.88))
+        if any(w in o.name for w in ("fixed", "movable")):
+            continue      # テクスチャを貼るので頂点カラーは載せない
+        _paint_vertex(o, lambda co, n: (0.88, 0.88, 0.88))   # 噛み合わせの歯
     for tag in ("L", "R"):
         for o in legs[tag]:
             k = int(o.name[-1]) if o.name[-1].isdigit() else 0
@@ -1193,8 +1279,11 @@ def build():
     dark_m = _mat("limbdark", rough=0.7)
     # 可動指は明るく、固定指と歯は一段暗い ―― 設定画では L164 対 L130 で、
     # 同じ色にすると2枚の刃が一枚板に融ける。
-    nail_m = _mat("nail", rough=0.40)
-    nailsh_m = _mat("nailshade", rough=0.48)
+    # 爪は**テクスチャ**。掌・固定指・可動指は同じ u 座標系に載っていて、
+    # 殻と骨の境目もテクスチャの中で波打たせているので、1枚で足りる。
+    claw_m = C.make_textured_material(f"{NAME}_claw", claw_texture(),
+                                      roughness=0.44)
+    nailsh_m = _mat("nailshade", rough=0.48)     # 歯だけは単体の小物
     eye_m = _mat("eye", rough=0.22)
     # 眼窩の縁は顔より明るく、眼球は真っ黒、光点だけ白に近い。
     # この3段が無いと 96px で目が「●」に潰れる。
@@ -1209,7 +1298,6 @@ def build():
     # 膨れて「目が飛び出したカニ」になる。設定画の目は奥まっている。
     eye_m["noOutline"] = True
     nailsh_m["noOutline"] = True
-    nail_m["noOutline"] = True
     for o in moss:
         C.assign_material(o, moss_m)
     for o in debris:
@@ -1221,9 +1309,10 @@ def build():
                           else eye_m if "_eye" in o.name
                           else socket_m if "socket" in o.name else stalk_m)
     for o in claws:
-        C.assign_material(o, nail_m if "fixed" in o.name
-                          else nailsh_m if _is_nail(o.name)
-                          else dark_m if "sternum" in o.name else limb_m)
+        C.assign_material(
+            o, claw_m if any(w in o.name for w in ("palm", "fixed", "movable"))
+            else nailsh_m if _is_nail(o.name)
+            else dark_m if "sternum" in o.name else limb_m)
     for o in body:
         C.assign_material(o, dark_m)
     for o in legs["L"] + legs["R"]:
