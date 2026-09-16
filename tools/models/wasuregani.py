@@ -105,7 +105,7 @@ LIFT = 1.16
 # 甲羅と下半身を別々に測った差(甲羅 L+8.4 / R-B+6.0、下半身 L-4.8)から
 # 決めた倍率。SHEET は実測のまま残し、補正はここに分けて置く。
 GAIN = {
-    "shell": 0.86, "shelldark": 0.56, "shelllite": 1.04, "rim": 0.58,
+    "shell": 0.83, "shelldark": 0.54, "shelllite": 1.00, "rim": 0.56,
     "limb": 1.10, "limbdark": 1.16, "nail": 1.10, "nailshade": 1.04,
     "moss": 0.78, "paper": 1.04, "eye": 1.00,
 }
@@ -806,6 +806,18 @@ def shell_paint(p, n):
         u = min(1.0, max(0.0, 0.34 + 0.30 * jit + 0.26 * _mottle(p, 0.55)))
         col = tuple(a + (b - a) * u for a, b in zip(lo, hi))
         col = tuple(c * (1.0 + 0.075 * _mottle(p, 3.7)) for c in col)
+    # --- 継ぎ目の描き込み影と擦れ(hand-painted-standard 規約3)---
+    # 溝そのものだけでなく、**溝のすぐ外**に落ちる影と、板の上側の擦れを
+    # 描く。樽の「たが直下の描き込み影」と同じ文法で、これが無いと板割りが
+    # 「線を引いただけ」に見える。陰影ではなく**絵**なので、遮蔽ではなく
+    # 面の向きで決め打ちする。
+    g = d2 - d1
+    if lip < 0.5 and PANEL_SEAM <= g < PANEL_SEAM * 3.2:
+        w = (1.0 - (g - PANEL_SEAM) / (PANEL_SEAM * 2.2)) ** 2
+        col = tuple(c * (1.0 - 0.20 * w) if n.z < 0.35 else c * (1.0 + 0.13 * w)
+                    for c in col)
+    # 板の上面の擦れ ―― 長く同じ場所にいて、上から埃と雨を受けた面が白ける
+    col = tuple(c * (1.0 + 0.11 * max(0.0, n.z) ** 3) for c in col)
     if lip > 0.0:
         dark = _srgb("shelldark")
         col = tuple(a + (b - a) * (lip * 0.55) for a, b in zip(col, dark))
@@ -868,7 +880,7 @@ MOSS_SPOTS = (
 def build_moss() -> list:
     out = []
     for si, (deg, v, r) in enumerate(MOSS_SPOTS):
-        for k in range(5):
+        for k in range(4):
             a = _jitter(si * 4.1 + k * 1.7, deg * 0.013 + 0.3)
             b = _jitter(k * 6.3 + 0.9, si * 2.7 + v)
             c = _jitter(si * 1.3 + k * 3.9, v * 5.1)
@@ -991,6 +1003,142 @@ def _check(objs) -> None:
     assert lo.z > -0.004, lo.z
 
 
+# =================================================== 肢の描き込み(頂点カラー)
+#
+# `handbook/hand-painted-standard.md` 規約3「**単色マテリアルを貼らない**」。
+# 甲羅は `bake_albedo` で描いているが、鋏・脚・顔は単色のままだった。
+#
+# ここはテクスチャではなく**頂点カラー**で描く ―― 肢へ UV を足すと
+# TEXCOORD だけで 40KB 増え、テクスチャ本体と合わせて予算(700KB)を
+# 超える。頂点カラーは 4B/頂点で済み、エンジン側は `assets.ts` の
+# `vertexColors` が既に対応している。
+#
+# 補間で滲むので**硬い継ぎ目は描けない**が、肢はもともと関節ごとに別
+# オブジェクトなので、継ぎ目はオブジェクトの境界が作ってくれる。頂点
+# カラーが受け持つのは「節の根元が暗い」「背に稜線の明かり」「先が
+# 汚れている」といった**面の中の階調**のほう。
+#
+# 値は材質色への**乗数**(three.js は diffuseColor に掛ける)。1.0 が素。
+def _paint_vertex(obj, fn) -> None:
+    """面ごとの位置と法線から頂点カラーを塗る。
+
+    **BYTE_COLOR を使う(4B/頂点)。** FLOAT_COLOR は 16B/頂点で、これに
+    しただけで glb が 649KB → 906KB に膨れた。BYTE_COLOR は sRGB として
+    扱われ書き出しでリニアへ変換されるので、乗数は先に sRGB へ戻して書く。
+
+    **頂点ごと(POINT)に塗る。** ループごと(CORNER)だと、同じ頂点に
+    別々の色が乗るぶん書き出しで頂点が割れ、POSITION と NORMAL まで
+    1割増える(実測 +25KB)。滑らかな階調を塗るだけなので頂点で足りる。
+
+    **本体メッシュへ join される部品は塗らない。** 1部品でも色属性を持つと
+    join 後にメッシュ全体が属性を持ち、甲羅ぶんの頂点まで増える。
+    """
+    me = obj.data
+    if "ao" not in me.color_attributes:
+        me.color_attributes.new("ao", type="BYTE_COLOR", domain="POINT")
+    ca = me.color_attributes["ao"]
+    me.color_attributes.active_color = ca
+    for i, v in enumerate(me.vertices):
+        r, g, b = fn(v.co, v.normal)
+        ca.data[i].color = tuple(
+            min(1.0, max(0.0, c)) ** (1.0 / 2.2) for c in (r, g, b)) + (1.0,)
+
+
+def _axis_u(co, a, b) -> float:
+    """線分 a→b 上での位置(0..1)。節の根元・先を知るのに使う。"""
+    a, b = Vector(a), Vector(b)
+    d = b - a
+    ll = d.length_squared
+    if ll < 1e-12:
+        return 0.0
+    return min(1.0, max(0.0, (Vector(co) - a).dot(d) / ll))
+
+
+def _shade(top: float, n) -> tuple:
+    """上向きの面を明るく、下向きを暗くする**描き込みの**陰影。
+
+    AO ではない ―― 遮蔽を測るのではなく、「上から光が来る絵」として
+    面の向きだけで決め打ちする(hand-painted-standard 規約3)。
+    """
+    k = 1.0 + top * (n.z * 0.5 + 0.5 - 0.5)
+    return k
+
+
+def _limb_fn(a, b, root_dark=0.74, tip_dark=0.92, top=0.16, stain=0.0):
+    """節ひとつぶんの塗り。根元を落とし、上面を明るく、先をわずかに汚す。"""
+    def fn(co, n):
+        u = _axis_u(co, a, b)
+        k = root_dark + (1.0 - root_dark) * min(1.0, u * 2.6)       # 根元の影
+        k *= tip_dark + (1.0 - tip_dark) * (1.0 - max(0.0, u - 0.6) / 0.4)
+        k *= _shade(top, n)
+        if stain > 0.0:
+            k *= 1.0 - stain * max(0.0, math.sin(co.y * 23.0 + co.z * 17.0)) * u
+        return (k, k, k)
+    return fn
+
+
+def _blade_fn(spine):
+    """刃。**背に稜線の明かり、腹と根元は落とす。** 設定画の指は平らな
+    板ではなく、背に沿って一段明るい筋が走っている。"""
+    a, b = spine[0], spine[-1]
+
+    def fn(co, n):
+        u = _axis_u(co, a, b)
+        k = 0.80 + 0.20 * min(1.0, u * 2.2)          # 根元を落とす
+        k *= 1.0 + 0.30 * max(0.0, n.z) ** 2         # 背の稜線
+        k *= 1.0 - 0.16 * max(0.0, -n.z)             # 腹は落とす
+        k *= 1.0 - 0.10 * max(0.0, u - 0.7) / 0.3    # 先端をわずかに締める
+        return (k, k, k)
+    return fn
+
+
+def paint_limbs(eyes: list, claws: list, legs: dict) -> None:
+    """鋏・脚・顔まわりへ描き込みを入れる。"""
+    hard = [o for o in claws if not _is_nail(o.name)]
+    nail = [o for o in claws if _is_nail(o.name)]
+    for o in hard:
+        nm = o.name
+        if "sternum" in nm:
+            continue          # 本体メッシュへ join されるので塗らない
+        if "arm" in nm:
+            _paint_vertex(o, _limb_fn(ARM_ROOT, CARPUS, 0.70, 1.0, 0.18))
+        elif "carpus" in nm:
+            # 腕節は**周囲より暗い**。ここが明るいと節ではなく玉に見える
+            _paint_vertex(o, lambda co, n: ((lambda k: (k, k, k))(
+                0.78 * (1.0 + 0.16 * max(0.0, n.z)))))
+        elif "palm" in nm:
+            _paint_vertex(o, _limb_fn(CLAW_SPINE[0], CLAW_SPINE[-1],
+                                      0.76, 1.0, 0.22, stain=0.10))
+    for o in nail:
+        if "fixed" in o.name:
+            _paint_vertex(o, _blade_fn(CLAW_SPINE))
+        elif "movable" in o.name:
+            _paint_vertex(o, _blade_fn(MOV_SPINE))
+        else:                                        # 噛み合わせの歯
+            _paint_vertex(o, lambda co, n: (0.88, 0.88, 0.88))
+    for tag in ("L", "R"):
+        for o in legs[tag]:
+            k = int(o.name[-1]) if o.name[-1].isdigit() else 0
+            ry, rx, knee, foot = LEGS[k]
+            side = 1.0 if tag == "L" else -1.0
+            root = (rx * side, ry, 0.235)
+            kn = (knee[0] * side, knee[1], knee[2])
+            ft = (foot[0] * side, foot[1], foot[2])
+            if "thigh" in o.name:
+                _paint_vertex(o, _limb_fn(root, kn, 0.72, 1.0, 0.20))
+            elif "knee" in o.name:
+                _paint_vertex(o, lambda co, n: ((lambda q: (q, q, q))(
+                    0.80 * (1.0 + 0.18 * max(0.0, n.z)))))
+            else:
+                _paint_vertex(o, _limb_fn(kn, ft, 0.82, 0.86, 0.18))
+    for o in eyes:
+        if "stalk" in o.name:
+            _paint_vertex(o, lambda co, n: ((lambda k: (k, k, k))(
+                0.78 + 0.22 * max(0.0, n.z))))
+        elif "socket" in o.name:
+            _paint_vertex(o, lambda co, n: (0.90, 0.90, 0.90))
+
+
 # ============================================================== 組み立て
 # 骨は12本。**甲羅を独立させる**のが要 ―― 設定画の「攻撃が当たると軽い
 # 混乱を起こす」「その殻がゆるく揺れ、景色を曇らせる」は甲羅の揺れで
@@ -1014,7 +1162,9 @@ BONES_HALF = [
 # 甲板を 50区画から 11区画へ減らし、溝も細くしたので 512px は要らない。
 # 384px でも溝は3テクセル分あり、96px では区別がつかない ―― 浮いた容量を
 # 堆積物のジオメトリへ回す(密度は絵ではなく形で稼ぐ)。
-SHELL_TEX = 384
+# 肢の描き込み(頂点カラー)に容量を回すため 384 → 336 へ。溝は
+# なお 3テクセル分あり、96px では区別がつかない。
+SHELL_TEX = 336
 
 
 def build():
@@ -1078,6 +1228,10 @@ def build():
         C.assign_material(o, dark_m)
     for o in legs["L"] + legs["R"]:
         C.assign_material(o, leg_m)
+
+    # 描き込み(規約3「単色マテリアルを貼らない」)。**join より前**に塗る
+    # ―― join 後は部品ごとの中心線が判らなくなる。
+    paint_limbs(eyes, claws, legs)
 
     # **苔と紙片は甲羅の骨へ固定する。** 甲羅の面から数 mm 浮いた小さな
     # 部品で、自動ウェイトだと胴の骨を拾って揺れたときに甲羅から剥がれる。
