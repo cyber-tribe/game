@@ -106,7 +106,7 @@ LIFT = 1.16
 # 決めた倍率。SHEET は実測のまま残し、補正はここに分けて置く。
 GAIN = {
     "shell": 0.86, "shelldark": 0.56, "shelllite": 1.04, "rim": 0.58,
-    "limb": 1.23, "limbdark": 1.13, "nail": 1.07, "nailshade": 1.09,
+    "limb": 1.10, "limbdark": 1.16, "nail": 1.10, "nailshade": 1.04,
     "moss": 0.78, "paper": 1.04, "eye": 1.00,
 }
 
@@ -365,66 +365,71 @@ def build_eyes() -> list:
 
 
 # ============================================================ 鋏・前腕
-# 立ち絵を8倍に拡大して構造を取り直した。前の版は「丸いミトンに一本
-# 切れ込みを入れた形」で、鋏ではなく二股の拳だった。設定画の鋏は
 #
-#   胴 → 節(腕節) → 前腕 → 掌 → 固定指 + 可動指
+# **これは旧版の修正ではなく、削除してゼロから組み直したもの。** 旧版は
+# 「丸い掌の中央から、ほぼ同形の刃が2枚V字に分岐する」トポロジーで、
+# 寸法や色をどれだけ直しても二股の変種にしかならなかった(ペンチ・角・牙)。
+# 設定画の鋏はそもそも二本の爪ではない。
 #
-# で、**2本の指は形が違う**。可動指は外側の長い三日月、固定指は内側の
-# 短く太い刃で、噛み合わせに大きな歯が並び、先は鋭く尖って交差する。
-# 左右同形の刃を2枚並べると、どれだけ大きくしても鋏には見えない。
+#   palm ─────────── fixed_finger        ← 外側輪郭は**1本の連続した曲線**
+#     ╲
+#      ╲── movable_finger                ← 内側に噛み込む、細く短い別部品
 #
-# **掌は前の版より一回り小さい。** 96px での情報量が
-# 甲羅50 : 鋏40 : 顔10 になっていた(設定画は 55 : 25 : 20)。掌の体積を
-# 15% 削り、そのぶん指を長く細く尖らせる ―― 外形は変わらないのに重さが減る。
+# 固定指は掌から生えた突起ではなく、**掌の輪郭がそのまま細くなったもの**。
+# だから palm と fixed_finger は1つのロフトで作る(`_claw_body`)。分岐する
+# のは可動指だけで、それは掌の中央ではなく**前下の関節**から出る。
+#
+# 立ち絵の実測で、上側の明るい刃(L164)が掌の輪郭から連続していて、
+# その内側の短く暗い刃(L130)が別部品 ―― 前版は役割を逆に置いていた。
 ARM_ROOT = (0.188, -0.138, 0.292)     # 甲羅の下、胴の前側面
-CARPUS = (0.236, -0.206, 0.264)       # 腕節。ここに節の膨らみを置く
+CARPUS = (0.236, -0.202, 0.278)       # 腕節。ここに節の膨らみを置く
 CARPUS_R = 0.062
 ARM_R = (0.056, 0.060, 0.054)
-# **掌を指の上まで伸ばさない。** 指と同じ高さまで降ろすと、細い刃が掌の
-# 塊に飲まれて「掌に付いた擦り傷」に見える。設定画の掌は上 2/3 を占め、
-# 指はその前下から明確にはみ出す。
-PALM_SPINE = ((0.244, -0.238, 0.252), (0.256, -0.288, 0.214),
-              (0.258, -0.334, 0.180), (0.248, -0.376, 0.152))
-PALM_W = (0.050, 0.104, 0.120, 0.092)    # 左右(x)の半幅
-PALM_T = (0.058, 0.122, 0.132, 0.100)    # 中心線に直交する半厚
-# 指の寸法は**立ち絵と三面図の両方**から採った(数字が一致する)。
-#
-#   可動指  長さ 0.82 x 鋏の大きさ、根元の幅は長さの 0.28
-#   固定指  可動指の 0.80 倍の長さ、やや太い
-#   歯      高さ 0.054 x 鋏の大きさ、可動指に4つ・固定指に3つ
-#
-# **前の版は刃が 2.5倍太かった**(幅 112mm 対 実測 45〜66mm)。太い刃を
-# 2枚並べると、形を変えても「割れた拳」から抜けない。刃は細く、長く、
-# 鎌のように強く湾曲させて、先で交差させる。
-# **根元で大きく開き、先だけで噛み合う。** 2枚を平行に近づけて置くと、
-# 96px では隙間が潰れて一本の白い棒になる。開口が「挟む」の記号。
-# **先の直前まで幅を保ち、そこで一気に尖らせる。** 根元から均等に細く
-# すると鎌ではなく指になる。設定画の刃は 6割の位置までほぼ同じ太さ。
-DACTYL = ((0.290, -0.368, 0.200), (0.308, -0.424, 0.156),
-          (0.296, -0.478, 0.102), (0.248, -0.518, 0.050))
-DACTYL_W = (0.020, 0.019, 0.014, 0.003)   # 左右(x)の半厚。刃なので薄い
-DACTYL_T = (0.035, 0.033, 0.024, 0.004)   # 刃の半幅
-# 固定指(pollex): 内側の短く太い刃。可動指と**形を変える**のが要で、
-# 同形の刃を2枚並べる限り、どれだけ大きくしても二股の拳にしかならない。
-POLLEX = ((0.190, -0.360, 0.146), (0.186, -0.416, 0.106),
-          (0.206, -0.470, 0.066), (0.242, -0.512, 0.040))
-POLLEX_W = (0.019, 0.018, 0.013, 0.003)
-POLLEX_T = (0.033, 0.031, 0.022, 0.004)
-# 噛み合わせの歯。**刃の縁に付ける** ―― 隙間に浮かせて置くと、噛み合わせ
-# ではなく「口の中の異物」に見える。可動指の下の縁と固定指の上の縁から、
-# 互いへ向かって噛み合う。細かく刻まない(96px で潰れて汚れになる)。
-# 歯は**座標を手で書かず、刃の縁から計算する。** 手で書くと刃の湾曲に
-# 付いてこられず、隙間に浮いた棒(ピンの列)になった。
-TEETH_D = 4               # 可動指の内側の縁に4つ
-TEETH_P = 3               # 固定指の内側の縁に3つ
-TOOTH_K = 0.62            # 歯の高さ / その位置の刃の半幅
-TOOTH_SINK = 0.66         # 刃の縁からどれだけ内側に埋めるか
-# **左右を鏡像にしない。** 甲羅だけ古びていて体が完全対称だと、
-# 「同じ形を Mirror した」と読まれる。右をわずかに大きく、左の可動指の
-# 先をわずかに欠けさせる。
+
+# --- palm + fixed_finger(一体) ---
+# 中心線。手首 → 掌のいちばん太いところ → 指へ細く続く → 先。
+# **半径の表に段を作らない** ―― 段があると、そこが「掌と指の継ぎ目」に
+# 見えて、固定指が別の突起として読まれる。
+# **前へ伸ばさず、下へ降ろす。** 前向きに伸ばした版は正面から見ると
+# 短縮して消え、96px では鋏が一個の丸い塊になった(上下反転との IoU 0.852)。
+# 実機のカメラは正面寄りなので、指の長さは z 方向に取らないと存在しない。
+CLAW_SPINE = (
+    (0.240, -0.232, 0.286), (0.258, -0.292, 0.254), (0.270, -0.348, 0.216),
+    (0.272, -0.400, 0.172), (0.264, -0.448, 0.128), (0.248, -0.490, 0.086),
+    (0.226, -0.520, 0.052), (0.204, -0.540, 0.032),
+)
+# 外側(上)の半径 / 内側(噛み合わせ側)の半径 / 左右(x)の半径。
+# 内側だけ早く落として**噛み合わせの面**を作る ―― 外側は連続したまま。
+CLAW_OUT = (0.054, 0.104, 0.122, 0.118, 0.092, 0.064, 0.036, 0.005)
+CLAW_IN = (0.050, 0.092, 0.100, 0.080, 0.048, 0.032, 0.020, 0.005)
+CLAW_SIDE = (0.046, 0.076, 0.084, 0.076, 0.056, 0.040, 0.024, 0.005)
+CLAW_SEG = 12
+# 掌と指の境(この v から先が淡い骨色)。**形の境ではなく色の境**。
+FIXED_FROM = 0.52
+
+# --- movable_finger(別部品) ---
+# **固定指より細く、短い。** 同じ長さ・同じ太さにすると、どこへ付けても
+# V字になる。掌の前下の関節から出て、固定指の内側へ噛み込む。
+# 固定指の **0.67 倍の長さ**。0.87 倍だった版は判定で「ほぼ同じ長さ」に
+# 引っかかった ―― 長さが拮抗すると、どこへ付けても二股に読まれる。
+# 固定指の噛み合わせ面(下側)より下に置き、先だけ相手へ噛み込ませる。
+# 固定指の**内側(体寄り)**へずらす。真下に置くと正面からは固定指に
+# 完全に隠れ、96px では鋏が一個の塊になる ―― 実機のカメラは正面寄り
+# なので、噛み合わせの面が視線と平行だと存在しないのと同じ。
+# 根元は内側へ出し、先は固定指の内側へ**戻して噛み合わせる** ―― 真っ直ぐ
+# 内側へ逃がすと、正面からは読めても「噛む」ようには見えない。
+MOV_SPINE = ((0.186, -0.438, 0.116), (0.178, -0.468, 0.092),
+             (0.192, -0.494, 0.072), (0.214, -0.510, 0.060))
+MOV_OUT = (0.040, 0.032, 0.021, 0.004)
+MOV_IN = (0.034, 0.026, 0.017, 0.004)
+MOV_SIDE = (0.030, 0.025, 0.017, 0.004)
+MOV_SEG = 10
+# 噛み合わせ。固定指の内側の面に2つ、可動指の内側に1つ。
+BITE_FIXED = ((0.47, 0.72), (0.63, 0.62))     # (中心線上のu, 半径倍率)
+BITE_MOV = ((0.42, 0.62),)
+# **左右を鏡像にしない。**
 CLAW_SCALE = {"L": 0.962, "R": 1.000}
-CLAW_CHIP = {"L": 0.918, "R": 1.000}     # 可動指の先の残り
+CLAW_CHIP = {"L": 0.918, "R": 1.000}     # 固定指の先の残り
 
 
 def _tube(name, pts, radii, side):
@@ -432,71 +437,120 @@ def _tube(name, pts, radii, side):
     return C.curve_tube(name, p, radii, resolution=3, bevel_resolution=3)
 
 
-def _blade(name, spine, half_w, half_t, side, k=1.0, chip=1.0):
-    """刃。`tapered_slab` で平たく作る ―― 筒だと指が指輪になる。"""
+def _claw_body(name, spine, r_out, r_in, r_side, seg, side, k=1.0, chip=1.0):
+    """中心線に沿って**上下非対称の断面**を積む。
+
+    `tapered_slab` は楕円断面なので、外側と内側を別々に絞れない。鋏は
+    外側(背)が丸く、内側(噛み合わせ)が平たい ―― この非対称が「刃」を
+    作る。断面の向きは中心線の接線と x 軸から取る。
+    """
     pts = [Vector((x * side, y, z)) for x, y, z in spine]
-    if chip < 1.0:                       # 先を少し戻して欠けさせる
+    if chip < 1.0:
         pts[-1] = pts[-2] + (pts[-1] - pts[-2]) * chip
-    return C.tapered_slab(name, pts, [w * k for w in half_w],
-                          [t * k for t in half_t], (1.0, 0.0, 0.0), segments=10)
+    me = bpy.data.meshes.new(name)
+    co, faces = [], []
+    for i, p in enumerate(pts):
+        d = (pts[min(i + 1, len(pts) - 1)] - pts[max(i - 1, 0)])
+        if d.length_squared < 1e-12:
+            d = Vector((0.0, -1.0, 0.0))
+        d.normalize()
+        sv = Vector((1.0, 0.0, 0.0))
+        sv = (sv - d * sv.dot(d))
+        if sv.length_squared < 1e-12:
+            sv = Vector((0.0, 1.0, 0.0)) - d * d.y
+        sv.normalize()
+        up = d.cross(sv).normalized()
+        if up.z < 0.0:                       # up は必ず外側(上)を向かせる
+            up, sv = -up, -sv
+        for j in range(seg):
+            a = math.tau * j / seg
+            c, sn = math.cos(a), math.sin(a)
+            rr = (r_out[i] if sn >= 0.0 else r_in[i]) * k
+            co.append(p + sv * (r_side[i] * k * c) + up * (rr * sn))
+    for i in range(len(pts) - 1):
+        for j in range(seg):
+            aa = i * seg + j
+            bb = i * seg + (j + 1) % seg
+            faces.append((aa, bb, bb + seg, aa + seg))
+    faces.append(tuple(range(seg - 1, -1, -1)))
+    faces.append(tuple((len(pts) - 1) * seg + j for j in range(seg)))
+    me.from_pydata([tuple(v) for v in co], [], faces)
+    me.update()
+    obj = bpy.data.objects.new(name, me)
+    bpy.context.collection.objects.link(obj)
+    for poly in me.polygons:
+        poly.use_smooth = True
+    return obj
 
 
-def _teeth(name, spine, half_t, n, toward, side, k):
-    """刃の内側の縁に沿って歯を置く。
-
-    刃の中心線を Catmull-Rom 風に補間し、その位置での半幅ぶん `toward`
-    方向へ寄せた点に置く ―― こうしないと歯が刃の湾曲から外れて、
-    隙間に浮いた棒の列になる。"""
-    pts = [Vector(p) for p in spine]
+def _bite(name, spine, r_in, table, side, k, sign):
+    """噛み合わせ。中心線の内側の面から相手へ向かって出す。"""
+    pts = [Vector((x * side, y, z)) for x, y, z in spine]
     out = []
-    for i in range(n):
-        u = 0.30 + 0.52 * (i / max(1, n - 1))      # 根元寄りから先の手前まで
+    for i, (u, m) in enumerate(table):
         f = u * (len(pts) - 1)
         j = min(len(pts) - 2, int(f))
         t = f - j
         c = pts[j] * (1 - t) + pts[j + 1] * t
-        hw = half_t[j] * (1 - t) + half_t[j + 1] * t
-        r = hw * TOOTH_K * k
-        p = c + Vector(toward).normalized() * (hw * TOOTH_SINK * k)
-        out.append(C.gem(f"{name}{i}", (p.x * side, p.y, p.z), r,
-                         subdivisions=1, scale=(0.46, 0.95, 1.25)))
+        ri = (r_in[j] * (1 - t) + r_in[j + 1] * t) * k
+        d = (pts[j + 1] - pts[j]).normalized()
+        up = d.cross(Vector((1.0, 0.0, 0.0)) - d * d.x).normalized()
+        if up.z < 0.0:
+            up = -up
+        p = c + up * (ri * sign * 0.86)
+        out.append(C.gem(f"{name}{i}", tuple(p), ri * m,
+                         subdivisions=1, scale=(0.52, 1.0, 1.15)))
     return out
 
 
 def claw_parts() -> tuple:
-    """(甲殻色の部分, 淡い指) を分けて返す ―― 指だけ別の色を当てる。"""
+    """(甲殻色の部分, 淡い骨色の部分) を分けて返す。
+
+    palm+fixed_finger は**1つのメッシュ**なので、色は材質2枚では分けられ
+    ない。同じ形の先端側だけ別オブジェクトにして淡色を当てる ―― 輪郭は
+    連続したまま、色だけ切り替わる。
+    """
     hard, nail = [], []
     hard.append(C.uv_sphere(f"{NAME}_sternum", STERNUM_C, 1.0,
                             segments=15, rings=10, scale=STERNUM_R))
+    n = len(CLAW_SPINE)
+    cut = max(1, int(round(FIXED_FROM * (n - 1))))
     for side in (-1.0, 1.0):
         tag = "L" if side > 0 else "R"
         k = CLAW_SCALE[tag]
-        hard.append(_tube(f"{NAME}_arm{tag}", (ARM_ROOT, CARPUS), 
+        hard.append(_tube(f"{NAME}_arm{tag}", (ARM_ROOT, CARPUS),
                           [ARM_R[0], ARM_R[2]], side))
-        # 節の膨らみ。ここが無いと巨大な鋏が胴に直接生えているように見える
         hard.append(C.uv_sphere(f"{NAME}_carpus{tag}",
                                 (CARPUS[0] * side, CARPUS[1], CARPUS[2]),
                                 CARPUS_R * k, segments=11, rings=8,
                                 scale=(0.86, 1.10, 0.92)))
-        hard.append(C.tapered_slab(
-            f"{NAME}_palm{tag}", [(x * side, y, z) for x, y, z in PALM_SPINE],
-            [w * k for w in PALM_W], [t * k for t in PALM_T],
-            (1.0, 0.0, 0.0), segments=14))
-        nail.append(_blade(f"{NAME}_dactyl{tag}", DACTYL, DACTYL_W, DACTYL_T,
-                           side, k, CLAW_CHIP[tag]))
-        nail.append(_blade(f"{NAME}_pollex{tag}", POLLEX, POLLEX_W, POLLEX_T,
-                           side, k))
-        # 可動指の歯は下(固定指の側)へ、固定指の歯は上(可動指の側)へ
-        nail += _teeth(f"{NAME}_toothd{tag}", DACTYL, DACTYL_T, TEETH_D,
-                       (-0.42, 0.0, -1.0), side, k)
-        nail += _teeth(f"{NAME}_toothp{tag}", POLLEX, POLLEX_T, TEETH_P,
-                       (0.30, 0.0, 1.0), side, k)
+        # 掌側(甲殻色)と固定指側(骨色)。**同じ中心線・同じ半径表**から
+        # 切り出すので、継ぎ目で輪郭が折れない。
+        hard.append(_claw_body(
+            f"{NAME}_palm{tag}", CLAW_SPINE[:cut + 1], CLAW_OUT[:cut + 1],
+            CLAW_IN[:cut + 1], CLAW_SIDE[:cut + 1], CLAW_SEG, side, k))
+        nail.append(_claw_body(
+            f"{NAME}_fixed{tag}", CLAW_SPINE[cut:], CLAW_OUT[cut:],
+            CLAW_IN[cut:], CLAW_SIDE[cut:], CLAW_SEG, side, k,
+            CLAW_CHIP[tag]))
+        nail.append(_claw_body(
+            f"{NAME}_movable{tag}", MOV_SPINE, MOV_OUT, MOV_IN, MOV_SIDE,
+            MOV_SEG, side, k))
+        nail += _bite(f"{NAME}_bitef{tag}", CLAW_SPINE, CLAW_IN,
+                      BITE_FIXED, side, k, -1.0)
+        nail += _bite(f"{NAME}_bitem{tag}", MOV_SPINE, MOV_OUT,
+                      BITE_MOV, side, k, +1.0)
     return hard, nail
+
+
+def build_claws() -> list:
+    hard, nail = claw_parts()
+    return hard + nail
 
 
 def _is_nail(name: str) -> bool:
     """淡い骨色を当てる部品(指と歯)か。"""
-    return any(k in name for k in ("dactyl", "pollex", "tooth"))
+    return any(k in name for k in ("fixed", "movable", "bite"))
 
 
 def build_claws() -> list:
@@ -995,7 +1049,7 @@ def build():
                           else eye_m if "_eye" in o.name
                           else socket_m if "socket" in o.name else dark_m)
     for o in claws:
-        C.assign_material(o, nail_m if "dactyl" in o.name
+        C.assign_material(o, nail_m if "fixed" in o.name
                           else nailsh_m if _is_nail(o.name)
                           else dark_m if "sternum" in o.name else limb_m)
     for o in body:
