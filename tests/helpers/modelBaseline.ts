@@ -75,7 +75,7 @@ export const MODEL_HEIGHT_BASELINE: Record<string, number> = {
   tsubute: 0.25,
   urumiguma: 0.589,
   wasurebone: 0.583,
-  wasuregani: 0.618,
+  wasuregani: 0.777,
   wasuremizuchi: 0.285,
   wataamenoobake: 0.481,
   yaguramori: 0.469,
