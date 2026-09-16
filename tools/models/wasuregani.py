@@ -89,7 +89,7 @@ TINT_FIX = (1.237, 1.078, 0.672)
 # 寒色の灯りに 21 ぶん青へ引かれ、13 ぶん暗かった。
 TINT_W = {
     "shell": 0.76, "shelldark": 0.86, "shelllite": 0.58, "rim": 0.88,
-    "limb": 0.62, "limblite": 0.38, "limbdark": 0.78,
+    "limb": 0.48, "limblite": 0.30, "limbdark": 0.62,
     "eye": 0.60, "paper": 0.30, "moss": 0.30,
 }
 # 明度の持ち上げ。トゥーンの4段量子化(4-48)は上下を削るので、
@@ -105,7 +105,7 @@ LIFT = 1.16
 # 決めた倍率。SHEET は実測のまま残し、補正はここに分けて置く。
 GAIN = {
     "shell": 0.88, "shelldark": 0.60, "shelllite": 1.02, "rim": 0.62,
-    "limb": 1.06, "limbdark": 1.06, "limblite": 1.06,
+    "limb": 1.20, "limbdark": 1.26, "limblite": 1.08,
     "moss": 0.78, "paper": 1.04, "eye": 1.00,
 }
 
@@ -183,7 +183,7 @@ SHELL_SPAN = SHELL_TOP - SHELL_Z0
 # 見た天辺が尖っていた。
 SHELL_RX = 0.4306         # 正面図の最大半幅
 SHELL_RY = 0.3884         # 側面図の最大半奥行き
-SHELL_SEG, SHELL_RING = 44, 26
+SHELL_SEG, SHELL_RING = 42, 24
 # 縁は分厚い。**薄い皿にしない** ―― 設定画は「殻は分厚く硬い」。
 RIM_DROP = 0.042
 RIM_IN = 0.940
@@ -276,29 +276,50 @@ def build_shell() -> list:
     return [obj]
 
 
-# ============================================================ 体・目
+# ============================================================ 体・顔・目
 # 甲羅の下の胴。**外からはほとんど見えない**が、脚と鋏の付け根であり、
-# 目の台でもある。設定画では甲羅の前縁の下に顔の面があり、そこに目が並ぶ。
+# 顔板の台でもある。
 BODY_C = (0.0, -0.055, 0.235)
 BODY_R = (0.330, 0.300, 0.120)
 
-# 目: 正面図の**画素から**測る。顔は一様に暗いので単純なしきい値では
-# 顔ごと1塊になる ―― 顔の中の下位22%だけを開いて拾うと、13x13px と
-# 15x11px の2つの暗部が出る。これが目。
+# 顔と胸の板。設定画では左右の鋏のあいだに、節の入った暗い面が目の下から
+# z≈0.09 まで続いている。ここが無いと正面の下半分に穴が空き、目を載せる
+# 面も無くなる。**甲羅の切り欠きの真下に、前面を揃えて置く。**
+# **球にしない。** 甲羅を外して撮ると、丸い胸板の上に目が2つ載った
+# 「耳の生えた玉」に見えた。設定画の顔は前を向いた**平たい面**で、
+# 目はその面に嵌まっている。前後を薄くし、上端を目の高さで止める。
+STERNUM_C = (0.0, -0.300, 0.236)
+STERNUM_R = (0.206, 0.086, 0.146)
+
+# --- 目 ---
+# **眼球より先に眼窩を作る。** 黒い球を顔の前に2つ置くと、96px では
+# 「●　●」にしかならない。設定画の目は
 #
-#   sheet x 687..699 と 644..658 → 中心間 42px = 0.214m(半分 0.107m)
-#   大きさ 約 14 x 12px = 71 x 61mm、中心の高さ z = 0.369m
+#   甲羅の庇(影) → 暗い窪み → 灰色の眼窩の縁 → 黒い縦楕円 → 小さな光点
 #
-# **拡大図を目分量で読んではいけない。** 6倍に引き伸ばして読んだときは
-# 中心間 0.280m と出て、実測の 0.214m より 3割広かった。しかも正面図の
-# 顔の中線(sheet x672)は甲羅の最大幅の行の中心(x683)から 11px ずれて
-# いて、外接箱の中心(x689.5)で測るとさらに狂う ―― **左右の対称性は
-# 目そのものの2点から取る**。
+# という入れ子で、**黒を黒地に置くのではなく、輪郭と光点で目の存在を示す**。
+# 立ち絵を8倍に拡大すると、黒目のまわりに一段明るい灰のリングが描かれて
+# いるのがはっきり分かる。このリングが「窪みの縁」で、これを省くと
+# 目がただの穴になる。
+#
+# 中心間は三面図の画素実測 0.214m(4-65)。縦横比は立ち絵から 1 : 1.35。
 EYE_X = 0.1070
-EYE_Y = -0.4000           # 顔板の前面から膨らみ出る。縁の真下
-EYE_Z = 0.3650
-EYE_R = 0.0360
-EYE_SCALE = (1.00, 0.90, 1.06)
+EYE_Y = -0.4020
+EYE_Z = 0.3660
+EYE_R = 0.0355
+EYE_SCALE = (1.00, 0.86, 1.30)        # 縦長。設定画の目は丸ではない
+# 眼窩の縁は**暗い顔より明るい**。立ち絵では黒目のまわりに一段明るい灰の
+# リングが描かれていて、これが窪みの縁。暗い顔に暗いリングを置くと、
+# 目はただの穴になる。
+SOCKET_R = 0.0505
+SOCKET_SCALE = (1.00, 0.46, 1.26)
+SOCKET_Y = -0.3880                    # 眼球のすぐ後ろ
+STALK_R = 0.0150                      # 眼柄。**目の下に見えないと意味がない**
+STALK_BASE = (0.0760, -0.3740, 0.2820)
+HILITE_R = 0.0072                     # 光点。上外寄りに1つだけ
+HILITE_OFF = (-0.0118, -0.0255, 0.0135)
+# 左右をわずかに違える ―― 完全な鏡像は「Mirror した」と読まれる。
+EYE_TILT = {"L": 0.055, "R": -0.018}  # 眼柄の傾き(rad)
 
 
 def build_body() -> list:
@@ -308,68 +329,97 @@ def build_body() -> list:
     return [b]
 
 
+def build_face() -> dict:
+    """顔まわりを部品の**種類ごと**に返す ―― 眼窩・眼柄・眼球・光点で
+    材質が違う。まとめて1つの色にすると、また「黒い球が2つ」に戻る。"""
+    out = {"socket": [], "stalk": [], "eye": [], "hilite": []}
+    for side in (-1.0, 1.0):
+        tag = "L" if side > 0 else "R"
+        tilt = EYE_TILT[tag]
+        ex = EYE_X + tilt * 0.10
+        ez = EYE_Z - abs(tilt) * 0.06
+        # 眼窩の縁: 眼球より一回り大きい扁平な輪。眼球の後ろに置く
+        out["socket"].append(C.uv_sphere(
+            f"{NAME}_socket{tag}", (ex * side, SOCKET_Y, ez), SOCKET_R,
+            segments=14, rings=10, scale=SOCKET_SCALE))
+        # 眼柄: 顔板から窪みの中を通って眼球へ
+        out["stalk"].append(_tube(
+            f"{NAME}_stalk{tag}",
+            (STALK_BASE, ((STALK_BASE[0] + ex) * 0.5, -0.3760, ez - 0.020),
+             (ex, EYE_Y + 0.012, ez)),
+            [STALK_R * 1.25, STALK_R, STALK_R * 0.92], side))
+        out["eye"].append(C.uv_sphere(
+            f"{NAME}_eye{tag}", (ex * side, EYE_Y, ez), EYE_R,
+            segments=13, rings=10, scale=EYE_SCALE))
+        out["hilite"].append(C.uv_sphere(
+            f"{NAME}_hilite{tag}",
+            (ex * side + HILITE_OFF[0] * side, EYE_Y + HILITE_OFF[1],
+             ez + HILITE_OFF[2]), HILITE_R, segments=8, rings=6))
+    return out
+
+
 def build_eyes() -> list:
-    """黒い丸目。**輪郭線を付けない** ―― 径 61mm の球に反転ハルが付くと
-    目玉が膨れて「目が飛び出したカニ」になる。設定画の目は奥まっている。"""
-    return [C.uv_sphere(f"{NAME}_eye{'L' if side > 0 else 'R'}",
-                        (EYE_X * side, EYE_Y, EYE_Z), EYE_R,
-                        segments=13, rings=9, scale=EYE_SCALE)
-            for side in (-1.0, 1.0)]
+    f = build_face()
+    return f["socket"] + f["stalk"] + f["eye"] + f["hilite"]
 
 
-# ============================================================ 鋏
-# 設定画(正面図を 6 倍に拡大して実測):
-#   掌  x 0.114..0.330m、z 0.055..0.310m ―― **甲羅の縁から地面近くまで**
-#       届く塊で、腕は正面からほとんど見えない
-#   指  掌の**内側前面**に貼り付く淡い色の三日月が2枚。上で離れ、下の
-#       先端で噛み合う。長さ 0.19m ほど
+# ============================================================ 鋏・前腕
+# 立ち絵を8倍に拡大して構造を取り直した。前の版は「丸いミトンに一本
+# 切れ込みを入れた形」で、鋏ではなく二股の拳だった。設定画の鋏は
 #
-# **ここが読みの要。** 設定画の売りは「ハサミは大きく硬い」で、正面像の
-# 面積の3割を鋏が占める。前の版は掌の縦を 0.18m しか取らず(実測 0.25m)、
-# 指を掌の下へ生やしていたので、腕の先に小さな牙が付いた形にしか見え
-# なかった。指は**掌から突き出す別の付属肢ではなく、掌の内側の面**。
-ARM_ROOT = (0.206, -0.150, 0.286)     # 甲羅の下、胴の前側面
-ARM_MID = (0.238, -0.196, 0.280)
-ARM_R = (0.060, 0.062, 0.056)
-# 掌。**球で作らない**(`common.tapered_slab` の注意書きのとおり、球だと
-# ミトンになる)。手首で絞り、中ほどで最も太り、先でまた絞る中心線に
-# 楕円断面を積む ―― 設定画の鋏は「拳」の形で、腕との継ぎ目が細い。
-# 脚が読めるよう、掌を 22mm だけ内へ寄せた。鋏の大きさは変えていない
-# ―― 外側に背景の帯ができないと、歩脚が鋏の塊に吸収されてしまう。
-PALM_SPINE = ((0.232, -0.220, 0.272), (0.252, -0.288, 0.222),
-              (0.262, -0.352, 0.170), (0.256, -0.412, 0.116),
-              (0.234, -0.452, 0.072))
-PALM_W = (0.052, 0.112, 0.135, 0.116, 0.062)    # 左右(x)の半幅
-PALM_T = (0.058, 0.126, 0.148, 0.126, 0.068)    # 中心線に直交する半厚
-# 指。設定画の鋏は**淡い骨色の刃が2枚**で、下へ、やや前へ向き、先で
-# 噛み合う。あいだの暗い隙間が「挟む」記号になっている。
+#   胴 → 節(腕節) → 前腕 → 掌 → 固定指 + 可動指
 #
-# **掌の輪郭の内側へ置かない。** 前の版は外側の刃を掌の胴に埋めてしまい、
-# 見えるのが内側の1枚だけ ―― 鋏ではなく牙が1本生えた拳になっていた。
-# 2枚とも掌の**前面**に、x で 0.09m 離して置く。断面は筒ではなく
-# `tapered_slab` の平たい刃(側面から見て厚みが出ると指が指輪になる)。
-# 実測 x 0.107..0.275 / z 0.031..0.245 ―― **掌の高さの 74%** を占める。
-# 小さく作ると掌のなめらかな塊に負け、鋏ではなく豆に見える。
-FINGER_OUT = ((0.264, -0.442, 0.246), (0.280, -0.508, 0.146),
-              (0.248, -0.540, 0.040))
-FINGER_IN = ((0.148, -0.438, 0.232), (0.138, -0.502, 0.138),
-             (0.228, -0.538, 0.036))
-FINGER_W = (0.030, 0.028, 0.010)      # 左右(x)の半厚 ―― 薄い
-FINGER_T = (0.062, 0.050, 0.012)      # 刃の幅
-
-# 顔と胸の板。設定画では左右の鋏のあいだに、節の入った暗い面が目の下から
-# z≈0.09 まで続いている。ここが無いと正面の下半分に穴が空き、目を載せる
-# 面も無くなる。**甲羅の切り欠きの真下に、前面を揃えて置く。**
-# **切り欠きの高さまで届かせる。** 板が低いと、切り欠きで抜いた甲羅の
-# ぶんがそのままシルエットの穴になり、正面 IoU が 0.868→0.847 に落ちた。
-# 設定画では抜いたぶんを顔の面が埋めていて、外周は切れていない。
-STERNUM_C = (0.0, -0.292, 0.250)
-STERNUM_R = (0.212, 0.112, 0.162)
+# で、**2本の指は形が違う**。可動指は外側の長い三日月、固定指は内側の
+# 短く太い刃で、噛み合わせに大きな歯が並び、先は鋭く尖って交差する。
+# 左右同形の刃を2枚並べると、どれだけ大きくしても鋏には見えない。
+#
+# **掌は前の版より一回り小さい。** 96px での情報量が
+# 甲羅50 : 鋏40 : 顔10 になっていた(設定画は 55 : 25 : 20)。掌の体積を
+# 15% 削り、そのぶん指を長く細く尖らせる ―― 外形は変わらないのに重さが減る。
+ARM_ROOT = (0.188, -0.138, 0.292)     # 甲羅の下、胴の前側面
+CARPUS = (0.236, -0.206, 0.264)       # 腕節。ここに節の膨らみを置く
+CARPUS_R = 0.062
+ARM_R = (0.056, 0.060, 0.054)
+PALM_SPINE = ((0.244, -0.244, 0.248), (0.256, -0.302, 0.204),
+              (0.258, -0.356, 0.158), (0.246, -0.408, 0.110))
+PALM_W = (0.050, 0.104, 0.122, 0.090)    # 左右(x)の半幅
+PALM_T = (0.058, 0.120, 0.132, 0.098)    # 中心線に直交する半厚
+# 可動指(dactyl): 外側の長い三日月。根元が太く、先へ向けて鋭く絞る。
+# 先端は設定画の実測(側面 y=-0.537)を超えない。-0.552 まで伸ばした版は
+# 側面の奥行きが 25mm 過大で、Anatomy Gate が 0.840→0.824 に落ちた。
+DACTYL = ((0.268, -0.392, 0.198), (0.292, -0.452, 0.146),
+          (0.272, -0.506, 0.088), (0.200, -0.534, 0.046))
+DACTYL_W = (0.030, 0.026, 0.017, 0.005)
+DACTYL_T = (0.056, 0.049, 0.030, 0.007)
+# 固定指(pollex): 内側の短く太い刃。可動指より 25% 短く、先で噛み合う。
+POLLEX = ((0.186, -0.388, 0.116), (0.180, -0.444, 0.082),
+          (0.186, -0.492, 0.056), (0.196, -0.528, 0.042))
+POLLEX_W = (0.031, 0.027, 0.018, 0.006)
+POLLEX_T = (0.048, 0.042, 0.027, 0.007)
+# 噛み合わせの歯。固定指の内側の縁に3つ。**細かく作らない** ―― 96px で
+# 効くのは「大きな歯が2〜3個」で、鋸歯を刻んでも潰れて汚れになる。
+TEETH = (((0.196, -0.424, 0.116), 0.020),
+         ((0.200, -0.462, 0.092), 0.017),
+         ((0.206, -0.496, 0.072), 0.013))
+# **左右を鏡像にしない。** 甲羅だけ古びていて体が完全対称だと、
+# 「同じ形を Mirror した」と読まれる。右をわずかに大きく、左の可動指の
+# 先をわずかに欠けさせる。
+CLAW_SCALE = {"L": 0.962, "R": 1.000}
+CLAW_CHIP = {"L": 0.918, "R": 1.000}     # 可動指の先の残り
 
 
 def _tube(name, pts, radii, side):
     p = [Vector((v[0] * side, v[1], v[2])) for v in pts]
     return C.curve_tube(name, p, radii, resolution=3, bevel_resolution=3)
+
+
+def _blade(name, spine, half_w, half_t, side, k=1.0, chip=1.0):
+    """刃。`tapered_slab` で平たく作る ―― 筒だと指が指輪になる。"""
+    pts = [Vector((x * side, y, z)) for x, y, z in spine]
+    if chip < 1.0:                       # 先を少し戻して欠けさせる
+        pts[-1] = pts[-2] + (pts[-1] - pts[-2]) * chip
+    return C.tapered_slab(name, pts, [w * k for w in half_w],
+                          [t * k for t in half_t], (1.0, 0.0, 0.0), segments=10)
 
 
 def claw_parts() -> tuple:
@@ -379,18 +429,32 @@ def claw_parts() -> tuple:
                             segments=15, rings=10, scale=STERNUM_R))
     for side in (-1.0, 1.0):
         tag = "L" if side > 0 else "R"
-        hard.append(_tube(f"{NAME}_arm{tag}",
-                          (ARM_ROOT, ARM_MID, PALM_SPINE[0]), list(ARM_R), side))
+        k = CLAW_SCALE[tag]
+        hard.append(_tube(f"{NAME}_arm{tag}", (ARM_ROOT, CARPUS), 
+                          [ARM_R[0], ARM_R[2]], side))
+        # 節の膨らみ。ここが無いと巨大な鋏が胴に直接生えているように見える
+        hard.append(C.uv_sphere(f"{NAME}_carpus{tag}",
+                                (CARPUS[0] * side, CARPUS[1], CARPUS[2]),
+                                CARPUS_R * k, segments=11, rings=8,
+                                scale=(0.86, 1.10, 0.92)))
         hard.append(C.tapered_slab(
-            f"{NAME}_palm{tag}",
-            [(x * side, y, z) for x, y, z in PALM_SPINE],
-            list(PALM_W), list(PALM_T), (1.0, 0.0, 0.0), segments=16))
-        for lab, pts in (("O", FINGER_OUT), ("I", FINGER_IN)):
-            nail.append(C.tapered_slab(
-                f"{NAME}_finger{lab}{tag}",
-                [(x * side, y, z) for x, y, z in pts],
-                list(FINGER_W), list(FINGER_T), (1.0, 0.0, 0.0), segments=10))
+            f"{NAME}_palm{tag}", [(x * side, y, z) for x, y, z in PALM_SPINE],
+            [w * k for w in PALM_W], [t * k for t in PALM_T],
+            (1.0, 0.0, 0.0), segments=14))
+        nail.append(_blade(f"{NAME}_dactyl{tag}", DACTYL, DACTYL_W, DACTYL_T,
+                           side, k, CLAW_CHIP[tag]))
+        nail.append(_blade(f"{NAME}_pollex{tag}", POLLEX, POLLEX_W, POLLEX_T,
+                           side, k))
+        for i, (pos, r) in enumerate(TEETH):
+            nail.append(C.gem(f"{NAME}_tooth{tag}{i}",
+                              (pos[0] * side, pos[1], pos[2]), r * k,
+                              subdivisions=1, scale=(0.55, 1.25, 1.0)))
     return hard, nail
+
+
+def _is_nail(name: str) -> bool:
+    """淡い骨色を当てる部品(指と歯)か。"""
+    return any(k in name for k in ("dactyl", "pollex", "tooth"))
 
 
 def build_claws() -> list:
@@ -864,6 +928,12 @@ def build():
     dark_m = _mat("limbdark", rough=0.7)
     nail_m = _mat("limblite", rough=0.42)
     eye_m = _mat("eye", rough=0.22)
+    # 眼窩の縁は顔より明るく、眼球は真っ黒、光点だけ白に近い。
+    # この3段が無いと 96px で目が「●」に潰れる。
+    socket_m = _mat("limb", 1.06, rough=0.66)
+    hilite_m = C.make_material(f"{NAME}_hilite", (0.95, 0.94, 0.92),
+                               roughness=0.15)
+    hilite_m["noOutline"] = True
     # **目に輪郭線を付けない** ―― 径 74mm の球に反転ハルが付くと目玉が
     # 膨れて「目が飛び出したカニ」になる。設定画の目は奥まっている。
     eye_m["noOutline"] = True
@@ -875,9 +945,11 @@ def build():
     for o in papers:
         C.assign_material(o, paper_m)
     for o in eyes:
-        C.assign_material(o, eye_m)
+        C.assign_material(o, hilite_m if "hilite" in o.name
+                          else eye_m if "_eye" in o.name
+                          else socket_m if "socket" in o.name else dark_m)
     for o in claws:
-        C.assign_material(o, nail_m if "finger" in o.name
+        C.assign_material(o, nail_m if _is_nail(o.name)
                           else dark_m if "sternum" in o.name else limb_m)
     for o in body:
         C.assign_material(o, dark_m)
@@ -888,9 +960,12 @@ def build():
     # 部品で、自動ウェイトだと胴の骨を拾って揺れたときに甲羅から剥がれる。
     pins = [C.mark_for_pin(o) for o in moss + papers + debris]
     sternum = [o for o in claws if "sternum" in o.name]
+    # 前腕・節・掌は腕の骨へ、指と歯は開閉する骨へ。
     arms = {t: [o for o in claws if o.name.endswith(t)
-                and ("arm" in o.name or "palm" in o.name)] for t in ("L", "R")}
-    nails = {t: [o for o in claws if o.name.endswith(t) and "finger" in o.name]
+                and any(k in o.name for k in ("arm", "carpus", "palm"))]
+            for t in ("L", "R")}
+    nails = {t: [o for o in claws if _is_nail(o.name)
+                 and o.name.rstrip("0123456789").endswith(t)]
              for t in ("L", "R")}
     # **join する前に全部の組を作っておく。** join は渡したオブジェクトを
     # 消すので、あとから同じリストを走査すると削除済みの参照に当たる。
