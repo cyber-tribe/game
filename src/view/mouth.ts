@@ -1,7 +1,7 @@
 import * as THREE from "three";
 
 /**
- * 口の開閉をテクスチャで切り替える(plan/models/akubitokage-remake.md、
+ * 口の開閉をテクスチャで切り替える(plan/models/archive/akubitokage-remake.md、
  * handbook/cage-and-2d3d-split.md)。
  *
  * あくびとかげの「大あくび」は、下顎を別メッシュに割って回す方式

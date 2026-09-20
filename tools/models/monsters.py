@@ -476,7 +476,7 @@ def build_akubitokage():
 
 def akubitokage_animations():
     """
-    plan/models/akubitokage-remake.mdの状態対応(通常/あくび/驚く/逃げ出す)
+    plan/models/archive/akubitokage-remake.mdの状態対応(通常/あくび/驚く/逃げ出す)
     と、plan/game/archive/animation-quality-guidelines.mdの規約(タメ・ツメの
     LINEAR補間、二次揺れ)に沿う。coward種族なので振りは小さく、フレーム
     間隔も詰めたまま(素早さは維持)。

@@ -11,7 +11,7 @@
  * 失敗メッセージに実測値がそのまま出るので、その値を書き写せばよい。
  */
 export const MODEL_HEIGHT_BASELINE: Record<string, number> = {
-  akubitokage: 0.147,   // 身体0.140+口の横から立ちのぼるあくびの煙
+  akubitokage: 0.140,   // 身体の全高(あくびの煙は口の横なので頭より上へ出ない)
   ashiatodori: 0.267,
   chouchinokuri: 0.263,
   fuchiNoNushi: 0.787,
