@@ -302,29 +302,29 @@ BODY_LOOPS = [
     # r_side は設定画正面マスクを「胴の中心」基準で実測した半幅(z は 0.957 倍で対応)
     (0.005, +0.014, 0.024, 0.022, 0.020, 0.0, "seat"),        # 接地面(ほぼ床)
     (0.012, +0.012, 0.037, 0.036, 0.030, 0.0, "rump_low"),
-    (0.020, +0.010, 0.044, 0.044, 0.036, 0.0, "rump"),
-    (0.0285, +0.009, 0.047, 0.047, 0.039, 0.0, "pelvis"),     # 後縁+0.056: 骨盤が後ろ
+    (0.020, +0.010, 0.040, 0.044, 0.036, 0.0, "rump"),
+    (0.0285, +0.009, 0.041, 0.047, 0.039, 0.0, "pelvis"),     # 後縁+0.056: 骨盤が後ろ
     # 腹: 最前点(-0.042)は低い位置。半幅は頭とほぼ同じ 0.040〜0.041(実測)
-    (0.037, +0.007, 0.049, 0.043, 0.0405, 0.0, "belly_low"),  # 腹の最前
-    (0.045, +0.005, 0.046, 0.039, 0.0405, 0.0, "belly"),
-    (0.053, +0.003, 0.041, 0.036, 0.0395, 0.0, "belly_high"),
-    (0.061, +0.000, 0.033, 0.033, 0.0345, 0.0, "ribs"),
+    (0.037, +0.007, 0.036, 0.043, 0.0405, 0.0, "belly_low"),  # 腹の最前
+    (0.045, +0.005, 0.032, 0.039, 0.0405, 0.0, "belly"),
+    (0.053, +0.003, 0.030, 0.036, 0.0395, 0.0, "belly_high"),
+    (0.061, +0.000, 0.026, 0.033, 0.0345, 0.0, "ribs"),
     # 胸〜襟: くびれ(実測 0.029)。胸を細くして頭が身体に埋まって見えるようにする
-    (0.070, -0.001, 0.027, 0.029, 0.0300, 0.0, "chest"),
-    (0.076, -0.005, 0.030, 0.029, 0.0345, 0.05, "collar"),    # 胸上端。顎下が乗る
+    (0.070, -0.001, 0.023, 0.029, 0.0300, 0.0, "chest"),
+    (0.076, -0.005, 0.026, 0.029, 0.0362, 0.05, "collar"),    # 胸上端。顎下が乗る
     # 喉〜顎: 首は見えない。胸→襟→喉→顎と幅が連続して広がる
     # 頭は前へ倒す(設定画は頭の重さを首で支えるのが面倒そうな姿勢)。
     # throat から上へ行くほど中心を前(-y)へずらす
-    (0.080, -0.011, 0.033, 0.031, 0.0380, 0.15, "throat"),
+    (0.080, -0.011, 0.029, 0.031, 0.0405, 0.15, "throat"),
     # 口の帯(jaw〜lip)は**デカールのへの字口(z 0.0904)と重なる高さ**に置く
-    (0.0875, -0.0140, 0.0334, 0.036, 0.0415, 0.30, "jaw"),    # 口線の下=下顎の上端
-    (0.0910, -0.0158, 0.0336, 0.036, 0.0415, 0.35, "lip"),    # 口の帯の上端
-    (0.0940, -0.0175, 0.0332, 0.0375, 0.0410, 0.40, "mouth"),  # 上唇。後縁+0.022=項の谷
-    (0.0985, -0.0174, 0.0356, 0.041, 0.0400, 0.48, "cheek"),   # 目の下端
-    (0.1056, -0.0173, 0.0361, 0.0455, 0.0410, 0.52, "snout_eye"),  # 目の高さ=最大幅
+    (0.0875, -0.0140, 0.0334, 0.036, 0.0420, 0.30, "jaw"),    # 口線の下=下顎の上端
+    (0.0910, -0.0158, 0.0336, 0.036, 0.0405, 0.35, "lip"),    # 口の帯の上端
+    (0.0940, -0.0175, 0.0332, 0.0375, 0.0392, 0.40, "mouth"),  # 上唇。後縁+0.022=項の谷
+    (0.0985, -0.0174, 0.0356, 0.041, 0.0380, 0.48, "cheek"),   # 目の下端
+    (0.1056, -0.0173, 0.0361, 0.0455, 0.0400, 0.52, "snout_eye"),  # 目の高さ=最大幅
     # 頭頂へ: 設定画は緩やかに絞る(0.0355 → 0.029 → 0.0235 → 0.015)
     (0.1126, -0.0232, 0.0288, 0.038, 0.0355, 0.50, "brow"),
-    (0.1196, -0.0196, 0.0273, 0.032, 0.0290, 0.35, "forehead"),
+    (0.1196, -0.0196, 0.0273, 0.032, 0.0276, 0.35, "forehead"),
     (0.1249, -0.0155, 0.0239, 0.0255, 0.0225, 0.20, "crown"),
     (0.128, -0.0142, 0.014, 0.014, 0.0130, 0.10, "top"),
 ]
@@ -600,20 +600,20 @@ def build_arms() -> list[bpy.types.Object]:
             # 胴との間に隙間が開かないように)
             Vector((0.020 * side, -0.010, 0.060)),  # 肩の根(胴の中)
             Vector((0.026 * side, -0.012, 0.057)),  # 肩
-            Vector((0.030 * side, -0.019, 0.046)),  # 上腕
-            Vector((0.032 * side, -0.025, 0.034)),  # 肘(最も外。外端 0.0412)
-            Vector((0.030 * side, -0.032, 0.021)),  # 前腕
-            Vector((0.028 * side, -0.038, 0.011)),  # 手首
-            Vector((0.026 * side, -0.041, 0.008)),  # 手
+            Vector((0.030 * side, -0.018, 0.046)),  # 上腕
+            Vector((0.032 * side, -0.023, 0.034)),  # 肘(最も外。外端 0.0412)
+            Vector((0.030 * side, -0.028, 0.021)),  # 前腕
+            Vector((0.028 * side, -0.032, 0.011)),  # 手首
+            Vector((0.026 * side, -0.035, 0.008)),  # 手
         ]
         arm = C.curve_tube(f"{NAME}_arm{side:+.0f}", pts,
-                           [0.0110, 0.0104, 0.0096, 0.0086, 0.0072, 0.0060, 0.0052])
+                           [0.0118, 0.0112, 0.0104, 0.0094, 0.0080, 0.0068, 0.0058])
         out.append(arm)
         # 掌は小さく、指3本を独立させる(平たい水かきに見せない)
-        palm = (0.026 * side, -0.044, 0.006)
+        palm = (0.026 * side, -0.038, 0.006)
         out.append(C.uv_sphere(f"{NAME}_hand{side:+.0f}", palm, 0.0066,
                                segments=10, rings=7, scale=(1.0, 1.1, 0.6)))
-        out += _digits(f"{NAME}_hand{side:+.0f}", (0.026 * side, -0.049, 0.004),
+        out += _digits(f"{NAME}_hand{side:+.0f}", (0.026 * side, -0.042, 0.004),
                        forward=(0.10 * side, -1.0, 0.0), spread_axis=(0, 0, 1))
     return out
 
@@ -644,128 +644,164 @@ def build_legs() -> list[bpy.types.Object]:
     """後脚。腿は身体の主要ボリューム: 上側(尻側)は胴の中に食い込ませて
     胴から滑らかに始まり、膝(前下)へ強くテーパーする卵。「球を貼った」感じを
     消す。背面図では胴に密着。足は外へ開いて床に着き、指3本が外前へ向く。"""
+    # 設定画実測(全高 0.140m 換算): 腰の外端 ±43mm / 後足の外端 ±47mm。
+    # 以前は腿 ±53mm・後足 ±69mm で、正面から見ると「がに股で踏ん張る蛙」
+    # だった(設定画は膝をたたんで胴の脇に寄せた座り姿)
     out = []
     for side in (-1.0, 1.0):
-        thigh_c = (0.034 * side, +0.016, 0.028)
+        thigh_c = (0.030 * side, +0.016, 0.028)
         knee_dir = (0.0, -0.034, -0.020)  # 尻上(胴の中)→膝前下
         thigh = _egg(f"{NAME}_thigh{side:+.0f}", thigh_c, knee_dir,
-                     r_side=0.017, r_across=0.025, r_along=0.032, taper=0.50)
+                     r_side=0.0135, r_across=0.025, r_along=0.032, taper=0.50)
         out.append(thigh)
-        knee = Vector((0.036 * side, -0.010, 0.014))
-        ankle = Vector((0.046 * side, -0.011, 0.010))
-        toes = Vector((0.054 * side, -0.016, 0.009))
+        knee = Vector((0.032 * side, -0.010, 0.014))
+        ankle = Vector((0.035 * side, -0.011, 0.010))
+        toes = Vector((0.038 * side, -0.016, 0.009))
         shin = C.curve_tube(f"{NAME}_shin{side:+.0f}", [Vector(thigh_c), knee, ankle, toes],
                             [0.014, 0.012, 0.0095, 0.0085])
         out.append(shin)
-        sole = (0.054 * side, -0.017, 0.006)
+        sole = (0.034 * side, -0.018, 0.006)
         out.append(C.uv_sphere(f"{NAME}_foot{side:+.0f}", sole, 0.0085,
-                               segments=10, rings=7, scale=(1.0, 1.0, 0.6)))
-        out += _digits(f"{NAME}_foot{side:+.0f}", (0.058 * side, -0.022, 0.004),
-                       forward=(0.55 * side, -1.0, 0.0), spread_axis=(0, 0, 1))
+                               segments=10, rings=7, scale=(1.0, 1.1, 0.6)))
+        out += _digits(f"{NAME}_foot{side:+.0f}", (0.037 * side, -0.024, 0.004),
+                       forward=(0.42 * side, -1.0, 0.0), spread_axis=(0, 0, 1))
     return out
 
 
 def build_tail() -> bpy.types.Object:
-    """尾。側面マスクの列ごとの実測を基に、根元(r0.020)から滑らかにテーパー。
-    y≈+0.09 まで床を這わせてから立ち上がり、直径≈0.025 の小さな渦を前へ
-    巻いて終わる(第2版は +0.08 で持ち上がり始めて早すぎた)。
-    正面/背面図では尾は体の右側(-X)へ出ているので、渦へ向かって少し-Xへ振る。"""
+    """尾。設定画の実測(全高 0.140m 換算):
+
+    ・後ろ端 y≈+0.072 / 横端 x≈-0.074 / 渦の穴は直径 15mm
+    ・正面図でも背面図でも渦が「渦として」見える ―― つまり渦の面は
+      体の横でも真後ろでもなく、**斜め**を向いている(handbook 1-34。
+      三面図は整合した投影ではないので、面ごとに役割を割り当てる:
+      側面=渦の高さ、正面/背面=横への張り出し)
+    ・根元は胴ほど太くない(r0.018)。長く伸ばさず腰のすぐ後ろで巻く
+    """
+    ctr = Vector((-0.056, 0.078, 0.0335))
+    n = Vector((0.70, 0.71, 0.0)).normalized()    # 渦の面の法線
+    e_up = Vector((0.0, 0.0, 1.0))
+    e_side = n.cross(e_up).normalized()           # 面内のもう1軸
+    # 渦: 外側から内側へ 1.15 周。半径 0.0155 → 0.0035
+    spiral = []
+    spiral_r = []
+    turns, steps = 1.15, 11
+    for i in range(steps + 1):
+        t = i / steps
+        ang = math.radians(-118.0) + math.tau * turns * t
+        r = 0.0172 * (1.0 - t) + 0.0040 * t
+        spiral.append(ctr + (e_side * math.cos(ang) + e_up * math.sin(ang)) * r)
+        spiral_r.append(0.0060 * (1.0 - t) + 0.0016 * t)
     pts = [
-        # 根元〜1/3は胴に匹敵する太さ(r0.024→0.017)から滑らかにテーパー
-        Vector((0.000, +0.030, 0.024)),   # 腰の中(骨盤ループに埋まる)
-        Vector((0.000, +0.052, 0.022)),   # 尾の付け根(床に接する)
-        Vector((-0.003, +0.068, 0.018)),  # 床を這う
-        Vector((-0.008, +0.083, 0.014)),
-        Vector((-0.014, +0.095, 0.012)),  # 這う区間の終わり
-        Vector((-0.020, +0.105, 0.023)),  # 立ち上がり
-        Vector((-0.025, +0.109, 0.036)),
-        # 渦: 中心(y+0.096, z0.046)・半径0.010 の小さな円を一周弱、前→下→内へ
-        Vector((-0.028, +0.1058, 0.048)),
-        Vector((-0.030, +0.1037, 0.0524)),
-        Vector((-0.032, +0.096, 0.056)),  # 渦の頂点
-        Vector((-0.033, +0.0873, 0.051)),
-        Vector((-0.033, +0.0866, 0.0426)),
-        Vector((-0.032, +0.0926, 0.0366)),
-        Vector((-0.031, +0.0975, 0.0362)),  # 先端(内側で終わる)
-    ]
-    radii = [0.024, 0.021, 0.017, 0.013, 0.010, 0.008, 0.0065, 0.0055, 0.0047,
-             0.004, 0.0034, 0.0028, 0.0023, 0.0018]
+        Vector((0.000, +0.030, 0.023)),   # 腰の中(骨盤ループに埋まる)
+        Vector((-0.012, +0.055, 0.017)),  # 付け根。ここから横へ振り出す
+        Vector((-0.030, +0.075, 0.013)),  # 床を這う
+        Vector((-0.048, +0.086, 0.013)),
+        Vector((-0.060, +0.086, 0.017)),  # 立ち上がり
+    ] + spiral
+    radii = [0.018, 0.0155, 0.0125, 0.0098, 0.0078] + spiral_r
     return C.curve_tube(f"{NAME}_tail", pts, radii)
 
 
-# 背びれ: 背骨線(y,z)。頭頂から項・背中・腰を通って尾の付け根の上面まで
-FRILL_SPINE = [
+# 背の鱗板(はんてん状の背びれ)。設定画の**背面図**が正体を教える ――
+# 背骨の正中を、淡い涙形の板が一列に並んで下りていく。側面図では同じ板を
+# 真横から見るので、体色の「めくれた花弁」が輪郭に並ぶ(上面が明るく、
+# 側面と縁は暗い)。v3 までは薄い1枚の膜(strip+Solidify)だったので、
+# 背面から見ると**縦に立った刃**になり、設定画の「淡い連なり」が出なかった。
+#
+# 背骨線(y, z)。頭頂から項・背中・腰を通って尾の付け根の上面まで
+SPINE_LINE = [
     (-0.014, 0.128), (0.000, 0.129), (0.012, 0.1255), (0.019, 0.115),
     (0.0215, 0.104), (0.0215, 0.093), (0.023, 0.084), (0.025, 0.076),
     (0.028, 0.069), (0.033, 0.061), (0.039, 0.053), (0.044, 0.045),
     (0.050, 0.037), (0.056, 0.0285), (0.058, 0.024),
 ]
-# 波形の山: (背骨線に沿った弧長s, 半幅, 高さ)。
-# 「あくびとかげ」の横シルエットを作る特徴なので設定画より誇張する:
-# 頭頂の小突起 → 後頭部(大) → 項(最大0.024) → 背中(中・中) → 腰(小)。
-# 半幅は山の間隔の半分より広くして裾が重なり、鋸歯ではなく丸い花弁の連なりに
-# 均等に並ぶと硬いノコギリに見えるので、高さ・間隔・幅に揺らぎを付ける
-FRILL_LOBES = [
-    (0.007, 0.010, 0.005), (0.031, 0.015, 0.018), (0.054, 0.014, 0.023),
-    (0.074, 0.013, 0.016), (0.096, 0.015, 0.021), (0.118, 0.012, 0.013),
-    (0.136, 0.010, 0.009),
+# (背骨線に沿った弧長 s, 半幅w, 半長l, 突出h)。s は背面図で実測した
+# 鱗板の高さ z を背骨線上へ落として求めた。突出は側面図の背側輪郭の
+# うねり(±5mm)に合わせる ―― 以前の最大 24mm は「別の生き物の背びれ」
+SCUTES = [
+    (0.0000, 0.0046, 0.0062, 0.0050),
+    (0.0141, 0.0040, 0.0068, 0.0042),
+    (0.0264, 0.0046, 0.0080, 0.0085),
+    (0.0405, 0.0052, 0.0090, 0.0152),
+    (0.0567, 0.0053, 0.0096, 0.0160),
+    (0.0737, 0.0051, 0.0094, 0.0132),
+    (0.0881, 0.0047, 0.0090, 0.0108),
+    (0.1057, 0.0042, 0.0080, 0.0082),
+    (0.1188, 0.0037, 0.0072, 0.0064),
+    (0.1322, 0.0032, 0.0060, 0.0048),
+    (0.1406, 0.0026, 0.0050, 0.0036),
 ]
-FRILL_BASE = 0.002       # 山と山の間にも残る膜の高さ(連続した1枚に見せる)
-# 内側の縁を胴の中へ沈める量。浅いと背びれが胴から浮いた薄い板になり、
-# 自動ウェイト(bone heat)がその頂点からボーンを見通せず取りこぼす
-FRILL_INSET = 0.013
-# 設定画の背面図は背骨に沿った「丸いこぶの列」。薄い板だと背面で紙のように
-# 見えるので、丸い畝になる厚みにする(統合+decimate 後はさらに痩せる)
-FRILL_THICKNESS = 0.014
-FRILL_SAMPLES = 36
+# 尾へ続く2枚(尾は横へ振り出すので背骨線ではなく尾の中心線に乗せる)
+TAIL_SCUTES = [
+    (Vector((-0.012, 0.0550, 0.0170)), Vector((0.0, 0.62, 0.78)), 0.0021, 0.0046, 0.0026),
+    (Vector((-0.030, 0.0750, 0.0130)), Vector((0.0, 0.42, 0.91)), 0.0017, 0.0040, 0.0022),
+]
 
 
-def _frill_height(s: float) -> float:
-    h = FRILL_BASE
-    for s0, w, amp in FRILL_LOBES:
-        u = (s - s0) / w
-        if -1.0 < u < 1.0:
-            h += amp * (0.5 + 0.5 * math.cos(math.pi * u))
-    return h
+def _spine_at(s: float):
+    """背骨線の弧長 s における (点, 接線, 外向き法線)。すべて yz 平面。"""
+    pts = [Vector((0.0, y, z)) for y, z in SPINE_LINE]
+    acc = 0.0
+    for i in range(len(pts) - 1):
+        seg = (pts[i + 1] - pts[i]).length
+        if acc + seg >= s or i == len(pts) - 2:
+            t = (s - acc) / seg if seg > 0 else 0.0
+            p = pts[i].lerp(pts[i + 1], t)
+            tan = (pts[i + 1] - pts[i]).normalized()
+            nrm = Vector((0.0, -tan.z, tan.y))   # 体の外側
+            return p, tan, nrm
+        acc += seg
+    return pts[-1], Vector((0, 1, 0)), Vector((0, 0, 1))
 
 
-def build_frill() -> bpy.types.Object:
-    """背びれ。独立した球の列ではなく、背骨線に沿った1枚の低ポリstrip
-    (内側の縁は胴に埋め、外側の縁が波打つ)にSolidifyで厚みを付け、
-    Subdivisionで柔らかくする。"""
-    # 背骨線を弧長でリサンプル
-    pts = [Vector((0.0, y, z)) for y, z in FRILL_SPINE]
-    seg_len = [(pts[i + 1] - pts[i]).length for i in range(len(pts) - 1)]
-    total = sum(seg_len)
-    verts: list[tuple[float, float, float]] = []
-    for k in range(FRILL_SAMPLES + 1):
-        s = total * k / FRILL_SAMPLES
-        # sの位置と接線を求める
-        acc, i = 0.0, 0
-        while i < len(seg_len) - 1 and acc + seg_len[i] < s:
-            acc += seg_len[i]
-            i += 1
-        t = (s - acc) / seg_len[i] if seg_len[i] > 0 else 0.0
-        p = pts[i].lerp(pts[i + 1], t)
-        tangent = (pts[i + 1] - pts[i]).normalized()
-        normal = Vector((0.0, -tangent.z, tangent.y))  # 体の外側(頭頂では上、背中では後ろ)
-        inner = p - normal * FRILL_INSET
-        outer = p + normal * _frill_height(s)
-        verts.append(tuple(inner))
-        verts.append(tuple(outer))
-    faces = [(2 * k, 2 * k + 2, 2 * k + 3, 2 * k + 1) for k in range(FRILL_SAMPLES)]
-    mesh = bpy.data.meshes.new(f"{NAME}_frill")
-    mesh.from_pydata(verts, [], faces)
-    mesh.update()
-    obj = bpy.data.objects.new(f"{NAME}_frill", mesh)
+def _scute(name: str, center, tangent, normal, w: float, l: float, h: float
+           ) -> bpy.types.Object:
+    """涙形の板1枚。中心を背骨線に置き、外向きに h だけ出て、同じだけ
+    体へ沈む(浮いた板にならない)。後ろへ向かって細くなる。"""
+    mesh = bpy.data.meshes.new(name)
+    obj = bpy.data.objects.new(name, mesh)
     bpy.context.collection.objects.link(obj)
-    solid = obj.modifiers.new("solid", "SOLIDIFY")
-    solid.thickness = FRILL_THICKNESS
-    solid.offset = 0.0
-    solid.use_even_offset = True
-    _apply_modifier(obj, solid)
-    _subdivide(obj, 2)
+    bm = bmesh.new()
+    bmesh.ops.create_uvsphere(bm, u_segments=10, v_segments=6, radius=1.0)
+    ex = Vector((1.0, 0.0, 0.0))
+    for v in bm.verts:
+        t = (v.co.z + 1.0) * 0.5          # 0=前端, 1=後端
+        f = 1.0 - 0.55 * t * t            # 後ろへ絞る涙形
+        v.co = (Vector(center) + ex * (v.co.x * w * f)
+                + Vector(normal) * (v.co.y * h * f)
+                + Vector(tangent) * (v.co.z * l))
+    bm.to_mesh(mesh)
+    bm.free()
+    C.activate(obj)
+    bpy.ops.object.shade_smooth()
     return obj
+
+
+_scute_frames_cache: list | None = None
+
+
+def scute_frames() -> list:
+    """鱗板1枚ぶんの座標系 (中心, 接線, 外向き, w, l, h)。
+    造形(build_scutes)と塗り(body_color)が**同じ表**を見るようにする ――
+    別々に座標を書くと、少し動かしたときに塗りだけ置き去りになる。"""
+    global _scute_frames_cache
+    if _scute_frames_cache is None:
+        out = []
+        for (s, w, l, h) in SCUTES:
+            p, tan, nrm = _spine_at(s)
+            out.append((p, tan, nrm, w, l, h))
+        for (p, nrm, w, l, h) in TAIL_SCUTES:
+            n = Vector(nrm).normalized()
+            out.append((Vector(p), Vector((0.0, n.z, -n.y)), n, w, l, h))
+        _scute_frames_cache = out
+    return _scute_frames_cache
+
+
+def build_scutes() -> list[bpy.types.Object]:
+    """背の鱗板一式(胴 11 枚 + 尾 2 枚)。"""
+    return [_scute(f"{NAME}_scute{i}", c, tan, nrm, w, l, h)
+            for i, (c, tan, nrm, w, l, h) in enumerate(scute_frames())]
 
 
 def build_blockout() -> dict:
@@ -773,7 +809,7 @@ def build_blockout() -> dict:
     返り値: {"cage": ローポリケージ, "body": 丸めた胴+頭, "extras": [四肢・尾・背びれ]}
     """
     cage, body = build_body_cage()
-    extras = build_arms() + build_legs() + [build_tail(), build_frill()]
+    extras = build_arms() + build_legs() + [build_tail()] + build_scutes()
     clay = C.make_material(f"{NAME}_clay", CLAY, roughness=0.6)
     for obj in [body] + extras:
         C.assign_material(obj, clay)
@@ -791,19 +827,25 @@ import os as _os
 _ROOT = _os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
 DECAL_DIR = _os.path.join(_ROOT, "design", "characters", "akubitokage", "generated")
 DECAL_JSON = _os.path.join(DECAL_DIR, "akubitokage-decal.json")
-# パレット(設定画「カラーパレット」+ 絵の中の実測)
-SHEET = {
-    "main": (0.30, 0.28, 0.30),
-    # おなか(薄い影)。設定画の絵の中では体色の約1.9倍の明るさ(実測 sRGB
-    # 113,102,113 対 59,55,68)。パレットのスウォッチ(#d7cbc8)をそのまま使うと
-    # 白い球に見える
-    "belly": (0.575, 0.520, 0.575),
-    "spot": (0.60, 0.55, 0.58),
-    "mouth": (0.729, 0.584, 0.675),
-}
-# おなかの淡色。設定画は縦長の卵形
-BELLY_CENTER = Vector((0.0, -0.030, 0.034))
-BELLY_RADII = Vector((0.020, 0.024, 0.032))
+# パレット。設定画の**カラーパレット(色み)**と**絵の中の実測(明度)**を
+# 分けて使う(handbook 4-63)。絵の実測(全身の基調 / 暗部 / 斑点 / 鱗板 /
+# おなか)は sRGB で
+#     基調(113,100,118) 暗部(76,70,84) 斑点(145,131,130)
+#     鱗板(154,133,137) おなか(170,151,158)
+# なので、淡色は基調の 1.5〜1.8 倍で、明るくなるほど**青が抜けて暖かく**なる。
+#
+# ダンジョンの灯りは寒色なので、設定画の色をそのまま置くと実機で青へ転ぶ
+# (handbook 1-38)。実測: アルベドを R=B の中性にしていたとき、実機の
+# R-B は -26 で、近隣のモンスター(-9〜-18)より明らかに青かった。
+# main の R を B より上げて相殺する ―― 絵としては暖色だが、実機では紫に出る。
+SHEET = {"main": (0.335, 0.278, 0.296)}
+# 基調に対する倍率(設定画の実測比)。上書きではなく**足す**(handbook 2-17)
+BELLY_MUL = (1.77, 1.74, 1.55)
+SCUTE_MUL = (1.74, 1.66, 1.50)
+DARK_MUL = (0.67, 0.70, 0.71)        # 暗部(谷・鱗板の外側の影)
+# おなかの淡色。設定画正面図の実測: 幅 22.7mm・高さ 27.2mm・中心 z=35.9mm
+BELLY_CENTER = Vector((0.0, -0.030, 0.0345))
+BELLY_RADII = Vector((0.0135, 0.020, 0.0175))
 _decal_cache: dict = {}
 
 
@@ -866,18 +908,60 @@ def _surface_depth(p: Vector) -> float:
     return surf.length - Vector((p.x, p.y - cy, 0.0)).length
 
 
+def _scute_paint(p: Vector, n: Vector) -> tuple[float, float]:
+    """(鱗板の上面らしさ, 鱗板の外の谷の影) を返す。
+
+    造形と同じ `scute_frames()` の座標系で測るので、板を動かしても塗りが
+    置き去りにならない。板の**上面を明るく、板と板の間を暗く**する
+    (handbook 2-15 の3段。輪郭線は塗らない ―― 3-7)。
+    """
+    top = shade = 0.0
+    for (c, tan, nrm, w, l, h) in scute_frames():
+        d = p - c
+        if d.length_squared > 0.00058:      # 0.024m 以内だけ調べる
+            continue
+        cz = d.dot(tan) / l
+        t = min(1.0, max(0.0, (cz + 1.0) * 0.5))
+        f = 1.0 - 0.55 * t * t
+        a = d.x / (w * f)
+        b = d.dot(nrm) / (h * f)
+        q = math.sqrt(a * a + cz * cz)
+        if q < 1.12:
+            outer = min(1.0, max(0.0, (b + 0.15) / 0.55))
+            top = max(top, min(1.0, (1.12 - q) / 0.34) * outer)
+        if 0.95 < q < 1.85:
+            shade = max(shade, min(1.0, (1.85 - q) / 0.55)
+                        * min(1.0, max(0.0, (b + 0.9) / 0.7)))
+    return top, shade * (1.0 - top)
+
+
 def body_color(p: Vector, n: Vector, frame: int = 0):
-    """bake_albedo 用: 体色 + おなか + 3面デカール(トライプラナー投影)。
+    """bake_albedo 用の手描き Base Color。
+    ① 塊の上下階調 ② おなかの淡色 ③ 背の鱗板(上面=明/谷=暗)
+    ④ 設定画をなぞった3面デカール(顔の線画・斑点)。
     frame は顔アトラスのコマ(0=通常, 1=あくび予備, 2=大あくび)。"""
     base = SHEET["main"]
-    # おなか: 前を向く面だけ、縦長の楕円体の中で柔らかく
+    # ① 上下の階調。設定画は頭が明るく足元が暗い(正面 L: 顔109 / 胸90 / 足81)。
+    #    位置の連続関数で作る ―― 面法線で作ると面の境目で階段になる(4-16)
+    g = min(1.0, max(0.0, (p.z - 0.006) / 0.118))
+    k = 0.90 + 0.19 * g * g
+    base = (base[0] * k, base[1] * k, base[2] * k)
+    # ② おなかの淡色。前を向く面だけ、縦長の楕円体の中で柔らかく
     d = p - BELLY_CENTER
     r = math.sqrt((d.x / BELLY_RADII.x) ** 2 + (d.y / BELLY_RADII.y) ** 2
                   + (d.z / BELLY_RADII.z) ** 2)
-    if n.y < -0.2 and r < 1.0:
-        t = max(0.0, min(1.0, (1.0 - r) / 0.30))
-        t = t * t * (3 - 2 * t)
-        base = tuple(base[i] + (SHEET["belly"][i] - base[i]) * t for i in range(3))
+    if n.y < -0.1 and r < 1.0:
+        t = min(1.0, max(0.0, (1.0 - r) / 0.42))
+        t = t * t * (3 - 2 * t) * min(1.0, (-n.y - 0.1) / 0.35)
+        base = tuple(base[i] * (1.0 + (BELLY_MUL[i] - 1.0) * t) for i in range(3))
+    # ③ 背の鱗板
+    top, shade = _scute_paint(p, n)
+    if top > 0.002:
+        base = tuple(base[i] * (1.0 + (SCUTE_MUL[i] - 1.0) * top) for i in range(3))
+    if shade > 0.002:
+        base = tuple(base[i] * (1.0 + (DARK_MUL[i] - 1.0) * shade * 0.75)
+                     for i in range(3))
+    # ④ デカール(顔の線画・斑点)
     if p.z < DECAL_FLOOR_Z:
         return base
     wf = max(0.0, -n.y) ** DECAL_SHARPNESS
@@ -924,8 +1008,8 @@ def texture_blockout(parts: dict, size: int = 3072) -> None:
 # アーマチュアを付ける。voxel remesh は使わない ―― join しただけなので、
 # 腕と胴の谷・顎下のくぼみといった負の空間はそのまま残る。
 TARGET_TRIS = 5600          # v2(5,184)と同程度。ブロックアウトは 21,552
-TEX_SIZE = 1024             # 本体(顔以外)
-FACE_TEX = 768              # 顔アトラス1コマぶん(3コマ横並びで 2304x768)
+TEX_SIZE = 704              # 本体(顔以外)。予算 700KB のうち塗りは 360KB まで
+FACE_TEX = 704              # 顔アトラス1コマぶん(3コマ横並びで 2112x704)
 # 顔を本体から切り離す球。**頭全体ではなく前面だけ**にする(ガルドと同じ。
 # 頭全体を1枚に取ると後頭部がタイルの大半を占めて顔の密度が半分になる)
 FACE_ISLAND_C = (0.0, -0.028, 0.101)
@@ -941,17 +1025,17 @@ JOINTS_HALF = {
     "snout": (0.000, -0.0380, 0.0980),   # 鼻先。下顎の支点でもある
     "jaw": (0.000, -0.0420, 0.0860),     # 下顎の先(あくびで開く)
     "legF.L": (0.026, -0.0120, 0.0570),  # 肩
-    "footF.L": (0.026, -0.0410, 0.0080),
-    "legB.L": (0.034, 0.0160, 0.0280),   # 腿
-    "footB.L": (0.054, -0.0160, 0.0090),
+    "footF.L": (0.026, -0.0350, 0.0080),
+    "legB.L": (0.030, 0.0160, 0.0280),   # 腿
+    "footB.L": (0.034, -0.0180, 0.0090),
     # 尾: build_tail の中心線から7点を間引く(渦まで骨を通す)
-    "tail1": (0.000, 0.0520, 0.0220),
-    "tail2": (-0.008, 0.0830, 0.0140),
-    "tail3": (-0.020, 0.1050, 0.0230),
-    "tail4": (-0.029, 0.1058, 0.0480),
-    "tail5": (-0.032, 0.0960, 0.0560),
-    "tail6": (-0.033, 0.0866, 0.0426),
-    "tail7": (-0.031, 0.0975, 0.0362),
+    "tail1": (-0.012, 0.0550, 0.0170),
+    "tail2": (-0.048, 0.0860, 0.0130),
+    "tail3": (-0.063, 0.0762, 0.0142),
+    "tail4": (-0.048, 0.0700, 0.0270),
+    "tail5": (-0.054, 0.0757, 0.0380),
+    "tail6": (-0.062, 0.0819, 0.0327),
+    "tail7": (-0.055, 0.0768, 0.0255),
 }
 BONES_HALF = [
     ("hip", "chest"), ("chest", "head"), ("head", "snout"), ("snout", "jaw"),
@@ -969,43 +1053,59 @@ MOUTH_OPEN_DEG = 60.0       # akubitokage_animations の attack の最大開き
 # あくびの煙。設定画は三面図にも描かれているので常時出す。ひと房を大きさの
 # 違う小さな球の集まりにして、輪郭を完全な円にしない(v2 から引き継ぎ)。
 # 頭に剛体固定するので、頭を動かしても口元から離れない
-SMOKE_RGB = (0.75, 0.70, 0.82)
+# 設定画の煙は紙(L229)の上で L169 ―― 体(L84)の 2.0 倍でしかない。
+# 以前は (0.75,0.70,0.82)+発光0.15 で、暗いダンジョンでは**画面で一番明るい
+# もの**になり「頭に白い花が咲いている」ように見えていた。
+# 輪郭線も外す(handbook 2-20: 付けない例外は半透明と発光が主のもの)。
+# 位置は口の横から斜め後ろ上へ立ちのぼる一筋にして、頭の飾りに見せない
+SMOKE_RGB = (0.60, 0.55, 0.66)
+SMOKE_EMISSION = 0.05
 SMOKE_PUFFS = [
-    (0.050, -0.030, 0.112, 0.0075), (0.058, -0.022, 0.118, 0.0065),
-    (0.052, -0.020, 0.123, 0.0055),
-    (0.044, 0.005, 0.128, 0.0065), (0.051, 0.001, 0.133, 0.0055),
-    (0.046, 0.008, 0.137, 0.0045),
+    # 一房目: 球どうしを半径より近くに置いて1つの雲へ融かす
+    # (離すと「ぶどうの房」になる)
+    (0.053, -0.028, 0.0995, 0.0116),
+    (0.060, -0.019, 0.1070, 0.0100),
+    (0.057, -0.009, 0.1155, 0.0082),
+    (0.052, 0.000, 0.1215, 0.0064),
+    # 離れて漂う小さな一房
+    (0.047, 0.018, 0.1310, 0.0058),
+    (0.053, 0.026, 0.1355, 0.0042),
 ]
 
 
 def build() -> tuple[list, bpy.types.Object]:
     """本番モデル(メッシュ+アーマチュア)を返す。"""
     parts = build_blockout()
-    # 背びれは薄い1枚なので、自動ウェイト(bone heat)がその頂点から胴の中の
-    # ボーンを見通せず 162 頂点を取りこぼす。背骨に沿って3区間へ明示的に
-    # 固定する(背びれ自体は変形させる必要がない)
+    # 背の鱗板は体の外に半分出た小さな別体なので、自動ウェイト(bone heat)が
+    # その頂点から胴の中のボーンを見通せず取りこぼす。背骨に沿って3区間へ
+    # 明示的に固定する(鱗板自体は変形させる必要がない。handbook 3-41)
     pins = []
+    seg: dict[str, list[tuple[bpy.types.Object, int]]] = {
+        "scute_head": [], "scute_back": [], "scute_hip": []}
     for o in parts["extras"]:
-        if "frill" not in o.name:
+        if "scute" not in o.name:
             continue
-        seg = {"frill_head": [], "frill_back": [], "frill_hip": []}
         for v in o.data.vertices:
-            key = ("frill_head" if v.co.z > 0.098 else
-                   "frill_back" if v.co.z > 0.055 else "frill_hip")
-            seg[key].append(v.index)
-        for name, idx in seg.items():
-            if not idx:
-                continue
+            key = ("scute_head" if v.co.z > 0.098 else
+                   "scute_back" if v.co.z > 0.045 else "scute_hip")
+            seg[key].append((o, v.index))
+    for name, items in seg.items():
+        if not items:
+            continue
+        for o in {it[0] for it in items}:
+            idx = [i for (oo, i) in items if oo is o]
             o.vertex_groups.new(name=name).add(idx, 1.0, "REPLACE")
-            pins.append((name, {"frill_head": "chest-head",
-                                "frill_back": "hip-chest",
-                                "frill_hip": "hip-tail1"}[name]))
+        pins.append((name, {"scute_head": "chest-head",
+                            "scute_back": "hip-chest",
+                            "scute_hip": "hip-tail1"}[name]))
     # 煙はここでは**まだ join しない**。split_material_region は球の中の面を
     # すべてスロット1(顔)へ移してしまうので、口元の煙が顔アトラスの島に
     # 混ざり、顔の密度を食う。塗りを焼き終えてから3枚目のスロットとして
     # 合流させる(join は後続オブジェクトのマテリアルをスロットに足すので、
     # 煙の面だけが index 2 を指したまま残る)
-    smoke_mat = C.make_material(f"{NAME}_smoke", SMOKE_RGB, roughness=0.5, emission=0.15)
+    smoke_mat = C.make_material(f"{NAME}_smoke", SMOKE_RGB, roughness=0.5,
+                                emission=SMOKE_EMISSION)
+    smoke_mat["noOutline"] = True
     smoke = []
     for i, (x, y, z, r) in enumerate(SMOKE_PUFFS):
         puff = C.uv_sphere(f"{NAME}_smoke{i}", (x, y, z), r, segments=8, rings=6)
