@@ -7,20 +7,21 @@
 
 構造の要点:
 
-* **頭骨が最大の記号。** 生成りのドーム + 大きな黒い眼窩2つ + 長く尖った
-  嘴。96px で読めるのはこの3つだけなので、ここに面を使う。
-* **羽は「芯 + 輪郭を作る羽毛」。** 滑らかな芯(卵)は隠れる前提で小さく
-  作り、シルエットは `C.hair_clump` の羽毛が作る
-  (handbook 3-2「輪郭を作るのは土台ではなく毛先」)。
+* **骸(頭骨)が最大の記号。** 生成りのドーム + 大きな黒い眼窩2つ +
+  長く尖った嘴。96px で読めるのはこの3つだけなので、ここに面を使う。
+  作り方は**ホネガラミの頭蓋と同じ**輪切りの表 + 彫り/張り出し
+  (handbook 4-109)。
+* **羽は「芯 + 帯 + 楔」。** 滑らかな芯(卵)は隠れる前提で小さく作り、
+  シルエットは羽毛が作る(handbook 3-2「輪郭を作るのは土台ではなく
+  毛先」)。方式はスリガラス(handbook 4-106)。
 * **霧は半透明で作らない。** 羽の先端を霧の色へ寄せて消す
   (handbook 3-27。あくびとかげの尾・きりみずちの柱下端と同じ翻訳)。
-* swarm(3〜4羽同時)なので三角形は 7,000 を上限にする。
+* swarm(3〜4羽同時)なので三角形は `TARGET_TRIS` を上限にする。
 """
 from __future__ import annotations
 
 import math
 
-import bmesh
 import bpy
 from mathutils import Vector
 
@@ -34,26 +35,124 @@ CLAY = (0.66, 0.63, 0.60)   # 造形レビュー用の単色
 #   x: 右が +    y: 前が −(設定画の側面図は左向き = −y)    z: 上が +
 #   y の原点は足の中心(側面図の足 u≈+5mm を 0 に置いた)
 
-# ------------------------------------------------------------------ 頭骨
-# 正面図の骨の幅を z ごとに実測すると、最大幅 98mm が z=190、そこから上は
-# z=262 まで**楕円のまま**широ広く残り、下は z=158 で急に終わる(顎の下は羽)。
-# 真球でも上下対称の楕円体でもないので、上下で半径を変える
-SKULL_C = Vector((0.000, -0.098, 0.190))     # 頭骨ドームの中心(最大幅の高さ)
-SKULL_R = Vector((0.049, 0.040, 0.072))      # 上半分の半径(正面幅98 / 奥行80)
-SKULL_R_DOWN = 0.032                         # 下半分の z 半径(顎下 z=158)
-SKULL_SEG, SKULL_RING = 22, 14
-# 眼窩。正面図で中心 x=±36 z=203、径 38mm。頭骨の表面へ向きで置く
-# 正面図の眼窩中心 x=±36 / z=203。楕円体の表面で x=0.036 になる向きは
-# d.x = 0.036/0.049 = 0.735、z=0.013 になる向きは d.z = 0.013/0.072 = 0.18。
-# 横向き成分をここまで取ると**側面図でも眼窩が見える**(設定画どおり)
-SOCKET_DIR = Vector((0.735, -0.654, 0.180))
-SOCKET_R = 0.0195                            # 眼窩の半径(径 39mm)
-SOCKET_DEPTH = 0.0090                        # 掘り込む深さ
-# 嘴。付け根(頭骨の前下)から先端へ
-BEAK_ROOT = Vector((0.000, -0.124, 0.176))
+# ------------------------------------------------------------------ 骸(頭骨)
+# **ホネガラミの頭蓋と同じ方式で作る**(`tools/models/honegarami.py`
+# 「頭蓋」節)。ホネガラミの第7版までの失敗がそのままここで再発していた
+# ―― 楕円体に眼窩の窪みを1つ足しただけで、96px でも45度でも
+# 「つるんとした卵に顔を描いた」形だった(handbook 4-109)。
+#
+# 方式は3つの部品でできている:
+#   1. `SKULL_RINGS`  : 設定画の実測から起こした輪切りの表 (t, rx, ry, cy)。
+#      t=0 が頭頂、t=1 が骸の下縁。rx/ry/cy を段ごとに持つので、
+#      「上顎が前へ出る」「頬骨で最大幅」が**表そのもの**で出る。
+#   2. `SKULL_DENTS` / `SKULL_BUMPS` : 方位角と t の楕円窓で押し込む/
+#      押し出す。`DENT_SHARP < 1` で底が平らになり壁が立つ。
+#   3. `_skull_uv()` : 表面の点を (方位角, t) へ戻す。**彫りと塗りを
+#      同じ座標で扱う**ので、ホネガラミが避けた「塗りの穴と彫りの穴が
+#      45度でずれる」が原理的に起きない(handbook 4-110)。
+#
+# 鳥の骸なので、ホネガラミの6項目はこう読み替える:
+#   広い額     → 丸く広い脳函(SKULL_RINGS + 額の膨らみ)
+#   張った頬骨 → 眼窩の下の張り出し(t=0.767 の最大幅 + 眼窩下縁)
+#   深い眼窩   → **彫る**。この鳥の記号そのものなので浅くしない
+#   骨格的鼻腔 → 眼窩の間の細い鼻梁と、その脇の鼻腔の溝
+#   前へ出る上顎 → cy が下段へ向かって前へ流れる + 嘴
+#   歯列       → 鳥なので無い。代わりに側頭窩で「骨」の凹凸を作る
+#
+# 実測(scratchpad at_bone.py / head_front.png / head_side.png、mmグリッド):
+#   正面: 骸は z=258(頭頂)〜170(下縁)、最大幅 z=190 で 101mm。
+#         眼窩の中心 x=±27.5 / z=199、径 27x28mm。眼窩の光は上の外側。
+#   側面: 前縁 z=246 で y=-0.111 → z=190 で y=-0.150(**下へ向かって
+#         前へ流れる**)。後縁は羽に隠れるので -0.064〜-0.096 を採った。
+#   側面図の頭は正面図より **9mm 低く描かれている**(眼窩の中心 z が
+#   188 と 199、頭頂が 248 と 258)。側面の数値は +9 して使った(4-98)
+SKULL_C = Vector((0.000, -0.106, 0.196))     # x,y の基準と、眼の高さ
+SKULL_TOP = 0.260                            # t=0 の高さ
+SKULL_H = 0.098                              # t=1 までの落差(下縁 z=162)
+SKULL_N = 40     # 眼窩を**彫る**ので方位角の解像度が要る。眼窩の角半幅
+                 # 18度は 9度刻みで4分割 ―― これ以下だと穴が三角になる。
+                 # 19 段 x 40 で 1,500 三角形。細分化はしない
+SKULL_UV_R = 0.062                           # organic_uv で切り出す球の半径
+# (t, rx, ry, cy)  cy は SKULL_C.y からの前後のずれ
+SKULL_RINGS = [
+    (0.0000, 0.0035, 0.0035, +0.0060),
+    (0.0306, 0.0120, 0.0100, +0.0072),   # 頭頂の丸み。ここを飛ばすと円錐
+    (0.0612, 0.0195, 0.0160, +0.0085),
+    (0.1327, 0.0325, 0.0253, +0.0092),
+    (0.2041, 0.0400, 0.0325, +0.0085),
+    (0.2755, 0.0425, 0.0350, +0.0075),
+    (0.3469, 0.0452, 0.0390, +0.0052),
+    (0.4184, 0.0467, 0.0403, +0.0028),
+    (0.4541, 0.0475, 0.0407, +0.0013),   # 眼窩の帯。段を細かく取る
+    (0.4898, 0.0482, 0.0411, -0.0002),
+    (0.5612, 0.0482, 0.0403, -0.0028),
+    (0.5969, 0.0484, 0.0395, -0.0040),
+    (0.6327, 0.0485, 0.0387, -0.0052),
+    (0.6684, 0.0495, 0.0385, -0.0066),
+    (0.7041, 0.0505, 0.0383, -0.0080),   # 頬骨。ここが最大幅(101mm)
+    (0.7398, 0.0483, 0.0371, -0.0093),
+    (0.7755, 0.0460, 0.0358, -0.0106),
+    (0.8469, 0.0355, 0.0313, -0.0123),
+    (0.9184, 0.0275, 0.0255, -0.0132),
+    (1.0000, 0.0185, 0.0190, -0.0128),   # 頬の下端。下縁は方位角ごとに持ち上げる
+]
+# 眼窩の (方位角deg, t)。0 が +X、-90 が前。x=±27.5 は rx=0.0485 の
+# cos 55.4 度に当たる。**この鳥の最大の記号なので深く彫る**
+SOCKET_T = 0.6224
+SOCKET_AZ = 55.4
+# 落ち込み(方位角deg, t, 角度半幅deg, t半幅, 押し込み比)
+SKULL_DENTS = [
+    (-SOCKET_AZ, SOCKET_T, 19.0, 0.134, 0.40),          # 右の眼窩
+    (-(180.0 - SOCKET_AZ), SOCKET_T, 19.0, 0.134, 0.40),  # 左の眼窩
+    (-22.0, 0.551, 19.0, 0.092, 0.085),    # 右の側頭窩(眼窩の後ろ)
+    (-158.0, 0.551, 19.0, 0.092, 0.085),   # 左の側頭窩
+    (-76.0, 0.735, 8.5, 0.048, 0.130),     # 右の鼻腔(鼻梁の脇の溝)
+    (-104.0, 0.735, 8.5, 0.048, 0.130),    # 左の鼻腔
+]
+# 塗りで黒く落とすのは**眼窩だけ**。側頭窩や鼻腔まで黒くすると
+# 顔の下半分が一枚の黒い面になる(ホネガラミ第2版の失敗)
+SKULL_HOLES = SKULL_DENTS[:2]
+# 1 未満 = 底が平らで壁が立つ。ホネガラミは 0.72 だが、あれは眼窩を
+# 彫らない前提の「陰影のための浅い窪み」。**穴として読ませる**なら
+# もっと下げる ―― 0.72 では縁がなだらかで、眼窩が「閉じた目」の
+# 線にしか見えなかった(handbook 4-111)
+DENT_SHARP = 0.45
+# 張り出し(方位角deg, t, 角度半幅, t半幅, 押し出し比)
+SKULL_BUMPS = [
+    (-90.0, 0.276, 44.0, 0.100, 0.040),    # 額。正面から見て広く平ら
+    (-SOCKET_AZ, 0.429, 22.0, 0.048, 0.105),           # 右の眉庇
+    (-(180.0 - SOCKET_AZ), 0.429, 22.0, 0.048, 0.105),  # 左の眉庇
+    (-90.0, 0.653, 13.0, 0.100, 0.075),    # 鼻梁(眼窩のあいだの細い稜)
+    (-SOCKET_AZ, 0.816, 22.0, 0.045, 0.045),           # 右の眼窩下縁
+    (-(180.0 - SOCKET_AZ), 0.816, 22.0, 0.045, 0.045),  # 左の眼窩下縁
+    (90.0, 0.316, 46.0, 0.130, 0.050),     # 後頭。側面が卵のままになる
+    (0.0, 0.571, 26.0, 0.110, 0.030),      # 右の側頭の角
+    (180.0, 0.571, 26.0, 0.110, 0.030),    # 左の側頭の角
+]
+# 頭頂と後頭の境の稜線(側面のシルエットに角を作る)。塗りには出さない
+SKULL_DENTS_EXTRA = [(90.0, 0.122, 36.0, 0.055, 0.028)]
+# 骸の下縁の形。**方位角ごとに高さが違う** ―― 設定画の正面図では
+# 真ん中(嘴が出るところ)で z=176、頬では z=162 まで下りる。一定の
+# 高さで切ると嘴の付け根の前に骨が回り込み、嘴が骸の下にぶら下がった
+# 別部品に見える。t を方位角で持ち上げて、下縁そのものを形にする。
+# ホネガラミの歯列に当たる「骸のいちばん目立つ縁」(handbook 4-115)
+RIM_LIFT = 0.150      # 真正面で持ち上げる t(= 14.7mm)
+RIM_FROM = 0.780      # ここより下の段だけ持ち上げる
+RIM_CHIP = 0.022      # 欠けの振幅(t)。割れた骨の縁を一定の曲線にしない
+# 嘴。付け根(骸の前下、骸の中に埋める)から先端へ。
+# 正面の実測は最大半幅 14mm(z=155)。**先端の高さは三面図が食い違う**
+# ―― 正面は z=108 まで、側面は z=137 で終わる。中間の 119 を採った(4-98)
+BEAK_ROOT = Vector((0.000, -0.124, 0.180))
 BEAK_TIP = Vector((0.000, -0.176, 0.119))
-BEAK_HALF_W = 0.0182                         # 付け根の半幅(正面図 44mm)
-BEAK_HALF_T = 0.0112                         # 付け根の半厚
+# (t, 半幅, 半厚)。付け根から z=158 までは太いまま、そこから鋭く絞る
+BEAK_PROFILE = [
+    (0.00, 0.0152, 0.0108),
+    (0.22, 0.0160, 0.0112),
+    (0.44, 0.0134, 0.0094),
+    (0.66, 0.0084, 0.0060),
+    (0.84, 0.0044, 0.0032),
+    (1.00, 0.0010, 0.0009),
+]
 BEAK_SEG = 8
 
 # ------------------------------------------------------------------ 胴の芯
@@ -132,68 +231,131 @@ def build_core() -> bpy.types.Object:
                           cap_top=True, cap_bottom=True)
 
 
-def _ellipsoid(name: str, center, radii, segments: int = 20, rings: int = 12,
-               warp=None) -> bpy.types.Object:
-    """楕円体。warp(単位方向ベクトル)->半径倍率 で局所的に凹ませられる。"""
-    mesh = bpy.data.meshes.new(name)
-    obj = bpy.data.objects.new(name, mesh)
-    bpy.context.collection.objects.link(obj)
-    bm = bmesh.new()
-    bmesh.ops.create_uvsphere(bm, u_segments=segments, v_segments=rings, radius=1.0)
-    c, r = Vector(center), Vector(radii)
-    for v in bm.verts:
-        d = v.co.normalized()
-        k = warp(d) if warp else 1.0
-        v.co = c + Vector((d.x * r.x, d.y * r.y, d.z * r.z)) * k
-    bm.to_mesh(mesh)
-    bm.free()
-    C.activate(obj)
-    bpy.ops.object.shade_smooth()
-    return obj
+def _ring_at(t: float):
+    """SKULL_RINGS を線形に引く (rx, ry, cy)。
+
+    折れ点が面の折り目に出るのを承知で**線形**にする ―― 表の段が 19 あり、
+    Catmull-Rom だと頭頂(rx が 3.5 → 19.5mm と跳ねる)で行き過ぎて
+    庇のような段差が出る。
+    """
+    t = min(SKULL_RINGS[-1][0], max(SKULL_RINGS[0][0], t))
+    for a, b in zip(SKULL_RINGS, SKULL_RINGS[1:]):
+        if a[0] <= t <= b[0]:
+            f = (t - a[0]) / max(b[0] - a[0], 1e-9)
+            return (a[1] + (b[1] - a[1]) * f,
+                    a[2] + (b[2] - a[2]) * f,
+                    a[3] + (b[3] - a[3]) * f)
+    return SKULL_RINGS[-1][1:]
+
+
+def _skull_k(deg: float, t: float) -> float:
+    """(方位角deg, t) の押し込み/押し出し比。彫りと塗りで共用する。
+
+    **押し出しを先に、彫りを後に足す。** 帯が重なったところで
+    `max(k, 押し出し)` を後に取ると、眉庇と眼窩下縁が眼窩の上下を
+    埋めて、眼窩が「閉じた目の線」になる(この鳥で実際にそうなった。
+    handbook 4-111)。骨は「窪みが勝つ」順で彫る。
+    """
+    out_k = 0.0
+    for da, dt, hw, ht, out in SKULL_BUMPS:
+        d1 = abs((deg - da + 180.0) % 360.0 - 180.0) / hw
+        d2 = abs(t - dt) / ht
+        if d1 < 1.0 and d2 < 1.0:
+            out_k = max(out_k, (1 - d1 * d1) * (1 - d2 * d2) * out)
+    dent_k = 0.0
+    for da, dt, hw, ht, depth in SKULL_DENTS + SKULL_DENTS_EXTRA:
+        d1 = abs((deg - da + 180.0) % 360.0 - 180.0) / hw
+        d2 = abs(t - dt) / ht
+        if d1 < 1.0 and d2 < 1.0:
+            dent_k = min(dent_k,
+                         -((1 - d1 * d1) * (1 - d2 * d2)) ** DENT_SHARP * depth)
+    return dent_k if dent_k else out_k
+
+
+def _skull_point(deg: float, t: float, k: float = 1.0) -> Vector:
+    """骸の**素の**表面(彫る前)の点。k で内外へずらす。"""
+    rx, ry, cy = _ring_at(t)
+    a = math.radians(deg)
+    return Vector((SKULL_C.x + rx * math.cos(a) * k,
+                   SKULL_C.y + cy + ry * math.sin(a) * k,
+                   SKULL_TOP - t * SKULL_H))
+
+
+def _skull_uv(p: Vector):
+    """骸の表面の点 -> (方位角deg, t)。
+
+    x/y を段の半径で割ってから atan2 を取るので、段を作るときの媒介変数
+    そのものが戻る。**塗りをこの座標で書くと彫りと必ず一致する** ――
+    ホネガラミが「塗りの穴と彫りの穴が45度でずれる」ので眼窩を彫るのを
+    諦めた問題は、座標を共有すれば起きない(handbook 4-110)。
+    """
+    t = (SKULL_TOP - p.z) / SKULL_H
+    rx, ry, cy = _ring_at(t)
+    return (math.degrees(math.atan2((p.y - SKULL_C.y - cy) / max(ry, 1e-6),
+                                    (p.x - SKULL_C.x) / max(rx, 1e-6))), t)
+
+
+def _on_skull(p: Vector) -> bool:
+    """この点は骸の面か(それとも嘴か)。
+
+    骸と嘴は同じマテリアルに焼くので、`bone_color` はどちらの面かを
+    位置から決めないといけない。旧版は `p.y > 付け根.y` `p.z > 付け根.z`
+    の粗い条件で、**眼窩の下半分が嘴として塗られていた** ―― 黒い穴の
+    下半分が嘴の茶色になり、眼窩が「灰色のつやのある大きな目」に
+    見えていた原因(handbook 4-113)。
+    彫りは (rx, ry) を一律に (1+k) 倍するので、x/rx と y/ry の長さを
+    測れば「面の上か」が判る。
+    """
+    t = (SKULL_TOP - p.z) / SKULL_H
+    if not -0.02 <= t <= 1.02:
+        return False
+    tc = min(1.0, max(0.0, t))
+    rx, ry, cy = _ring_at(tc)
+    ux = (p.x - SKULL_C.x) / rx
+    uy = (p.y - SKULL_C.y - cy) / ry
+    want = 1.0 + _skull_k(math.degrees(math.atan2(uy, ux)), tc)
+    return abs(math.hypot(ux, uy) - want) < 0.12
 
 
 def build_skull() -> bpy.types.Object:
-    """頭骨のドーム。眼窩は「黒い球を置く」のではなく**掘る**
-    (handbook 4-73: 目は眼球より先に眼窩を作る)。"""
-    dirs = [Vector((SOCKET_DIR.x * s, SOCKET_DIR.y, SOCKET_DIR.z)).normalized()
-            for s in (-1.0, 1.0)]
-    # 眼窩の角半径。表面上で SOCKET_R になる角度
-    ang = SOCKET_R / ((SKULL_R.x + SKULL_R.y + SKULL_R.z) / 3.0)
-
-    def warp(d):
-        k = 1.0
-        for e in dirs:
-            a = math.acos(max(-1.0, min(1.0, d.dot(e))))
-            if a < ang * 1.20:
-                t = min(1.0, max(0.0, 1.0 - a / (ang * 1.35)))
-                k -= (SOCKET_DEPTH / SKULL_R.y) * (t * t * (3 - 2 * t))
-        # 後頭部をわずかに伸ばして卵形にする(真球は「ボール」に見える)
-        k *= 1.0 + 0.06 * max(0.0, d.y) ** 2
-        return k
-
-    obj = _ellipsoid(f"{NAME}_skull", SKULL_C, SKULL_R, SKULL_SEG, SKULL_RING, warp)
-    k = SKULL_R_DOWN / SKULL_R.z
-    for v in obj.data.vertices:
-        if v.co.z < SKULL_C.z:
-            v.co.z = SKULL_C.z + (v.co.z - SKULL_C.z) * k
-    obj.data.update()
-    return obj
+    """骸。眼窩・側頭窩・鼻腔を**彫り**、額・眉庇・鼻梁・頬骨・後頭を
+    **押し出す**(ホネガラミの `_sculpt_skull` と同じ)。"""
+    sections = []
+    for t0, _rx, _ry, _cy in SKULL_RINGS:
+        sec = []
+        for i in range(SKULL_N):
+            a = math.tau * i / SKULL_N
+            deg = math.degrees(a)
+            deg = deg if deg <= 180.0 else deg - 360.0
+            t = t0
+            if t0 > RIM_FROM:
+                s = ((t0 - RIM_FROM) / (1.0 - RIM_FROM)) ** 1.4
+                front = max(0.0, -math.sin(math.radians(deg))) ** 2
+                t -= s * (RIM_LIFT * front
+                          + RIM_CHIP * (_jitter(i * 2.3, 7.0) - 0.5) * 2.0)
+            rx, ry, cy = _ring_at(t)
+            k = 1.0 + _skull_k(deg, t)
+            sec.append((SKULL_C.x + rx * math.cos(a) * k,
+                        SKULL_C.y + cy + ry * math.sin(a) * k,
+                        SKULL_TOP - t * SKULL_H))
+        sections.append(sec)
+    return C.section_loft(f"{NAME}_skull", sections, smooth=True,
+                          cap_top=True, cap_bottom=True)
 
 
 def build_beak() -> bpy.types.Object:
-    """嘴。付け根は幅広で、先端へ鋭く絞る。上面はわずかに反る。"""
+    """嘴。付け根から z=158 あたりまで太いまま来て、そこから鋭く絞る
+    (handbook 4-50: 根元から一定に細らせると「針」になる)。"""
     axis = (BEAK_TIP - BEAK_ROOT)
     n = axis.length
     d = axis / n
     spine, width, thick = [], [], []
-    for i in range(5):
-        t = i / 4
+    for t, w, th in BEAK_PROFILE:
         p = BEAK_ROOT + d * (n * t)
-        p.z += 0.004 * math.sin(math.pi * t) * (1.0 - t)   # 上へわずかに反る
+        p.z += 0.0035 * math.sin(math.pi * t) * (1.0 - t)   # 上へわずかに反る
         spine.append(p)
-        f = (1.0 - t) ** 0.62          # 6割の位置まで太いまま来させる(4-50)
-        width.append(max(0.0012, BEAK_HALF_W * f))
-        thick.append(max(0.0010, BEAK_HALF_T * f * 0.9))
+        width.append(w)
+        thick.append(th)
     return C.hair_clump(f"{NAME}_beak", spine, width, thick, segments=BEAK_SEG)
 
 
@@ -326,14 +488,16 @@ def _wing_covers(p: Vector) -> bool:
 
 
 def _in_skull(p: Vector, k: float = 1.06) -> bool:
-    """頭骨(+嘴)の中か。骨は羽で覆わない ―― 最大の記号を隠さない。"""
-    d = p - SKULL_C
-    dz = d.z / (SKULL_R.z if d.z >= 0 else SKULL_R_DOWN)
-    if (d.x / SKULL_R.x) ** 2 + (d.y / SKULL_R.y) ** 2 + dz ** 2 < k * k:
-        return True
+    """骸(+嘴)の中か。骨は羽で覆わない ―― 最大の記号を隠さない。"""
+    t = (SKULL_TOP - p.z) / SKULL_H
+    if -0.05 <= t <= 1.05:
+        rx, ry, cy = _ring_at(t)
+        d = p - SKULL_C
+        if ((d.x / (rx * k)) ** 2 + ((d.y - cy) / (ry * k)) ** 2) < 1.0:
+            return True
     axis = BEAK_TIP - BEAK_ROOT
     t = min(1.0, max(0.0, (p - BEAK_ROOT).dot(axis) / axis.length_squared))
-    return (p - (BEAK_ROOT + axis * t)).length < BEAK_HALF_W * 1.4
+    return (p - (BEAK_ROOT + axis * t)).length < BEAK_PROFILE[1][1] * 1.7
 
 
 def feather_texture():
@@ -666,7 +830,7 @@ EYE_HILITE = (0.880, 0.860, 0.900)
 LEG = (0.330, 0.272, 0.238)
 
 TEX_SIZE = 384
-BONE_TEX = 512
+BONE_TEX = 1024
 TARGET_TRIS = 9000
 
 def _mix(a, b, t):
@@ -707,39 +871,45 @@ def feather_color(p: Vector, n: Vector):
 
 
 def bone_color(p: Vector, n: Vector):
-    """頭骨と嘴の Base Color。眼窩は黒く塗り、外へ**単調に**明るくする
-    (明るいリングを挟むと眼鏡になる ―― handbook 4-85)。"""
-    if p.y > BEAK_ROOT.y + 0.004 or p.z > BEAK_ROOT.z + 0.010:
-        # 頭骨
-        d = (p - SKULL_C)
-        up = max(0.0, min(1.0, (d.z / SKULL_R.z + 1.0) * 0.5))
-        base = _mix(BONE_SHADE, BONE, 0.22 + 0.78 * up)
-        best = 0.0
-        for s in (-1.0, 1.0):
-            e = Vector((SOCKET_DIR.x * s, SOCKET_DIR.y, SOCKET_DIR.z)).normalized()
-            surf = Vector((SKULL_R.x * e.x, SKULL_R.y * e.y, SKULL_R.z * e.z))
-            c = SKULL_C + surf
-            best = max(best, 1.0 - min(1.0, (p - c).length / (SOCKET_R * 0.98)))
-        # 眼窩の上の眉弓と、下顎の影。骨を「つるんとした卵」にしない
-        # (handbook 2-15: 隆起を明るく・窪みを暗く)
-        base = _mix(base, BONE_SHADE, max(0.0, -n.z) ** 1.4 * 0.55)
-        brow = 0.0
-        for sgn in (-1.0, 1.0):
-            e = Vector((SOCKET_DIR.x * sgn, SOCKET_DIR.y, SOCKET_DIR.z)).normalized()
-            surf = Vector((SKULL_R.x * e.x, SKULL_R.y * e.y, SKULL_R.z * e.z))
-            c = SKULL_C + surf + Vector((0.0, -0.002, SOCKET_R * 1.15))
-            brow = max(brow, 1.0 - min(1.0, (p - c).length / (SOCKET_R * 0.85)))
-        base = _mix(base, BONE_SHADE, brow * 0.42)
+    """骸と嘴の Base Color。眼窩は黒く塗り、外へ**単調に**明るくする
+    (明るいリングを挟むと眼鏡になる ―― handbook 4-85)。
+
+    眼窩・鼻腔・側頭窩は `_skull_uv()` の (方位角, t) で描く。彫りと
+    同じ窓を使うので、45度から見ても塗りと穴がずれない(handbook 4-110)。
+    """
+    if _on_skull(p):
+        # 骸。上が明るく、下(顎)が暗い。**落差は控えめに** ―― 強く
+        # 落とすと顔の下半分が一枚の茶色い帯になり「鼻づら」に見えた
+        up = max(0.0, min(1.0, (p.z - (SKULL_TOP - SKULL_H)) / SKULL_H))
+        base = _mix(BONE_SHADE, BONE, 0.46 + 0.54 * up)
+        base = _mix(base, BONE_SHADE, max(0.0, -n.z) ** 1.6 * 0.32)
+        deg, t = _skull_uv(p)
+        # 彫った窪みは全部わずかに暗く落とす。**黒にはしない**
+        dent = 0.0
+        for da, dt, hw, ht, _d in SKULL_DENTS[2:] + SKULL_DENTS_EXTRA:
+            e = 1.0 - math.hypot(abs((deg - da + 180.0) % 360.0 - 180.0) / hw,
+                                 abs(t - dt) / ht)
+            dent = max(dent, e)
+        base = _mix(base, BONE_SHADE, min(1.0, dent / 0.6) * 0.34)
+        # 眼窩。彫った窓の**内側を一様に黒で埋める**。縁の階調を広く
+        # 取ると、黒目のまわりに白目のような環ができて「つやのある大きな
+        # 目」になる ―― 骸の眼窩は穴なので、縁は薄く切る(handbook 4-112)
+        best, side = 0.0, 1.0
+        for da, dt, hw, ht, _d in SKULL_HOLES:
+            e = 1.0 - math.hypot(abs((deg - da + 180.0) % 360.0 - 180.0) / hw,
+                                 abs(t - dt) / ht)
+            if e > best:
+                best, side = e, (1.0 if da > -90.0 else -1.0)
         if best > 0.0:
-            base = _mix(base, EYE, min(1.0, best / 0.42))
-            # ハイライトは眼窩の左上に小さく1点
-            for s in (-1.0, 1.0):
-                e = Vector((SOCKET_DIR.x * s, SOCKET_DIR.y, SOCKET_DIR.z)).normalized()
-                surf = Vector((SKULL_R.x * e.x, SKULL_R.y * e.y, SKULL_R.z * e.z))
-                c = SKULL_C + surf + Vector((-0.0058 * s, -0.0032, 0.0070))
-                h = 1.0 - min(1.0, (p - c).length / 0.0058)
-                if h > 0.0:
-                    base = _mix(base, EYE_HILITE, h ** 0.6)
+            base = _mix(base, EYE, min(1.0, best / 0.06))
+            # 光は眼窩の**上の外側**に小さく1点(設定画の実測)。
+            # 大きくすると眼球に見えるので 3mm 相当に留める
+            da = -SOCKET_AZ if side > 0 else -(180.0 - SOCKET_AZ)
+            h = 1.0 - math.hypot(
+                abs((deg - (da + 6.3 * side) + 180.0) % 360.0 - 180.0) / 3.2,
+                abs(t - (SOCKET_T - 0.072)) / 0.020)
+            if h > 0.0:
+                base = _mix(base, EYE_HILITE, min(1.0, h / 0.5) * 0.72)
         return base
     # 嘴。先へ向かって暗く、上下の合わせ目に線、付け根に鼻孔
     axis = (BEAK_TIP - BEAK_ROOT)
@@ -828,9 +998,16 @@ def build() -> tuple[list, bpy.types.Object]:
     plume_uv = {li: (uv[li].uv.x, uv[li].uv.y)
                 for pol in mesh.data.polygons if pol.material_index == 2
                 for li in pol.loop_indices}
-    skull_c = tuple(v * scale for v in SKULL_C)
+    # 骸のテクセル密度。`organic_uv` は**メッシュ全面**を1枚の UV へ
+    # 詰めるので、数千枚の羽毛の帯が骸と場所を取り合う。しかも羽毛の UV は
+    # このあと自前の縞 UV で**上書きされる**ので、その取り合いは丸損。
+    # 倍率 3.4 では骸の島が 512x512 のうち 110x110 しか取れず、径 27mm の
+    # 眼窩が 14 テクセルに潰れて「灰色のつやのある大きな目」に見えていた
+    # (handbook 4-114)。骸だけを大きく切り出して密度を寄せる
+    skull_c = (SKULL_C.x * scale, SKULL_C.y * scale,
+               (SKULL_TOP - SKULL_H * 0.5) * scale)
     C.organic_uv(mesh, axis=1,
-                 boost=(skull_c, (SKULL_R.x + SKULL_R.z) * 0.9 * scale, 3.4))
+                 boost=(skull_c, SKULL_UV_R * scale, 9.0))
     img_f = C.bake_albedo(mesh, lambda p, n: feather_color(p * inv, n),
                           size=TEX_SIZE, name=f"{NAME}_albedo", material_index=0)
     img_b = C.bake_albedo(mesh, lambda p, n: bone_color(p * inv, n),
