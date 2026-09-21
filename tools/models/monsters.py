@@ -13,6 +13,7 @@ from __future__ import annotations
 import math
 
 import akubitokage
+import ashiatodori
 import common as C
 import honegarami
 import mabutamushi
@@ -1872,186 +1873,102 @@ def nukarumigani_animations():
     ]
 
 
-# =================================================================== あしあとどり
-
-# 現在流用している`purun`の関節の"種類"(縦の芯1本)を出発点にしつつ、
-# swarmで複数体が同時に群れる鳥のため、purunにはない頭・尾・脚を新たに
-# 生やす形で全面的に作り直した(mabutamushi/nukarumiganiと同じ、
-# 「関節の種類は踏襲するが座標構成はゼロから」の方針)。
-# 胴(body, root)から頭・尾・左右の脚をそれぞれ1本ずつ分岐させるだけの、
-# 既存モデル中もっとも少ない部類の関節数にとどめ、swarmで複数体まとめて
-# 描画される負荷をmabutamushiよりさらに抑える。
-ASHIATODORI_HALF = {
-    "body": (0.0, 0.010, 0.150),
-    "head": (0.0, -0.135, 0.225),
-    "tail": (0.0, 0.205, 0.165),
-    "leg.L": (0.062, 0.010, 0.055),
-    "foot.L": (0.055, -0.025, 0.008),
-}
-ASHIATODORI_RADII_HALF = {
-    "body": 0.090, "head": 0.056, "tail": 0.032,
-    "leg.L": 0.024, "foot.L": 0.015,
-}
-ASHIATODORI_BONES_HALF = [
-    ("body", "head"), ("body", "tail"),
-    ("body", "leg.L"), ("leg.L", "foot.L"),
-]
-
-
 def build_ashiatodori():
+    """消えていく足跡を追いかける鳥(swarm)。造形は tools/models/ashiatodori.py。
+
+    旧版は「丸い胴+小さな頭+瘤の翼」を Skin 修飾子で作った青緑の小鳥で、
+    設定画(骨白の頭蓋骨+くすんだ紫のぼさぼさの羽)とは別物だった。
+    plan/models/archive/ashiatodori-remake.md の実測に沿って作り直した。
     """
-    消えていく足跡を追いかける鳥。1羽では頼りなく、群れで現れるswarm。
-    丸い胴に頭と尾を突き出しただけの簡略なシルエットにして、2本脚で
-    立たせる。関節数を絞るぶん、脚の付け根(leg.L/R)は胴の半径
-    (0.090)をはっきり超える位置に置いて呑み込まれないようにしている
-    (距離0.113、mabutamushiの反省を踏まえた余裕を確保)。
-    """
-    joints = C.mirrored(ASHIATODORI_HALF)
-    radii = C.mirrored_radii(ASHIATODORI_RADII_HALF)
-    bones = C.mirrored_bones(ASHIATODORI_BONES_HALF)
-
-    body = C.build_skinned("ashiatodori", joints, bones, radii, root="body", subsurf=2)
-
-    # 配色は第2地方(忘れ潮の湿地)のテーマどおり、霧と水を思わせる
-    # 灰みがかった水色・青緑系。背は濃いめ、腹は明るく霧がかった色にする
-    # (purun/mabutamushiと同じ、高さで切る塗り分け)。脚だけは
-    # nukarumiganiと同じ「関節からの距離」判定で別トーンにする。
-    back = C.make_material("ashiato_back", (0.36, 0.52, 0.55), roughness=0.55)
-    belly = C.make_material("ashiato_belly", (0.70, 0.80, 0.80), roughness=0.4)
-    leg_mat = C.make_material("ashiato_leg", (0.26, 0.30, 0.33), roughness=0.6)
-
-    # 脚は胴の最下点(体中心0.150-半径0.090=0.060)よりはっきり低い位置
-    # (関節はz=0.055/0.008)にしか無いので、高さだけで胴と分離できる
-    # (距離判定にすると胴の付け根まで巻き込んで塗り分けが偏った反省を
-    # 踏まえ、kirimizuchi/nukarumiganiの距離判定ではなく高さ判定にした)
-    def classify(c):
-        if c.z < 0.05:
-            return 2
-        return 0 if c.z > 0.13 else 1
-
-    C.assign_materials_by_region(body, [back, belly, leg_mat], classify)
-    leg_faces = sum(1 for p in body.data.polygons if p.material_index == 2)
-    total_faces = len(body.data.polygons)
-    print(f"ashiatodori: 脚の暗色面 {leg_faces}/{total_faces} "
-          f"({leg_faces / total_faces:.1%})")
-
-    # 頭は胴(半径0.090)よりずっと細い関節1本の"末端"のため、Skin+subsurfで
-    # 想定より縮む(検証用スクリプトで頂点座標を直接プローブして確認、
-    # mabutamushiの反省どおり)。目・くちばしは公称半径ではなく、実際に
-    # 生成された頭表面の座標(プローブ結果: 頭頂点は概ねy=-0.10〜-0.14、
-    # z=0.20〜0.25の範囲)に合わせて置いている。
-    extras = []
-    for side in (-1.0, 1.0):
-        extras += eyeball(f"ashiato_eye{side}", (0.024 * side, -0.148, 0.222), 0.014,
-                          look=(0.2 * side, -1.0, 0.0),
-                          white=(0.90, 0.94, 0.92), dark=(0.08, 0.09, 0.10))
-
-    # くちばし。頭の先端に小さな箱を置き、先端側の頂点だけを中心基準で
-    # 縮めて尖らせる(nukarumiganiのハサミ先端と同じ手法。ただしそちらは
-    # ワールド座標で直接スケールしており、中心がZ=0から離れた形状に
-    # 使うと軸ごとずれる。ここでは中心からの相対値で縮めて、ずれを防ぐ)
-    beak_mat = C.make_material("ashiato_beak", (0.30, 0.28, 0.24), roughness=0.5)
-    beak_y, beak_z = -0.160, 0.205
-    beak = C.box("ashiato_beak", (0.0, beak_y, beak_z), (0.024, 0.044, 0.016), bevel=0.003)
-    for vert in beak.data.vertices:
-        if vert.co.y < beak_y:
-            vert.co.x *= 0.15
-            vert.co.z = beak_z + (vert.co.z - beak_z) * 0.3
-    C.assign_material(beak, beak_mat)
-    extras.append(beak)
-
-    # 畳んだ翼。胴の両脇に控えめな瘤を1つずつ乗せるだけ
-    # (kirimizuchi/nukarumiganiの棘・瘤と同じprimitive貼り付け)
-    wing_mat = C.make_material("ashiato_wing", (0.30, 0.44, 0.47), roughness=0.5)
-    for side in (-1.0, 1.0):
-        wing = C.uv_sphere(f"ashiato_wing{side}", (0.078 * side, 0.040, 0.133), 0.048,
-                           segments=14, rings=10, scale=(0.5, 1.3, 0.9))
-        C.assign_material(wing, wing_mat)
-        extras.append(wing)
-
-    # 足跡を追う鳥らしく、3本指の小さな爪を左右の足に生やす。
-    # cone()はZ軸沿いにしか作れないので回転はかけず、先端が下(接地面)を
-    # 向くよう根元(半径大)を足の高さに、先端(半径小)をその下に置くだけの
-    # 素直な配置にする(honegaramiの歯・kirimizuchiの棘と同じprimitive
-    # 貼り付け。回転で位置がずれたくちばしの反省を踏まえ、ここでは
-    # 回転そのものを使わない)
-    claw_mat = C.make_material("ashiato_claw", (0.22, 0.25, 0.27), roughness=0.55)
-    for side in (-1.0, 1.0):
-        fx, fy, fz = ASHIATODORI_HALF["foot.L"]
-        fx *= side
-        claw_depth = 0.018
-        for dx, dy in ((-0.014, -0.004), (0.0, -0.012), (0.014, -0.004)):
-            top_z = fz
-            claw = C.cone(
-                f"ashiato_claw{side}_{dx}",
-                (fx + dx * side, fy + dy, top_z - claw_depth * 0.5),
-                0.002, 0.009, claw_depth, segments=6,
-            )
-            C.assign_material(claw, claw_mat)
-            extras.append(claw)
-
-    mesh = C.join([body] + extras, "ashiatodori")
-    armature = C.build_armature("ashiatodori", joints, bones, mesh, root="body")
-    return [mesh, armature], armature
+    return ashiatodori.build()
 
 
 def ashiatodori_animations():
-    """
-    plan/game/archive/animation-quality-guidelines.mdの規約に沿って、
-    attackの突きにLINEAR+行き過ぎ、hitの入りにLINEAR、idleのtailが
-    headより2フレーム遅れる二次揺れ、dieの初動LINEAR+着地の跳ね返りを
-    足した。swarm種族なので振り自体は現行のまま、緩急だけを付け足す。
+    """設定画の状態(漂う/追跡/急降下して突く/被弾/消散)に合わせる。
+
+    plan/game/archive/animation-quality-guidelines.md の規約どおり、
+    突きの入りは LINEAR のツメ、二次揺れ(尾は頭より2フレーム遅れ)、
+    倒れ込みの初動は LINEAR。swarm 種なので振りは小さく、間隔は詰める。
     """
     head = "body-head"
     tail = "body-tail"
+    wingL, wingR = "body-wing.L", "body-wing.R"
     legL, legR = "body-leg.L", "body-leg.R"
     footL, footR = "leg.L-foot.L", "leg.R-foot.R"
+    H = 0.267
     return [
-        # 群れの中で忙しなく足跡を探し、頭と尾を小刻みに振る。
-        # tailはheadより2フレーム遅れて追従する(二次揺れ)
+        # 通常(漂う): 体が軽いので、接地したままわずかに浮き沈みし、
+        # 翼が呼吸のように開閉する。頭は気配を探してゆっくり振る
         ("idle", [
-            (1, {head: (0, 0, 0), tail: (0, 0, 0)}),
-            (14, {head: (-8, 6, 0), legL: (3, 0, 0), legR: (-3, 0, 0)}),
-            (16, {tail: (10, 0, 0)}, {"partial": True}),
-            (28, {head: (4, -6, 0), legL: (-3, 0, 0), legR: (3, 0, 0)}),
-            (30, {tail: (-10, 0, 0)}, {"partial": True}),
-            (38, {head: (0, 0, 0), tail: (0, 0, 0)}),
+            (1, {head: (0, 0, 0), tail: (0, 0, 0),
+                 wingL: (0, 0, 0), wingR: (0, 0, 0)}),
+            (16, {head: (-5, 8, 0), wingL: (0, 0, -9), wingR: (0, 0, 9)}),
+            (18, {tail: (0, 0, 6)}, {"partial": True}),
+            (34, {head: (4, -8, 0), wingL: (0, 0, 4), wingR: (0, 0, -4)}),
+            (36, {tail: (0, 0, -6)}, {"partial": True}),
+            (48, {head: (0, 0, 0), tail: (0, 0, 0),
+                  wingL: (0, 0, 0), wingR: (0, 0, 0)}),
         ]),
-        # 消えていく足跡を追う、せわしない小走り
+        # 追跡: 足跡を辿って一直線に滑るように進む。脚は小刻み、
+        # 体は前傾のまま、翼は畳んだまま小さく煽る
         ("walk", [
-            (1, {legL: (30, 0, 0), legR: (-30, 0, 0), footL: (-14, 0, 0), footR: (10, 0, 0),
-                 head: (0, 4, 0), tail: (-8, 0, 0)}),
-            (5, {legL: (0, 0, 0), legR: (0, 0, 0), footL: (0, 0, 0), footR: (0, 0, 0),
-                 head: (0, 0, 0), tail: (0, 0, 0)}),
-            (9, {legL: (-30, 0, 0), legR: (30, 0, 0), footL: (10, 0, 0), footR: (-14, 0, 0),
-                 head: (0, -4, 0), tail: (8, 0, 0)}),
-            (13, {legL: (0, 0, 0), legR: (0, 0, 0), footL: (0, 0, 0), footR: (0, 0, 0),
-                  head: (0, 0, 0), tail: (0, 0, 0)}),
+            (1, {legL: (32, 0, 0), legR: (-32, 0, 0),
+                 footL: (-16, 0, 0), footR: (12, 0, 0),
+                 head: (0, 3, 0), wingL: (0, 0, -6), wingR: (0, 0, 6)}),
+            (5, {legL: (0, 0, 0), legR: (0, 0, 0),
+                 footL: (0, 0, 0), footR: (0, 0, 0), head: (0, 0, 0),
+                 wingL: (0, 0, 0), wingR: (0, 0, 0)}),
+            (9, {legL: (-32, 0, 0), legR: (32, 0, 0),
+                 footL: (12, 0, 0), footR: (-16, 0, 0),
+                 head: (0, -3, 0), wingL: (0, 0, 6), wingR: (0, 0, -6)}),
+            (13, {legL: (0, 0, 0), legR: (0, 0, 0),
+                  footL: (0, 0, 0), footR: (0, 0, 0), head: (0, 0, 0),
+                  wingL: (0, 0, 0), wingR: (0, 0, 0)}),
         ]),
-        # 引く(タメ)→LINEARで鋭く突く→行き過ぎ→戻る、の4段
+        # 急降下して突く: 翼を広げて跳び上がり(タメ)、LINEAR で鋭く
+        # 突き下ろし、行き過ぎてからすぐ離れる(着地はしない)
         ("attack", [
-            (1, {head: (0, 0, 0)}),
-            (4, {head: (-20, 0, 0), tail: (14, 0, 0)}, {"interp": "LINEAR"}),
-            (8, {head: (26, 0, 0), tail: (-10, 0, 0)}),
-            (10, {head: (30, 0, 0), tail: (-12, 0, 0)}),
-            (16, {head: (0, 0, 0), tail: (0, 0, 0)}),
-        ]),
-        # 入り(1f→4f)にLINEARを足して鋭く怯む。短く収める既存方針は維持
-        ("hit", [
-            (1, {head: (0, 0, 0), tail: (0, 0, 0)}),
-            (4, {head: (20, 0, 0), tail: (-16, 0, 0), legL: (-10, 0, 0), legR: (-10, 0, 0)},
+            (1, {head: (0, 0, 0), tail: (0, 0, 0),
+                 wingL: (0, 0, 0), wingR: (0, 0, 0)}),
+            (6, {head: (-26, 0, 0), tail: (18, 0, 0),
+                 wingL: (0, 0, -42), wingR: (0, 0, 42),
+                 legL: (-18, 0, 0), legR: (-18, 0, 0)},
              {"interp": "LINEAR"}),
-            (13, {head: (0, 0, 0), tail: (0, 0, 0), legL: (0, 0, 0), legR: (0, 0, 0)}),
+            (10, {head: (34, 0, 0), tail: (-14, 0, 0),
+                  wingL: (0, 0, 14), wingR: (0, 0, -14),
+                  legL: (16, 0, 0), legR: (16, 0, 0)}),
+            (13, {head: (40, 0, 0), tail: (-18, 0, 0)}),
+            (22, {head: (0, 0, 0), tail: (0, 0, 0),
+                  wingL: (0, 0, 0), wingR: (0, 0, 0),
+                  legL: (0, 0, 0), legR: (0, 0, 0)}),
         ]),
-        # 初動(1f→9f)にLINEARを足して鋭い倒れ込みにし、
-        # 20f到達後に脚をわずかに戻す小さな跳ね返りを1回追加する
+        # 被弾(よろめき): 羽が乱れて後ろへ泳ぐ。入りは LINEAR で鋭く
+        ("hit", [
+            (1, {head: (0, 0, 0), tail: (0, 0, 0),
+                 wingL: (0, 0, 0), wingR: (0, 0, 0)}),
+            (4, {head: (22, 0, 0), tail: (-18, 0, 0),
+                 wingL: (0, 0, -24), wingR: (0, 0, 18),
+                 legL: (-12, 0, 0), legR: (-12, 0, 0)},
+             {"interp": "LINEAR"}),
+            (9, {head: (-8, 0, 0), wingL: (0, 0, 8), wingR: (0, 0, -6)}),
+            (15, {head: (0, 0, 0), tail: (0, 0, 0),
+                  wingL: (0, 0, 0), wingR: (0, 0, 0),
+                  legL: (0, 0, 0), legR: (0, 0, 0)}),
+        ]),
+        # 消散(霧に還る): 翼がほどけて広がり、体が低く崩れて消える
         ("die", [
             (1, {head: (0, 0, 0)}, {"interp": "LINEAR"}),
-            (9, {head: (30, 0, 0), tail: (20, 0, 0), legL: (-34, 0, 0), legR: (-34, 0, 0),
-                 footL: (24, 0, 0), footR: (24, 0, 0)}),
-            (20, {head: (54, 0, 0), tail: (34, 0, 0), legL: (-60, 0, 0), legR: (-60, 0, 0),
-                  footL: (44, 0, 0), footR: (44, 0, 0)}),
-            (24, {legL: (-54, 0, 0), legR: (-54, 0, 0), footL: (40, 0, 0), footR: (40, 0, 0)}),
+            (9, {head: (28, 0, 0), tail: (24, 0, 0),
+                 wingL: (0, 0, -34), wingR: (0, 0, 34),
+                 legL: (-30, 0, 0), legR: (-30, 0, 0),
+                 footL: (22, 0, 0), footR: (22, 0, 0)}),
+            (20, {head: (52, 0, 0), tail: (38, 0, 0),
+                  wingL: (0, 0, -56), wingR: (0, 0, 56),
+                  legL: (-58, 0, 0), legR: (-58, 0, 0),
+                  footL: (40, 0, 0), footR: (40, 0, 0)}),
+            (26, {legL: (-50, 0, 0), legR: (-50, 0, 0)}, {"partial": True}),
+            (34, {head: (56, 0, 0), tail: (40, 0, 0),
+                  wingL: (0, 0, -60), wingR: (0, 0, 60)}),
         ]),
     ]
 
