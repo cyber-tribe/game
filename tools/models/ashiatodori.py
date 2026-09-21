@@ -10,7 +10,11 @@
 * **骸(頭骨)が最大の記号。** 生成りのドーム + 大きな黒い眼窩2つ +
   長く尖った嘴。96px で読めるのはこの3つだけなので、ここに面を使う。
   作り方は**ホネガラミの頭蓋と同じ**輪切りの表 + 彫り/張り出し
-  (handbook 4-109)。
+  (handbook 4-109)。**眼窩は設定画からトレースする**
+  (tools/ashiatodori_decal.py)。
+* **骸は羽に囲まれていて、出ているのは顔だけ。** 項の羽(`HOOD`)が
+  ドームの脇を囲う。丸ごと露出させると同じ寸法でも眼窩が小さく見え、
+  「兜をかぶった鳥」になる(handbook 4-117)。
 * **羽は「芯 + 帯 + 楔」。** 滑らかな芯(卵)は隠れる前提で小さく作り、
   シルエットは羽毛が作る(handbook 3-2「輪郭を作るのは土台ではなく
   毛先」)。方式はスリガラス(handbook 4-106)。
@@ -96,14 +100,20 @@ SKULL_RINGS = [
     (0.9184, 0.0275, 0.0255, -0.0132),
     (1.0000, 0.0185, 0.0190, -0.0128),   # 頬の下端。下縁は方位角ごとに持ち上げる
 ]
-# 眼窩の (方位角deg, t)。0 が +X、-90 が前。x=±27.5 は rx=0.0485 の
-# cos 55.4 度に当たる。**この鳥の最大の記号なので深く彫る**
-SOCKET_T = 0.6224
-SOCKET_AZ = 55.4
+# 眼窩の (方位角deg, t)。0 が +X、-90 が前。**この値は手で置かず、
+# `tools/ashiatodori_decal.py` が設定画からトレースして出したものを
+# 書き写す**(左 -123.8 / 右 -58.6 度、t 0.652、角度半幅 16.3 度、
+# t 半幅 0.154)。彫りの窓とトレースの穴が同じ大きさでないと、黒の
+# 外に彫った縁が残って「眼鏡」になる(handbook 4-85)。
+# この鳥の最大の記号なので深く彫る
+SOCKET_T = 0.652
+SOCKET_AZ = 57.4
+SOCKET_HW = 16.4
+SOCKET_HT = 0.154
 # 落ち込み(方位角deg, t, 角度半幅deg, t半幅, 押し込み比)
 SKULL_DENTS = [
-    (-SOCKET_AZ, SOCKET_T, 19.0, 0.134, 0.40),          # 右の眼窩
-    (-(180.0 - SOCKET_AZ), SOCKET_T, 19.0, 0.134, 0.40),  # 左の眼窩
+    (-SOCKET_AZ, SOCKET_T, SOCKET_HW, SOCKET_HT, 0.40),          # 右の眼窩
+    (-(180.0 - SOCKET_AZ), SOCKET_T, SOCKET_HW, SOCKET_HT, 0.40),  # 左の眼窩
     (-22.0, 0.551, 19.0, 0.092, 0.085),    # 右の側頭窩(眼窩の後ろ)
     (-158.0, 0.551, 19.0, 0.092, 0.085),   # 左の側頭窩
     (-76.0, 0.735, 8.5, 0.048, 0.130),     # 右の鼻腔(鼻梁の脇の溝)
@@ -578,6 +588,45 @@ CREST = [
     (0.880, 48.0, 0.0507, 0.0195, 0.60, 2),
     (0.830, 36.0, 0.0484, 0.0190, 0.52, 1),
 ]
+# 項の羽(頭巾)。**骸を囲って「顔だけが出ている」状態を作る。**
+# ホネガラミの頭蓋と同じ考え方 ―― 設定画の骸は塊の中に埋まっていて、
+# 出ているのは顔だけである。骸のドームを丸ごと露出させると、同じ寸法でも
+# 眼窩が小さく見え、「兜をかぶった鳥」になる(handbook 4-117)。
+#
+# 実測(Anatomy Gate の帯ごとの半幅 mm、正面図):
+#   z     258  250  242  234  226  218
+#   設定画  36   40   44   46   49   52
+#   骸の骨 8.5   26   38   42   45   47
+# 差(7〜27mm)がぜんぶ項の羽。**帯(strap)で作る** ―― 帯の幅は必ず
+# 水平なので、正面のシルエットに幅がそのまま出る。楔だと稜線×X の
+# 翼弦が y-z 面に入り、正面からは厚みしか見えない(1枚 6 三角形で済む
+# のも効く)。
+# (根元の方位角deg, 根元t, 先(x, y, z), 幅, 縞)。方位角は **x>=0 の側だけ
+# 書いて鏡にする**(handbook 4-108)。-90 が顔なので -25 より前には置かない
+# **いちばん高いのは羽の先で、骸ではない。** 設定画の全高 267mm の
+# てっぺんは項の羽の先で、骸の頭頂は 258mm しかない。骸を最高点に
+# したままだと、全高で正規化したときに骸だけが 3% 大きく・9mm 高く
+# 出る(handbook 4-118)。
+# ただし**その先は頭頂ではなく骸の脇に置く** ―― 正面図の房は x=±25〜50
+# にあり、背面図では骸のドームが最高点(z=266.8)で羽は出ていない。
+# 頭頂の真後ろから立てた版は、背面が「棘の冠」になった ―― 背面から見て
+# **骸のドームの上に帯がかかる**からで、帯の x は各高さの rx より外へ
+# 出しておく必要がある(handbook 4-119)
+HOOD = [
+    # 上の層。頭頂から側頭へ、骸の縁に沿って下りる
+    (-22.0, 0.60, (0.0520, -0.1000, 0.2265), 0.0158, 3),
+    (-4.0, 0.52, (0.0478, -0.0880, 0.2370), 0.0162, 0),
+    (16.0, 0.44, (0.0420, -0.0720, 0.2470), 0.0158, 2),
+    (30.0, 0.41, (0.0410, -0.0640, 0.2560), 0.0152, 1),
+    (40.0, 0.38, (0.0380, -0.0560, 0.2685), 0.0150, 3),   # 全高の頂点(骸の脇)
+    (52.0, 0.36, (0.0355, -0.0480, 0.2620), 0.0146, 0),
+    # 下の層。ひとつ外へずらして重なりを作る
+    (-26.0, 0.74, (0.0540, -0.1060, 0.2020), 0.0168, 1),
+    (-8.0, 0.66, (0.0545, -0.0940, 0.2140), 0.0170, 3),
+    (14.0, 0.58, (0.0455, -0.0780, 0.2280), 0.0164, 0),
+    (40.0, 0.52, (0.0400, -0.0600, 0.2400), 0.0156, 2),
+    (60.0, 0.48, (0.0330, -0.0470, 0.2470), 0.0148, 1),
+]
 # 襟。頭骨の付け根を囲って「首」を消す。(v, 方位角(度。0=前), 長さ, 幅, 起き上がり)
 RUFF = ([(0.95, a, 0.048, 0.0185, 0.46) for a in (-52, -26, 0, 26, 52)]
         + [(0.84, a, 0.054, 0.0195, 0.38) for a in (-78, -50, -22, 22, 50, 78)])
@@ -653,6 +702,20 @@ def build_feathers() -> list[bpy.types.Object]:
         def at(t, b=base, n=nrm, o=out, ln=ln):
             return b + o * (ln * t) + n * (0.004 * math.sin(math.pi * t)), n
         _strap(co, faces, uvs, at, wd, int(_jitter(v * 97.0, adeg) * STRIPES))
+    # ---- 項の羽(頭巾)。骸の面から立ち上がって頭頂と側頭を囲う
+    for hi, (az, t0, tip, wd, stripe) in enumerate(HOOD):
+        root = _skull_point(az, t0, 1.02)
+        tipv = Vector(tip)
+        rx, ry, _cy = _ring_at(t0)
+        a = math.radians(az)
+        nrm = Vector((math.cos(a) / rx, math.sin(a) / ry, 0.0)).normalized()
+        # 中ほどは骸の面から少しだけ浮かせる ―― 直線で結ぶと骸へめり込む
+        mid = (root + tipv) * 0.5 + nrm * 0.0060
+        for side in ((1.0,) if abs(root.x) + abs(tipv.x) < 1e-4 else (-1.0, 1.0)):
+            def at(u, r=root, m=mid, e=tipv, n=nrm, sd=side):
+                q = (r * ((1 - u) ** 2) + m * (2 * (1 - u) * u) + e * (u * u))
+                return Vector((q.x * sd, q.y, q.z)), Vector((n.x * sd, n.y, n.z))
+            _strap(co, faces, uvs, at, wd, stripe)
     # ---- 翼の雨覆
     for side in (-1.0, 1.0):
         for row in range(COVERT_ROWS):
@@ -833,6 +896,47 @@ TEX_SIZE = 384
 BONE_TEX = 1024
 TARGET_TRIS = 9000
 
+# 眼窩は**設定画からトレースする**(tools/ashiatodori_decal.py)。
+# 縁の形も中の階調も上の外側の光も、想像で描くと似ない
+# (ガルドの face.svg の教訓 ―― 指標は合うのに顔が似ない)。
+# デカールは骸の媒介変数 (方位角, t) の空間に入っているので、
+# `_skull_uv()` でそのまま引ける。R=暗さ G=光 A=被覆
+import os as _os
+
+DECAL_DIR = _os.path.join(
+    _os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))),
+    "design", "characters", "ashiatodori", "generated")
+_decal_cache: dict = {}
+
+
+def _skull_decal(deg: float, t: float):
+    """骸のデカールを双一次補間で引く -> (暗さ, 光, 被覆)。"""
+    if "skull" not in _decal_cache:
+        import json
+        import numpy as np
+        meta = json.load(open(_os.path.join(DECAL_DIR,
+                                            "ashiatodori-skull-decal.json")))
+        img = bpy.data.images.load(_os.path.join(DECAL_DIR,
+                                                 "ashiatodori-skull-decal.png"))
+        w, h = img.size
+        px = np.empty(w * h * 4, dtype=np.float32)
+        img.pixels.foreach_get(px)
+        bpy.data.images.remove(img)
+        _decal_cache["skull"] = (px.reshape(h, w, 4)[::-1], meta)
+    dec, meta = _decal_cache["skull"]
+    h, w = dec.shape[:2]
+    a0, a1 = meta["az"]
+    t0, t1 = meta["t"]
+    fx = (deg - a0) / (a1 - a0) * w - 0.5
+    fy = (t - t0) / (t1 - t0) * h - 0.5
+    x0, y0 = math.floor(fx), math.floor(fy)
+    if x0 < 0 or y0 < 0 or x0 + 1 >= w or y0 + 1 >= h:
+        return (0.0, 0.0, 0.0)
+    tx, ty = fx - x0, fy - y0
+    q = (dec[y0, x0] * (1 - tx) + dec[y0, x0 + 1] * tx) * (1 - ty) \
+        + (dec[y0 + 1, x0] * (1 - tx) + dec[y0 + 1, x0 + 1] * tx) * ty
+    return (float(q[0]), float(q[1]), float(q[3]))
+
 def _mix(a, b, t):
     t = min(1.0, max(0.0, t))
     return tuple(a[i] + (b[i] - a[i]) * t for i in range(3))
@@ -891,25 +995,15 @@ def bone_color(p: Vector, n: Vector):
                                  abs(t - dt) / ht)
             dent = max(dent, e)
         base = _mix(base, BONE_SHADE, min(1.0, dent / 0.6) * 0.34)
-        # 眼窩。彫った窓の**内側を一様に黒で埋める**。縁の階調を広く
-        # 取ると、黒目のまわりに白目のような環ができて「つやのある大きな
-        # 目」になる ―― 骸の眼窩は穴なので、縁は薄く切る(handbook 4-112)
-        best, side = 0.0, 1.0
-        for da, dt, hw, ht, _d in SKULL_HOLES:
-            e = 1.0 - math.hypot(abs((deg - da + 180.0) % 360.0 - 180.0) / hw,
-                                 abs(t - dt) / ht)
-            if e > best:
-                best, side = e, (1.0 if da > -90.0 else -1.0)
-        if best > 0.0:
-            base = _mix(base, EYE, min(1.0, best / 0.06))
-            # 光は眼窩の**上の外側**に小さく1点(設定画の実測)。
-            # 大きくすると眼球に見えるので 3mm 相当に留める
-            da = -SOCKET_AZ if side > 0 else -(180.0 - SOCKET_AZ)
-            h = 1.0 - math.hypot(
-                abs((deg - (da + 6.3 * side) + 180.0) % 360.0 - 180.0) / 3.2,
-                abs(t - (SOCKET_T - 0.072)) / 0.020)
-            if h > 0.0:
-                base = _mix(base, EYE_HILITE, min(1.0, h / 0.5) * 0.72)
+        # 眼窩。**設定画からトレースしたデカール**を引く。縁の形も
+        # 中の階調も光の位置も絵のまま出る。色は紙から取らず、暗さ(R)と
+        # 光(G)を意図として受け取ってパレットから出す ―― こうしないと
+        # ダンジョンの寒色の灯りへの暖色補正が効かない(handbook 4-116)
+        dark, hil, cov = _skull_decal(deg, t)
+        if cov > 0.0:
+            base = _mix(base, EYE, min(1.0, dark * 1.30) * cov)
+            if hil > 0.0:
+                base = _mix(base, EYE_HILITE, min(1.0, hil * 1.20) * cov)
         return base
     # 嘴。先へ向かって暗く、上下の合わせ目に線、付け根に鼻孔
     axis = (BEAK_TIP - BEAK_ROOT)
