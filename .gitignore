@@ -22,3 +22,7 @@ preview.log
 
 # 三面図シートとの比較合成(compare_sheet.py)は手元で再生成できる作業画像
 tools/preview/turnaround/*-vs-sheet.png
+
+# 比較画像の中間ファイル(tools/*_compare.py が 40 秒で作り直す)
+tools/preview/silhouettes/*-gate-*.png
+tools/preview/silhouettes/*-shade-*.png
