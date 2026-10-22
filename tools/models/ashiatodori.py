@@ -73,8 +73,8 @@ CLAY = (0.66, 0.63, 0.60)   # 造形レビュー用の単色
 SKULL_C = Vector((0.000, -0.106, 0.196))     # x,y の基準と、眼の高さ
 SKULL_TOP = 0.259                            # t=0 の高さ
 SKULL_H = 0.087                              # t=1 までの落差(下縁 z=172)
-SKULL_N = 40     # 眼窩を**彫る**ので方位角の解像度が要る。眼窩の角半幅
-                 # 16度は 9度刻みで4分割 ―― これ以下だと穴が三角になる
+# 方位角の分割は `_skull_azimuths()`(縁の歯に合わせて 68 点、平均 5.3 度)。
+# 眼窩の角半幅 16 度に 6 点入るので穴は丸く保てる
 SKULL_UV_R = 0.058                           # organic_uv で切り出す球の半径
 # (t, rx, ry, cy)  cy は SKULL_C.y からの前後のずれ
 SKULL_RINGS = [
@@ -141,10 +141,64 @@ SKULL_BUMPS = [
 ]
 # 頭頂と後頭の境の稜線(側面のシルエットに角を作る)。塗りには出さない
 SKULL_DENTS_EXTRA = [(90.0, 0.138, 36.0, 0.055, 0.025)]
-# 骸の下縁の形。真ん中(嘴が出るところ)で高く、頬で低い
-RIM_LIFT = 0.140      # 真正面で持ち上げる t(= 12.2mm)
-RIM_FROM = 0.780
-RIM_CHIP = 0.020      # 欠けの振幅(t)
+# 骸の縁。**骸は頭全体を包む殻ではなく、顔と頭頂を覆う割れた兜。**
+# 設定画では顔のまわりで必ず**骨が羽の上**に乗っている ―― 側面図では
+# 骨の後縁が眼の後ろをぎざぎざに下り、その後ろは項の羽。正面図では頬の
+# 下で骨の歯が羽の上へ垂れる。背面図では骨のドームの下半分を羽が覆う。
+# 閉じた殻にして羽を上から被せていた版は、顔の脇に羽が乗って「頭巾を
+# かぶった骸」になっていた(handbook 4-133)。
+# 縁の高さを方位角ごとに変える: 真正面(嘴の付け根)z=184 / 頬 z=175 /
+# 真後ろ z=222
+RIM_FRONT = 0.140     # 真正面で持ち上げる t
+RIM_SIDE = 0.030      # 真横で持ち上げる t
+RIM_REAR = 0.600      # 真後ろで持ち上げる t(t=0.40 = z 224)
+# 持ち上げは頬の**すぐ後ろから**急に効かせる(指数 < 1)。側面図の骨の後縁は
+# 眼の後ろをほぼ縦に下りている ―― ゆるく効かせると後縁が下の方にしか
+# 出ず、側面では「滑らかな卵の後頭」に見えた
+RIM_REAR_EXP = 0.60
+RIM_FROM = 0.330      # ここより下の段を縁へ向けて詰め直す
+# **縁はぎざぎざ。** 歯は下向き(羽の上へ垂れる向き)にだけ伸ばす ――
+# 上向きの切れ込みにすると、眼窩の下縁を食い破って穴が開く
+RIM_TEETH = 17        # 一周の歯の数。設定画の正面で頬から頬まで 6〜7 本
+RIM_JAG = 0.150       # 歯の長さの基準(t。= 13mm)。設定画の頬の歯は 10〜15mm
+RIM_FLARE = 0.055     # 縁を外へ反らせる量(半径比)。**下の羽の上へ骨を乗せる**
+
+
+def _rim_base(deg: float) -> float:
+    """歯を除いた縁の高さ(t)。"""
+    a = math.radians(deg)
+    s, c = math.sin(a), math.cos(a)
+    return (1.0 - RIM_FRONT * max(0.0, -s) ** 2 - RIM_SIDE * c * c
+            - RIM_REAR * max(0.0, s) ** RIM_REAR_EXP)
+
+
+def _tooth_shape(deg: float) -> float:
+    """縁の歯の形 0..1(谷 0 / 先 1)。幅と深さを歯ごとに散らす。"""
+    u = (deg + 180.0) / 360.0 * RIM_TEETH
+    k = int(math.floor(u)) % RIM_TEETH
+    f = u - math.floor(u)
+    tip = 0.5 + 0.36 * (_jitter(k * 1.9, 3.0) - 0.5)
+    v = f / tip if f < tip else (1.0 - f) / (1.0 - tip)
+    depth = 0.55 + 0.95 * _jitter(k * 4.1, 8.0)
+    return max(0.0, v) ** 1.15 * depth      # ほぼ直線の三角。先は尖る
+
+
+def _rim_t(deg: float) -> float:
+    """縁の高さ(t。歯の先まで込み)。ここより下は骨が無い。"""
+    return _rim_base(deg) + RIM_JAG * _tooth_shape(deg)
+
+
+def _skull_azimuths() -> list[float]:
+    """骸の断面の方位角(deg)。**歯の先と谷に必ず頂点を置く。**
+    等間隔だと先を取りこぼして歯が丸まる。歯 1 本に 4 点。"""
+    out = []
+    for k in range(RIM_TEETH):
+        tip = 0.5 + 0.36 * (_jitter(k * 1.9, 3.0) - 0.5)
+        for f in (0.0, tip * 0.55, tip, tip + (1.0 - tip) * 0.45):
+            out.append(-180.0 + 360.0 * (k + f) / RIM_TEETH)
+    return out
+
+
 # 嘴。**設定画の嘴はほぼ真下へ垂れて、先が鉤状に曲がる。**
 # 側面の実測では根元から先まで**前へ 26mm・下へ 66mm**しか進まない。
 # 前へ 52mm 出していた版は、側面から見て「骸に刺さった円錐」だった
@@ -322,41 +376,135 @@ def _on_skull(p: Vector) -> bool:
     彫りは (rx, ry) を一律に (1+k) 倍するので、x/rx と y/ry の長さを
     測れば「面の上か」が判る。
     """
-    t = (SKULL_TOP - p.z) / SKULL_H
-    if not -0.02 <= t <= 1.02:
+    deg, t, r, want, *_rest = _bone_frame(p)
+    if not -0.02 <= t <= _rim_t(deg) + 0.03:
         return False
-    tc = min(1.0, max(0.0, t))
-    rx, ry, cy = _ring_at(tc)
-    ux = (p.x - SKULL_C.x) / rx
-    uy = (p.y - SKULL_C.y - cy) / ry
-    want = 1.0 + _skull_k(math.degrees(math.atan2(uy, ux)), tc)
-    return abs(math.hypot(ux, uy) - want) < 0.12
+    return abs(r - want) < 0.14
 
 
 def build_skull() -> bpy.types.Object:
-    """骸。眼窩・側頭窩・鼻腔を**彫り**、額・眉庇・鼻梁・頬骨・後頭を
-    **押し出す**(ホネガラミの `_sculpt_skull` と同じ)。"""
+    """骸。眼窩・側頭窩・鼻腔を**彫り**、額・眉庇・鼻梁・頬骨を
+    **押し出す**(ホネガラミの `_sculpt_skull` と同じ)。
+
+    縁は2段で作る。下の段は**滑らかな**縁の高さ(`_rim_base`)へ詰め直し、
+    歯は**最後の段だけ**に付けて真下へ垂らす。歯の凹凸を下の段全体へ
+    配ると、隣り合う方位角で段の高さが食い違い、眼の下から鼻にかけて
+    面がしわくちゃになった(handbook 4-134)。"""
+    import bmesh
+    azs = _skull_azimuths()
     sections = []
-    for t0, _rx, _ry, _cy in SKULL_RINGS:
+    n_rings = len(SKULL_RINGS)
+    for ri, (t0, _rx, _ry, _cy) in enumerate(SKULL_RINGS):
+        last = ri == n_rings - 1
         sec = []
-        for i in range(SKULL_N):
-            a = math.tau * i / SKULL_N
-            deg = math.degrees(a)
-            deg = deg if deg <= 180.0 else deg - 360.0
-            t = t0
+        for deg in azs:
+            a = math.radians(deg)
+            t, flare, drop = t0, 0.0, 0.0
             if t0 > RIM_FROM:
-                s = ((t0 - RIM_FROM) / (1.0 - RIM_FROM)) ** 1.4
-                front = max(0.0, -math.sin(math.radians(deg))) ** 2
-                t -= s * (RIM_LIFT * front
-                          + RIM_CHIP * (_jitter(i * 2.3, 7.0) - 0.5) * 2.0)
-            rx, ry, cy = _ring_at(t)
-            k = 1.0 + _skull_k(deg, t)
+                base = _rim_base(deg)
+                s = (t0 - RIM_FROM) / (1.0 - RIM_FROM)
+                t = RIM_FROM + (t0 - RIM_FROM) * (base - RIM_FROM) / (1.0 - RIM_FROM)
+                flare = RIM_FLARE * s ** 8
+                if last:
+                    tooth = _tooth_shape(deg)
+                    drop = RIM_JAG * SKULL_H * tooth
+                    flare *= 1.0 + 0.9 * tooth     # 歯の先ほど外へ ―― 羽の上に乗る
+            rx, ry, cy = _ring_at(min(t, 1.0))
+            k = 1.0 + _skull_k(deg, min(t, 1.0)) + flare
             sec.append((SKULL_C.x + rx * math.cos(a) * k,
                         SKULL_C.y + cy + ry * math.sin(a) * k,
-                        SKULL_TOP - t * SKULL_H))
+                        SKULL_TOP - t * SKULL_H - drop))
         sections.append(sec)
-    return C.section_loft(f"{NAME}_skull", sections, smooth=True,
-                          cap_top=True, cap_bottom=True)
+    skull = C.section_loft(f"{NAME}_skull", sections, smooth=True,
+                           cap_top=False, cap_bottom=True)
+    # 底は平らな多角形で塞がず、**頭の内側へ引っ込んだ扇**で塞ぐ。後ろの縁を
+    # 持ち上げたので底が傾き、平らに塞ぐと大きな三角形の面が後ろから見えた
+    bm = bmesh.new()
+    bm.from_mesh(skull.data)
+    bm.verts.ensure_lookup_table()
+    rim = bm.verts[-len(azs):]
+    c = Vector((0.0, 0.0, 0.0))
+    for v in rim:
+        c += v.co
+    c /= len(rim)
+    hub = bm.verts.new(c + Vector((0.0, 0.0, 0.030)))
+    for i in range(len(rim)):
+        try:
+            bm.faces.new((hub, rim[(i + 1) % len(rim)], rim[i]))
+        except ValueError:
+            pass
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bm.to_mesh(skull.data)
+    bm.free()
+    for poly in skull.data.polygons:
+        poly.use_smooth = True
+    return skull
+
+
+# 後頭の芯。縁を後ろで持ち上げたぶん、頭の後ろ半分は**羽の頭**になる。
+# 芯は羽の隙間から骸の内側が透けないための詰め物(表には出ない)
+# **骨の縁の内側に収める。** 縁より後ろへ出すと、骨の縁の上に暗い芯が
+# はみ出して、後ろから見た頭が「黒い器」になった
+HEAD_CORE_C = Vector((0.000, -0.100, 0.198))
+HEAD_CORE_R = Vector((0.034, 0.024, 0.030))
+
+
+def build_head_core() -> bpy.types.Object:
+    return C.uv_sphere(f"{NAME}_headcore", HEAD_CORE_C, 1.0, segments=12, rings=8,
+                       scale=tuple(HEAD_CORE_R))
+
+
+def _bone_frame(p: Vector):
+    """点 p を骸の媒介変数で読む -> (deg, t, 正規化半径, 骨の面の半径, rx, ry, cy, 骨の有無)。
+
+    縁の基準(`_rim_base`)より下の**歯の帯**では、歯の頂点は基準の段の
+    半径のまま真下へ垂れている。そこを素直に t の段で測ると半径がずれ、
+    歯が「骨の外」と判定される(歯が嘴の茶色に塗られた原因)。"""
+    t = (SKULL_TOP - p.z) / SKULL_H
+    tc = min(max(t, 0.0), 1.0)
+    rx, ry, cy = _ring_at(tc)
+    ux = (p.x - SKULL_C.x) / rx
+    uy = (p.y - SKULL_C.y - cy) / ry
+    deg = math.degrees(math.atan2(uy, ux))
+    base = _rim_base(deg)
+    if t > base:
+        rx, ry, cy = _ring_at(min(base, 1.0))
+        ux = (p.x - SKULL_C.x) / rx
+        uy = (p.y - SKULL_C.y - cy) / ry
+        want = 1.0 + _skull_k(deg, min(base, 1.0)) \
+            + RIM_FLARE * (1.0 + 0.9 * _tooth_shape(deg))
+    else:
+        want = 1.0 + _skull_k(deg, tc)
+    has_bone = 0.0 <= t <= _rim_t(deg) + 0.01
+    return deg, t, math.hypot(ux, uy), want, rx, ry, cy, has_bone
+
+
+TUCK_MARGIN = 0.26    # 骨の面からこの比率(≈10mm)以内にある羽は骨の下へ入れる
+TUCK_IN = 0.92
+
+
+def _tuck_under_bone(p: Vector) -> Vector:
+    """**羽を骨の下へ入れる。** 骨のある範囲で骨の面に乗っている羽の頂点を
+    骨の内側へ押し込む。どの羽の組でも、骨の縁で羽が骨の下へ消えるように
+    なる ―― 設定画の「骨が羽の上」を、羽の置き方ごとの気配りではなく
+    1か所で保証する(handbook 4-133)。
+    骨の無いところ(縁の歯の先より下)には触らない ―― 歯の先より 10mm 下まで
+    押し込んでいた版は、後頭の羽がまるごと芯の中へ消えて、後ろから見ると
+    頭が黒い器になった。"""
+    deg, t, r, want, rx, ry, cy, has_bone = _bone_frame(p)
+    if not has_bone or r < 1e-6:
+        return p
+    if r >= want + TUCK_MARGIN or r <= want * TUCK_IN:
+        return p
+    k = want * TUCK_IN / r
+    return Vector((SKULL_C.x + (p.x - SKULL_C.x) * k,
+                   SKULL_C.y + cy + (p.y - SKULL_C.y - cy) * k, p.z))
+
+
+def _tuck_object(obj) -> None:
+    for v in obj.data.vertices:
+        v.co = _tuck_under_bone(obj.matrix_world @ v.co)
+    obj.data.update()
 
 
 def build_beak() -> bpy.types.Object:
@@ -593,14 +741,16 @@ def _strap(co, faces, uvs, at, width, stripe):
 # 翼弦の向き(稜線×X)が左右で同じにならず**非対称**になる(実測: 正面の
 # z=205 で左 −59mm / 右 +84mm)
 CREST = [
-    (0.995, 0.0, 0.0540, 0.0210, 0.95, 0),
-    (0.985, 20.0, 0.0520, 0.0200, 0.90, 2),
-    (0.955, 32.0, 0.0470, 0.0190, 0.80, 3),
-    (0.930, 12.0, 0.0555, 0.0215, 0.86, 1),
-    (0.930, 28.0, 0.0560, 0.0205, 0.78, 3),
-    (0.880, 24.0, 0.0566, 0.0205, 0.68, 0),
-    (0.880, 38.0, 0.0480, 0.0195, 0.60, 2),
-    (0.830, 30.0, 0.0460, 0.0190, 0.52, 1),
+    # 起き上がり(rise)は小さく ―― 大きいと冠羽が**前へ**倒れて骸の後頭へ
+    # 刺さる。骸の後ろを羽の頭にした今は、上後ろへ流して項につなぐ
+    (0.995, 0.0, 0.0540, 0.0210, 0.18, 0),
+    (0.985, 20.0, 0.0520, 0.0200, 0.18, 2),
+    (0.955, 32.0, 0.0470, 0.0190, 0.18, 3),
+    (0.930, 12.0, 0.0555, 0.0215, 0.18, 1),
+    (0.930, 28.0, 0.0560, 0.0205, 0.18, 3),
+    (0.880, 24.0, 0.0566, 0.0205, 0.18, 0),
+    (0.880, 38.0, 0.0480, 0.0195, 0.18, 2),
+    (0.830, 30.0, 0.0460, 0.0190, 0.18, 1),
 ]
 # 項の羽(頭巾)。**骸を囲って「顔だけが出ている」状態を作る。**
 # ホネガラミの頭蓋と同じ考え方 ―― 設定画の骸は塊の中に埋まっていて、
@@ -626,33 +776,32 @@ CREST = [
 # 頭頂の真後ろから立てた版は、背面が「棘の冠」になった ―― 背面から見て
 # **骸のドームの上に帯がかかる**からで、帯の x は各高さの rx より外へ
 # 出しておく必要がある(handbook 4-119)
+# **骸の後ろから立ち上がる房にする。** 根元を骸の面に置いていた版は、
+# 帯が頬と側頭の骨の上に乗り、設定画の「骨が羽の上」と逆だった。
+# 根元は骸の後ろ(y > 後縁)かつ骸の半径の外(|x| > rx)に置く ―― こうすると
+# 正面からは**骨の縁の向こうから**房が出て(骨が上)、側面では頭の後ろ、
+# 背面ではドームの脇に収まる(handbook 4-119 / 4-133)。
+# (根元(x,y,z), 先(x,y,z), 幅, 縞)。x>=0 の側だけ書いて鏡にする
 HOOD = [
-    # 上の層。頭頂から側頭へ、骸の縁に沿って下りる
-    (-22.0, 0.60, (0.0557, -0.0950, 0.2215), 0.0174, 3),
-    (-13.0, 0.56, (0.0547, -0.0900, 0.2270), 0.0176, 1),
-    (-4.0, 0.52, (0.0530, -0.0850, 0.2325), 0.0178, 0),
-    (6.0, 0.48, (0.0507, -0.0780, 0.2380), 0.0176, 2),
-    (16.0, 0.44, (0.0477, -0.0710, 0.2440), 0.0174, 2),
-    (23.0, 0.42, (0.0452, -0.0670, 0.2495), 0.0170, 0),
-    (30.0, 0.41, (0.0407, -0.0630, 0.2560), 0.0168, 1),
-    (40.0, 0.38, (0.0270, -0.0570, 0.2690), 0.0162, 3),   # 全高の頂点
-    (46.0, 0.37, (0.0330, -0.0545, 0.2650), 0.0170, 1),
-    (34.0, 0.39, (0.0395, -0.0600, 0.2620), 0.0168, 2),
-    (52.0, 0.36, (0.0332, -0.0500, 0.2600), 0.0162, 0),
-    # 下の層。ひとつ外へずらして重なりを作る
-    (-26.0, 0.74, (0.0475, -0.1000, 0.2035), 0.0160, 1),
-    (-17.0, 0.70, (0.0480, -0.0950, 0.2090), 0.0162, 2),
-    (-8.0, 0.66, (0.0478, -0.0900, 0.2145), 0.0162, 3),
-    (3.0, 0.62, (0.0480, -0.0840, 0.2230), 0.0162, 0),
-    (14.0, 0.58, (0.0440, -0.0770, 0.2295), 0.0160, 0),
-    (27.0, 0.55, (0.0410, -0.0690, 0.2355), 0.0156, 2),
-    (40.0, 0.52, (0.0380, -0.0610, 0.2410), 0.0152, 2),
-    (50.0, 0.50, (0.0345, -0.0550, 0.2450), 0.0148, 3),
-    (60.0, 0.48, (0.0310, -0.0490, 0.2480), 0.0146, 1),
+    ((0.0480, -0.0600, 0.2050), (0.0260, -0.0700, 0.2680), 0.0170, 3),
+    ((0.0495, -0.0590, 0.2030), (0.0330, -0.0680, 0.2620), 0.0172, 1),
+    ((0.0510, -0.0580, 0.2010), (0.0380, -0.0660, 0.2550), 0.0174, 0),
+    ((0.0525, -0.0570, 0.1990), (0.0430, -0.0640, 0.2470), 0.0174, 2),
+    ((0.0540, -0.0560, 0.1970), (0.0470, -0.0620, 0.2390), 0.0172, 1),
+    ((0.0555, -0.0550, 0.1950), (0.0510, -0.0600, 0.2300), 0.0170, 3),
+    ((0.0565, -0.0540, 0.1930), (0.0550, -0.0580, 0.2210), 0.0168, 0),
+    ((0.0575, -0.0530, 0.1910), (0.0580, -0.0560, 0.2120), 0.0166, 2),
+    ((0.0580, -0.0520, 0.1890), (0.0600, -0.0540, 0.2030), 0.0164, 1),
 ]
+# 後頭の羽。縁を後ろで持ち上げた下(もと骨だった所)を、骨の縁の**下から**
+# 垂れる羽で埋める。根元は縁の少し上 = 反った縁の裏に隠れる
+OCCIPUT_AZ = [10.0 + 160.0 * i / 14 for i in range(15)]
+OCCIPUT_ROWS = 3
 # 襟。頭骨の付け根を囲って「首」を消す。(v, 方位角(度。0=前), 長さ, 幅, 起き上がり)
-RUFF = ([(0.95, a, 0.048, 0.0185, 0.46) for a in (-52, -26, 0, 26, 52)]
-        + [(0.84, a, 0.054, 0.0195, 0.38) for a in (-78, -50, -22, 22, 50, 78)])
+# 襟は置かない。**骨の後縁を持ち上げたら(4-133)、首から骨の下へ
+# 斜めに伸びる襟の帯が側面で縁から見えて、後頭を横切る黒い棒になった。**
+# 横の帯は正面でも頬から触角のように出た。顎の下は胴の羽で埋まる
+RUFF: list = []
 # 腹の下の帳。設定画の正面図は z=72 で 91mm・z=60 で 102mm・z=54 で 83mm の
 # **1本の塊**が続き、脚はその中から出てくる。塊の下端(z=75)で切ると
 # 脚が剥き出しの棒になる ―― 幅の狭い幕だけを z=55 まで垂らす
@@ -761,20 +910,39 @@ def build_feathers() -> list[bpy.types.Object]:
         def at(t, b=base, n=nrm, d=down, ln=ln):
             return b + d * (ln * t) + n * (0.0026 * math.sin(math.pi * t)), n
         _strap(co, faces, uvs, at, wd, stripe)
-    # ---- 項の羽(頭巾)。骸の面から立ち上がって頭頂と側頭を囲う
-    for hi, (az, t0, tip, wd, stripe) in enumerate(HOOD):
-        root = _skull_point(az, t0, 1.02)
-        tipv = Vector(tip)
-        rx, ry, _cy = _ring_at(t0)
-        a = math.radians(az)
-        nrm = Vector((math.cos(a) / rx, math.sin(a) / ry, 0.0)).normalized()
-        # 中ほどは骸の面から少しだけ浮かせる ―― 直線で結ぶと骸へめり込む
-        mid = (root + tipv) * 0.5 + nrm * 0.0060
-        for side in ((1.0,) if abs(root.x) + abs(tipv.x) < 1e-4 else (-1.0, 1.0)):
-            def at(u, r=root, m=mid, e=tipv, n=nrm, sd=side):
+    # ---- 項の羽(頭巾)。骸の後ろから立ち上がり、骨の縁の向こうに房を出す
+    for root_t, tip_t, wd, stripe in HOOD:
+        root, tipv = Vector(root_t), Vector(tip_t)
+        mid = (root + tipv) * 0.5 + Vector((0.0040, 0.0020, 0.0))
+        for side in (-1.0, 1.0):
+            # 帯の幅は x 向き(法線を後ろへ向ける)。正面・背面に幅が出る
+            # 少し横へ振る ―― 真後ろ向きだと側面で帯が真横から見えて棒になる
+            n = Vector((0.55 * side, 1.0, 0.0)).normalized()
+
+            def at(u, r=root, m=mid, e=tipv, n=n, sd=side):
                 q = (r * ((1 - u) ** 2) + m * (2 * (1 - u) * u) + e * (u * u))
-                return Vector((q.x * sd, q.y, q.z)), Vector((n.x * sd, n.y, n.z))
+                return Vector((q.x * sd, q.y, q.z)), n
             _strap(co, faces, uvs, at, wd, stripe)
+    # ---- 後頭の羽。骨の縁の下から垂れ、後頭の芯を包む
+    for ci, az in enumerate(OCCIPUT_AZ):
+        z_top = SKULL_TOP - _rim_base(az) * SKULL_H + 0.004
+        for row in range(OCCIPUT_ROWS):
+            z0 = z_top - 0.010 * row - 0.004 * _jitter(ci, row)
+            ln = 0.026 + 0.008 * _jitter(row * 3 + 1, ci)
+
+            def at(u, az=az, z0=z0, ln=ln):
+                z = z0 - ln * u
+                k = 0.98 + 0.12 * u
+                a = math.radians(az)
+                dz = max(-0.98, min(0.98, (z - HEAD_CORE_C.z) / HEAD_CORE_R.z))
+                sc = math.sqrt(1.0 - dz * dz)
+                p = Vector((HEAD_CORE_C.x + HEAD_CORE_R.x * sc * math.cos(a) * k,
+                            HEAD_CORE_C.y + HEAD_CORE_R.y * sc * math.sin(a) * k, z))
+                n = Vector((math.cos(a) / HEAD_CORE_R.x, math.sin(a) / HEAD_CORE_R.y,
+                            0.0)).normalized()
+                return p, n
+            # 方位角は 10〜170 度で左右に対称に並んでいる(az と 180-az)
+            _strap(co, faces, uvs, at, 0.0150, int(_jitter(ci * 7, row) * STRIPES))
     # ---- 翼の雨覆
     for side in (-1.0, 1.0):
         for row in range(COVERT_ROWS):
@@ -791,6 +959,8 @@ def build_feathers() -> list[bpy.types.Object]:
                     return p + n * (0.0030 * math.sin(math.pi * t * 0.5)), n
                 _strap(co, faces, uvs, at, COVERT_W * 1.18 * (0.82 + 0.36 * j),
                        int(_jitter(row * 7 + 3, k * side) * STRIPES))
+    # **骨のある範囲で骨に乗る羽は、全部骨の下へ入れる**(4-133)
+    co = [tuple(_tuck_under_bone(Vector(c))) for c in co]
     me = bpy.data.meshes.new(f"{NAME}_feathers")
     me.from_pydata(co, [], faces)
     me.update()
@@ -829,16 +999,18 @@ def build_feathers() -> list[bpy.types.Object]:
 # ぶんのコストで、設定画の背面図は骸をひとまわり大きく描いている
 # (106.9x85.2 / 上端 266.8 対 98.1x102.4 / 258.3)
 NAPE = [
+    # 根元は**骸の後縁より後ろ**。後縁を前へ越えると、側面で骨のぎざぎざの
+    # 後縁を羽が隠してしまう(設定画は骨の後縁が羽の上に見える)
     # (根元(x,y,z), 先(x,y,z), 半厚(x), 半翼弦, 縞)
     # **枚数で重なりを作る。** 4 枚だと 1 枚が大きくなりすぎ、側面で
     # 角ばった板が数枚立っているように見えた(handbook 4-131)
-    ((0.0430, -0.0700, 0.1880), (0.0440, -0.0180, 0.2120), 0.0050, 0.0180, 1),
-    ((0.0420, -0.0760, 0.1960), (0.0415, -0.0200, 0.2225), 0.0049, 0.0176, 2),
-    ((0.0400, -0.0820, 0.2035), (0.0385, -0.0230, 0.2325), 0.0048, 0.0170, 3),
-    ((0.0375, -0.0875, 0.2110), (0.0350, -0.0265, 0.2415), 0.0046, 0.0164, 0),
-    ((0.0345, -0.0925, 0.2185), (0.0315, -0.0300, 0.2490), 0.0044, 0.0156, 2),
-    ((0.0310, -0.0965, 0.2255), (0.0280, -0.0340, 0.2545), 0.0042, 0.0146, 1),
-    ((0.0270, -0.0995, 0.2320), (0.0245, -0.0385, 0.2580), 0.0040, 0.0134, 3),
+    ((0.0430, -0.0440, 0.1880), (0.0440, -0.0080, 0.2120), 0.0050, 0.0180, 1),
+    ((0.0420, -0.0500, 0.1960), (0.0415, -0.0100, 0.2225), 0.0049, 0.0176, 2),
+    ((0.0400, -0.0560, 0.2035), (0.0385, -0.0130, 0.2325), 0.0048, 0.0170, 3),
+    ((0.0375, -0.0615, 0.2110), (0.0350, -0.0165, 0.2415), 0.0046, 0.0164, 0),
+    ((0.0345, -0.0665, 0.2185), (0.0315, -0.0200, 0.2490), 0.0044, 0.0156, 2),
+    ((0.0310, -0.0705, 0.2255), (0.0280, -0.0240, 0.2545), 0.0042, 0.0146, 1),
+    ((0.0270, -0.0735, 0.2320), (0.0245, -0.0285, 0.2580), 0.0040, 0.0134, 3),
 ]
 
 
@@ -856,6 +1028,8 @@ def build_nape() -> list[bpy.types.Object]:
         for side in (-1.0, 1.0):
             out.append(_blade(f"{NAME}_nape{k}{side:+.0f}", spine, side,
                               rings=5, seg=8, stripe=stripe))
+    for o in out:
+        _tuck_object(o)
     return out
 
 
@@ -879,6 +1053,8 @@ def build_crest() -> list[bpy.types.Object]:
         for side in sides:
             out.append(_blade(f"{NAME}_crest{k}{side:+.0f}", spine, side,
                               rings=5, seg=8, stripe=stripe))
+    for o in out:
+        _tuck_object(o)
     return out
 
 
@@ -965,10 +1141,12 @@ def build_legs() -> list[bpy.types.Object]:
 
 # ------------------------------------------------------------------ 組み立て
 def build_blockout() -> dict:
-    parts = {"skull": build_skull(), "beak": build_beak(), "core": build_core(),
+    parts = {"skull": build_skull(), "beak": build_beak(),
+             "core": build_core(), "head_core": build_head_core(),
              "eyes": build_eyes(),
-             "wings": (build_wings() + build_crest() + build_nape()
-                       + build_tail_blades()),
+             # 冠羽(build_crest)は外した。骸の後ろ半分を羽の頭(後頭の羽 +
+             # 項の蓑 + 頭巾)にしたので役目が無く、残すと頭の上へ棘が立つ
+             "wings": build_wings() + build_nape() + build_tail_blades(),
              "feathers": build_feathers(), "legs": build_legs()}
     clay = C.make_material(f"{NAME}_clay", CLAY, roughness=0.6)
     for o in blockout_objects(parts):
@@ -977,15 +1155,15 @@ def build_blockout() -> dict:
 
 
 def blockout_objects(parts: dict) -> list:
-    return ([parts["skull"], parts["beak"], parts["core"]] + parts["eyes"]
-            + parts["wings"] + parts["feathers"] + parts["legs"])
+    return ([parts["skull"], parts["beak"], parts["core"], parts["head_core"]]
+            + parts["eyes"] + parts["wings"] + parts["feathers"] + parts["legs"])
 
 
 def bare_objects(parts: dict) -> list:
     """羽毛を全部外した「裸の解剖」。ここが 96px で鳥に読めないうちは
     羽毛を1枚も足さない(スリガラスの Body Anatomy Gate)。"""
-    return ([parts["skull"], parts["beak"], parts["core"]] + parts["eyes"]
-            + parts["wings"] + parts["legs"])
+    return ([parts["skull"], parts["beak"], parts["core"], parts["head_core"]]
+            + parts["eyes"] + parts["wings"] + parts["legs"])
 
 
 # ------------------------------------------------------------------- 塗り
@@ -1112,6 +1290,10 @@ def bone_color(p: Vector, n: Vector):
                                  abs(t - dt) / ht)
             dent = max(dent, e)
         base = _mix(base, BONE_SHADE, min(1.0, dent / 0.6) * 0.34)
+        # 割れた縁。縁のすぐ上を落として、歯の輪郭を線で立てる(設定画の
+        # 骨は縁に沿って影の線が入る)
+        edge = 1.0 - min(1.0, max(0.0, _rim_t(deg) - t) / 0.022)
+        base = _mix(base, BONE_SHADE, edge ** 1.5 * 0.42)
         # 眼窩。**設定画からトレースしたデカール**を引く。縁の形も
         # 中の階調も光の位置も絵のまま出る。色は紙から取らず、暗さ(R)と
         # 光(G)を意図として受け取ってパレットから出す ―― こうしないと
@@ -1169,7 +1351,7 @@ def build() -> tuple[list, bpy.types.Object]:
     eye_mat = C.make_material(f"{NAME}_eye", EYE, roughness=0.88)
     plume_mat = C.make_textured_material(f"{NAME}_plume", feather_texture(),
                                          roughness=0.72)
-    for o in [parts["core"]] + parts["legs"]:
+    for o in [parts["core"], parts["head_core"]] + parts["legs"]:
         C.assign_material(o, core_mat)
     for o in (parts["skull"], parts["beak"]):
         C.assign_material(o, bone_mat)
@@ -1193,7 +1375,7 @@ def build() -> tuple[list, bpy.types.Object]:
         mist.append(puff)
     mist_tris = C.tri_count(mist)
 
-    mesh = C.join([parts["core"]] + parts["legs"]
+    mesh = C.join([parts["core"], parts["head_core"]] + parts["legs"]
                   + [parts["skull"], parts["beak"]]
                   + parts["wings"] + parts["feathers"] + parts["eyes"], NAME)
     C.decimate_to(mesh, TARGET_TRIS - mist_tris)
