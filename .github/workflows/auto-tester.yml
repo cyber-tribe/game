@@ -5,8 +5,10 @@ name: 自動テストプレイ
 # (決まった導線の機械的な回帰確認、ci.yml)を置き換えるものではなく、
 # まだ知らない不具合を重み付きランダムな入力で探す、別の仕組み。
 on:
-  schedule:
-    - cron: "0 18 * * *" # 毎日 JST 3:00(UTC 18:00)。開発時間帯を避ける
+  # 課金を抑えるため、毎日の自動実行(schedule)は一時停止中。
+  # 再開するときは下のコメントを外す。手動実行は just auto-tester、
+  # または Actions タブの workflow_dispatch からいつでも可能。
+  # - cron: "0 18 * * *" # 毎日 JST 3:00(UTC 18:00)。開発時間帯を避ける
   workflow_dispatch: {}
 
 permissions:
